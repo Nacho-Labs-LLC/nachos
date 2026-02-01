@@ -40,6 +40,29 @@ toppings, and make it exactly the way you want.
 
 ## Quick Start
 
+### For Development
+
+```bash
+# Clone the repository
+git clone https://github.com/Nacho-Labs-LLC/nachos.git
+cd nachos
+
+# Copy environment variables
+cp .env.example .env
+# Edit .env and add your LLM API key (ANTHROPIC_API_KEY or OPENAI_API_KEY)
+
+# Start the development stack
+docker compose -f docker-compose.dev.yml up
+
+# In another terminal, view logs
+docker compose -f docker-compose.dev.yml logs -f
+
+# Run tests
+./docker/test-infrastructure.sh
+```
+
+### For End Users (coming soon)
+
 ```bash
 # Install the CLI
 curl -fsSL https://nachos.dev/install.sh | sh
@@ -186,6 +209,8 @@ nachos create tool <name>     # Scaffold custom tool
 
 ## Project Structure
 
+### For End Users
+
 ```
 my-nachos/
 ├── nachos.toml           # Your configuration
@@ -196,6 +221,43 @@ my-nachos/
 ├── skills/               # Custom skills
 └── .env                  # Secrets (gitignored)
 ```
+
+### For Developers
+
+```
+nachos/
+├── packages/
+│   ├── core/             # Core services
+│   │   ├── gateway/      # Session management
+│   │   ├── bus/          # NATS message bus
+│   │   ├── llm-proxy/    # LLM provider abstraction
+│   │   └── salsa/        # Policy engine
+│   ├── channels/         # Channel adapters (coming soon)
+│   ├── tools/            # Tool containers (coming soon)
+│   └── shared/           # Shared utilities
+├── docker/               # Docker infrastructure
+│   ├── Dockerfile.base   # Base template
+│   ├── nats/             # NATS config
+│   └── README.md         # Docker docs
+├── docker-compose.dev.yml # Development stack
+└── .env.example          # Environment template
+```
+
+## Development Status
+
+**Phase 0: Foundation Setup** ✅ Complete
+- [x] Repository structure
+- [x] Docker infrastructure with hot-reload
+- [x] Network isolation (internal + egress)
+- [x] Core service scaffolding
+
+**Phase 1: Core Infrastructure** 🚧 In Progress
+- [ ] Gateway implementation
+- [ ] NATS message handling
+- [ ] LLM proxy with provider abstraction
+- [ ] Policy engine (Salsa)
+
+**Phase 2+**: Coming soon...
 
 ## Documentation
 

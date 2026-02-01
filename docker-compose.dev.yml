@@ -1,0 +1,225 @@
+# Docker Compose configuration for Nachos development
+# This file defines all core services with hot-reload support
+
+# ==================== Networks ====================
+networks:
+  # Internal network - no external access
+  # All core components communicate through this isolated network
+  nachos-internal:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+  
+  # Egress network - controlled external access
+  # Only components that need internet access join this network
+  nachos-egress:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
+
+# ==================== Volumes ====================
+volumes:
+  # NATS JetStream data
+  nats-data:
+  # Logs aggregation
+  nachos-logs:
+
+# ==================== Services ====================
+services:
+  # -------------------- Message Bus --------------------
+  bus:
+    container_name: nachos-bus
+    build:
+      context: .
+      dockerfile: packages/core/bus/Dockerfile
+    image: nachos-bus:dev
+    restart: unless-stopped
+    
+    networks:
+      - nachos-internal
+    
+    ports:
+      - "4222:4222"  # NATS client connections
+      - "8222:8222"  # NATS HTTP monitoring
+    
+    volumes:
+      - nats-data:/data
+      - ./docker/nats/nats-server.conf:/etc/nats/nats-server.conf:ro
+      - nachos-logs:/var/log/nachos
+    
+    command: ["-c", "/etc/nats/nats-server.conf"]
+    
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=bus"
+
+  # -------------------- Gateway --------------------
+  gateway:
+    container_name: nachos-gateway
+    build:
+      context: .
+      dockerfile: packages/core/gateway/Dockerfile
+    image: nachos-gateway:dev
+    restart: unless-stopped
+    
+    depends_on:
+      bus:
+        condition: service_healthy
+    
+    networks:
+      - nachos-internal
+    
+    ports:
+      - "3000:3000"
+    
+    environment:
+      - NODE_ENV=development
+      - NATS_URL=nats://bus:4222
+      - PORT=3000
+      - LOG_LEVEL=debug
+    
+    volumes:
+      # Mount source code for hot-reload
+      - ./packages/core/gateway/src:/app/packages/core/gateway/src:ro
+      - ./packages/shared:/app/packages/shared:ro
+      - ./tsconfig.base.json:/app/tsconfig.base.json:ro
+      - ./tsconfig.json:/app/tsconfig.json:ro
+      # Cache node_modules to avoid reinstalling
+      - /app/node_modules
+      - /app/packages/core/gateway/node_modules
+      # Logs
+      - nachos-logs:/var/log/nachos
+    
+    healthcheck:
+      test: ["CMD", "node", "-e", "process.exit(0)"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=gateway"
+
+  # -------------------- LLM Proxy --------------------
+  llm-proxy:
+    container_name: nachos-llm-proxy
+    build:
+      context: .
+      dockerfile: packages/core/llm-proxy/Dockerfile
+    image: nachos-llm-proxy:dev
+    restart: unless-stopped
+    
+    depends_on:
+      bus:
+        condition: service_healthy
+    
+    networks:
+      - nachos-internal
+      - nachos-egress  # Needs external access for LLM APIs
+    
+    ports:
+      - "3001:3001"
+    
+    environment:
+      - NODE_ENV=development
+      - NATS_URL=nats://bus:4222
+      - PORT=3001
+      - LOG_LEVEL=debug
+      # LLM API keys - set these in .env file
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    
+    volumes:
+      # Mount source code for hot-reload
+      - ./packages/core/llm-proxy/src:/app/packages/core/llm-proxy/src:ro
+      - ./packages/shared:/app/packages/shared:ro
+      - ./tsconfig.base.json:/app/tsconfig.base.json:ro
+      - ./tsconfig.json:/app/tsconfig.json:ro
+      # Cache node_modules
+      - /app/node_modules
+      - /app/packages/core/llm-proxy/node_modules
+      # Logs
+      - nachos-logs:/var/log/nachos
+    
+    healthcheck:
+      test: ["CMD", "node", "-e", "process.exit(0)"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=llm-proxy"
+
+  # -------------------- Salsa (Policy Engine) --------------------
+  salsa:
+    container_name: nachos-salsa
+    build:
+      context: .
+      dockerfile: packages/core/salsa/Dockerfile
+    image: nachos-salsa:dev
+    restart: unless-stopped
+    
+    depends_on:
+      bus:
+        condition: service_healthy
+    
+    networks:
+      - nachos-internal
+    
+    ports:
+      - "3002:3002"
+    
+    environment:
+      - NODE_ENV=development
+      - NATS_URL=nats://bus:4222
+      - PORT=3002
+      - LOG_LEVEL=debug
+      - SECURITY_MODE=${SECURITY_MODE:-standard}
+    
+    volumes:
+      # Mount source code for hot-reload
+      - ./packages/core/salsa/src:/app/packages/core/salsa/src:ro
+      - ./packages/shared:/app/packages/shared:ro
+      - ./tsconfig.base.json:/app/tsconfig.base.json:ro
+      - ./tsconfig.json:/app/tsconfig.json:ro
+      # Cache node_modules
+      - /app/node_modules
+      - /app/packages/core/salsa/node_modules
+      # Logs
+      - nachos-logs:/var/log/nachos
+    
+    healthcheck:
+      test: ["CMD", "node", "-e", "process.exit(0)"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=salsa"
