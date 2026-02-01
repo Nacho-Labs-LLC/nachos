@@ -82,12 +82,24 @@ function getCompiler<T extends TSchema>(schema: T): TypeCheck<T> {
 // ============================================================================
 
 /**
+ * Get a descriptive type name from a TypeBox schema
+ */
+function getSchemaTypeName(schema: Record<string, unknown>): string {
+  if (schema.$id) return String(schema.$id);
+  if (schema.type) return String(schema.type);
+  if (schema.anyOf) return 'union';
+  if (schema.allOf) return 'intersection';
+  if (schema.const !== undefined) return `literal(${JSON.stringify(schema.const)})`;
+  return 'unknown';
+}
+
+/**
  * Convert TypeBox ValueError to ValidationError
  */
 function convertError(error: ValueError): ValidationError {
   return {
     path: error.path,
-    expected: error.schema.$id ?? error.schema.type ?? 'unknown',
+    expected: getSchemaTypeName(error.schema as Record<string, unknown>),
     received: error.value,
     message: error.message,
   };
