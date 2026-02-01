@@ -14,6 +14,19 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+# Cleanup function
+cleanup() {
+    echo ""
+    echo "🧹 Cleaning up..."
+    # Revert any test changes
+    git checkout packages/core/gateway/src/index.ts > /dev/null 2>&1 || true
+    # Stop services
+    docker compose -f docker-compose.dev.yml down > /dev/null 2>&1 || true
+}
+
+# Set trap to ensure cleanup on exit
+trap cleanup EXIT INT TERM
+
 # Test 1: Docker Compose starts
 echo "📋 Test 1: Docker Compose starts"
 echo -n "   Starting services... "
@@ -81,12 +94,8 @@ sleep 3
 # Check if the new line appears in logs
 if docker compose -f docker-compose.dev.yml logs gateway 2>&1 | grep -q "Hot reload test"; then
     echo -e "${GREEN}✓ Hot-reload working${NC}"
-    # Revert the change
-    git checkout packages/core/gateway/src/index.ts > /dev/null 2>&1
 else
     echo -e "${RED}✗ Hot-reload not working${NC}"
-    # Revert the change
-    git checkout packages/core/gateway/src/index.ts > /dev/null 2>&1
     exit 1
 fi
 
@@ -110,11 +119,6 @@ if [ "$DURATION" -lt 30 ]; then
 else
     echo -e "   ${YELLOW}⚠ Startup time: ${DURATION}s (> 30s target)${NC}"
 fi
-
-# Cleanup
-echo ""
-echo "🧹 Cleaning up..."
-docker compose -f docker-compose.dev.yml down > /dev/null 2>&1
 
 echo ""
 echo "========================================"

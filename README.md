@@ -258,8 +258,6 @@ nachos/
 - [ ] Policy engine (Salsa)
 
 **Phase 2+**: Coming soon...
-└── .env                  # Secrets (gitignored)
-```
 
 ## Documentation
 

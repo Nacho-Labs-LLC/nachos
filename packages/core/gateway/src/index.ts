@@ -13,7 +13,7 @@
 const PORT = process.env.PORT || 3000;
 const NATS_URL = process.env.NATS_URL || 'nats://localhost:4222';
 
-console.log('🔲 Nachos Gateway starting...');
+console.log('🚪 Nachos Gateway starting...');
 console.log(`   Port: ${PORT}`);
 console.log(`   NATS: ${NATS_URL}`);
 console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
