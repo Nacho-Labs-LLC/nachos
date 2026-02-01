@@ -12,13 +12,210 @@ export type {
   RuntimeConfig,
   AssistantConfig,
 } from '@nachos/config';
+/**
+ * @nachos/types - Shared TypeScript types and schemas for Nachos
+ *
+ * This package provides:
+ * - TypeBox schemas for runtime validation
+ * - TypeScript interfaces for compile-time type safety
+ * - Validation middleware for message handling
+ * - Error types and factory functions
+ *
+ * @example
+ * ```typescript
+ * import {
+ *   MessageEnvelope,
+ *   ChannelInboundMessage,
+ *   validate,
+ *   Schemas,
+ *   createValidationError,
+ * } from '@nachos/types';
+ * ```
+ */
+
+// Re-export TypeBox for consumers who need to create custom schemas
+export { Type, type Static, type TSchema } from '@sinclair/typebox';
 
 // ============================================================================
-// Message Schemas
+// TypeBox Schemas
 // ============================================================================
+
+export {
+  // Base schemas
+  MessageEnvelopeSchema,
+  UUIDSchema,
+  TimestampSchema,
+  type MessageEnvelopeType,
+
+  // Attachment and content schemas
+  AttachmentSchema,
+  type AttachmentType,
+  SenderSchema,
+  type SenderType,
+  ConversationSchema,
+  ConversationTypeSchema,
+  type ConversationType,
+  MessageContentSchema,
+  type MessageContentType,
+
+  // Channel message schemas
+  ChannelInboundMessageSchema,
+  type ChannelInboundMessageType,
+  ChannelOutboundMessageSchema,
+  type ChannelOutboundMessageType,
+  OutboundAttachmentSchema,
+  OutboundContentSchema,
+  OutboundOptionsSchema,
+
+  // Session schemas
+  SessionStatusSchema,
+  type SessionStatusType,
+  MessageRoleSchema,
+  type MessageRoleType,
+  MessageSchema,
+  type MessageType,
+  SessionConfigSchema,
+  type SessionConfigType,
+  SessionSchema,
+  type SessionType,
+  SessionWithMessagesSchema,
+  type SessionWithMessagesType,
+
+  // LLM schemas
+  LLMMessageSchema,
+  type LLMMessageType,
+  LLMRequestSchema,
+  type LLMRequestType,
+  LLMContentPartSchema,
+  LLMToolDefinitionSchema,
+  LLMRequestOptionsSchema,
+
+  // Tool schemas
+  ToolRequestSchema,
+  type ToolRequestType,
+  ToolResponseSchema,
+  type ToolResponseType,
+  ToolErrorSchema,
+
+  // Health schemas
+  HealthStatusSchema,
+  type HealthStatusType,
+  HealthCheckSchema,
+  type HealthCheckType,
+
+  // Error schemas
+  ErrorCodeSchema,
+  type ErrorCodeType,
+  NachosErrorSchema,
+  type NachosErrorType,
+
+  // Policy schemas
+  PolicyCheckRequestSchema,
+  type PolicyCheckRequestType,
+  PolicyCheckResultSchema,
+  type PolicyCheckResultType,
+
+  // Audit schemas
+  AuditLogEntrySchema,
+  type AuditLogEntryType,
+
+  // Schema collection
+  Schemas,
+} from './schemas.js';
+
+// ============================================================================
+// Validation Middleware
+// ============================================================================
+
+export {
+  // Core validation functions
+  validate,
+  validateOrThrow,
+  isValid,
+  clean,
+  applyDefaults,
+
+  // Pre-compiled validators
+  validateMessageEnvelope,
+  validateChannelInboundMessage,
+  validateChannelOutboundMessage,
+  validateLLMRequest,
+  validateToolRequest,
+  validateToolResponse,
+  validatePolicyCheckRequest,
+  validatePolicyCheckResult,
+  validateAuditLogEntry,
+  validateHealthCheck,
+  validateNachosError,
+  validateSession,
+  validateMessage,
+
+  // Middleware
+  createValidatedHandler,
+  withValidation,
+
+  // Types
+  type ValidationError,
+  type ValidationResult,
+  type ValidationMiddlewareOptions,
+  type ValidatedMessageHandler,
+} from './validation.js';
+
+// ============================================================================
+// Error Types and Factories
+// ============================================================================
+
+export {
+  // Error codes
+  NachosErrorCodes,
+  type NachosErrorCode,
+
+  // Error class
+  NachosError,
+  type NachosErrorData,
+
+  // Factory functions
+  createConfigError,
+  createPolicyDeniedError,
+  createRateLimitedError,
+  createLLMFailedError,
+  createToolFailedError,
+  createChannelFailedError,
+  createSessionNotFoundError,
+  createTimeoutError,
+  createInternalError,
+  createValidationError,
+  createBusConnectionError,
+  createInvalidMessageError,
+  createAuthFailedError,
+  createPermissionDeniedError,
+  createNotFoundError,
+  createAlreadyExistsError,
+  createInvalidStateError,
+
+  // Utilities
+  isNachosError,
+  hasErrorCode,
+  wrapError,
+  extractErrorInfo,
+
+  // Options type
+  type CreateErrorOptions,
+} from './errors.js';
+
+// ============================================================================
+// Legacy Interface Types (for backwards compatibility)
+// ============================================================================
+
+// NOTE: These interfaces are maintained for backwards compatibility.
+// For new code, prefer using the TypeBox schema types (e.g., MessageEnvelopeType)
+// which provide both compile-time and runtime type safety.
+
+export type NachosConfig = Record<string, unknown>;
 
 /**
  * Base message envelope for all inter-component communication
+ * @deprecated Use MessageEnvelopeType from schemas.js for type safety
  */
 export interface MessageEnvelope {
   id: string;
@@ -31,6 +228,7 @@ export interface MessageEnvelope {
 
 /**
  * Attachment structure for messages
+ * @deprecated Use AttachmentType from schemas.js for type safety
  */
 export interface Attachment {
   type: string;
@@ -42,6 +240,7 @@ export interface Attachment {
 
 /**
  * Sender information in channel messages
+ * @deprecated Use SenderType from schemas.js for type safety
  */
 export interface Sender {
   id: string;
@@ -51,6 +250,7 @@ export interface Sender {
 
 /**
  * Conversation context
+ * @deprecated Use ConversationType from schemas.js for type safety
  */
 export interface Conversation {
   id: string;
@@ -59,6 +259,7 @@ export interface Conversation {
 
 /**
  * Content structure for messages
+ * @deprecated Use MessageContentType from schemas.js for type safety
  */
 export interface MessageContent {
   text?: string;
@@ -67,6 +268,7 @@ export interface MessageContent {
 
 /**
  * Inbound message from channels
+ * @deprecated Use ChannelInboundMessageType from schemas.js for type safety
  */
 export interface ChannelInboundMessage {
   channel: string;
@@ -80,6 +282,7 @@ export interface ChannelInboundMessage {
 
 /**
  * Outbound message to channels
+ * @deprecated Use ChannelOutboundMessageType from schemas.js for type safety
  */
 export interface ChannelOutboundMessage {
   channel: string;
@@ -101,21 +304,24 @@ export interface ChannelOutboundMessage {
 }
 
 // ============================================================================
-// Session Types
+// Session Types (Legacy)
 // ============================================================================
 
 /**
  * Session status
+ * @deprecated Use SessionStatusType from schemas.js for type safety
  */
 export type SessionStatus = 'active' | 'paused' | 'ended';
 
 /**
  * Message role in conversation
+ * @deprecated Use MessageRoleType from schemas.js for type safety
  */
 export type MessageRole = 'system' | 'user' | 'assistant' | 'tool';
 
 /**
  * Message in conversation history
+ * @deprecated Use MessageType from schemas.js for type safety
  */
 export interface Message {
   id: string;
@@ -128,6 +334,7 @@ export interface Message {
 
 /**
  * Session configuration
+ * @deprecated Use SessionConfigType from schemas.js for type safety
  */
 export interface SessionConfig {
   model?: string;
@@ -137,6 +344,7 @@ export interface SessionConfig {
 
 /**
  * Session data structure
+ * @deprecated Use SessionType from schemas.js for type safety
  */
 export interface Session {
   id: string;
@@ -153,17 +361,19 @@ export interface Session {
 
 /**
  * Session with messages (for read operations)
+ * @deprecated Use SessionWithMessagesType from schemas.js for type safety
  */
 export interface SessionWithMessages extends Session {
   messages: Message[];
 }
 
 // ============================================================================
-// LLM Types
+// LLM Types (Legacy)
 // ============================================================================
 
 /**
  * LLM message structure
+ * @deprecated Use LLMMessageType from schemas.js for type safety
  */
 export interface LLMMessage {
   role: MessageRole;
@@ -182,6 +392,7 @@ export interface LLMMessage {
 
 /**
  * LLM request structure
+ * @deprecated Use LLMRequestType from schemas.js for type safety
  */
 export interface LLMRequest {
   sessionId: string;
@@ -200,11 +411,12 @@ export interface LLMRequest {
 }
 
 // ============================================================================
-// Tool Types
+// Tool Types (Legacy)
 // ============================================================================
 
 /**
  * Tool execution request
+ * @deprecated Use ToolRequestType from schemas.js for type safety
  */
 export interface ToolRequest {
   sessionId: string;
@@ -215,6 +427,7 @@ export interface ToolRequest {
 
 /**
  * Tool execution response
+ * @deprecated Use ToolResponseType from schemas.js for type safety
  */
 export interface ToolResponse {
   sessionId: string;
@@ -228,16 +441,18 @@ export interface ToolResponse {
 }
 
 // ============================================================================
-// Health Check Types
+// Health Check Types (Legacy)
 // ============================================================================
 
 /**
  * Health status
+ * @deprecated Use HealthStatusType from schemas.js for type safety
  */
 export type HealthStatus = 'healthy' | 'degraded' | 'unhealthy';
 
 /**
  * Health check result
+ * @deprecated Use HealthCheckType from schemas.js for type safety
  */
 export interface HealthCheck {
   status: HealthStatus;
@@ -248,23 +463,12 @@ export interface HealthCheck {
 }
 
 // ============================================================================
-// Error Types
+// Error Types (Legacy - for backwards compatibility)
 // ============================================================================
 
 /**
- * Nachos error structure
- */
-export interface NachosError {
-  code: string;
-  message: string;
-  component: string;
-  details?: Record<string, unknown>;
-  timestamp: string;
-  correlationId?: string;
-}
-
-/**
- * Error codes
+ * Legacy error codes
+ * @deprecated Use NachosErrorCodes from errors.js for more comprehensive error codes
  */
 export const ErrorCodes = {
   CONFIG: 'NACHOS_ERR_CONFIG',

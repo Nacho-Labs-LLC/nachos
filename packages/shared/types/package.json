@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@nachos/config": "workspace:*"
+    "@sinclair/typebox": "0.34.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",

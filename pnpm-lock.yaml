@@ -143,6 +143,9 @@ importers:
       '@nachos/config':
         specifier: workspace:*
         version: link:../config
+      '@sinclair/typebox':
+        specifier: 0.34.0
+        version: 0.34.0
     devDependencies:
       '@types/node':
         specifier: ^22.10.5
@@ -743,6 +746,9 @@ packages:
     resolution: {integrity: sha512-mxRFDdHIWRxg3UfIIAwCm6NzvxG0jDX/wBN6KsQFTvKFqqg9vTrWUE68qEjHt19A5wwx5X5aUi2zuZT7YR0jrA==}
     cpu: [x64]
     os: [win32]
+
+  '@sinclair/typebox@0.34.0':
+    resolution: {integrity: sha512-BwY8C9W0/LP34i0Nzj0Xj2My0a7vBA1JGC7G0NxvQBBdHyXBf1ar27d79drRdhkgdlLhcyEpQHJKdpdoxZd+tA==}
 
   '@types/better-sqlite3@7.6.13':
     resolution: {integrity: sha512-NMv9ASNARoKksWtsq/SHakpYAYnhBrQgGD8zkLYk/jaK8jUGn08CfEdTRgYhMypUQAfzSP8W6gNLe0q19/t4VA==}
@@ -2242,6 +2248,8 @@ snapshots:
 
   '@rollup/rollup-win32-x64-msvc@4.57.1':
     optional: true
+
+  '@sinclair/typebox@0.34.0': {}
 
   '@types/better-sqlite3@7.6.13':
     dependencies:
