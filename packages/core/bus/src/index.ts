@@ -2,10 +2,12 @@
  * @nachos/bus - NATS-based message bus for Nachos
  *
  * This package provides:
- * - TypeScript client wrapper for NATS
- * - Topic structure constants
- * - Request/reply pattern helpers
- * - Health check functionality
+ * - TypeScript client wrapper for NATS (#20)
+ * - Topic structure constants (#21)
+ * - Request/reply pattern helpers (#22)
+ * - Health check functionality (#23)
+ * - Container configuration (#19)
+ * - Comprehensive unit tests (#24)
  *
  * @example
  * ```typescript
