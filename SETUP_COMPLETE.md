@@ -2,11 +2,14 @@
 
 ## Summary
 
-This repository has been successfully set up as a modern TypeScript monorepo using pnpm workspaces. All foundational tooling has been configured and verified.
+This repository has been successfully set up as a modern TypeScript monorepo
+using pnpm workspaces. All foundational tooling has been configured and
+verified.
 
 ## What's Included
 
 ### 📦 Package Management
+
 - **pnpm v10.28.2** - Fast, disk space efficient package manager
 - **Workspaces** - Organized into logical groups:
   - `packages/cli` - Command-line interface
@@ -16,29 +19,34 @@ This repository has been successfully set up as a modern TypeScript monorepo usi
   - `packages/shared/*` - Shared utilities and types
 
 ### 🔧 TypeScript Configuration
+
 - **TypeScript v5.7.3** with strict mode enabled
 - **Project References** for incremental builds
 - **ESM modules** targeting Node.js 22+
 - Shared base configuration in `tsconfig.base.json`
 
 ### ✨ Code Quality
+
 - **ESLint v9** with TypeScript support using flat config format
 - **Prettier v3** for consistent code formatting
 - **typescript-eslint** for TypeScript-specific linting rules
 - Pre-configured rules balancing strictness and developer experience
 
 ### 🧪 Testing
+
 - **Vitest v2** - Fast unit test framework
 - Type checking integration
 - Coverage reporting configured
 - Example test included
 
 ### 📝 Versioning
+
 - **Changesets** for managing package versions and changelogs
 - Configured for the monorepo workspace structure
 - Scripts for version bumping and publishing
 
 ### 🚀 CI/CD
+
 - **GitHub Actions** workflow configured
 - Parallel jobs for: install, typecheck, lint, build, test
 - pnpm caching for faster builds
