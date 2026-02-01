@@ -310,3 +310,54 @@ describe('InMemoryMessageBus', () => {
     });
   });
 });
+
+describe('NatsBusAdapter', () => {
+  // Note: Full integration tests with actual NachosBusClient require a NATS server
+  // These tests verify the adapter's type validation without requiring NATS
+
+  describe('type validation', () => {
+    it('should require valid MessageEnvelope for publish', async () => {
+      // Create a mock NachosBusClient
+      const mockClient = {
+        publish: vi.fn(),
+        subscribe: vi.fn(),
+        request: vi.fn(),
+      };
+
+      // Import NatsBusAdapter
+      const { NatsBusAdapter } = await import('./router.js');
+      const adapter = new NatsBusAdapter(mockClient as never);
+
+      // Invalid data should throw
+      await expect(adapter.publish('test.topic', { invalid: 'data' })).rejects.toThrow(
+        'Invalid message envelope'
+      );
+
+      // Valid envelope should work
+      const validEnvelope = createEnvelope('test', 'test.message', { data: 'test' });
+      await adapter.publish('test.topic', validEnvelope);
+      expect(mockClient.publish).toHaveBeenCalled();
+    });
+
+    it('should require valid MessageEnvelope for request', async () => {
+      const mockClient = {
+        publish: vi.fn(),
+        subscribe: vi.fn(),
+        request: vi.fn().mockResolvedValue({ payload: 'response' }),
+      };
+
+      const { NatsBusAdapter } = await import('./router.js');
+      const adapter = new NatsBusAdapter(mockClient as never);
+
+      // Invalid data should throw
+      await expect(adapter.request('test.topic', { invalid: 'data' })).rejects.toThrow(
+        'Invalid message envelope'
+      );
+
+      // Valid envelope should work
+      const validEnvelope = createEnvelope('test', 'test.message', { data: 'test' });
+      await adapter.request('test.topic', validEnvelope);
+      expect(mockClient.request).toHaveBeenCalled();
+    });
+  });
+});

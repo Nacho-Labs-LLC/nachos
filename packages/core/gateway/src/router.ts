@@ -58,6 +58,23 @@ export class InMemoryMessageBus implements MessageBus {
 }
 
 /**
+ * Check if a value is a valid MessageEnvelope
+ */
+function isMessageEnvelope(data: unknown): data is MessageEnvelope {
+  if (typeof data !== 'object' || data === null) {
+    return false;
+  }
+  const obj = data as Record<string, unknown>;
+  return (
+    typeof obj.id === 'string' &&
+    typeof obj.timestamp === 'string' &&
+    typeof obj.source === 'string' &&
+    typeof obj.type === 'string' &&
+    'payload' in obj
+  );
+}
+
+/**
  * Adapter to wrap NachosBusClient to implement the MessageBus interface
  */
 export class NatsBusAdapter implements MessageBus {
@@ -71,10 +88,12 @@ export class NatsBusAdapter implements MessageBus {
   async publish(topic: string, data: unknown): Promise<void> {
     // NachosBusClient.publish wraps data in an envelope, but we already have an envelope
     // So we need to extract the payload if data is already an envelope
-    const envelope = data as MessageEnvelope;
-    this.client.publish(topic, envelope.payload, {
-      type: envelope.type,
-      correlationId: envelope.correlationId,
+    if (!isMessageEnvelope(data)) {
+      throw new Error('Invalid message envelope: data must be a valid MessageEnvelope');
+    }
+    this.client.publish(topic, data.payload, {
+      type: data.type,
+      correlationId: data.correlationId,
     });
   }
 
@@ -95,9 +114,11 @@ export class NatsBusAdapter implements MessageBus {
   }
 
   async request(topic: string, data: unknown, timeout?: number): Promise<unknown> {
-    const envelope = data as MessageEnvelope;
-    const response = await this.client.request(topic, envelope.payload, {
-      type: envelope.type,
+    if (!isMessageEnvelope(data)) {
+      throw new Error('Invalid message envelope: data must be a valid MessageEnvelope');
+    }
+    const response = await this.client.request(topic, data.payload, {
+      type: data.type,
       timeout,
     });
     return response;
