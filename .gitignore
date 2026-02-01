@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+.pnp.*
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Docker
+docker-compose.yml
+.docker/
+
+# Changesets
+.changeset/*.md
+!.changeset/README.md
+
+# Generated files
+nachos.toml

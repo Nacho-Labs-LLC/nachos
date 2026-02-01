@@ -1,0 +1,14 @@
+# Ignore build outputs
+dist/
+build/
+coverage/
+
+# Ignore dependencies
+node_modules/
+pnpm-lock.yaml
+
+# Ignore generated files
+*.tsbuildinfo
+
+# Ignore specific config files
+.changeset/

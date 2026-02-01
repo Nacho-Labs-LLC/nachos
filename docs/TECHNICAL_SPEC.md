@@ -2,29 +2,31 @@
 
 ## Overview
 
-This document provides detailed technical specifications for implementing Nachos core components. It serves as the authoritative reference for development.
+This document provides detailed technical specifications for implementing Nachos
+core components. It serves as the authoritative reference for development.
 
 ---
 
 ## 1. Message Schemas
 
-All inter-component communication uses JSON messages over NATS. Schemas defined with TypeBox for runtime validation.
+All inter-component communication uses JSON messages over NATS. Schemas defined
+with TypeBox for runtime validation.
 
 ### 1.1 Base Message Envelope
 
 ```typescript
-import { Type, Static } from '@sinclair/typebox'
+import { Type, Static } from '@sinclair/typebox';
 
 const MessageEnvelope = Type.Object({
   id: Type.String({ format: 'uuid' }),
   timestamp: Type.String({ format: 'date-time' }),
-  source: Type.String(),      // Component that sent the message
-  type: Type.String(),        // Message type identifier
+  source: Type.String(), // Component that sent the message
+  type: Type.String(), // Message type identifier
   correlationId: Type.Optional(Type.String()), // For request/reply
-  payload: Type.Unknown()     // Message-specific payload
-})
+  payload: Type.Unknown(), // Message-specific payload
+});
 
-type MessageEnvelope = Static<typeof MessageEnvelope>
+type MessageEnvelope = Static<typeof MessageEnvelope>;
 ```
 
 ### 1.2 Channel Inbound Message
@@ -33,38 +35,42 @@ Messages from users, normalized from platform-specific formats.
 
 ```typescript
 const ChannelInboundMessage = Type.Object({
-  channel: Type.String(),           // "slack", "discord", etc.
-  channelMessageId: Type.String(),  // Platform's message ID
+  channel: Type.String(), // "slack", "discord", etc.
+  channelMessageId: Type.String(), // Platform's message ID
   sessionId: Type.Optional(Type.String()), // Existing session if known
-  
+
   sender: Type.Object({
-    id: Type.String(),              // Platform user ID
+    id: Type.String(), // Platform user ID
     name: Type.Optional(Type.String()),
-    isAllowed: Type.Boolean()       // Passed DM policy check
+    isAllowed: Type.Boolean(), // Passed DM policy check
   }),
-  
+
   conversation: Type.Object({
-    id: Type.String(),              // Platform conversation ID
+    id: Type.String(), // Platform conversation ID
     type: Type.Union([
       Type.Literal('dm'),
       Type.Literal('channel'),
-      Type.Literal('thread')
-    ])
+      Type.Literal('thread'),
+    ]),
   }),
-  
+
   content: Type.Object({
     text: Type.Optional(Type.String()),
-    attachments: Type.Optional(Type.Array(Type.Object({
-      type: Type.String(),          // "image", "file", "audio"
-      url: Type.String(),
-      name: Type.Optional(Type.String()),
-      mimeType: Type.Optional(Type.String()),
-      size: Type.Optional(Type.Number())
-    })))
+    attachments: Type.Optional(
+      Type.Array(
+        Type.Object({
+          type: Type.String(), // "image", "file", "audio"
+          url: Type.String(),
+          name: Type.Optional(Type.String()),
+          mimeType: Type.Optional(Type.String()),
+          size: Type.Optional(Type.Number()),
+        })
+      )
+    ),
   }),
-  
-  metadata: Type.Optional(Type.Record(Type.String(), Type.Unknown()))
-})
+
+  metadata: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
+});
 ```
 
 ### 1.3 Channel Outbound Message
@@ -76,25 +82,30 @@ const ChannelOutboundMessage = Type.Object({
   channel: Type.String(),
   conversationId: Type.String(),
   replyToMessageId: Type.Optional(Type.String()),
-  
+
   content: Type.Object({
     text: Type.String(),
-    format: Type.Optional(Type.Union([
-      Type.Literal('plain'),
-      Type.Literal('markdown')
-    ])),
-    attachments: Type.Optional(Type.Array(Type.Object({
-      type: Type.String(),
-      data: Type.Union([Type.String(), Type.Any()]), // URL or buffer
-      name: Type.Optional(Type.String())
-    })))
+    format: Type.Optional(
+      Type.Union([Type.Literal('plain'), Type.Literal('markdown')])
+    ),
+    attachments: Type.Optional(
+      Type.Array(
+        Type.Object({
+          type: Type.String(),
+          data: Type.Union([Type.String(), Type.Any()]), // URL or buffer
+          name: Type.Optional(Type.String()),
+        })
+      )
+    ),
   }),
-  
-  options: Type.Optional(Type.Object({
-    ephemeral: Type.Optional(Type.Boolean()),
-    threadReply: Type.Optional(Type.Boolean())
-  }))
-})
+
+  options: Type.Optional(
+    Type.Object({
+      ephemeral: Type.Optional(Type.Boolean()),
+      threadReply: Type.Optional(Type.Boolean()),
+    })
+  ),
+});
 ```
 
 ### 1.4 LLM Request
@@ -102,41 +113,51 @@ const ChannelOutboundMessage = Type.Object({
 ```typescript
 const LLMRequest = Type.Object({
   sessionId: Type.String(),
-  
-  messages: Type.Array(Type.Object({
-    role: Type.Union([
-      Type.Literal('system'),
-      Type.Literal('user'),
-      Type.Literal('assistant'),
-      Type.Literal('tool')
-    ]),
-    content: Type.Union([
-      Type.String(),
-      Type.Array(Type.Object({
-        type: Type.String(),
-        text: Type.Optional(Type.String()),
-        image_url: Type.Optional(Type.String()),
-        tool_use_id: Type.Optional(Type.String()),
-        tool_result: Type.Optional(Type.Unknown())
-      }))
-    ]),
-    name: Type.Optional(Type.String()),
-    tool_call_id: Type.Optional(Type.String())
-  })),
-  
-  tools: Type.Optional(Type.Array(Type.Object({
-    name: Type.String(),
-    description: Type.String(),
-    parameters: Type.Object({})  // JSON Schema
-  }))),
-  
-  options: Type.Optional(Type.Object({
-    model: Type.Optional(Type.String()),
-    maxTokens: Type.Optional(Type.Number()),
-    temperature: Type.Optional(Type.Number()),
-    stream: Type.Optional(Type.Boolean())
-  }))
-})
+
+  messages: Type.Array(
+    Type.Object({
+      role: Type.Union([
+        Type.Literal('system'),
+        Type.Literal('user'),
+        Type.Literal('assistant'),
+        Type.Literal('tool'),
+      ]),
+      content: Type.Union([
+        Type.String(),
+        Type.Array(
+          Type.Object({
+            type: Type.String(),
+            text: Type.Optional(Type.String()),
+            image_url: Type.Optional(Type.String()),
+            tool_use_id: Type.Optional(Type.String()),
+            tool_result: Type.Optional(Type.Unknown()),
+          })
+        ),
+      ]),
+      name: Type.Optional(Type.String()),
+      tool_call_id: Type.Optional(Type.String()),
+    })
+  ),
+
+  tools: Type.Optional(
+    Type.Array(
+      Type.Object({
+        name: Type.String(),
+        description: Type.String(),
+        parameters: Type.Object({}), // JSON Schema
+      })
+    )
+  ),
+
+  options: Type.Optional(
+    Type.Object({
+      model: Type.Optional(Type.String()),
+      maxTokens: Type.Optional(Type.Number()),
+      temperature: Type.Optional(Type.Number()),
+      stream: Type.Optional(Type.Boolean()),
+    })
+  ),
+});
 ```
 
 ### 1.5 Tool Request/Response
@@ -146,19 +167,21 @@ const ToolRequest = Type.Object({
   sessionId: Type.String(),
   tool: Type.String(),
   callId: Type.String(),
-  parameters: Type.Record(Type.String(), Type.Unknown())
-})
+  parameters: Type.Record(Type.String(), Type.Unknown()),
+});
 
 const ToolResponse = Type.Object({
   sessionId: Type.String(),
   callId: Type.String(),
   success: Type.Boolean(),
   result: Type.Optional(Type.Unknown()),
-  error: Type.Optional(Type.Object({
-    code: Type.String(),
-    message: Type.String()
-  }))
-})
+  error: Type.Optional(
+    Type.Object({
+      code: Type.String(),
+      message: Type.String(),
+    })
+  ),
+});
 ```
 
 ### 1.6 Policy Check Request/Response
@@ -166,17 +189,17 @@ const ToolResponse = Type.Object({
 ```typescript
 const PolicyCheckRequest = Type.Object({
   sessionId: Type.String(),
-  action: Type.String(),      // "tool.execute", "channel.send", etc.
-  resource: Type.String(),    // "tool.filesystem", "channel.slack", etc.
-  context: Type.Record(Type.String(), Type.Unknown())
-})
+  action: Type.String(), // "tool.execute", "channel.send", etc.
+  resource: Type.String(), // "tool.filesystem", "channel.slack", etc.
+  context: Type.Record(Type.String(), Type.Unknown()),
+});
 
 const PolicyCheckResponse = Type.Object({
   allowed: Type.Boolean(),
   reason: Type.Optional(Type.String()),
   conditions: Type.Optional(Type.Array(Type.String())),
-  auditId: Type.String()
-})
+  auditId: Type.String(),
+});
 ```
 
 ---
@@ -191,19 +214,19 @@ nachos.<domain>.<component>.<action>
 
 ### 2.2 Topic Definitions
 
-| Topic | Publisher | Subscriber | Purpose |
-|-------|-----------|------------|---------|
-| `nachos.channel.*.inbound` | Channel | Gateway | User messages |
-| `nachos.channel.*.outbound` | Gateway | Channel | Responses |
-| `nachos.llm.request` | Gateway | LLM Proxy | Completions |
-| `nachos.llm.response` | LLM Proxy | Gateway | Results |
-| `nachos.llm.stream.*` | LLM Proxy | Gateway | Streaming chunks |
-| `nachos.tool.*.request` | Gateway | Tool | Invocations |
-| `nachos.tool.*.response` | Tool | Gateway | Results |
-| `nachos.policy.check` | Any | Salsa | Policy evaluation |
-| `nachos.policy.result` | Salsa | Requester | Policy decision |
-| `nachos.audit.log` | Any | Salsa | Audit events |
-| `nachos.health.ping` | Any | Any | Health checks |
+| Topic                       | Publisher | Subscriber | Purpose           |
+| --------------------------- | --------- | ---------- | ----------------- |
+| `nachos.channel.*.inbound`  | Channel   | Gateway    | User messages     |
+| `nachos.channel.*.outbound` | Gateway   | Channel    | Responses         |
+| `nachos.llm.request`        | Gateway   | LLM Proxy  | Completions       |
+| `nachos.llm.response`       | LLM Proxy | Gateway    | Results           |
+| `nachos.llm.stream.*`       | LLM Proxy | Gateway    | Streaming chunks  |
+| `nachos.tool.*.request`     | Gateway   | Tool       | Invocations       |
+| `nachos.tool.*.response`    | Tool      | Gateway    | Results           |
+| `nachos.policy.check`       | Any       | Salsa      | Policy evaluation |
+| `nachos.policy.result`      | Salsa     | Requester  | Policy decision   |
+| `nachos.audit.log`          | Any       | Salsa      | Audit events      |
+| `nachos.health.ping`        | Any       | Any        | Health checks     |
 
 ### 2.3 Request/Reply Pattern
 
@@ -212,14 +235,14 @@ Use NATS request/reply for synchronous operations:
 ```typescript
 // Requester
 const response = await nc.request('nachos.policy.check', payload, {
-  timeout: 5000
-})
+  timeout: 5000,
+});
 
 // Responder
-const sub = nc.subscribe('nachos.policy.check')
+const sub = nc.subscribe('nachos.policy.check');
 for await (const msg of sub) {
-  const result = await evaluatePolicy(msg.data)
-  msg.respond(result)
+  const result = await evaluatePolicy(msg.data);
+  msg.respond(result);
 }
 ```
 
@@ -231,31 +254,31 @@ for await (const msg of sub) {
 
 ```typescript
 interface Session {
-  id: string                    // UUID
-  createdAt: string            // ISO timestamp
-  updatedAt: string            // ISO timestamp
-  
+  id: string; // UUID
+  createdAt: string; // ISO timestamp
+  updatedAt: string; // ISO timestamp
+
   // Identity
-  channel: string              // Source channel
-  conversationId: string       // Platform conversation ID
-  userId: string               // Platform user ID
-  
+  channel: string; // Source channel
+  conversationId: string; // Platform conversation ID
+  userId: string; // Platform user ID
+
   // State
-  status: 'active' | 'paused' | 'ended'
-  
+  status: 'active' | 'paused' | 'ended';
+
   // Conversation
-  messages: Message[]          // Conversation history
-  systemPrompt: string         // Active system prompt
-  
+  messages: Message[]; // Conversation history
+  systemPrompt: string; // Active system prompt
+
   // Configuration (can override global)
   config: {
-    model?: string
-    maxTokens?: number
-    tools?: string[]           // Enabled tool names
-  }
-  
+    model?: string;
+    maxTokens?: number;
+    tools?: string[]; // Enabled tool names
+  };
+
   // Metadata
-  metadata: Record<string, unknown>
+  metadata: Record<string, unknown>;
 }
 ```
 
@@ -288,7 +311,7 @@ CREATE TABLE sessions (
   metadata JSON,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  
+
   UNIQUE(channel, conversation_id)
 );
 
@@ -299,7 +322,7 @@ CREATE TABLE messages (
   content TEXT NOT NULL,
   tool_calls JSON,
   created_at TEXT NOT NULL,
-  
+
   INDEX idx_session_id (session_id)
 );
 ```
@@ -317,54 +340,54 @@ name: default
 
 rules:
   # Rule structure
-  - name: "rule-name"
-    description: "What this rule does"
-    
+  - name: 'rule-name'
+    description: 'What this rule does'
+
     # When does this rule apply?
     match:
-      action: "tool.execute"        # Action being performed
-      resource: "tool.filesystem"   # Resource being accessed
+      action: 'tool.execute' # Action being performed
+      resource: 'tool.filesystem' # Resource being accessed
       # Can use wildcards: "tool.*"
-    
+
     # Additional conditions
     conditions:
-      - type: "security_mode"
-        values: ["standard", "permissive"]
-      - type: "session_owner"
+      - type: 'security_mode'
+        values: ['standard', 'permissive']
+      - type: 'session_owner'
         value: true
-      - type: "path_allowed"
-        paths: ["./workspace"]
-    
+      - type: 'path_allowed'
+        paths: ['./workspace']
+
     # What to do
-    effect: "allow"  # "allow" | "deny" | "audit"
-    
+    effect: 'allow' # "allow" | "deny" | "audit"
+
     # Priority (higher = evaluated first)
     priority: 100
 ```
 
 ### 4.2 Built-in Condition Types
 
-| Type | Description | Parameters |
-|------|-------------|------------|
-| `security_mode` | Current security mode | `values: string[]` |
-| `session_owner` | Is requester session owner | `value: boolean` |
-| `path_allowed` | File path in allowed list | `paths: string[]` |
-| `domain_allowed` | URL domain in allowed list | `domains: string[]` |
-| `rate_limit` | Under rate limit | `limit: number, window: string` |
-| `time_of_day` | Within time window | `start: string, end: string` |
+| Type             | Description                | Parameters                      |
+| ---------------- | -------------------------- | ------------------------------- |
+| `security_mode`  | Current security mode      | `values: string[]`              |
+| `session_owner`  | Is requester session owner | `value: boolean`                |
+| `path_allowed`   | File path in allowed list  | `paths: string[]`               |
+| `domain_allowed` | URL domain in allowed list | `domains: string[]`             |
+| `rate_limit`     | Under rate limit           | `limit: number, window: string` |
+| `time_of_day`    | Within time window         | `start: string, end: string`    |
 
 ### 4.3 Policy Evaluation
 
 ```typescript
 interface PolicyEvaluator {
-  evaluate(request: PolicyCheckRequest): Promise<PolicyDecision>
+  evaluate(request: PolicyCheckRequest): Promise<PolicyDecision>;
 }
 
 interface PolicyDecision {
-  allowed: boolean
-  matchedRule: string | null
-  reason: string
-  conditions: string[]
+  allowed: boolean;
+  matchedRule: string | null;
+  reason: string;
+  conditions: string[];
 }
 
 // Evaluation order:
@@ -419,7 +442,7 @@ x-security-defaults: &security-defaults
   cap_drop:
     - ALL
   read_only: true
-  user: "1000:1000"
+  user: '1000:1000'
   mem_limit: 512m
   cpus: 0.5
   pids_limit: 100
@@ -429,18 +452,18 @@ x-security-defaults: &security-defaults
 
 ### 5.3 Component Resource Profiles
 
-| Component | Memory | CPU | Network |
-|-----------|--------|-----|---------|
-| Gateway | 512MB | 0.5 | internal |
-| Bus (NATS) | 256MB | 0.25 | internal |
-| Salsa | 256MB | 0.25 | internal |
-| LLM Proxy | 256MB | 0.25 | egress |
-| WebChat | 256MB | 0.25 | internal |
-| Slack | 256MB | 0.25 | egress |
-| Discord | 256MB | 0.25 | egress |
-| Filesystem | 128MB | 0.25 | internal |
-| Browser | 1GB | 1.0 | egress |
-| Code Runner | 512MB | 0.5 | internal |
+| Component   | Memory | CPU  | Network  |
+| ----------- | ------ | ---- | -------- |
+| Gateway     | 512MB  | 0.5  | internal |
+| Bus (NATS)  | 256MB  | 0.25 | internal |
+| Salsa       | 256MB  | 0.25 | internal |
+| LLM Proxy   | 256MB  | 0.25 | egress   |
+| WebChat     | 256MB  | 0.25 | internal |
+| Slack       | 256MB  | 0.25 | egress   |
+| Discord     | 256MB  | 0.25 | egress   |
+| Filesystem  | 128MB  | 0.25 | internal |
+| Browser     | 1GB    | 1.0  | egress   |
+| Code Runner | 512MB  | 0.5  | internal |
 
 ---
 
@@ -458,22 +481,22 @@ Commands:
   restart [service]   Restart service(s)
   logs [service]      View logs
   status              Show status
-  
+
   add <type> <name>   Add channel or tool
   remove <type> <n>   Remove channel or tool
   list [type]         List installed modules
   search <type>       Search available modules
-  
+
   config              Open config in editor
   config validate     Validate configuration
   config show         Show resolved config
-  
+
   doctor              Run diagnostics
   version             Show version info
-  
+
   create channel <n>  Scaffold custom channel
   create tool <name>  Scaffold custom tool
-  
+
   chat                Interactive CLI chat
 ```
 
@@ -507,68 +530,68 @@ The CLI generates `docker-compose.yml` from:
 ```typescript
 interface ModuleManifest {
   // Identity
-  name: string                    // "nachos-channel-slack"
-  version: string                 // semver
-  type: 'channel' | 'tool' | 'skill'
-  
+  name: string; // "nachos-channel-slack"
+  version: string; // semver
+  type: 'channel' | 'tool' | 'skill';
+
   // Metadata
-  description: string
-  author?: string
-  license?: string
-  repository?: string
-  
+  description: string;
+  author?: string;
+  license?: string;
+  repository?: string;
+
   // Dependencies
   requires: {
-    gateway?: string              // Version constraint
-    bus?: string
-    [key: string]: string | undefined
-  }
-  
+    gateway?: string; // Version constraint
+    bus?: string;
+    [key: string]: string | undefined;
+  };
+
   // Capabilities needed
   capabilities: {
     network?: {
-      egress?: string[]           // Allowed external domains
-      ports?: number[]            // Exposed ports
-    }
-    secrets?: string[]            // Required env vars
+      egress?: string[]; // Allowed external domains
+      ports?: number[]; // Exposed ports
+    };
+    secrets?: string[]; // Required env vars
     volumes?: Array<{
-      name: string
-      path: string
-      mode: 'ro' | 'rw'
-    }>
-    permissions?: string[]        // Special permissions
-  }
-  
+      name: string;
+      path: string;
+      mode: 'ro' | 'rw';
+    }>;
+    permissions?: string[]; // Special permissions
+  };
+
   // What this module provides
   provides: {
-    channel?: string              // Channel identifier
-    tool?: string                 // Tool identifier
-    skill?: string                // Skill identifier
-    features?: string[]           // Supported features
-  }
-  
+    channel?: string; // Channel identifier
+    tool?: string; // Tool identifier
+    skill?: string; // Skill identifier
+    features?: string[]; // Supported features
+  };
+
   // Container configuration
   container: {
-    image: string                 // Docker image
-    tag?: string                  // Image tag
-    command?: string[]            // Override CMD
+    image: string; // Docker image
+    tag?: string; // Image tag
+    command?: string[]; // Override CMD
     resources?: {
-      memory?: string             // e.g., "256MB"
-      cpus?: number               // e.g., 0.5
-    }
+      memory?: string; // e.g., "256MB"
+      cpus?: number; // e.g., 0.5
+    };
     healthcheck?: {
-      test: string[]
-      interval?: string
-      timeout?: string
-      retries?: number
-    }
-  }
-  
+      test: string[];
+      interval?: string;
+      timeout?: string;
+      retries?: number;
+    };
+  };
+
   // Configuration schema
   config?: {
-    schema: object                // JSON Schema for config options
-    defaults: object              // Default values
-  }
+    schema: object; // JSON Schema for config options
+    defaults: object; // Default values
+  };
 }
 ```
 
@@ -580,28 +603,28 @@ interface ModuleManifest {
 
 ```typescript
 interface NachosError {
-  code: string          // "NACHOS_ERR_xxx"
-  message: string       // Human-readable
-  component: string     // Source component
-  details?: object      // Additional context
-  timestamp: string     // ISO timestamp
-  correlationId?: string
+  code: string; // "NACHOS_ERR_xxx"
+  message: string; // Human-readable
+  component: string; // Source component
+  details?: object; // Additional context
+  timestamp: string; // ISO timestamp
+  correlationId?: string;
 }
 ```
 
 ### 8.2 Error Codes
 
-| Code | Description |
-|------|-------------|
-| `NACHOS_ERR_CONFIG` | Configuration error |
-| `NACHOS_ERR_POLICY_DENIED` | Policy check failed |
-| `NACHOS_ERR_RATE_LIMITED` | Rate limit exceeded |
-| `NACHOS_ERR_LLM_FAILED` | LLM request failed |
-| `NACHOS_ERR_TOOL_FAILED` | Tool execution failed |
-| `NACHOS_ERR_CHANNEL_FAILED` | Channel operation failed |
-| `NACHOS_ERR_SESSION_NOT_FOUND` | Session doesn't exist |
-| `NACHOS_ERR_TIMEOUT` | Operation timed out |
-| `NACHOS_ERR_INTERNAL` | Internal error |
+| Code                           | Description              |
+| ------------------------------ | ------------------------ |
+| `NACHOS_ERR_CONFIG`            | Configuration error      |
+| `NACHOS_ERR_POLICY_DENIED`     | Policy check failed      |
+| `NACHOS_ERR_RATE_LIMITED`      | Rate limit exceeded      |
+| `NACHOS_ERR_LLM_FAILED`        | LLM request failed       |
+| `NACHOS_ERR_TOOL_FAILED`       | Tool execution failed    |
+| `NACHOS_ERR_CHANNEL_FAILED`    | Channel operation failed |
+| `NACHOS_ERR_SESSION_NOT_FOUND` | Session doesn't exist    |
+| `NACHOS_ERR_TIMEOUT`           | Operation timed out      |
+| `NACHOS_ERR_INTERNAL`          | Internal error           |
 
 ---
 
@@ -659,11 +682,11 @@ Prometheus-compatible metrics at `/metrics`:
 
 ### 10.1 Test Levels
 
-| Level | Scope | Tools |
-|-------|-------|-------|
-| Unit | Single function/class | Vitest |
+| Level       | Scope                    | Tools                   |
+| ----------- | ------------------------ | ----------------------- |
+| Unit        | Single function/class    | Vitest                  |
 | Integration | Component + dependencies | Vitest + Testcontainers |
-| E2E | Full stack | Playwright + Docker |
+| E2E         | Full stack               | Playwright + Docker     |
 
 ### 10.2 Test Structure
 
@@ -678,7 +701,7 @@ packages/
       integration/
         gateway-bus.test.ts
       fixtures/
-        
+
 tests/
   e2e/
     conversation.test.ts

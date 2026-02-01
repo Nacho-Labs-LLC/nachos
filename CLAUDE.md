@@ -1,17 +1,23 @@
 # CLAUDE.md - Nachos Project Context
 
-> **Purpose**: Succinct context for AI agents working on this codebase.
-> Keep this file updated as the project evolves.
+> **Purpose**: Succinct context for AI agents working on this codebase. Keep
+> this file updated as the project evolves.
 
 ## What is Nachos?
 
-Nachos is a **Docker-native, security-first, modular AI assistant framework**. It enables users to run personal AI agents that connect to messaging platforms (Slack, Discord, Telegram, etc.) while maintaining strong security defaults and easy customization.
+Nachos is a **Docker-native, security-first, modular AI assistant framework**.
+It enables users to run personal AI agents that connect to messaging platforms
+(Slack, Discord, Telegram, etc.) while maintaining strong security defaults and
+easy customization.
 
-**Key differentiator**: Unlike monolithic assistants, Nachos uses a "build your own plate" approach—every component (channels, tools, security policies) runs as an isolated container that users compose together.
+**Key differentiator**: Unlike monolithic assistants, Nachos uses a "build your
+own plate" approach—every component (channels, tools, security policies) runs as
+an isolated container that users compose together.
 
 ## Architecture Mental Model
 
 Think of it like nachos (the food):
+
 - **Chips** = Core runtime (Gateway + Bus) — always required
 - **Cheese** = Message bus — binds everything together
 - **Protein** = LLM provider — the substance (Claude, GPT, Ollama)
@@ -68,13 +74,17 @@ nachos/
 ## Core Concepts
 
 ### 1. Security Modes
+
 Three presets (strict > standard > permissive):
+
 - **Strict** (default): All tools disabled, allowlist DMs, full audit
 - **Standard**: Common tools enabled, pairing-based DMs
 - **Permissive**: Full access (requires explicit opt-in)
 
 ### 2. Module Manifest
+
 Every channel/tool declares capabilities via `manifest.json`:
+
 ```json
 {
   "name": "nachos-channel-slack",
@@ -87,6 +97,7 @@ Every channel/tool declares capabilities via `manifest.json`:
 ```
 
 ### 3. Message Flow
+
 ```
 User Message → Channel Container → Bus → Gateway → LLM Proxy → LLM
                                               ↓
@@ -98,19 +109,20 @@ User Message → Channel Container → Bus → Gateway → LLM Proxy → LLM
 ```
 
 ### 4. Network Isolation
+
 - `nachos-internal`: No external access, inter-container only
 - `nachos-egress`: Controlled external access (LLM API, channel APIs)
 - Containers only join networks they need per manifest
 
 ## Key Files to Know
 
-| File | Purpose |
-|------|---------|
-| `nachos.toml` | Single config file for entire stack |
-| `core/gateway/src/router.ts` | Message routing logic |
-| `core/salsa/src/policy.ts` | Policy enforcement |
-| `core/bus/src/topics.ts` | Message bus topic definitions |
-| `cli/src/commands/` | CLI command implementations |
+| File                         | Purpose                             |
+| ---------------------------- | ----------------------------------- |
+| `nachos.toml`                | Single config file for entire stack |
+| `core/gateway/src/router.ts` | Message routing logic               |
+| `core/salsa/src/policy.ts`   | Policy enforcement                  |
+| `core/bus/src/topics.ts`     | Message bus topic definitions       |
+| `cli/src/commands/`          | CLI command implementations         |
 
 ## Development Commands
 
@@ -154,18 +166,21 @@ nachos doctor
 ## Common Tasks
 
 ### Adding a New Channel
+
 1. Scaffold: `nachos create channel my-channel`
 2. Implement adapter in `channels/my-channel/src/`
 3. Define manifest with required capabilities
 4. Add to compose generation in CLI
 
 ### Adding a New Tool
+
 1. Scaffold: `nachos create tool my-tool`
 2. Implement tool interface in `tools/my-tool/src/`
 3. Define security tier in manifest
 4. Register tool schema with gateway
 
 ### Modifying Security Policies
+
 1. Edit `policies/default.yaml`
 2. Test with `nachos policy validate`
 3. Policies hot-reload on change

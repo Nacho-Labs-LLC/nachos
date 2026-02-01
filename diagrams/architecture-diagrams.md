@@ -1,6 +1,7 @@
 # Nachos Architecture Diagrams
 
-Visual diagrams for the Nachos architecture. Render these using any Mermaid-compatible viewer.
+Visual diagrams for the Nachos architecture. Render these using any
+Mermaid-compatible viewer.
 
 ---
 
@@ -84,26 +85,26 @@ sequenceDiagram
     B->>S: Policy check (DM allowed?)
     S-->>B: ✓ Approved
     B->>G: Route to gateway
-    
+
     G->>G: Load/create session
     G->>B: Request LLM completion
     B->>L: Forward request
     L->>L: Call LLM API
     L-->>B: Response (with tool call)
     B-->>G: Forward response
-    
+
     G->>B: Request tool execution
     B->>S: Policy check (tool allowed?)
     S-->>B: ✓ Approved
     B->>T: Execute tool
     T-->>B: Tool result
     B-->>G: Forward result
-    
+
     G->>B: Final LLM request
     B->>L: Forward
     L-->>B: Final response
     B-->>G: Forward
-    
+
     G->>B: Outbound message
     B->>C: Deliver to channel
     C->>U: Display response
@@ -125,7 +126,7 @@ flowchart TB
             filesystem["filesystem<br/>───────<br/>📦 node:22-alpine<br/>🔒 non-root<br/>💾 128MB"]
             coderunner["code-runner<br/>───────<br/>📦 node:22-alpine<br/>🔒 sandboxed<br/>💾 512MB"]
         end
-        
+
         subgraph egress["nachos-egress (controlled external)"]
             llmproxy["llm-proxy<br/>───────<br/>📦 node:22-alpine<br/>🌐 LLM APIs only<br/>💾 256MB"]
             webchat["webchat<br/>───────<br/>📦 node:22-alpine<br/>🌐 port 8080<br/>💾 256MB"]
@@ -143,7 +144,7 @@ flowchart TB
     gateway --- state
     filesystem --- workspace
     salsa --- policies
-    
+
     internal ~~~ egress
 ```
 
@@ -176,13 +177,13 @@ flowchart TD
     req --> dlp
     dlp -->|Clean| rate
     dlp -->|Sensitive| block
-    
+
     rate -->|Under limit| policy
     rate -->|Over limit| throttle
-    
+
     policy -->|Allowed| allow
     policy -->|Denied| deny
-    
+
     allow --> audit
     deny --> audit
     throttle --> audit
@@ -220,11 +221,11 @@ flowchart LR
     toml --> parse
     env --> merge
     cli --> merge
-    
+
     parse --> validate
     validate --> merge
     merge --> manifest
-    
+
     manifest --> compose
     manifest --> networks
     manifest --> volumes
@@ -245,46 +246,46 @@ classDiagram
         +string type
         +string description
     }
-    
+
     class Requires {
         +string gateway
         +string bus
     }
-    
+
     class Capabilities {
         +NetworkCaps network
         +string[] secrets
         +Volume[] volumes
     }
-    
+
     class NetworkCaps {
         +string[] egress
         +int[] ports
     }
-    
+
     class Volume {
         +string name
         +string path
         +string mode
     }
-    
+
     class Provides {
         +string channel
         +string tool
         +string[] features
     }
-    
+
     class Container {
         +string image
         +string tag
         +Resources resources
     }
-    
+
     class Resources {
         +string memory
         +float cpus
     }
-    
+
     Manifest --> Requires
     Manifest --> Capabilities
     Manifest --> Provides
@@ -303,25 +304,25 @@ classDiagram
 
 stateDiagram-v2
     [*] --> Created: New conversation
-    
+
     Created --> Active: First message
-    
+
     Active --> Active: Message exchange
     Active --> Paused: User timeout
     Active --> Ended: /end command
     Active --> Ended: Session expired
-    
+
     Paused --> Active: New message
     Paused --> Ended: Extended timeout
-    
+
     Ended --> [*]
-    
+
     note right of Active
         - Messages stored
         - Tools available
         - Context maintained
     end note
-    
+
     note right of Paused
         - State preserved
         - No active processing
@@ -368,16 +369,16 @@ flowchart TD
     response --> parse
     parse --> lookup
     lookup --> prepare
-    
+
     prepare --> check
     check -->|Denied| deny["Return error"]
     check -->|Allowed| tier
     tier --> validate
-    
+
     validate --> sandbox
     sandbox --> execute
     execute --> capture
-    
+
     capture --> format
     format --> inject
     inject --> continue
@@ -443,37 +444,37 @@ flowchart TB
 
 flowchart TD
     nachos["nachos"]
-    
+
     nachos --> init["init"]
     nachos --> up["up [services...]"]
     nachos --> down["down"]
     nachos --> restart["restart [service]"]
     nachos --> logs["logs [service]"]
     nachos --> status["status"]
-    
+
     nachos --> add["add"]
     add --> add_channel["channel <name>"]
     add --> add_tool["tool <name>"]
-    
+
     nachos --> remove["remove"]
     remove --> rm_channel["channel <name>"]
     remove --> rm_tool["tool <name>"]
-    
+
     nachos --> list["list [type]"]
     nachos --> search["search <type>"]
-    
+
     nachos --> config["config"]
     config --> config_edit["(edit)"]
     config --> config_validate["validate"]
     config --> config_show["show"]
-    
+
     nachos --> doctor["doctor"]
     nachos --> version["version"]
-    
+
     nachos --> create["create"]
     create --> create_channel["channel <name>"]
     create --> create_tool["tool <name>"]
-    
+
     nachos --> chat["chat"]
 ```
 

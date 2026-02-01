@@ -1,0 +1,7 @@
+packages:
+  - 'packages/cli'
+  - 'packages/core/*'
+  - 'packages/channels/*'
+  - 'packages/tools/*'
+  - 'packages/skills/*'
+  - 'packages/shared/*'
