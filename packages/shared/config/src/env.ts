@@ -104,7 +104,15 @@ function parseEnvValue(value: string, path: string): string | number | boolean |
 }
 
 /**
+ * Check if a key is safe to use (not a prototype pollution vector)
+ */
+function isSafeKey(key: string): boolean {
+  return key !== '__proto__' && key !== 'constructor' && key !== 'prototype';
+}
+
+/**
  * Set a nested property in an object using dot notation
+ * Protected against prototype pollution
  */
 function setNestedProperty(obj: Record<string, unknown>, path: string, value: unknown): void {
   const parts = path.split('.');
@@ -112,7 +120,7 @@ function setNestedProperty(obj: Record<string, unknown>, path: string, value: un
 
   for (let i = 0; i < parts.length - 1; i++) {
     const part = parts[i];
-    if (!part) continue;
+    if (!part || !isSafeKey(part)) continue;
     if (!(part in current) || typeof current[part] !== 'object' || current[part] === null) {
       current[part] = {};
     }
@@ -120,7 +128,7 @@ function setNestedProperty(obj: Record<string, unknown>, path: string, value: un
   }
 
   const lastPart = parts[parts.length - 1];
-  if (lastPart) {
+  if (lastPart && isSafeKey(lastPart)) {
     current[lastPart] = value;
   }
 }
@@ -144,11 +152,17 @@ export function createEnvOverlay(): PartialNachosConfig {
 
 /**
  * Deep merge two objects, with source taking precedence
+ * Protected against prototype pollution
  */
 function deepMerge<T extends Record<string, unknown>>(target: T, source: Partial<T>): T {
   const result = { ...target };
 
   for (const key in source) {
+    // Guard against prototype pollution
+    if (!isSafeKey(key)) {
+      continue;
+    }
+    
     const sourceValue = source[key];
     const targetValue = result[key];
 

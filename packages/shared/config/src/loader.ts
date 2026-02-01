@@ -21,7 +21,9 @@ export class ConfigLoadError extends Error {
   ) {
     super(message);
     this.name = 'ConfigLoadError';
-    this.cause = cause;
+    if (cause) {
+      this.cause = cause;
+    }
   }
 }
 
