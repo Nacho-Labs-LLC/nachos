@@ -23,12 +23,16 @@ export {
 export {
   Router,
   InMemoryMessageBus,
+  NatsBusAdapter,
   Topics,
   createEnvelope,
   type MessageBus,
   type RouteHandler,
   type RouterOptions,
 } from './router.js';
+
+// Re-export TOPICS from @nachos/bus for convenience
+export { TOPICS } from '@nachos/bus';
 
 // Health check
 export {

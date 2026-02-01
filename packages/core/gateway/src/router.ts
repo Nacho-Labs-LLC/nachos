@@ -2,6 +2,12 @@
  * Message Router - Routes messages between components
  */
 import type { MessageEnvelope, ChannelInboundMessage, ChannelOutboundMessage } from '@nachos/types';
+import {
+  TOPICS,
+  type NachosBusClient,
+  type MessageEnvelope as BusMessageEnvelope,
+  type BusSubscription,
+} from '@nachos/bus';
 import { v4 as uuid } from 'uuid';
 
 /**
@@ -52,31 +58,94 @@ export class InMemoryMessageBus implements MessageBus {
 }
 
 /**
- * NATS topic structure
+ * Adapter to wrap NachosBusClient to implement the MessageBus interface
+ */
+export class NatsBusAdapter implements MessageBus {
+  private client: NachosBusClient;
+  private subscriptions: Map<string, BusSubscription> = new Map();
+
+  constructor(client: NachosBusClient) {
+    this.client = client;
+  }
+
+  async publish(topic: string, data: unknown): Promise<void> {
+    // NachosBusClient.publish wraps data in an envelope, but we already have an envelope
+    // So we need to extract the payload if data is already an envelope
+    const envelope = data as MessageEnvelope;
+    this.client.publish(topic, envelope.payload, {
+      type: envelope.type,
+      correlationId: envelope.correlationId,
+    });
+  }
+
+  async subscribe(topic: string, handler: (data: unknown) => Promise<void>): Promise<void> {
+    const subscription = await this.client.subscribe(topic, async (msg: BusMessageEnvelope) => {
+      // Convert the bus envelope to the gateway envelope format
+      const envelope: MessageEnvelope = {
+        id: msg.id,
+        timestamp: msg.timestamp,
+        source: msg.source,
+        type: msg.type,
+        correlationId: msg.correlationId,
+        payload: msg.payload,
+      };
+      await handler(envelope);
+    });
+    this.subscriptions.set(topic, subscription);
+  }
+
+  async request(topic: string, data: unknown, timeout?: number): Promise<unknown> {
+    const envelope = data as MessageEnvelope;
+    const response = await this.client.request(topic, envelope.payload, {
+      type: envelope.type,
+      timeout,
+    });
+    return response;
+  }
+
+  async unsubscribe(topic: string): Promise<void> {
+    const subscription = this.subscriptions.get(topic);
+    if (subscription) {
+      subscription.unsubscribe();
+      this.subscriptions.delete(topic);
+    }
+  }
+
+  /**
+   * Get the underlying NachosBusClient
+   */
+  getClient(): NachosBusClient {
+    return this.client;
+  }
+}
+
+/**
+ * Re-export TOPICS from @nachos/bus for convenience
+ * @deprecated Use TOPICS from @nachos/bus directly
  */
 export const Topics = {
   // Channel messages
-  channelInbound: (channel: string) => `nachos.channel.${channel}.inbound`,
-  channelOutbound: (channel: string) => `nachos.channel.${channel}.outbound`,
+  channelInbound: TOPICS.channel.inbound,
+  channelOutbound: TOPICS.channel.outbound,
 
   // LLM
-  llmRequest: 'nachos.llm.request',
-  llmResponse: 'nachos.llm.response',
-  llmStream: (sessionId: string) => `nachos.llm.stream.${sessionId}`,
+  llmRequest: TOPICS.llm.request,
+  llmResponse: TOPICS.llm.response,
+  llmStream: TOPICS.llm.stream,
 
   // Tools
-  toolRequest: (tool: string) => `nachos.tool.${tool}.request`,
-  toolResponse: (tool: string) => `nachos.tool.${tool}.response`,
+  toolRequest: TOPICS.tool.request,
+  toolResponse: TOPICS.tool.response,
 
   // Policy
-  policyCheck: 'nachos.policy.check',
-  policyResult: 'nachos.policy.result',
+  policyCheck: TOPICS.policy.check,
+  policyResult: TOPICS.policy.result,
 
   // Audit
-  auditLog: 'nachos.audit.log',
+  auditLog: TOPICS.audit.log,
 
   // Health
-  healthPing: 'nachos.health.ping',
+  healthPing: TOPICS.health.ping,
 } as const;
 
 /**
@@ -159,7 +228,7 @@ export class Router {
    * Subscribe to channel inbound messages
    */
   async subscribeToChannel(channel: string): Promise<void> {
-    const topic = Topics.channelInbound(channel);
+    const topic = TOPICS.channel.inbound(channel);
     await this.subscribe(topic);
   }
 
@@ -167,7 +236,7 @@ export class Router {
    * Send an outbound message to a channel
    */
   async sendToChannel(message: ChannelOutboundMessage): Promise<void> {
-    const topic = Topics.channelOutbound(message.channel);
+    const topic = TOPICS.channel.outbound(message.channel);
     const envelope = createEnvelope(this.componentName, 'channel.outbound', message);
     await this.bus.publish(topic, envelope);
   }
@@ -185,14 +254,14 @@ export class Router {
    */
   async sendLLMRequest(payload: unknown): Promise<unknown> {
     const envelope = createEnvelope(this.componentName, 'llm.request', payload);
-    return this.bus.request(Topics.llmRequest, envelope, 60000);
+    return this.bus.request(TOPICS.llm.request, envelope, 60000);
   }
 
   /**
    * Send a tool request
    */
   async sendToolRequest(tool: string, payload: unknown): Promise<unknown> {
-    const topic = Topics.toolRequest(tool);
+    const topic = TOPICS.tool.request(tool);
     const envelope = createEnvelope(this.componentName, 'tool.request', payload);
     return this.bus.request(topic, envelope, 30000);
   }
@@ -202,7 +271,7 @@ export class Router {
    */
   async checkPolicy(payload: unknown): Promise<unknown> {
     const envelope = createEnvelope(this.componentName, 'policy.check', payload);
-    return this.bus.request(Topics.policyCheck, envelope, 5000);
+    return this.bus.request(TOPICS.policy.check, envelope, 5000);
   }
 
   /**
@@ -210,7 +279,7 @@ export class Router {
    */
   async audit(payload: unknown): Promise<void> {
     const envelope = createEnvelope(this.componentName, 'audit.log', payload);
-    await this.bus.publish(Topics.auditLog, envelope);
+    await this.bus.publish(TOPICS.audit.log, envelope);
   }
 
   /**
