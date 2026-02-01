@@ -66,10 +66,7 @@ This builds all packages in the correct order based on their dependencies.
 ### 3. Run Tests
 
 ```bash
-# Run all tests
-pnpm test
-
-# Run tests in watch mode
+# Run tests in watch mode (default)
 pnpm test
 
 # Run tests once (CI mode)
@@ -217,11 +214,11 @@ describe('MyComponent', () => {
 ### Running Tests
 
 ```bash
-# All tests
+# Watch mode (default)
 pnpm test
 
-# Watch mode
-pnpm test
+# Run once (CI mode)
+pnpm test:ci
 
 # Specific package
 cd packages/core/gateway
