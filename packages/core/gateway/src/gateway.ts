@@ -33,6 +33,7 @@ export class Gateway {
   private healthServer: ReturnType<typeof createHealthServer> | null = null;
   private options: GatewayOptions;
   private isConnected: boolean = false;
+  private shutdownHandlers: (() => void)[] = [];
 
   constructor(options: GatewayOptions = {}) {
     this.options = options;
@@ -140,12 +141,51 @@ export class Gateway {
   async stop(): Promise<void> {
     this.isConnected = false;
 
+    // Remove signal handlers
+    this.removeSignalHandlers();
+
     if (this.healthServer && this.healthServer.server.listening) {
       await this.healthServer.stop();
     }
 
     this.storage.close();
     console.log('Gateway stopped');
+  }
+
+  /**
+   * Setup signal handlers for graceful shutdown
+   */
+  setupSignalHandlers(): void {
+    const shutdown = async (signal: string) => {
+      console.log(`Received ${signal}, shutting down gracefully...`);
+      try {
+        await this.stop();
+        process.exit(0);
+      } catch (error) {
+        console.error('Error during shutdown:', error);
+        process.exit(1);
+      }
+    };
+
+    const sigintHandler = () => shutdown('SIGINT');
+    const sigtermHandler = () => shutdown('SIGTERM');
+
+    process.on('SIGINT', sigintHandler);
+    process.on('SIGTERM', sigtermHandler);
+
+    // Store handlers for cleanup
+    this.shutdownHandlers.push(
+      () => process.removeListener('SIGINT', sigintHandler),
+      () => process.removeListener('SIGTERM', sigtermHandler)
+    );
+  }
+
+  /**
+   * Remove signal handlers (for testing)
+   */
+  private removeSignalHandlers(): void {
+    this.shutdownHandlers.forEach((handler) => handler());
+    this.shutdownHandlers = [];
   }
 
   /**

@@ -8,6 +8,9 @@
 // Main Gateway class
 export { Gateway, type GatewayOptions } from './gateway.js';
 
+// Configuration
+export { loadConfig, validateConfig, type GatewayConfig } from './config.js';
+
 // Session management
 export { SessionManager, type CreateSessionOptions, type AddMessageOptions } from './session.js';
 
