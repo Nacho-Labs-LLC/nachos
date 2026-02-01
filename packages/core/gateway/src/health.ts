@@ -2,9 +2,32 @@
  * Health check endpoint for the Gateway
  */
 import { createServer, type IncomingMessage, type ServerResponse } from 'http';
+import { readFileSync, existsSync } from 'fs';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import type { HealthCheck, HealthStatus } from '@nachos/types';
 
-const VERSION = '0.0.0';
+/**
+ * Get the version from package.json
+ */
+function getVersion(): string {
+  try {
+    // Try to find package.json relative to this file
+    const __dirname = dirname(fileURLToPath(import.meta.url));
+    const packagePath = resolve(__dirname, '../package.json');
+    if (existsSync(packagePath)) {
+      const pkg = JSON.parse(readFileSync(packagePath, 'utf-8')) as {
+        version?: string;
+      };
+      return pkg.version ?? '0.0.0';
+    }
+  } catch {
+    // Fall back to default version
+  }
+  return '0.0.0';
+}
+
+const VERSION = getVersion();
 
 /**
  * Health check dependencies
