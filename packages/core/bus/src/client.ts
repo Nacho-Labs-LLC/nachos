@@ -22,7 +22,11 @@ import type {
   BusEventHandler,
 } from './types.js';
 
-// Package version for health reporting
+/**
+ * Package version for health reporting
+ * NOTE: This should be kept in sync with package.json version.
+ * In production, consider reading from package.json or build-time injection.
+ */
 const VERSION = '0.0.0';
 
 // Default options
@@ -217,7 +221,8 @@ export class NachosBusClient implements INachosBusClient {
         });
       } catch (error) {
         // Log parsing errors but continue processing
-        console.error('Error processing message:', error);
+        // NOTE: In production, consider using a structured logger for better aggregation
+        console.error(`Error processing message on topic ${msg.subject}:`, error);
       }
     }
   }
@@ -327,6 +332,7 @@ export class NachosBusClient implements INachosBusClient {
       try {
         handler(event, data);
       } catch (error) {
+        // NOTE: In production, consider using a structured logger for better aggregation
         console.error(`Error in event handler for ${event}:`, error);
       }
     });
