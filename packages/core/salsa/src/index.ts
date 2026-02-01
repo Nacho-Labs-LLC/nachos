@@ -2,7 +2,7 @@
 
 /**
  * Nachos Salsa Policy Engine
- * 
+ *
  * Security layer that:
  * - Evaluates requests against policy rules
  * - DLP scanning for sensitive data
@@ -38,7 +38,9 @@ process.on('SIGINT', () => {
 // Keep the process alive
 setInterval(() => {
   if (isHealthy) {
-    console.log(`[${new Date().toISOString()}] Salsa healthy - policy checks active (${SECURITY_MODE} mode)`);
+    console.log(
+      `[${new Date().toISOString()}] Salsa healthy - policy checks active (${SECURITY_MODE} mode)`
+    );
   }
 }, 30000);
 

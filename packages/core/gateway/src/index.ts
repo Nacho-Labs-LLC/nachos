@@ -1,46 +1,48 @@
-#!/usr/bin/env node
-
 /**
- * Nachos Gateway Service
- * 
- * Central orchestrator for:
- * - Managing user sessions
- * - Routing messages between components
- * - Maintaining conversation state
- * - Coordinating tool execution
+ * Nachos Gateway
+ *
+ * Central orchestrator for session management, message routing,
+ * and coordination between channels, LLM, and tools.
  */
 
-const PORT = process.env.PORT || 3000;
-const NATS_URL = process.env.NATS_URL || 'nats://localhost:4222';
+// Main Gateway class
+export { Gateway, type GatewayOptions } from './gateway.js';
 
-console.log('🚪 Nachos Gateway starting...');
-console.log(`   Port: ${PORT}`);
-console.log(`   NATS: ${NATS_URL}`);
-console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
+// Configuration
+export { loadConfig, validateConfig, type GatewayConfig } from './config.js';
 
-// Basic health check endpoint
-// In a full implementation, this would be an HTTP server
-let isHealthy = true;
+// Session management
+export { SessionManager, type CreateSessionOptions, type AddMessageOptions } from './session.js';
 
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully...');
-  isHealthy = false;
-  process.exit(0);
-});
+// State storage
+export {
+  StateStorage,
+  type CreateSessionData,
+  type UpdateSessionData,
+  type CreateMessageData,
+} from './state.js';
 
-process.on('SIGINT', () => {
-  console.log('SIGINT received, shutting down gracefully...');
-  isHealthy = false;
-  process.exit(0);
-});
+// Router and message bus
+export {
+  Router,
+  InMemoryMessageBus,
+  NatsBusAdapter,
+  Topics,
+  createEnvelope,
+  type MessageBus,
+  type RouteHandler,
+  type RouterOptions,
+} from './router.js';
 
-// Keep the process alive
-setInterval(() => {
-  if (isHealthy) {
-    console.log(`[${new Date().toISOString()}] Gateway healthy - session management active`);
-  }
-}, 30000);
+// Re-export TOPICS from @nachos/bus for convenience
+export { TOPICS } from '@nachos/bus';
 
-console.log('✅ Gateway service ready');
-console.log('   Waiting for messages on NATS...');
+// Health check
+export {
+  createHealthServer,
+  performHealthCheck,
+  getUptime,
+  resetStartTime,
+  type HealthCheckDeps,
+  type HealthServerOptions,
+} from './health.js';
