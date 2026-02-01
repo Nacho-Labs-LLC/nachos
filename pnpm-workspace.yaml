@@ -1,7 +1,11 @@
 packages:
-  - 'packages/cli'
-  - 'packages/core/*'
-  - 'packages/channels/*'
-  - 'packages/tools/*'
-  - 'packages/skills/*'
-  - 'packages/shared/*'
+  - packages/cli
+  - packages/core/*
+  - packages/channels/*
+  - packages/tools/*
+  - packages/skills/*
+  - packages/shared/*
+
+onlyBuiltDependencies:
+  - better-sqlite3
+  - esbuild
