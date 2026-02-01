@@ -20,7 +20,7 @@ flowchart TB
         LLM["🤖 LLM APIs"]
         ExtAPI["🌐 External APIs"]
     end
-    
+
     subgraph DockerCompose["🍽️ Docker Compose (The Plate)"]
         subgraph Salsa["🌶️ Salsa Layer"]
             Policy["Policy Engine"]
@@ -28,16 +28,16 @@ flowchart TB
             Audit["Audit Logger"]
             RateLimit["Rate Limiter"]
         end
-        
+
         subgraph Core["🔲 Core (Chips)"]
             Gateway["Gateway"]
             Bus["Message Bus<br/>(NATS)"]
         end
-        
+
         subgraph Protein["🥩 Protein"]
             LLMProxy["LLM Proxy"]
         end
-        
+
         subgraph Toppings["🫑 Toppings"]
             subgraph Channels["Channels"]
                 Slack["Slack"]
@@ -51,13 +51,13 @@ flowchart TB
                 CodeRunner["Code Runner"]
             end
         end
-        
+
         subgraph Networks["Networks"]
             Internal["nachos-internal<br/>(isolated)"]
             Egress["nachos-egress<br/>(controlled)"]
         end
     end
-    
+
     User <--> Channels
     Channels <--> Bus
     Bus <--> Gateway
@@ -66,7 +66,7 @@ flowchart TB
     Gateway <--> Tools
     LLMProxy <--> LLM
     Browser <--> ExtAPI
-    
+
     Core --- Internal
     Toppings --- Internal
     LLMProxy --- Egress
@@ -82,6 +82,7 @@ These are always present in any Nachos deployment.
 #### Gateway
 
 The central orchestrator that:
+
 - Manages user sessions
 - Routes messages between components
 - Maintains conversation state
@@ -95,7 +96,7 @@ flowchart LR
         State["State Store"]
         ToolCoord["Tool Coordinator"]
     end
-    
+
     Bus["Message Bus"] <--> Router
     Router <--> SessionMgr
     SessionMgr <--> State
@@ -105,12 +106,14 @@ flowchart LR
 #### Message Bus (NATS)
 
 Lightweight message passing that:
+
 - Decouples components
 - Enables pub/sub patterns
 - Handles request/reply
 - Provides message persistence
 
 **Topic Structure:**
+
 ```
 nachos.channel.{channel_name}.inbound    # Messages from users
 nachos.channel.{channel_name}.outbound   # Messages to users
@@ -146,14 +149,14 @@ Evaluates requests against rules:
 
 ```yaml
 # Example policy rule
-- name: "tool-filesystem-write"
+- name: 'tool-filesystem-write'
   match:
-    tool: "filesystem"
-    action: "write"
+    tool: 'filesystem'
+    action: 'write'
   conditions:
-    - security_mode: ["standard", "permissive"]
+    - security_mode: ['standard', 'permissive']
     - path_allowed: true
-  effect: "allow"
+  effect: 'allow'
 ```
 
 ### LLM Proxy (Protein)
@@ -166,12 +169,13 @@ flowchart LR
     Proxy --> Anthropic["Anthropic API"]
     Proxy --> OpenAI["OpenAI API"]
     Proxy --> Ollama["Ollama (local)"]
-    
+
     Proxy --> Cache["Response Cache"]
     Proxy --> Fallback["Fallback Logic"]
 ```
 
 **Responsibilities:**
+
 - Unified API across providers
 - Automatic retry with exponential backoff
 - Fallback to secondary model
@@ -189,7 +193,7 @@ flowchart TD
         Normalizer["Message Normalizer"]
         Formatter["Response Formatter"]
     end
-    
+
     SlackAPI["Slack API"] <--> Adapter
     Adapter <--> Normalizer
     Normalizer <--> Bus["Message Bus"]
@@ -198,6 +202,7 @@ flowchart TD
 ```
 
 **Channel Contract:**
+
 - Receive platform-specific messages
 - Normalize to common format
 - Publish to bus
@@ -215,7 +220,7 @@ flowchart TD
         Executor["Executor"]
         Sandbox["Sandbox/Limits"]
     end
-    
+
     Bus["Message Bus"] --> Interface
     Interface --> Sandbox
     Sandbox --> Executor
@@ -226,13 +231,13 @@ flowchart TD
 
 **Tool Security Tiers:**
 
-| Tier | Examples | Sandbox | Network |
-|------|----------|---------|---------|
-| 0 - Safe | Read calendar | No | None |
-| 1 - Standard | Browse web | Yes | Limited |
-| 2 - Elevated | Write files | Yes | None |
-| 3 - Restricted | Execute code | Strict | None |
-| 4 - Dangerous | Shell access | N/A | Blocked |
+| Tier           | Examples      | Sandbox | Network |
+| -------------- | ------------- | ------- | ------- |
+| 0 - Safe       | Read calendar | No      | None    |
+| 1 - Standard   | Browse web    | Yes     | Limited |
+| 2 - Elevated   | Write files   | Yes     | None    |
+| 3 - Restricted | Execute code  | Strict  | None    |
+| 4 - Dangerous  | Shell access  | N/A     | Blocked |
 
 ## Network Architecture
 
@@ -243,30 +248,31 @@ flowchart TB
         ChannelAPIs["Channel APIs<br/>(Slack, Discord, etc.)"]
         WebAPIs["Web APIs"]
     end
-    
+
     subgraph EgressNet["nachos-egress"]
         LLMProxy["LLM Proxy"]
         ChannelContainers["Channel Containers"]
         BrowserTool["Browser Tool"]
     end
-    
+
     subgraph InternalNet["nachos-internal (isolated)"]
         Gateway["Gateway"]
         Bus["Bus"]
         Salsa["Salsa"]
         SafeTools["Safe Tools"]
     end
-    
+
     LLMProxy <--> LLM
     ChannelContainers <--> ChannelAPIs
     BrowserTool <--> WebAPIs
-    
+
     LLMProxy --- InternalNet
     ChannelContainers --- InternalNet
     BrowserTool --- InternalNet
 ```
 
 **Key Points:**
+
 - Internal network has NO external access
 - Egress network is explicitly granted
 - Each container only joins necessary networks
@@ -285,7 +291,7 @@ sequenceDiagram
     participant G as Gateway
     participant L as LLM Proxy
     participant T as Tool
-    
+
     U->>C: Send message
     C->>B: Publish (normalized)
     B->>S: Policy check
@@ -322,13 +328,13 @@ flowchart LR
         SessionCache["Session Cache"]
         RateLimitCounters["Rate Limit Counters"]
     end
-    
+
     subgraph Persistent["Persistent (Volumes)"]
         StateDB["State DB<br/>(SQLite)"]
         AuditLogs["Audit Logs"]
         Credentials["Credentials<br/>(encrypted)"]
     end
-    
+
     Gateway --> SessionCache
     SessionCache <--> StateDB
     Salsa --> RateLimitCounters
@@ -347,12 +353,12 @@ Every module declares its requirements:
   "name": "nachos-channel-slack",
   "version": "1.0.0",
   "type": "channel",
-  
+
   "requires": {
     "gateway": "^1.0",
     "bus": "^1.0"
   },
-  
+
   "capabilities": {
     "network": {
       "egress": ["slack.com", "api.slack.com", "files.slack.com"]
@@ -360,12 +366,12 @@ Every module declares its requirements:
     "secrets": ["SLACK_BOT_TOKEN", "SLACK_APP_TOKEN"],
     "volumes": []
   },
-  
+
   "provides": {
     "channel": "slack",
     "features": ["dm", "channels", "threads", "reactions", "files"]
   },
-  
+
   "container": {
     "image": "nachoclaw/channel-slack",
     "resources": {
@@ -429,7 +435,7 @@ All available channels and tools enabled.
 
 ### Custom Tools
 
-1. Implement tool interface  
+1. Implement tool interface
 2. Define schema
 3. Assign security tier
 4. Create manifest
@@ -451,11 +457,11 @@ All available channels and tools enabled.
 
 ## Security Summary
 
-| Layer | Protection |
-|-------|------------|
-| Container | Non-root, read-only, dropped caps |
-| Network | Internal isolation, controlled egress |
-| Policy | Deny-default, explicit allow |
-| DLP | Pattern matching, configurable action |
-| Audit | Full logging, tamper-evident |
-| Rate Limit | Per-user, per-operation limits |
+| Layer      | Protection                            |
+| ---------- | ------------------------------------- |
+| Container  | Non-root, read-only, dropped caps     |
+| Network    | Internal isolation, controlled egress |
+| Policy     | Deny-default, explicit allow          |
+| DLP        | Pattern matching, configurable action |
+| Audit      | Full logging, tamper-evident          |
+| Rate Limit | Per-user, per-operation limits        |

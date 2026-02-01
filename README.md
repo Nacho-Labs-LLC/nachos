@@ -1,6 +1,7 @@
 # 🧀 Nachos
 
-**Your AI assistant, your way. Docker-native. Secure by default. Infinitely customizable.**
+**Your AI assistant, your way. Docker-native. Secure by default. Infinitely
+customizable.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -8,9 +9,12 @@
 
 ## What is Nachos?
 
-Nachos is a modular AI assistant framework that runs entirely in Docker. Connect it to your favorite messaging platforms, add the tools you need, and customize everything—while maintaining strong security defaults.
+Nachos is a modular AI assistant framework that runs entirely in Docker. Connect
+it to your favorite messaging platforms, add the tools you need, and customize
+everything—while maintaining strong security defaults.
 
-Think of it like building a plate of nachos: start with a solid base, add your toppings, and make it exactly the way you want.
+Think of it like building a plate of nachos: start with a solid base, add your
+toppings, and make it exactly the way you want.
 
 ```
 ┌─────────────────────────────────────────────┐
@@ -26,13 +30,13 @@ Think of it like building a plate of nachos: start with a solid base, add your t
 
 ## Why Nachos?
 
-| Feature | Nachos | Traditional Assistants |
-|---------|--------|----------------------|
-| **Deployment** | Docker Compose | npm install + daemon |
-| **Security** | Strict by default | Permissive by default |
-| **Modularity** | Container per component | Monolithic |
-| **Network** | Isolated by default | Open by default |
-| **Configuration** | Single TOML file | Scattered JSON/YAML |
+| Feature           | Nachos                  | Traditional Assistants |
+| ----------------- | ----------------------- | ---------------------- |
+| **Deployment**    | Docker Compose          | npm install + daemon   |
+| **Security**      | Strict by default       | Permissive by default  |
+| **Modularity**    | Container per component | Monolithic             |
+| **Network**       | Isolated by default     | Open by default        |
+| **Configuration** | Single TOML file        | Scattered JSON/YAML    |
 
 ## Quick Start
 
@@ -55,7 +59,7 @@ open http://localhost:8080
 Every great plate of nachos has layers:
 
 - **🔲 Chips (Base)**: Gateway + Message Bus — the foundation
-- **🧀 Cheese (Binding)**: Connects all your toppings together  
+- **🧀 Cheese (Binding)**: Connects all your toppings together
 - **🥩 Protein (Substance)**: Your LLM provider (Claude, GPT, Ollama)
 - **🫑 Toppings (Modules)**: Channels and tools you choose
 - **🌶️ Salsa (Protection)**: Security policies that keep you safe
@@ -97,11 +101,11 @@ mode = "standard"
 
 Choose your comfort level:
 
-| Mode | Description |
-|------|-------------|
-| **🔒 Strict** | Everything disabled by default. Allowlist only. Full audit logging. |
-| **⚖️ Standard** | Common tools enabled. Pairing-based DMs. Balanced security. |
-| **🔓 Permissive** | Full access. Requires explicit opt-in. Use with caution. |
+| Mode              | Description                                                         |
+| ----------------- | ------------------------------------------------------------------- |
+| **🔒 Strict**     | Everything disabled by default. Allowlist only. Full audit logging. |
+| **⚖️ Standard**   | Common tools enabled. Pairing-based DMs. Balanced security.         |
+| **🔓 Permissive** | Full access. Requires explicit opt-in. Use with caution.            |
 
 ```toml
 [security]

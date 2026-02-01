@@ -1,0 +1,19 @@
+{
+  "name": "@nachos/gateway",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Nachos Gateway - Session management and routing",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "typescript": "^5.7.3"
+  }
+}
