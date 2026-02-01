@@ -1,0 +1,167 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# 🧀 NACHOS CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════════
+# 
+# This is your single configuration file for the entire Nachos stack.
+# Edit this file and run `nachos up` to apply changes.
+#
+# Documentation: https://nachos.dev/docs/configuration
+# ═══════════════════════════════════════════════════════════════════════════════
+
+[nachos]
+name = "my-assistant"
+version = "1.0"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 🥩 THE PROTEIN - Your LLM Provider
+# ═══════════════════════════════════════════════════════════════════════════════
+# Choose your AI backend. Credentials come from environment variables or .env file.
+
+[llm]
+provider = "anthropic"                    # "anthropic" | "openai" | "ollama" | "custom"
+model = "claude-sonnet-4-20250514"        # Default model
+fallback_model = "claude-haiku"           # Used if primary fails
+max_tokens = 4096                         # Max response tokens
+temperature = 0.7                         # 0.0 = deterministic, 1.0 = creative
+
+# For Ollama (local models):
+# [llm]
+# provider = "ollama"
+# model = "llama3.2"
+# base_url = "http://host.docker.internal:11434"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 🫑 TOPPINGS - Channels
+# ═══════════════════════════════════════════════════════════════════════════════
+# Enable the messaging platforms you want to connect.
+# Credentials come from environment variables (SLACK_BOT_TOKEN, etc.)
+
+[channels.webchat]
+enabled = true
+port = 8080                               # Local port for web interface
+# No authentication required for local webchat
+
+[channels.slack]
+enabled = false
+# Requires: SLACK_BOT_TOKEN, SLACK_APP_TOKEN in .env
+
+[channels.discord]
+enabled = false
+dm_policy = "allowlist"                   # "allowlist" | "pairing" | "open"
+allowed_users = []                        # Discord user IDs (when dm_policy = "allowlist")
+# Requires: DISCORD_BOT_TOKEN in .env
+
+[channels.telegram]
+enabled = false
+dm_policy = "pairing"                     # New users must enter pairing code
+# Requires: TELEGRAM_BOT_TOKEN in .env
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 🫑 MORE TOPPINGS - Tools
+# ═══════════════════════════════════════════════════════════════════════════════
+# Enable capabilities for your assistant.
+
+[tools.filesystem]
+enabled = true
+paths = ["./workspace"]                   # Directories the assistant can access
+write = true                              # Allow write operations
+max_file_size = "10MB"                    # Limit for file operations
+
+[tools.browser]
+enabled = true
+allowed_domains = ["*"]                   # Restrict if needed: ["docs.google.com", "github.com"]
+headless = true                           # Run browser without GUI
+timeout = 30                              # Page load timeout in seconds
+
+[tools.code_runner]
+enabled = true
+runtime = "sandboxed"                     # "sandboxed" (safe) | "native" (requires opt-in)
+languages = ["python", "javascript", "typescript"]
+timeout = 30                              # Execution timeout in seconds
+max_memory = "256MB"                      # Memory limit per execution
+
+[tools.shell]
+enabled = false                           # Disabled by default - high risk
+# To enable, you must also set security.mode = "permissive"
+
+[tools.web_search]
+enabled = false
+# Requires: SERP_API_KEY or similar in .env
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 🌶️ THE SALSA - Security Configuration
+# ═══════════════════════════════════════════════════════════════════════════════
+# Security is on by default. Adjust these settings carefully.
+
+[security]
+mode = "standard"                         # "strict" | "standard" | "permissive"
+
+# Strict: Everything disabled, allowlist only, full audit
+# Standard: Common tools enabled, pairing DMs, balanced security  
+# Permissive: Full access (requires i_understand_the_risks = true)
+
+# Required only for permissive mode:
+# i_understand_the_risks = true
+
+[security.dlp]
+enabled = true
+action = "warn"                           # "block" | "warn" | "audit"
+patterns = [
+    "credit_card",
+    "ssn", 
+    "api_key",
+    "password"
+]
+
+[security.rate_limits]
+messages_per_minute = 30
+tool_calls_per_minute = 15
+llm_requests_per_minute = 30
+
+[security.audit]
+enabled = true
+retention_days = 30
+log_inputs = true                         # Log user messages (redacted)
+log_outputs = true                        # Log assistant responses
+log_tool_calls = true                     # Log all tool invocations
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 🍽️ THE PLATE - Runtime Configuration
+# ═══════════════════════════════════════════════════════════════════════════════
+
+[runtime]
+state_dir = "./state"                     # Persistent state storage
+log_level = "info"                        # "debug" | "info" | "warn" | "error"
+log_format = "pretty"                     # "pretty" | "json"
+
+[runtime.resources]
+# Default resource limits per container
+memory = "512MB"
+cpus = 0.5
+pids_limit = 100
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 🎨 PERSONALITY - Assistant Configuration
+# ═══════════════════════════════════════════════════════════════════════════════
+
+[assistant]
+name = "Nachos"
+system_prompt = """
+You are a helpful AI assistant running in the Nachos framework.
+You have access to various tools based on your configuration.
+Be concise, helpful, and security-conscious.
+"""
+
+# Load additional context from files:
+# context_files = ["./skills/researcher.md", "./context/company.md"]
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 📦 SKILLS - Pre-configured Tool + Prompt Bundles
+# ═══════════════════════════════════════════════════════════════════════════════
+
+[skills]
+enabled = []                              # ["researcher", "coder", "writer"]
+
+# Skills are pre-configured bundles that enable specific tools and prompts.
+# Browse available skills: nachos search skills
+# Add a skill: nachos add skill researcher

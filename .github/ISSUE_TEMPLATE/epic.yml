@@ -1,0 +1,82 @@
+name: Epic
+description: A large feature or initiative containing multiple tasks
+title: "[EPIC] "
+labels: ["epic"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Epic Template
+        Use this for large features that will be broken into multiple tasks.
+
+  - type: input
+    id: phase
+    attributes:
+      label: Phase
+      description: Which roadmap phase does this belong to?
+      placeholder: "Phase 1: Core Infrastructure"
+    validations:
+      required: true
+
+  - type: textarea
+    id: overview
+    attributes:
+      label: Overview
+      description: What is this epic about?
+      placeholder: Describe the feature or initiative
+    validations:
+      required: true
+
+  - type: textarea
+    id: goals
+    attributes:
+      label: Goals
+      description: What should be true when this epic is complete?
+      placeholder: |
+        - [ ] Goal 1
+        - [ ] Goal 2
+    validations:
+      required: true
+
+  - type: textarea
+    id: tasks
+    attributes:
+      label: Tasks
+      description: Break down into individual tasks (link issues when created)
+      placeholder: |
+        - [ ] #123 Task 1
+        - [ ] #124 Task 2
+    validations:
+      required: true
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: What must be completed before this epic can start?
+      placeholder: |
+        - Depends on #100
+        - Requires NATS container running
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: How do we know this epic is done?
+      placeholder: |
+        - [ ] All tasks complete
+        - [ ] Integration tests passing
+        - [ ] Documentation updated
+    validations:
+      required: true
+
+  - type: dropdown
+    id: size
+    attributes:
+      label: Size Estimate
+      options:
+        - Small (1 week)
+        - Medium (2-3 weeks)
+        - Large (4+ weeks)
+    validations:
+      required: true
