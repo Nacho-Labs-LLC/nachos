@@ -1,0 +1,606 @@
+/**
+ * TypeBox Message Schemas for Nachos Inter-Component Communication
+ *
+ * This module defines runtime-validated schemas for all messages that flow
+ * between Nachos components (Gateway, Bus, Channels, LLM Proxy, Tools, etc.)
+ *
+ * @see TECHNICAL_SPEC.md for full message documentation
+ */
+
+import { Type, type Static } from '@sinclair/typebox';
+
+// ============================================================================
+// Base Schemas
+// ============================================================================
+
+/**
+ * UUID string for message IDs
+ * Note: Format validation is not enforced at runtime
+ */
+export const UUIDSchema = Type.String({
+  description: 'Unique identifier (UUID format)',
+});
+
+/**
+ * ISO 8601 timestamp string
+ * Note: Format validation is not enforced at runtime, consumers should validate
+ */
+export const TimestampSchema = Type.String({
+  description: 'ISO 8601 timestamp string',
+});
+
+/**
+ * Base message envelope that wraps all inter-component messages
+ */
+export const MessageEnvelopeSchema = Type.Object(
+  {
+    id: Type.String({ description: 'Unique message identifier' }),
+    timestamp: TimestampSchema,
+    source: Type.String({ description: 'Component that sent the message' }),
+    type: Type.String({ description: 'Message type identifier' }),
+    correlationId: Type.Optional(
+      Type.String({ description: 'Correlation ID for request/reply patterns' })
+    ),
+    payload: Type.Unknown({ description: 'Message-specific payload' }),
+  },
+  { $id: 'MessageEnvelope', description: 'Base message envelope for all inter-component messages' }
+);
+
+export type MessageEnvelopeType = Static<typeof MessageEnvelopeSchema>;
+
+// ============================================================================
+// Attachment Schema
+// ============================================================================
+
+/**
+ * Attachment structure for messages with files or media
+ */
+export const AttachmentSchema = Type.Object(
+  {
+    type: Type.String({ description: 'Attachment type (image, file, etc.)' }),
+    url: Type.String({ description: 'URL or data URI of the attachment' }),
+    name: Type.Optional(Type.String({ description: 'Original filename' })),
+    mimeType: Type.Optional(Type.String({ description: 'MIME type of the attachment' })),
+    size: Type.Optional(Type.Number({ description: 'Size in bytes' })),
+  },
+  { $id: 'Attachment', description: 'Attachment structure for messages' }
+);
+
+export type AttachmentType = Static<typeof AttachmentSchema>;
+
+// ============================================================================
+// Sender Schema
+// ============================================================================
+
+/**
+ * Sender information in channel messages
+ */
+export const SenderSchema = Type.Object(
+  {
+    id: Type.String({ description: 'Unique sender identifier' }),
+    name: Type.Optional(Type.String({ description: 'Display name of the sender' })),
+    isAllowed: Type.Boolean({ description: 'Whether the sender is in the allowlist' }),
+  },
+  { $id: 'Sender', description: 'Sender information in channel messages' }
+);
+
+export type SenderType = Static<typeof SenderSchema>;
+
+// ============================================================================
+// Conversation Schema
+// ============================================================================
+
+/**
+ * Conversation context
+ */
+export const ConversationTypeSchema = Type.Union(
+  [Type.Literal('dm'), Type.Literal('channel'), Type.Literal('thread')],
+  { description: 'Type of conversation' }
+);
+
+export const ConversationSchema = Type.Object(
+  {
+    id: Type.String({ description: 'Unique conversation identifier' }),
+    type: ConversationTypeSchema,
+  },
+  { $id: 'Conversation', description: 'Conversation context' }
+);
+
+export type ConversationType = Static<typeof ConversationSchema>;
+
+// ============================================================================
+// Message Content Schema
+// ============================================================================
+
+/**
+ * Content structure for messages
+ */
+export const MessageContentSchema = Type.Object(
+  {
+    text: Type.Optional(Type.String({ description: 'Text content of the message' })),
+    attachments: Type.Optional(Type.Array(AttachmentSchema)),
+  },
+  { $id: 'MessageContent', description: 'Content structure for messages' }
+);
+
+export type MessageContentType = Static<typeof MessageContentSchema>;
+
+// ============================================================================
+// Channel Message Schemas
+// ============================================================================
+
+/**
+ * Inbound message from channels (user -> gateway)
+ */
+export const ChannelInboundMessageSchema = Type.Object(
+  {
+    channel: Type.String({ description: 'Channel identifier (slack, discord, etc.)' }),
+    channelMessageId: Type.String({ description: 'Message ID from the channel' }),
+    sessionId: Type.Optional(Type.String({ description: 'Existing session ID if resuming' })),
+    sender: SenderSchema,
+    conversation: ConversationSchema,
+    content: MessageContentSchema,
+    metadata: Type.Optional(
+      Type.Record(Type.String(), Type.Unknown(), {
+        description: 'Channel-specific metadata',
+      })
+    ),
+  },
+  { $id: 'ChannelInboundMessage', description: 'Inbound message from channels' }
+);
+
+export type ChannelInboundMessageType = Static<typeof ChannelInboundMessageSchema>;
+
+/**
+ * Outbound attachment for channel messages
+ */
+export const OutboundAttachmentSchema = Type.Object(
+  {
+    type: Type.String({ description: 'Attachment type' }),
+    data: Type.Union([Type.String(), Type.Unknown()], { description: 'Attachment data' }),
+    name: Type.Optional(Type.String({ description: 'Attachment filename' })),
+  },
+  { description: 'Outbound attachment structure' }
+);
+
+/**
+ * Outbound content structure
+ */
+export const OutboundContentSchema = Type.Object(
+  {
+    text: Type.String({ description: 'Text content to send' }),
+    format: Type.Optional(
+      Type.Union([Type.Literal('plain'), Type.Literal('markdown')], {
+        description: 'Text format',
+      })
+    ),
+    attachments: Type.Optional(Type.Array(OutboundAttachmentSchema)),
+  },
+  { description: 'Outbound content structure' }
+);
+
+/**
+ * Outbound message options
+ */
+export const OutboundOptionsSchema = Type.Object(
+  {
+    ephemeral: Type.Optional(
+      Type.Boolean({ description: 'Whether message is only visible to recipient' })
+    ),
+    threadReply: Type.Optional(Type.Boolean({ description: 'Whether to reply in thread' })),
+  },
+  { description: 'Outbound message options' }
+);
+
+/**
+ * Outbound message to channels (gateway -> channel)
+ */
+export const ChannelOutboundMessageSchema = Type.Object(
+  {
+    channel: Type.String({ description: 'Target channel identifier' }),
+    conversationId: Type.String({ description: 'Conversation to send message to' }),
+    replyToMessageId: Type.Optional(
+      Type.String({ description: 'Message ID to reply to (for threading)' })
+    ),
+    content: OutboundContentSchema,
+    options: Type.Optional(OutboundOptionsSchema),
+  },
+  { $id: 'ChannelOutboundMessage', description: 'Outbound message to channels' }
+);
+
+export type ChannelOutboundMessageType = Static<typeof ChannelOutboundMessageSchema>;
+
+// ============================================================================
+// Session Schemas
+// ============================================================================
+
+/**
+ * Session status
+ */
+export const SessionStatusSchema = Type.Union(
+  [Type.Literal('active'), Type.Literal('paused'), Type.Literal('ended')],
+  { $id: 'SessionStatus', description: 'Session status' }
+);
+
+export type SessionStatusType = Static<typeof SessionStatusSchema>;
+
+/**
+ * Message role in conversation
+ */
+export const MessageRoleSchema = Type.Union(
+  [Type.Literal('system'), Type.Literal('user'), Type.Literal('assistant'), Type.Literal('tool')],
+  { $id: 'MessageRole', description: 'Message role in conversation' }
+);
+
+export type MessageRoleType = Static<typeof MessageRoleSchema>;
+
+/**
+ * Message in conversation history
+ */
+export const MessageSchema = Type.Object(
+  {
+    id: Type.String({ description: 'Unique message identifier' }),
+    sessionId: Type.String({ description: 'Session this message belongs to' }),
+    role: MessageRoleSchema,
+    content: Type.String({ description: 'Message content' }),
+    toolCalls: Type.Optional(Type.Unknown({ description: 'Tool calls made in this message' })),
+    createdAt: TimestampSchema,
+  },
+  { $id: 'Message', description: 'Message in conversation history' }
+);
+
+export type MessageType = Static<typeof MessageSchema>;
+
+/**
+ * Session configuration
+ */
+export const SessionConfigSchema = Type.Object(
+  {
+    model: Type.Optional(Type.String({ description: 'LLM model to use' })),
+    maxTokens: Type.Optional(Type.Number({ description: 'Maximum tokens for response' })),
+    tools: Type.Optional(Type.Array(Type.String(), { description: 'Enabled tools for session' })),
+  },
+  { $id: 'SessionConfig', description: 'Session configuration' }
+);
+
+export type SessionConfigType = Static<typeof SessionConfigSchema>;
+
+/**
+ * Session data structure
+ */
+export const SessionSchema = Type.Object(
+  {
+    id: Type.String({ description: 'Unique session identifier' }),
+    createdAt: TimestampSchema,
+    updatedAt: TimestampSchema,
+    channel: Type.String({ description: 'Channel this session is on' }),
+    conversationId: Type.String({ description: 'Conversation identifier' }),
+    userId: Type.String({ description: 'User identifier' }),
+    status: SessionStatusSchema,
+    systemPrompt: Type.Optional(Type.String({ description: 'System prompt for this session' })),
+    config: SessionConfigSchema,
+    metadata: Type.Record(Type.String(), Type.Unknown(), { description: 'Additional metadata' }),
+  },
+  { $id: 'Session', description: 'Session data structure' }
+);
+
+export type SessionType = Static<typeof SessionSchema>;
+
+/**
+ * Session with messages (for read operations)
+ */
+export const SessionWithMessagesSchema = Type.Intersect(
+  [SessionSchema, Type.Object({ messages: Type.Array(MessageSchema) })],
+  { $id: 'SessionWithMessages', description: 'Session with messages' }
+);
+
+export type SessionWithMessagesType = Static<typeof SessionWithMessagesSchema>;
+
+// ============================================================================
+// LLM Schemas
+// ============================================================================
+
+/**
+ * LLM message content part
+ */
+export const LLMContentPartSchema = Type.Object({
+  type: Type.String({ description: 'Content type (text, image, tool_result, etc.)' }),
+  text: Type.Optional(Type.String({ description: 'Text content' })),
+  image_url: Type.Optional(Type.String({ description: 'Image URL' })),
+  tool_use_id: Type.Optional(Type.String({ description: 'Tool use ID for results' })),
+  tool_result: Type.Optional(Type.Unknown({ description: 'Tool result data' })),
+});
+
+/**
+ * LLM message structure
+ */
+export const LLMMessageSchema = Type.Object(
+  {
+    role: MessageRoleSchema,
+    content: Type.Union([Type.String(), Type.Array(LLMContentPartSchema)], {
+      description: 'Message content',
+    }),
+    name: Type.Optional(Type.String({ description: 'Name for the message sender' })),
+    tool_call_id: Type.Optional(Type.String({ description: 'Tool call ID for tool responses' })),
+  },
+  { $id: 'LLMMessage', description: 'LLM message structure' }
+);
+
+export type LLMMessageType = Static<typeof LLMMessageSchema>;
+
+/**
+ * Tool definition for LLM requests
+ */
+export const LLMToolDefinitionSchema = Type.Object({
+  name: Type.String({ description: 'Tool name' }),
+  description: Type.String({ description: 'Tool description' }),
+  parameters: Type.Record(Type.String(), Type.Unknown(), { description: 'Tool parameters schema' }),
+});
+
+/**
+ * LLM request options
+ */
+export const LLMRequestOptionsSchema = Type.Object({
+  model: Type.Optional(Type.String({ description: 'LLM model to use' })),
+  maxTokens: Type.Optional(Type.Number({ description: 'Maximum tokens for response' })),
+  temperature: Type.Optional(Type.Number({ description: 'Sampling temperature' })),
+  stream: Type.Optional(Type.Boolean({ description: 'Whether to stream the response' })),
+});
+
+/**
+ * LLM request structure
+ */
+export const LLMRequestSchema = Type.Object(
+  {
+    sessionId: Type.String({ description: 'Session this request belongs to' }),
+    messages: Type.Array(LLMMessageSchema, { description: 'Conversation messages' }),
+    tools: Type.Optional(Type.Array(LLMToolDefinitionSchema, { description: 'Available tools' })),
+    options: Type.Optional(LLMRequestOptionsSchema),
+  },
+  { $id: 'LLMRequest', description: 'LLM request structure' }
+);
+
+export type LLMRequestType = Static<typeof LLMRequestSchema>;
+
+// ============================================================================
+// Tool Schemas
+// ============================================================================
+
+/**
+ * Tool execution request
+ */
+export const ToolRequestSchema = Type.Object(
+  {
+    sessionId: Type.String({ description: 'Session making the tool request' }),
+    tool: Type.String({ description: 'Tool name to execute' }),
+    callId: Type.String({ description: 'Unique call identifier' }),
+    parameters: Type.Record(Type.String(), Type.Unknown(), {
+      description: 'Tool execution parameters',
+    }),
+  },
+  { $id: 'ToolRequest', description: 'Tool execution request' }
+);
+
+export type ToolRequestType = Static<typeof ToolRequestSchema>;
+
+/**
+ * Tool error structure
+ */
+export const ToolErrorSchema = Type.Object({
+  code: Type.String({ description: 'Error code' }),
+  message: Type.String({ description: 'Error message' }),
+});
+
+/**
+ * Tool execution response
+ */
+export const ToolResponseSchema = Type.Object(
+  {
+    sessionId: Type.String({ description: 'Session this response belongs to' }),
+    callId: Type.String({ description: 'Original call identifier' }),
+    success: Type.Boolean({ description: 'Whether the tool execution succeeded' }),
+    result: Type.Optional(Type.Unknown({ description: 'Tool execution result' })),
+    error: Type.Optional(ToolErrorSchema),
+  },
+  { $id: 'ToolResponse', description: 'Tool execution response' }
+);
+
+export type ToolResponseType = Static<typeof ToolResponseSchema>;
+
+// ============================================================================
+// Health Check Schemas
+// ============================================================================
+
+/**
+ * Health status values
+ */
+export const HealthStatusSchema = Type.Union(
+  [Type.Literal('healthy'), Type.Literal('degraded'), Type.Literal('unhealthy')],
+  { $id: 'HealthStatus', description: 'Health status' }
+);
+
+export type HealthStatusType = Static<typeof HealthStatusSchema>;
+
+/**
+ * Health check result
+ */
+export const HealthCheckSchema = Type.Object(
+  {
+    status: HealthStatusSchema,
+    component: Type.String({ description: 'Component name' }),
+    version: Type.String({ description: 'Component version' }),
+    uptime: Type.Number({ description: 'Uptime in seconds' }),
+    checks: Type.Record(Type.String(), Type.Union([Type.Literal('ok'), Type.Literal('error')]), {
+      description: 'Individual health checks',
+    }),
+  },
+  { $id: 'HealthCheck', description: 'Health check result' }
+);
+
+export type HealthCheckType = Static<typeof HealthCheckSchema>;
+
+// ============================================================================
+// Error Schemas
+// ============================================================================
+
+/**
+ * Nachos error codes enumeration
+ */
+export const ErrorCodeSchema = Type.Union(
+  [
+    Type.Literal('NACHOS_ERR_CONFIG'),
+    Type.Literal('NACHOS_ERR_POLICY_DENIED'),
+    Type.Literal('NACHOS_ERR_RATE_LIMITED'),
+    Type.Literal('NACHOS_ERR_LLM_FAILED'),
+    Type.Literal('NACHOS_ERR_TOOL_FAILED'),
+    Type.Literal('NACHOS_ERR_CHANNEL_FAILED'),
+    Type.Literal('NACHOS_ERR_SESSION_NOT_FOUND'),
+    Type.Literal('NACHOS_ERR_TIMEOUT'),
+    Type.Literal('NACHOS_ERR_INTERNAL'),
+    Type.Literal('NACHOS_ERR_VALIDATION'),
+    Type.Literal('NACHOS_ERR_BUS_CONNECTION'),
+  ],
+  { $id: 'ErrorCode', description: 'Nachos error codes' }
+);
+
+export type ErrorCodeType = Static<typeof ErrorCodeSchema>;
+
+/**
+ * Nachos error structure
+ */
+export const NachosErrorSchema = Type.Object(
+  {
+    code: Type.String({ description: 'Error code' }),
+    message: Type.String({ description: 'Human-readable error message' }),
+    component: Type.String({ description: 'Component that generated the error' }),
+    details: Type.Optional(
+      Type.Record(Type.String(), Type.Unknown(), { description: 'Additional error details' })
+    ),
+    timestamp: TimestampSchema,
+    correlationId: Type.Optional(Type.String({ description: 'Correlation ID for tracing' })),
+  },
+  { $id: 'NachosError', description: 'Nachos error structure' }
+);
+
+export type NachosErrorType = Static<typeof NachosErrorSchema>;
+
+// ============================================================================
+// Policy Schemas
+// ============================================================================
+
+/**
+ * Policy check request
+ */
+export const PolicyCheckRequestSchema = Type.Object(
+  {
+    sessionId: Type.String({ description: 'Session requesting policy check' }),
+    action: Type.String({ description: 'Action being requested' }),
+    resource: Type.Optional(Type.String({ description: 'Resource being accessed' })),
+    context: Type.Optional(
+      Type.Record(Type.String(), Type.Unknown(), {
+        description: 'Additional context for policy decision',
+      })
+    ),
+  },
+  { $id: 'PolicyCheckRequest', description: 'Policy check request' }
+);
+
+export type PolicyCheckRequestType = Static<typeof PolicyCheckRequestSchema>;
+
+/**
+ * Policy check result
+ */
+export const PolicyCheckResultSchema = Type.Object(
+  {
+    allowed: Type.Boolean({ description: 'Whether the action is allowed' }),
+    reason: Type.Optional(Type.String({ description: 'Reason for the decision' })),
+    conditions: Type.Optional(
+      Type.Array(Type.String(), { description: 'Conditions that must be met' })
+    ),
+  },
+  { $id: 'PolicyCheckResult', description: 'Policy check result' }
+);
+
+export type PolicyCheckResultType = Static<typeof PolicyCheckResultSchema>;
+
+// ============================================================================
+// Audit Schemas
+// ============================================================================
+
+/**
+ * Audit log entry
+ */
+export const AuditLogEntrySchema = Type.Object(
+  {
+    id: Type.String({ description: 'Unique audit entry identifier' }),
+    timestamp: TimestampSchema,
+    component: Type.String({ description: 'Component that generated the audit entry' }),
+    action: Type.String({ description: 'Action that was performed' }),
+    sessionId: Type.Optional(Type.String({ description: 'Related session identifier' })),
+    userId: Type.Optional(Type.String({ description: 'User who performed the action' })),
+    details: Type.Optional(
+      Type.Record(Type.String(), Type.Unknown(), { description: 'Additional details' })
+    ),
+    result: Type.Optional(
+      Type.Union([Type.Literal('success'), Type.Literal('failure'), Type.Literal('denied')], {
+        description: 'Result of the action',
+      })
+    ),
+  },
+  { $id: 'AuditLogEntry', description: 'Audit log entry' }
+);
+
+export type AuditLogEntryType = Static<typeof AuditLogEntrySchema>;
+
+// ============================================================================
+// Schema Exports for Validation
+// ============================================================================
+
+/**
+ * All schemas exported for validation purposes
+ */
+export const Schemas = {
+  // Base
+  MessageEnvelope: MessageEnvelopeSchema,
+  UUID: UUIDSchema,
+  Timestamp: TimestampSchema,
+
+  // Channel
+  Attachment: AttachmentSchema,
+  Sender: SenderSchema,
+  Conversation: ConversationSchema,
+  MessageContent: MessageContentSchema,
+  ChannelInboundMessage: ChannelInboundMessageSchema,
+  ChannelOutboundMessage: ChannelOutboundMessageSchema,
+
+  // Session
+  SessionStatus: SessionStatusSchema,
+  MessageRole: MessageRoleSchema,
+  Message: MessageSchema,
+  SessionConfig: SessionConfigSchema,
+  Session: SessionSchema,
+  SessionWithMessages: SessionWithMessagesSchema,
+
+  // LLM
+  LLMMessage: LLMMessageSchema,
+  LLMRequest: LLMRequestSchema,
+
+  // Tool
+  ToolRequest: ToolRequestSchema,
+  ToolResponse: ToolResponseSchema,
+
+  // Health
+  HealthStatus: HealthStatusSchema,
+  HealthCheck: HealthCheckSchema,
+
+  // Error
+  ErrorCode: ErrorCodeSchema,
+  NachosError: NachosErrorSchema,
+
+  // Policy
+  PolicyCheckRequest: PolicyCheckRequestSchema,
+  PolicyCheckResult: PolicyCheckResultSchema,
+
+  // Audit
+  AuditLogEntry: AuditLogEntrySchema,
+} as const;
