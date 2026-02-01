@@ -1,9 +1,9 @@
 {
-  "name": "@nachos/types",
+  "name": "@nachos/config",
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Shared TypeScript types for Nachos",
+  "description": "Configuration system for Nachos",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
@@ -12,8 +12,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@nachos/config": "workspace:*"
-    "@sinclair/typebox": "0.34.0"
+    "@iarna/toml": "^2.2.5",
+    "chokidar": "^4.0.3"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",

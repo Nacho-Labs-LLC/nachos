@@ -1,3 +1,17 @@
+// Shared types for Nachos
+
+// Re-export configuration types from @nachos/config
+export type {
+  NachosConfig,
+  PartialNachosConfig,
+  NachosSection,
+  LLMConfig,
+  ChannelsConfig,
+  ToolsConfig,
+  SecurityConfig,
+  RuntimeConfig,
+  AssistantConfig,
+} from '@nachos/config';
 /**
  * @nachos/types - Shared TypeScript types and schemas for Nachos
  *
