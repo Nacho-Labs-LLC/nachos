@@ -1,0 +1,76 @@
+{
+  "name": "@nachos/bus",
+  "version": "0.0.0",
+  "type": "core",
+  "description": "NATS-based message bus for inter-component communication",
+  "author": "Nacho Labs LLC",
+  "license": "MIT",
+  "repository": "https://github.com/Nacho-Labs-LLC/nachos",
+  "requires": {},
+  "capabilities": {
+    "network": {
+      "egress": [],
+      "ports": [4222, 8222]
+    },
+    "secrets": [],
+    "volumes": [],
+    "permissions": []
+  },
+  "provides": {
+    "service": "bus",
+    "features": ["pub-sub", "request-reply", "wildcard-subscriptions", "queue-groups"]
+  },
+  "container": {
+    "image": "nachos/bus",
+    "tag": "latest",
+    "resources": {
+      "memory": "256MB",
+      "cpus": 0.25
+    },
+    "healthcheck": {
+      "test": ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8222/healthz"],
+      "interval": "30s",
+      "timeout": "3s",
+      "retries": 3
+    }
+  },
+  "config": {
+    "schema": {
+      "type": "object",
+      "properties": {
+        "port": {
+          "type": "number",
+          "default": 4222,
+          "description": "NATS client connection port"
+        },
+        "http_port": {
+          "type": "number",
+          "default": 8222,
+          "description": "HTTP monitoring port"
+        },
+        "max_connections": {
+          "type": "number",
+          "default": 1000,
+          "description": "Maximum client connections"
+        },
+        "max_payload": {
+          "type": "number",
+          "default": 1048576,
+          "description": "Maximum message payload size in bytes"
+        },
+        "debug": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable debug logging"
+        }
+      }
+    },
+    "defaults": {
+      "port": 4222,
+      "http_port": 8222,
+      "max_connections": 1000,
+      "max_payload": 1048576,
+      "debug": false
+    }
+  }
+}
