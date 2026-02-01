@@ -139,6 +139,10 @@ importers:
         version: 5.9.3
 
   packages/shared/types:
+    dependencies:
+      '@nachos/config':
+        specifier: workspace:*
+        version: link:../config
     devDependencies:
       '@types/node':
         specifier: ^22.10.5

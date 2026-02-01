@@ -1,5 +1,17 @@
 // Shared types for Nachos
-export type NachosConfig = Record<string, unknown>;
+
+// Re-export configuration types from @nachos/config
+export type {
+  NachosConfig,
+  PartialNachosConfig,
+  NachosSection,
+  LLMConfig,
+  ChannelsConfig,
+  ToolsConfig,
+  SecurityConfig,
+  RuntimeConfig,
+  AssistantConfig,
+} from '@nachos/config';
 
 // ============================================================================
 // Message Schemas
