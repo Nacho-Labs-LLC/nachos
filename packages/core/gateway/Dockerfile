@@ -1,8 +1,5 @@
 FROM node:22-alpine AS development
 
-# Install development dependencies
-RUN apk add --no-cache dumb-init
-
 # Create non-root user
 RUN addgroup -g 1001 -S nachos && \
     adduser -S nachos -u 1001 -G nachos
@@ -25,6 +22,9 @@ COPY packages/core/gateway ./packages/core/gateway
 # Install dependencies
 RUN pnpm install --frozen-lockfile
 
+# Copy source code
+COPY . .
+
 # Change ownership
 RUN chown -R nachos:nachos /app
 
@@ -38,4 +38,5 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD node -e "process.exit(0)" || exit 1
 
 # Start in development mode with tsx watch for hot-reload
-CMD ["pnpm", "--filter", "@nachos/gateway", "run", "dev"]
+WORKDIR /app/packages/core/gateway
+CMD ["npx", "tsx", "watch", "src/index.ts"]

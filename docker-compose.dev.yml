@@ -1,8 +1,6 @@
 # Docker Compose configuration for Nachos development
 # This file defines all core services with hot-reload support
 
-version: '3.9'
-
 # ==================== Networks ====================
 networks:
   # Internal network - no external access
