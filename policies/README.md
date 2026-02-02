@@ -322,7 +322,7 @@ const result = gateway.evaluatePolicy({
   action: 'execute',
   metadata: {
     custom_field: 'value',
-    risk_score: 0.75,
+    risk_level: 'low',
   },
   timestamp: new Date(),
 })
@@ -332,9 +332,9 @@ Then reference in policies:
 
 ```yaml
 conditions:
-  - field: "metadata.risk_score"
-    operator: "less_than"
-    value: 0.5
+  - field: "metadata.risk_level"
+    operator: "equals"
+    value: "low"
 ```
 
 ### Multiple Policy Files

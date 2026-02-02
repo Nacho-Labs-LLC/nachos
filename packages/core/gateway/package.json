@@ -19,7 +19,7 @@
     "@nacho-labs/nachos-dlp": "^1.0.0",
     "better-sqlite3": "^12.6.2",
     "uuid": "^13.0.0",
-    "yaml": "^2.7.0"
+    "yaml": "^2.8.2"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
