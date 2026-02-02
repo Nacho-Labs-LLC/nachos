@@ -3,6 +3,7 @@
  *
  * Environment-based configuration with sensible defaults.
  */
+import type { DLPConfig } from './security/dlp.js'
 
 /**
  * Gateway configuration interface
@@ -20,6 +21,8 @@ export interface GatewayConfig {
   channels: string[];
   /** Log level */
   logLevel: 'debug' | 'info' | 'warn' | 'error';
+  /** DLP (Data Loss Prevention) configuration */
+  dlp?: DLPConfig;
 }
 
 /**

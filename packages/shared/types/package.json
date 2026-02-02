@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@nachos/config": "workspace:*"
+    "@nachos/config": "workspace:*",
     "@sinclair/typebox": "0.34.0"
   },
   "devDependencies": {

@@ -11,6 +11,17 @@ export { Gateway, type GatewayOptions } from './gateway.js';
 // Configuration
 export { loadConfig, validateConfig, type GatewayConfig } from './config.js';
 
+// Security - DLP
+export {
+  DLPSecurityLayer,
+  createDefaultDLPConfig,
+  type DLPConfig,
+  type DLPPolicy,
+  type DLPAction,
+  type ChannelDLPConfig,
+  type DLPScanResult,
+} from './security/dlp.js';
+
 // Session management
 export { SessionManager, type CreateSessionOptions, type AddMessageOptions } from './session.js';
 

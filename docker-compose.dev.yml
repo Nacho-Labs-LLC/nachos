@@ -24,6 +24,8 @@ networks:
 volumes:
   # NATS JetStream data
   nats-data:
+  # Redis data for shared state (rate limits, session routing)
+  redis-data:
   # Logs aggregation
   nachos-logs:
 
@@ -66,7 +68,9 @@ services:
         max-file: "3"
         labels: "service=bus"
 
-  # -------------------- Gateway --------------------
+  # -------------------- Gateway (with embedded Salsa) --------------------
+  # Salsa security layer is embedded in Gateway for performance
+  # See ADR-004: Embedded Salsa & Shardable Gateway
   gateway:
     container_name: nachos-gateway
     build:
@@ -74,22 +78,26 @@ services:
       dockerfile: packages/core/gateway/Dockerfile
     image: nachos-gateway:dev
     restart: unless-stopped
-    
+
     depends_on:
       bus:
         condition: service_healthy
-    
+      redis:
+        condition: service_healthy
+
     networks:
       - nachos-internal
-    
+
     ports:
       - "3000:3000"
-    
+
     environment:
       - NODE_ENV=development
       - NATS_URL=nats://bus:4222
+      - REDIS_URL=redis://redis:6379
       - PORT=3000
       - LOG_LEVEL=debug
+      - SECURITY_MODE=${SECURITY_MODE:-standard}
     
     volumes:
       # Mount source code for hot-reload
@@ -97,25 +105,62 @@ services:
       - ./packages/shared:/app/packages/shared:ro
       - ./tsconfig.base.json:/app/tsconfig.base.json:ro
       - ./tsconfig.json:/app/tsconfig.json:ro
+      # Security policies (hot-reload enabled)
+      - ./policies:/app/policies:ro
+      # Gateway data (SQLite sessions, audit logs)
+      - ./data/gateway:/app/data
       # Cache node_modules to avoid reinstalling
       - /app/node_modules
       - /app/packages/core/gateway/node_modules
       # Logs
       - nachos-logs:/var/log/nachos
-    
+
     healthcheck:
       test: ["CMD", "node", "-e", "process.exit(0)"]
       interval: 30s
       timeout: 3s
       retries: 3
       start_period: 5s
-    
+
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
         labels: "service=gateway"
+
+  # -------------------- Redis (Shared State) --------------------
+  # Used for rate limiting, session routing, and cross-instance state
+  # See ADR-004: Embedded Salsa & Shardable Gateway
+  redis:
+    container_name: nachos-redis
+    image: redis:7-alpine
+    restart: unless-stopped
+
+    networks:
+      - nachos-internal
+
+    ports:
+      - "6379:6379"
+
+    volumes:
+      - redis-data:/data
+
+    command: ["redis-server", "--appendonly", "yes"]
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=redis"
 
   # -------------------- LLM Proxy --------------------
   llm-proxy:
@@ -172,54 +217,6 @@ services:
         max-file: "3"
         labels: "service=llm-proxy"
 
-  # -------------------- Salsa (Policy Engine) --------------------
-  salsa:
-    container_name: nachos-salsa
-    build:
-      context: .
-      dockerfile: packages/core/salsa/Dockerfile
-    image: nachos-salsa:dev
-    restart: unless-stopped
-    
-    depends_on:
-      bus:
-        condition: service_healthy
-    
-    networks:
-      - nachos-internal
-    
-    ports:
-      - "3002:3002"
-    
-    environment:
-      - NODE_ENV=development
-      - NATS_URL=nats://bus:4222
-      - PORT=3002
-      - LOG_LEVEL=debug
-      - SECURITY_MODE=${SECURITY_MODE:-standard}
-    
-    volumes:
-      # Mount source code for hot-reload
-      - ./packages/core/salsa/src:/app/packages/core/salsa/src:ro
-      - ./packages/shared:/app/packages/shared:ro
-      - ./tsconfig.base.json:/app/tsconfig.base.json:ro
-      - ./tsconfig.json:/app/tsconfig.json:ro
-      # Cache node_modules
-      - /app/node_modules
-      - /app/packages/core/salsa/node_modules
-      # Logs
-      - nachos-logs:/var/log/nachos
-    
-    healthcheck:
-      test: ["CMD", "node", "-e", "process.exit(0)"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-      start_period: 5s
-    
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-        labels: "service=salsa"
+  # NOTE: Salsa (Policy Engine) is now embedded in Gateway
+  # See ADR-004: Embedded Salsa & Shardable Gateway Architecture
+  # The packages/core/salsa directory contains the library code used by Gateway

@@ -22,16 +22,19 @@ flowchart TB
     end
 
     subgraph DockerCompose["🍽️ Docker Compose (The Plate)"]
-        subgraph Salsa["🌶️ Salsa Layer"]
-            Policy["Policy Engine"]
-            DLP["DLP Scanner"]
-            Audit["Audit Logger"]
-            RateLimit["Rate Limiter"]
-        end
-
-        subgraph Core["🔲 Core (Chips)"]
-            Gateway["Gateway"]
+        subgraph Core["🔲 Core (Chips + Salsa)"]
+            subgraph GatewayBox["Gateway"]
+                Router["Router"]
+                SessionMgr["Session Manager"]
+                subgraph SalsaEmbed["🌶️ Salsa (embedded)"]
+                    Policy["Policy Engine"]
+                    DLP["DLP Scanner"]
+                    RateLimit["Rate Limiter"]
+                    Audit["Audit Logger"]
+                end
+            end
             Bus["Message Bus<br/>(NATS)"]
+            Redis["Redis<br/>(shared state)"]
         end
 
         subgraph Protein["🥩 Protein"]
@@ -60,10 +63,10 @@ flowchart TB
 
     User <--> Channels
     Channels <--> Bus
-    Bus <--> Gateway
-    Gateway <--> Salsa
-    Gateway <--> LLMProxy
-    Gateway <--> Tools
+    Bus <--> GatewayBox
+    GatewayBox <--> Redis
+    GatewayBox <--> LLMProxy
+    GatewayBox <--> Tools
     LLMProxy <--> LLM
     Browser <--> ExtAPI
 
@@ -72,6 +75,9 @@ flowchart TB
     LLMProxy --- Egress
     Browser --- Egress
 ```
+
+> **Note**: Salsa (the security layer) is embedded within Gateway for performance.
+> See [ADR-004](./adr/004-embedded-salsa-shardable-gateway.md) for rationale.
 
 ## Component Details
 
@@ -114,7 +120,7 @@ Lightweight message passing that:
 
 **Topic Structure:**
 
-```
+```text
 nachos.channel.{channel_name}.inbound    # Messages from users
 nachos.channel.{channel_name}.outbound   # Messages to users
 nachos.tool.{tool_name}.request          # Tool invocations
@@ -125,9 +131,10 @@ nachos.policy.check                      # Policy validation
 nachos.audit.log                         # Audit events
 ```
 
-### Security Layer (Salsa)
+### Security Layer (Salsa) - Embedded in Gateway
 
-All requests pass through Salsa before execution.
+Salsa is embedded within Gateway for minimal latency (~0.1ms vs ~2-5ms for network calls).
+All requests pass through Salsa before execution. See [ADR-004](./adr/004-embedded-salsa-shardable-gateway.md).
 
 ```mermaid
 flowchart TD
@@ -326,21 +333,33 @@ sequenceDiagram
 flowchart LR
     subgraph Ephemeral["Ephemeral (Container Memory)"]
         SessionCache["Session Cache"]
-        RateLimitCounters["Rate Limit Counters"]
+    end
+
+    subgraph SharedState["Shared State (Redis)"]
+        RateLimits["Rate Limit Counters"]
+        SessionMap["Session Routing Map"]
+        SessionSync["Session Sync Queue"]
     end
 
     subgraph Persistent["Persistent (Volumes)"]
-        StateDB["State DB<br/>(SQLite)"]
-        AuditLogs["Audit Logs"]
+        StateDB["State DB<br/>(SQLite per instance)"]
+        AuditLogs["Audit Logs<br/>(modular providers)"]
         Credentials["Credentials<br/>(encrypted)"]
     end
 
     Gateway --> SessionCache
     SessionCache <--> StateDB
-    Salsa --> RateLimitCounters
-    Salsa --> AuditLogs
+    Gateway --> RateLimits
+    Gateway --> SessionMap
+    Gateway --> AuditLogs
     LLMProxy --> Credentials
 ```
+
+**Horizontal Scaling**: Rate limits and session routing use Redis for consistency
+across Gateway instances. See [ADR-004](./adr/004-embedded-salsa-shardable-gateway.md).
+
+**Audit Providers**: Audit logging supports multiple backends (SQLite, file, webhook, custom).
+See [ADR-005](./adr/005-modular-audit-providers.md).
 
 ## Module System
 
