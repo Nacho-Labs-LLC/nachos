@@ -1,0 +1,187 @@
+# Nachos Default Security Policies - Standard Mode
+#
+# Standard mode provides balanced security:
+# - Common tools enabled (browser, filesystem read, etc.)
+# - Pairing-based DM approval
+# - Audit logging
+# - Controlled filesystem access (./workspace only)
+# - Limited network egress
+
+version: "1.0"
+
+metadata:
+  name: "Standard Mode Security Policies"
+  description: "Balanced security for typical use cases"
+  mode: "standard"
+
+rules:
+  # ============================================================================
+  # LLM Access - Always allowed
+  # ============================================================================
+  - id: "standard-llm-allow"
+    description: "Allow LLM calls in standard mode"
+    priority: 1000
+    match:
+      resource: "llm"
+      action: "call"
+    effect: "allow"
+
+  # ============================================================================
+  # DM Access - Pairing-based approval
+  # ============================================================================
+  - id: "standard-dm-paired-allow"
+    description: "Allow DMs from paired users in standard mode"
+    priority: 900
+    match:
+      resource: "dm"
+      action: "send"
+    conditions:
+      - field: "metadata.is_paired"
+        operator: "equals"
+        value: true
+    effect: "allow"
+
+  - id: "standard-dm-unpaired-deny"
+    description: "Deny DMs from unpaired users"
+    priority: 899
+    match:
+      resource: "dm"
+      action: "send"
+    effect: "deny"
+    reason: "DM access requires pairing. User must complete pairing process."
+
+  # ============================================================================
+  # Channel Messages - Allow
+  # ============================================================================
+  - id: "standard-channel-allow"
+    description: "Allow channel messages in standard mode"
+    priority: 850
+    match:
+      resource: "channel"
+      action: ["send", "receive"]
+    effect: "allow"
+
+  # ============================================================================
+  # Tools - Common tools enabled
+  # ============================================================================
+
+  # Browser tool - Read-only access
+  - id: "standard-tool-browser-read"
+    description: "Allow browser read access in standard mode"
+    priority: 800
+    match:
+      resource: "tool"
+      resourceId: "browser"
+      action: "read"
+    effect: "allow"
+
+  # Filesystem tool - Read access to workspace only
+  - id: "standard-tool-filesystem-read-workspace"
+    description: "Allow filesystem read in workspace directory"
+    priority: 750
+    match:
+      resource: "tool"
+      resourceId: "filesystem"
+      action: "read"
+    conditions:
+      - field: "metadata.path"
+        operator: "starts_with"
+        value: "./workspace"
+    effect: "allow"
+
+  # Filesystem tool - Write access to workspace only
+  - id: "standard-tool-filesystem-write-workspace"
+    description: "Allow filesystem write in workspace directory"
+    priority: 740
+    match:
+      resource: "tool"
+      resourceId: "filesystem"
+      action: "write"
+    conditions:
+      - field: "metadata.path"
+        operator: "starts_with"
+        value: "./workspace"
+    effect: "allow"
+
+  # Filesystem - Deny access outside workspace
+  - id: "standard-filesystem-deny-outside-workspace"
+    description: "Deny filesystem access outside workspace"
+    priority: 730
+    match:
+      resource: "filesystem"
+    effect: "deny"
+    reason: "Filesystem access is restricted to ./workspace directory in standard mode"
+
+  # Code runner tool - Sandboxed execution
+  - id: "standard-tool-code-runner-sandboxed"
+    description: "Allow sandboxed code execution"
+    priority: 720
+    match:
+      resource: "tool"
+      resourceId: "code_runner"
+      action: "execute"
+    conditions:
+      - field: "metadata.runtime"
+        operator: "equals"
+        value: "sandboxed"
+    effect: "allow"
+
+  # Code runner - Deny native execution
+  - id: "standard-tool-code-runner-native-deny"
+    description: "Deny native code execution in standard mode"
+    priority: 710
+    match:
+      resource: "tool"
+      resourceId: "code_runner"
+      action: "execute"
+    effect: "deny"
+    reason: "Native code execution requires permissive mode"
+
+  # Shell tool - Disabled in standard mode
+  - id: "standard-tool-shell-deny"
+    description: "Deny shell access in standard mode"
+    priority: 700
+    match:
+      resource: "tool"
+      resourceId: "shell"
+    effect: "deny"
+    reason: "Shell access requires permissive mode"
+
+  # Web search - Allow if configured
+  - id: "standard-tool-web-search-allow"
+    description: "Allow web search in standard mode"
+    priority: 690
+    match:
+      resource: "tool"
+      resourceId: "web_search"
+      action: "read"
+    effect: "allow"
+
+  # ============================================================================
+  # Network Access - Limited egress
+  # ============================================================================
+
+  # Allow network access to common domains
+  - id: "standard-network-common-domains"
+    description: "Allow network access to common domains"
+    priority: 600
+    match:
+      resource: "network"
+      action: "read"
+    conditions:
+      - field: "metadata.domain"
+        operator: "in"
+        value:
+          - "github.com"
+          - "docs.google.com"
+          - "stackoverflow.com"
+    effect: "allow"
+
+  # Deny other network access
+  - id: "standard-network-deny-other"
+    description: "Deny network access to other domains"
+    priority: 599
+    match:
+      resource: "network"
+    effect: "deny"
+    reason: "Network access is restricted to approved domains in standard mode"
