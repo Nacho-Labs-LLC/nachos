@@ -56,8 +56,8 @@ The development stack includes:
 | bus        | 4222 | NATS message bus (client)      |
 | bus        | 8222 | NATS monitoring HTTP endpoint  |
 | gateway    | 3000 | Gateway service                |
-| llm-proxy  | 3001 | LLM provider abstraction       |
-| salsa      | 3002 | Policy engine                  |
+ | llm-proxy  | 3001 | LLM provider abstraction       |
+ | redis      | 6379 | Shared state for rate limits   |
 
 ### Hot Reload
 
@@ -103,7 +103,7 @@ Two Docker networks are created:
 #### `nachos-internal` (172.20.0.0/16)
 - **Isolated** - no external access
 - All core services communicate here
-- Used for: gateway, bus, salsa, safe tools
+ - Used for: gateway, bus, redis, safe tools
 
 #### `nachos-egress` (172.21.0.0/16)
 - **External access** allowed
