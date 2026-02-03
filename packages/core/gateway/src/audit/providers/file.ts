@@ -29,6 +29,8 @@ export class FileAuditProvider implements AuditProvider {
   private buffer: string[] = [];
   private flushTimer: NodeJS.Timeout | null = null;
   private isFlushing = false;
+  private isClosing = false;
+  private flushPromise: Promise<void> | null = null;
 
   constructor(private readonly config: FileAuditProviderConfig) {}
 
@@ -46,7 +48,7 @@ export class FileAuditProvider implements AuditProvider {
       throw new Error('Audit file flushIntervalMs must be greater than 0');
     }
     this.flushTimer = setInterval(() => {
-      if (this.isFlushing) {
+      if (this.isClosing || this.isFlushing) {
         return;
       }
       void this.flush().catch((error) => {
@@ -64,12 +66,15 @@ export class FileAuditProvider implements AuditProvider {
   }
 
   async flush(): Promise<void> {
+    if (this.flushPromise) {
+      return this.flushPromise;
+    }
     if (!this.stream || this.buffer.length === 0) {
       return;
     }
     this.isFlushing = true;
-    const chunk = `${this.buffer.splice(0).join('\n')}\n`;
-    try {
+    this.flushPromise = (async () => {
+      const chunk = `${this.buffer.splice(0).join('\n')}\n`;
       await new Promise<void>((resolve, reject) => {
         this.stream!.write(chunk, (error) => {
           if (error) {
@@ -80,12 +85,17 @@ export class FileAuditProvider implements AuditProvider {
         });
       });
       await this.rotateIfNeeded();
+    })();
+    try {
+      await this.flushPromise;
     } finally {
       this.isFlushing = false;
+      this.flushPromise = null;
     }
   }
 
   async close(): Promise<void> {
+    this.isClosing = true;
     if (this.flushTimer) {
       clearInterval(this.flushTimer);
       this.flushTimer = null;
