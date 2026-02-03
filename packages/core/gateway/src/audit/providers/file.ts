@@ -28,6 +28,7 @@ export class FileAuditProvider implements AuditProvider {
   private stream: WriteStream | null = null;
   private buffer: string[] = [];
   private flushTimer: NodeJS.Timeout | null = null;
+  private isFlushing = false;
 
   constructor(private readonly config: FileAuditProviderConfig) {}
 
@@ -45,6 +46,9 @@ export class FileAuditProvider implements AuditProvider {
       throw new Error('Audit file flushIntervalMs must be greater than 0');
     }
     this.flushTimer = setInterval(() => {
+      if (this.isFlushing) {
+        return;
+      }
       void this.flush().catch((error) => {
         console.error('[Audit] Failed to flush file audit buffer', error);
       });
@@ -63,17 +67,22 @@ export class FileAuditProvider implements AuditProvider {
     if (!this.stream || this.buffer.length === 0) {
       return;
     }
+    this.isFlushing = true;
     const chunk = `${this.buffer.splice(0).join('\n')}\n`;
-    await new Promise<void>((resolve, reject) => {
-      this.stream!.write(chunk, (error) => {
-        if (error) {
-          reject(error);
-        } else {
-          resolve();
-        }
+    try {
+      await new Promise<void>((resolve, reject) => {
+        this.stream!.write(chunk, (error) => {
+          if (error) {
+            reject(error);
+          } else {
+            resolve();
+          }
+        });
       });
-    });
-    await this.rotateIfNeeded();
+      await this.rotateIfNeeded();
+    } finally {
+      this.isFlushing = false;
+    }
   }
 
   async close(): Promise<void> {
