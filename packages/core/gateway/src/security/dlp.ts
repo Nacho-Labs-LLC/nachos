@@ -2,7 +2,7 @@
  * DLP (Data Loss Prevention) Security Layer
  * Scans messages for sensitive data and applies configurable policies
  */
-import { Scanner, type Finding, type ScannerConfig } from '@nacho-labs/nachos-dlp'
+import { Scanner, redact, type Finding, type ScannerConfig } from '@nacho-labs/nachos-dlp'
 import type { AuditLogger } from '../audit/logger.js'
 
 /**
@@ -189,8 +189,6 @@ export class DLPSecurityLayer {
         }
 
       case 'redact': {
-        // Import redact from nachos-dlp
-        const { redact } = require('@nacho-labs/nachos-dlp')
         const redactedMessage = redact(message, relevantFindings)
         return {
           allowed: true,
