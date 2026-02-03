@@ -37,14 +37,16 @@ export class FileAuditProvider implements AuditProvider {
       mkdirSync(directory, { recursive: true });
     }
     this.stream = createWriteStream(this.config.path, { flags: 'a' });
-    if (this.config.flushIntervalMs !== undefined) {
-      if (this.config.flushIntervalMs <= 0) {
-        throw new Error('Audit file flushIntervalMs must be greater than 0');
-      }
-      this.flushTimer = setInterval(() => {
-        void this.flush();
-      }, this.config.flushIntervalMs);
+    const flushIntervalMs = this.config.flushIntervalMs;
+    if (flushIntervalMs === undefined) {
+      return;
     }
+    if (flushIntervalMs <= 0) {
+      throw new Error('Audit file flushIntervalMs must be greater than 0');
+    }
+    this.flushTimer = setInterval(() => {
+      void this.flush();
+    }, flushIntervalMs);
   }
 
   async log(event: AuditEvent): Promise<void> {
