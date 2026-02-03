@@ -59,6 +59,7 @@ export class FileAuditProvider implements AuditProvider {
         });
       });
     }, flushIntervalMs);
+    this.flushTimer.unref();
   }
 
   async log(event: AuditEvent): Promise<void> {
