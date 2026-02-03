@@ -47,7 +47,7 @@ export class FileAuditProvider implements AuditProvider {
       throw new Error('Audit file flushIntervalMs must be greater than 0');
     }
     this.flushTimer = setInterval(() => {
-      if (this.isClosing || this.flushPromise) {
+      if (this.isClosing) {
         return;
       }
       void this.flush().catch((error) => {
