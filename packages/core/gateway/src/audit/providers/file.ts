@@ -28,7 +28,6 @@ export class FileAuditProvider implements AuditProvider {
   private stream: WriteStream | null = null;
   private buffer: string[] = [];
   private flushTimer: NodeJS.Timeout | null = null;
-  private isFlushing = false;
   private isClosing = false;
   private flushPromise: Promise<void> | null = null;
 
@@ -48,13 +47,14 @@ export class FileAuditProvider implements AuditProvider {
       throw new Error('Audit file flushIntervalMs must be greater than 0');
     }
     this.flushTimer = setInterval(() => {
-      if (this.isClosing || this.isFlushing) {
+      if (this.isClosing || this.flushPromise) {
         return;
       }
       void this.flush().catch((error) => {
         console.error('[Audit] Failed to flush file audit buffer', {
           path: this.config.path,
           bufferSize: this.buffer.length,
+          note: 'Audit events will retry on the next flush; persistent failures may drop events.',
           error,
         });
       });
@@ -76,7 +76,6 @@ export class FileAuditProvider implements AuditProvider {
     if (!this.stream || this.buffer.length === 0) {
       return;
     }
-    this.isFlushing = true;
     this.flushPromise = (async () => {
       const chunk = `${this.buffer.splice(0).join('\n')}\n`;
       await new Promise<void>((resolve, reject) => {
@@ -93,7 +92,6 @@ export class FileAuditProvider implements AuditProvider {
     try {
       await this.flushPromise;
     } finally {
-      this.isFlushing = false;
       this.flushPromise = null;
     }
   }
