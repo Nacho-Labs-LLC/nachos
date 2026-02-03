@@ -115,9 +115,9 @@ export class FileAuditProvider implements AuditProvider {
       }
     }
 
-    for (let index = maxFiles - 1; index >= 1; index -= 1) {
-      const source = `${this.config.path}.${index}`;
-      const destination = `${this.config.path}.${index + 1}`;
+    for (let fileIndex = maxFiles - 1; fileIndex >= 1; fileIndex -= 1) {
+      const source = `${this.config.path}.${fileIndex}`;
+      const destination = `${this.config.path}.${fileIndex + 1}`;
       if (existsSync(source)) {
         try {
           await new Promise<void>((resolve, reject) => {

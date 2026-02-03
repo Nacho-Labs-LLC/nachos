@@ -165,7 +165,8 @@ export class SQLiteAuditProvider implements AuditProvider {
       LIMIT ? OFFSET ?
     `);
 
-    const rows = statement.all(...params, limit, offset) as Array<{
+    const queryParams = [...params, limit, offset];
+    const rows = statement.all(...queryParams) as Array<{
       id: string;
       timestamp: string;
       instance_id: string;
