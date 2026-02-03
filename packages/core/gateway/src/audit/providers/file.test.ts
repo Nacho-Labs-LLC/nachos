@@ -41,7 +41,7 @@ describe('FileAuditProvider', () => {
     const provider = new FileAuditProvider({
       path: logPath,
       batchSize: 1,
-      rotateSize: 10, // Force rotation quickly (bytes) for test coverage.
+      rotateSize: 10, // Force rotation fast (bytes) for test coverage.
       maxFiles: 1,
     });
     await provider.init();

@@ -45,7 +45,9 @@ export class FileAuditProvider implements AuditProvider {
       throw new Error('Audit file flushIntervalMs must be greater than 0');
     }
     this.flushTimer = setInterval(() => {
-      void this.flush();
+      void this.flush().catch((error) => {
+        console.error('[Audit] Failed to flush file audit buffer', error);
+      });
     }, flushIntervalMs);
   }
 
