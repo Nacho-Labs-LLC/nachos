@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { RateLimiter, createDefaultRateLimiterConfig } from './rate-limiter.js'
+import {
+  MemoryRateLimitStore,
+  RateLimiter,
+  createDefaultRateLimiterConfig,
+} from './rate-limiter.js'
 
 describe('RateLimiter', () => {
   beforeEach(() => {
@@ -49,5 +53,34 @@ describe('RateLimiter', () => {
     expect(limiter.getLimitsForMode('strict').messagesPerMinute).toBe(20)
     expect(limiter.getLimitsForMode('standard').messagesPerMinute).toBe(30)
     expect(limiter.getLimitsForMode('permissive').messagesPerMinute).toBe(120)
+  })
+
+  it('falls back to memory store when primary store fails', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const limiter = new RateLimiter({
+      enabled: true,
+      limits: { messagesPerMinute: 1 },
+      redisUrl: 'redis://invalid:6379',
+    })
+    const fallbackStore = new MemoryRateLimitStore()
+
+    const store: {
+      record: (key: string, timestampMs: number, windowMs: number) => Promise<number>
+      disconnect: () => Promise<void>
+      getSource: () => 'redis'
+    } = {
+      record: vi.fn().mockRejectedValue(new Error('redis down')),
+      disconnect: vi.fn().mockResolvedValue(undefined),
+      getSource: () => 'redis',
+    }
+    ;(limiter as any).store = store
+    ;(limiter as any).fallbackStore = fallbackStore
+
+    const result = await limiter.recordWithFallback('rate:key', Date.now(), 60_000)
+
+    expect(result.source).toBe('memory')
+    expect(result.count).toBe(1)
+    expect(store.record).toHaveBeenCalled()
+    warnSpy.mockRestore()
   })
 })

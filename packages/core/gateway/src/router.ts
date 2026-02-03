@@ -15,6 +15,7 @@ import {
 } from '@nachos/bus';
 import { v4 as uuid } from 'uuid';
 import type { RateLimitAction, RateLimitCheckResult, RateLimiter } from './security/rate-limiter.js';
+import { getRateLimitUserId } from './router-utils.js';
 
 /**
  * Route handler function type
@@ -329,15 +330,19 @@ export class Router {
         source: 'memory',
       };
     }
-    const userId = this.getUserIdFromPayload(payload) ?? 'anonymous';
-    const result = await this.rateLimiter.check(userId, action);
+    const userId = getRateLimitUserId(payload);
+    if (!userId) {
+      console.warn('[Router] Missing user identifier in payload; using anonymous bucket');
+    }
+    const resolvedUserId = userId ?? 'anonymous';
+    const result = await this.rateLimiter.check(resolvedUserId, action);
     if (!result.allowed) {
       void this.bus.publish(
         TOPICS.audit.log,
         createEnvelope(this.componentName, 'audit.log', {
           type: 'rate_limit',
           action,
-          userId,
+          userId: resolvedUserId,
           remaining: result.remaining,
           resetAt: result.resetAt,
           limit: result.total,
@@ -363,20 +368,6 @@ export class Router {
         ...extraDetails,
       },
     });
-  }
-
-  private getUserIdFromPayload(payload: unknown): string | undefined {
-    if (payload && typeof payload === 'object') {
-      const record = payload as { sessionId?: string; sender?: { id?: string } };
-      if (typeof record.sessionId === 'string') {
-        return record.sessionId;
-      }
-      if (record.sender && typeof record.sender.id === 'string') {
-        return record.sender.id;
-      }
-      console.warn('[RateLimiter] Missing user identifier in payload; using anonymous bucket');
-    }
-    return undefined;
   }
 
   /**

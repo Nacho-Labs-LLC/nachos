@@ -34,7 +34,7 @@ export interface RateLimitCheckResult {
   source: 'memory' | 'redis'
 }
 
-interface RateLimitStore {
+export interface RateLimitStore {
   record(key: string, timestampMs: number, windowMs: number): Promise<number>
   disconnect(): Promise<void>
   getSource(): 'memory' | 'redis'
@@ -42,7 +42,7 @@ interface RateLimitStore {
 
 const DEFAULT_WINDOW_MS = 60_000
 
-class MemoryRateLimitStore implements RateLimitStore {
+export class MemoryRateLimitStore implements RateLimitStore {
   private entries = new Map<string, number[]>()
 
   async record(key: string, timestampMs: number, windowMs: number): Promise<number> {
@@ -63,7 +63,7 @@ class MemoryRateLimitStore implements RateLimitStore {
   }
 }
 
-class RedisRateLimitStore implements RateLimitStore {
+export class RedisRateLimitStore implements RateLimitStore {
   private client: RedisClientType
   private connecting: Promise<void> | null = null
   private connected = false
@@ -180,7 +180,7 @@ export class RateLimiter {
     }
   }
 
-  private async recordWithFallback(
+  async recordWithFallback(
     key: string,
     timestampMs: number,
     windowMs: number
@@ -189,7 +189,10 @@ export class RateLimiter {
       const count = await this.store.record(key, timestampMs, windowMs)
       return { count, source: this.store.getSource() }
     } catch (error) {
-      console.warn('[RateLimiter] Rate limit storage error', error)
+      console.warn(
+        `[RateLimiter] ${this.store.getSource()} store failed; falling back to memory`,
+        error
+      )
       if (this.store instanceof RedisRateLimitStore) {
         await this.store.disconnect()
       }
