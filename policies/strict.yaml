@@ -1,0 +1,94 @@
+# Nachos Default Security Policies - Strict Mode
+#
+# Strict mode provides maximum security:
+# - All tools disabled by default
+# - Only allowlisted DMs
+# - Full audit logging
+# - No network egress for tools
+# - Read-only filesystem access
+
+version: "1.0"
+
+metadata:
+  name: "Strict Mode Security Policies"
+  description: "Maximum security - everything locked down by default"
+  mode: "strict"
+
+rules:
+  # ============================================================================
+  # LLM Access - Always allowed (required for basic functionality)
+  # ============================================================================
+  - id: "strict-llm-allow"
+    description: "Allow LLM calls in strict mode"
+    priority: 1000
+    match:
+      resource: "llm"
+      action: "call"
+    effect: "allow"
+
+  # ============================================================================
+  # Channel Access - Only allowlisted users can send DMs
+  # ============================================================================
+  - id: "strict-dm-allowlist-only"
+    description: "Only allowlisted users can send DMs in strict mode"
+    priority: 900
+    match:
+      resource: "dm"
+      action: "send"
+    conditions:
+      - field: "metadata.is_allowlisted"
+        operator: "equals"
+        value: true
+    effect: "allow"
+
+  - id: "strict-dm-deny-default"
+    description: "Deny all non-allowlisted DMs"
+    priority: 899
+    match:
+      resource: "dm"
+    effect: "deny"
+    reason: "DMs from non-allowlisted users are blocked in strict mode"
+
+  # ============================================================================
+  # Channel Messages - Allow messages in channels (not DMs)
+  # ============================================================================
+  - id: "strict-channel-allow"
+    description: "Allow channel messages in strict mode"
+    priority: 850
+    match:
+      resource: "channel"
+      action: ["send", "receive"]
+    effect: "allow"
+
+  # ============================================================================
+  # Tools - All tools disabled by default in strict mode
+  # ============================================================================
+  - id: "strict-tool-deny-all"
+    description: "Deny all tool access in strict mode"
+    priority: 800
+    match:
+      resource: "tool"
+    effect: "deny"
+    reason: "All tools are disabled in strict mode. Switch to 'standard' or 'permissive' mode to enable tools."
+
+  # ============================================================================
+  # Filesystem - Deny all filesystem access
+  # ============================================================================
+  - id: "strict-filesystem-deny"
+    description: "Deny filesystem access in strict mode"
+    priority: 700
+    match:
+      resource: "filesystem"
+    effect: "deny"
+    reason: "Filesystem access is disabled in strict mode"
+
+  # ============================================================================
+  # Network - Deny all network access
+  # ============================================================================
+  - id: "strict-network-deny"
+    description: "Deny network access in strict mode"
+    priority: 600
+    match:
+      resource: "network"
+    effect: "deny"
+    reason: "Network access is disabled in strict mode"

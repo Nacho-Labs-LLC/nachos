@@ -6,6 +6,7 @@ import { StateStorage } from './state.js';
 import { SessionManager } from './session.js';
 import { Router, InMemoryMessageBus, createEnvelope, type MessageBus } from './router.js';
 import { createHealthServer, performHealthCheck, type HealthCheckDeps } from './health.js';
+import { Salsa, type PolicyEngineConfig, type SecurityRequest } from './salsa/index.js';
 
 /**
  * Gateway configuration options
@@ -21,6 +22,8 @@ export interface GatewayOptions {
   defaultSystemPrompt?: string;
   /** Channels to subscribe to */
   channels?: string[];
+  /** Policy engine configuration */
+  policyConfig?: PolicyEngineConfig;
 }
 
 /**
@@ -30,6 +33,7 @@ export class Gateway {
   private storage: StateStorage;
   private sessionManager: SessionManager;
   private router: Router;
+  private salsa: Salsa | null = null;
   private healthServer: ReturnType<typeof createHealthServer> | null = null;
   private options: GatewayOptions;
   private isConnected: boolean = false;
@@ -47,6 +51,12 @@ export class Gateway {
     // Initialize router
     const bus = options.bus ?? new InMemoryMessageBus();
     this.router = new Router({ bus, componentName: 'gateway' });
+
+    // Initialize Salsa policy engine if configured
+    if (options.policyConfig) {
+      this.salsa = new Salsa(options.policyConfig);
+      console.log('[Gateway] Policy engine (Salsa) initialized');
+    }
 
     // Register default handlers
     this.registerDefaultHandlers();
@@ -148,6 +158,11 @@ export class Gateway {
       await this.healthServer.stop();
     }
 
+    // Cleanup Salsa
+    if (this.salsa) {
+      this.salsa.destroy();
+    }
+
     this.storage.close();
     console.log('Gateway stopped');
   }
@@ -213,7 +228,7 @@ export class Gateway {
    * Get health status
    */
   getHealth() {
-    return performHealthCheck({
+    const health = performHealthCheck({
       checkDatabase: () => {
         try {
           this.storage.listSessions({ limit: 1 });
@@ -224,6 +239,46 @@ export class Gateway {
       },
       checkBus: () => this.isConnected,
     });
+
+    // Add Salsa statistics if available
+    if (this.salsa) {
+      const salsaStats = this.salsa.getStats();
+      return {
+        ...health,
+        salsa: {
+          policiesLoaded: salsaStats.policiesLoaded,
+          rulesActive: salsaStats.rulesActive,
+          hasErrors: this.salsa.hasValidationErrors(),
+        },
+      };
+    }
+
+    return health;
+  }
+
+  /**
+   * Get the policy engine (Salsa)
+   */
+  getSalsa(): Salsa | null {
+    return this.salsa;
+  }
+
+  /**
+   * Evaluate a security request against policies
+   * @param request - Security request to evaluate
+   * @returns Security result with allow/deny decision
+   */
+  evaluatePolicy(request: SecurityRequest) {
+    if (!this.salsa) {
+      // If no policy engine is configured, allow by default
+      return {
+        allowed: true,
+        effect: 'allow' as const,
+        evaluationTimeMs: 0,
+      };
+    }
+
+    return this.salsa.evaluate(request);
   }
 
   /**

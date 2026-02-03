@@ -4,6 +4,7 @@
  * Environment-based configuration with sensible defaults.
  */
 import type { DLPConfig } from './security/dlp.js'
+import type { PolicyEngineConfig } from './salsa/types/index.js'
 
 /**
  * Gateway configuration interface
@@ -23,6 +24,8 @@ export interface GatewayConfig {
   logLevel: 'debug' | 'info' | 'warn' | 'error';
   /** DLP (Data Loss Prevention) configuration */
   dlp?: DLPConfig;
+  /** Policy engine (Salsa) configuration */
+  policy?: Partial<PolicyEngineConfig>;
 }
 
 /**
@@ -48,6 +51,12 @@ export function loadConfig(): GatewayConfig {
     defaultSystemPrompt: process.env.GATEWAY_SYSTEM_PROMPT ?? defaults.defaultSystemPrompt,
     channels: process.env.GATEWAY_CHANNELS?.split(',').filter(Boolean) ?? defaults.channels,
     logLevel: (process.env.GATEWAY_LOG_LEVEL as GatewayConfig['logLevel']) ?? defaults.logLevel,
+    policy: {
+      policiesPath: process.env.POLICY_PATH ?? '/app/policies',
+      securityMode: (process.env.SECURITY_MODE as 'strict' | 'standard' | 'permissive') ?? 'standard',
+      enableHotReload: process.env.POLICY_HOT_RELOAD !== 'false',
+      defaultEffect: 'deny',
+    },
   };
 }
 

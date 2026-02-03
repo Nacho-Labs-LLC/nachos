@@ -1,0 +1,170 @@
+# Nachos Default Security Policies - Permissive Mode
+#
+# Permissive mode provides maximum flexibility:
+# - Most tools enabled
+# - DMs allowed by default
+# - Minimal restrictions
+# - Broader filesystem access
+# - Broader network access
+#
+# ⚠️  WARNING: Use with caution - requires explicit opt-in
+
+version: "1.0"
+
+metadata:
+  name: "Permissive Mode Security Policies"
+  description: "Maximum flexibility - minimal restrictions"
+  mode: "permissive"
+
+rules:
+  # ============================================================================
+  # LLM Access - Always allowed
+  # ============================================================================
+  - id: "permissive-llm-allow"
+    description: "Allow LLM calls in permissive mode"
+    priority: 1000
+    match:
+      resource: "llm"
+      action: "call"
+    effect: "allow"
+
+  # ============================================================================
+  # DM Access - Allow all DMs
+  # ============================================================================
+  - id: "permissive-dm-allow"
+    description: "Allow all DMs in permissive mode"
+    priority: 900
+    match:
+      resource: "dm"
+      action: ["send", "receive"]
+    effect: "allow"
+
+  # ============================================================================
+  # Channel Messages - Allow
+  # ============================================================================
+  - id: "permissive-channel-allow"
+    description: "Allow channel messages in permissive mode"
+    priority: 850
+    match:
+      resource: "channel"
+      action: ["send", "receive"]
+    effect: "allow"
+
+  # ============================================================================
+  # Tools - Most tools enabled
+  # ============================================================================
+
+  # Browser tool - Full access
+  - id: "permissive-tool-browser-allow"
+    description: "Allow full browser access in permissive mode"
+    priority: 800
+    match:
+      resource: "tool"
+      resourceId: "browser"
+    effect: "allow"
+
+  # Filesystem tool - Broader access (still restricted to safe areas)
+  - id: "permissive-tool-filesystem-allow"
+    description: "Allow broader filesystem access in permissive mode"
+    priority: 750
+    match:
+      resource: "tool"
+      resourceId: "filesystem"
+    conditions:
+      # Allow access to workspace, temp, and user home
+      - field: "metadata.path"
+        operator: "in"
+        value:
+          - "./workspace"
+          - "./temp"
+          - "~/Documents"
+    effect: "allow"
+
+  # Filesystem - Still deny system directories for safety
+  - id: "permissive-filesystem-deny-system"
+    description: "Deny filesystem access to system directories"
+    priority: 740
+    match:
+      resource: "filesystem"
+    conditions:
+      - field: "metadata.path"
+        operator: "in"
+        value:
+          - "/etc"
+          - "/sys"
+          - "/proc"
+          - "/dev"
+    effect: "deny"
+    reason: "Access to system directories is not allowed even in permissive mode"
+
+  # Code runner - Allow both sandboxed and native
+  - id: "permissive-tool-code-runner-allow"
+    description: "Allow code execution in permissive mode"
+    priority: 720
+    match:
+      resource: "tool"
+      resourceId: "code_runner"
+      action: "execute"
+    effect: "allow"
+
+  # Shell tool - Allow if explicitly enabled
+  - id: "permissive-tool-shell-allow"
+    description: "Allow shell access in permissive mode"
+    priority: 710
+    match:
+      resource: "tool"
+      resourceId: "shell"
+    conditions:
+      - field: "metadata.explicitly_enabled"
+        operator: "equals"
+        value: true
+    effect: "allow"
+
+  - id: "permissive-tool-shell-deny-not-enabled"
+    description: "Deny shell if not explicitly enabled"
+    priority: 709
+    match:
+      resource: "tool"
+      resourceId: "shell"
+    effect: "deny"
+    reason: "Shell access requires explicit enablement via configuration"
+
+  # Web search - Allow
+  - id: "permissive-tool-web-search-allow"
+    description: "Allow web search in permissive mode"
+    priority: 690
+    match:
+      resource: "tool"
+      resourceId: "web_search"
+    effect: "allow"
+
+  # Other tools - Allow by default
+  - id: "permissive-tool-allow-default"
+    description: "Allow other tools by default in permissive mode"
+    priority: 680
+    match:
+      resource: "tool"
+    effect: "allow"
+
+  # ============================================================================
+  # Network Access - Broader access
+  # ============================================================================
+
+  # Allow network access broadly (but still log it)
+  - id: "permissive-network-allow"
+    description: "Allow network access in permissive mode"
+    priority: 600
+    match:
+      resource: "network"
+      action: "read"
+    effect: "allow"
+
+  # Still deny network write operations (prevent data exfiltration)
+  - id: "permissive-network-write-deny"
+    description: "Deny network write operations"
+    priority: 599
+    match:
+      resource: "network"
+      action: "write"
+    effect: "deny"
+    reason: "Network write operations are not allowed (prevents data exfiltration)"
