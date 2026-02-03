@@ -144,11 +144,13 @@ messages_per_minute = 30
 
       process.env.LLM_MAX_TOKENS = '8192';
       process.env.SECURITY_RATE_LIMIT_MESSAGES = '50';
+      process.env.RUNTIME_REDIS_URL = 'redis://localhost:6379';
 
       const config = loadAndValidateConfig({ configPath });
 
       expect(config.llm.max_tokens).toBe(8192);
       expect(config.security.rate_limits?.messages_per_minute).toBe(50);
+      expect(config.runtime?.redis_url).toBe('redis://localhost:6379');
     });
   });
 });

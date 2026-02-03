@@ -41,6 +41,7 @@ const ENV_VAR_MAPPINGS: Record<string, string> = {
   RUNTIME_STATE_DIR: 'runtime.state_dir',
   RUNTIME_LOG_LEVEL: 'runtime.log_level',
   RUNTIME_LOG_FORMAT: 'runtime.log_format',
+  RUNTIME_REDIS_URL: 'runtime.redis_url',
   RUNTIME_MEMORY: 'runtime.resources.memory',
   RUNTIME_CPUS: 'runtime.resources.cpus',
   RUNTIME_PIDS_LIMIT: 'runtime.resources.pids_limit',

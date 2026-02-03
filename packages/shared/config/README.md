@@ -80,6 +80,10 @@ export LLM_TEMPERATURE="0.7"
 export SECURITY_MODE="strict"
 export SECURITY_DLP_ENABLED="true"
 export SECURITY_DLP_ACTION="block"
+export SECURITY_RATE_LIMIT_MESSAGES="30"
+export SECURITY_RATE_LIMIT_TOOLS="15"
+export SECURITY_RATE_LIMIT_LLM="30"
+export RUNTIME_REDIS_URL="redis://localhost:6379"
 
 # Channel Configuration
 export CHANNEL_WEBCHAT_ENABLED="true"

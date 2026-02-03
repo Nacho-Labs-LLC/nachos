@@ -14,11 +14,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@nacho-labs/nachos-dlp": "^1.0.0",
     "@nachos/bus": "workspace:*",
     "@nachos/config": "workspace:*",
     "@nachos/types": "workspace:*",
-    "@nacho-labs/nachos-dlp": "^1.0.0",
     "better-sqlite3": "^12.6.2",
+    "redis": "^4.7.0",
     "uuid": "^13.0.0",
     "yaml": "^2.8.2"
   },

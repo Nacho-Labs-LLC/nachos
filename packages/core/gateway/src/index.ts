@@ -22,6 +22,17 @@ export {
   type DLPScanResult,
 } from './security/dlp.js';
 
+// Security - Rate limiting
+export {
+  RateLimiter,
+  createDefaultRateLimiterConfig,
+  type RateLimiterConfig,
+  type RateLimiterLimits,
+  type RateLimitAction,
+  type RateLimitCheckResult,
+  type RateLimitPresets,
+} from './security/rate-limiter.js';
+
 // Session management
 export { SessionManager, type CreateSessionOptions, type AddMessageOptions } from './session.js';
 

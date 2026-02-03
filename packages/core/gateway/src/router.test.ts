@@ -157,6 +157,7 @@ describe('Router', () => {
       expect(envelope.type).toBe('channel.outbound');
       expect(envelope.payload).toEqual(message);
     });
+
   });
 
   describe('processInboundMessage', () => {
@@ -175,6 +176,7 @@ describe('Router', () => {
       expect(envelope.type).toBe('channel.inbound');
       expect(envelope.payload).toEqual(message);
     });
+
   });
 
   describe('sendLLMRequest', () => {
@@ -186,6 +188,7 @@ describe('Router', () => {
 
       expect(result).toEqual({ success: true });
     });
+
   });
 
   describe('sendToolRequest', () => {
@@ -202,6 +205,7 @@ describe('Router', () => {
       );
       expect(result).toEqual({ result: 'tool output' });
     });
+
   });
 
   describe('checkPolicy', () => {
