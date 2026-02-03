@@ -374,7 +374,7 @@ export class Router {
       if (record.sender && typeof record.sender.id === 'string') {
         return record.sender.id;
       }
-      console.warn('[RateLimiter] Missing user identifier in payload; using anonymous bucket')
+      console.warn('[RateLimiter] Missing user identifier in payload; using anonymous bucket');
     }
     return undefined;
   }

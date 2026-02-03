@@ -2,6 +2,7 @@
  * Sliding window rate limiter with Redis optional backend.
  */
 import { createClient, type RedisClientType } from 'redis'
+import { v4 as uuid } from 'uuid'
 
 export type RateLimitAction = 'message' | 'tool' | 'llm'
 
@@ -72,6 +73,7 @@ class RedisRateLimitStore implements RateLimitStore {
     this.client.on('error', (error) => {
       console.warn('[RateLimiter] Redis error', error)
       this.connected = false
+      this.connecting = null
     })
   }
 
@@ -91,9 +93,7 @@ class RedisRateLimitStore implements RateLimitStore {
     const windowStart = timestampMs - windowMs
     const pipeline = this.client.multi()
     pipeline.zRemRangeByScore(key, 0, windowStart)
-    pipeline.zAdd(key, [
-      { score: timestampMs, value: `${timestampMs}-${Math.random().toString(36).slice(2)}` },
-    ])
+    pipeline.zAdd(key, [{ score: timestampMs, value: uuid() }])
     pipeline.zCard(key)
     pipeline.pexpire(key, windowMs)
     const results = await pipeline.exec()
