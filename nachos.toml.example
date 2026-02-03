@@ -133,6 +133,7 @@ log_tool_calls = true                     # Log all tool invocations
 state_dir = "./state"                     # Persistent state storage
 log_level = "info"                        # "debug" | "info" | "warn" | "error"
 log_format = "pretty"                     # "pretty" | "json"
+redis_url = "redis://localhost:6379"
 
 [runtime.resources]
 # Default resource limits per container

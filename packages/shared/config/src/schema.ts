@@ -182,6 +182,7 @@ export interface RuntimeConfig {
   state_dir?: string;
   log_level?: 'debug' | 'info' | 'warn' | 'error';
   log_format?: 'pretty' | 'json';
+  redis_url?: string;
   resources?: ResourcesConfig;
 }
 

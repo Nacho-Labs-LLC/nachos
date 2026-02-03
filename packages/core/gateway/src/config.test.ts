@@ -22,6 +22,12 @@ describe('Config', () => {
       delete process.env.GATEWAY_SYSTEM_PROMPT;
       delete process.env.GATEWAY_CHANNELS;
       delete process.env.GATEWAY_LOG_LEVEL;
+      delete process.env.GATEWAY_RATE_LIMIT_ENABLED;
+      delete process.env.SECURITY_RATE_LIMIT_MESSAGES;
+      delete process.env.SECURITY_RATE_LIMIT_TOOLS;
+      delete process.env.SECURITY_RATE_LIMIT_LLM;
+      delete process.env.SECURITY_MODE;
+      delete process.env.REDIS_URL;
 
       const config = loadConfig();
 
@@ -31,6 +37,12 @@ describe('Config', () => {
       expect(config.defaultSystemPrompt).toBeUndefined();
       expect(config.channels).toEqual([]);
       expect(config.logLevel).toBe('info');
+      expect(config.rateLimiter?.enabled).toBe(true);
+      expect(config.rateLimiter?.limits).toEqual({
+        messagesPerMinute: 30,
+        toolCallsPerMinute: 15,
+        llmRequestsPerMinute: 30,
+      });
     });
 
     it('should load values from environment variables', () => {
@@ -40,6 +52,12 @@ describe('Config', () => {
       process.env.GATEWAY_SYSTEM_PROMPT = 'You are a helpful assistant';
       process.env.GATEWAY_CHANNELS = 'slack,discord';
       process.env.GATEWAY_LOG_LEVEL = 'debug';
+      process.env.GATEWAY_RATE_LIMIT_ENABLED = 'false';
+      process.env.SECURITY_RATE_LIMIT_MESSAGES = '12';
+      process.env.SECURITY_RATE_LIMIT_TOOLS = '8';
+      process.env.SECURITY_RATE_LIMIT_LLM = '6';
+      process.env.REDIS_URL = 'redis://localhost:6379';
+      process.env.RUNTIME_REDIS_URL = 'redis://runtime:6379';
 
       const config = loadConfig();
 
@@ -49,6 +67,13 @@ describe('Config', () => {
       expect(config.defaultSystemPrompt).toBe('You are a helpful assistant');
       expect(config.channels).toEqual(['slack', 'discord']);
       expect(config.logLevel).toBe('debug');
+      expect(config.rateLimiter?.enabled).toBe(false);
+      expect(config.rateLimiter?.limits).toEqual({
+        messagesPerMinute: 12,
+        toolCallsPerMinute: 8,
+        llmRequestsPerMinute: 6,
+      });
+      expect(config.rateLimiter?.redisUrl).toBe('redis://localhost:6379');
     });
 
     it('should filter empty channel names', () => {
@@ -57,6 +82,26 @@ describe('Config', () => {
       const config = loadConfig();
 
       expect(config.channels).toEqual(['slack', 'discord']);
+    });
+
+    it('should apply security mode rate limit presets', () => {
+      process.env.SECURITY_MODE = 'strict';
+
+      const config = loadConfig();
+
+      expect(config.rateLimiter?.limits).toEqual({
+        messagesPerMinute: 20,
+        toolCallsPerMinute: 5,
+        llmRequestsPerMinute: 20,
+      });
+    });
+
+    it('should use runtime redis url when redis url is unset', () => {
+      process.env.RUNTIME_REDIS_URL = 'redis://runtime:6379';
+
+      const config = loadConfig();
+
+      expect(config.rateLimiter?.redisUrl).toBe('redis://runtime:6379');
     });
   });
 
@@ -119,6 +164,26 @@ describe('Config', () => {
       };
 
       expect(() => validateConfig(config)).toThrow('At least one NATS server is required');
+    });
+
+    it('should throw for invalid rate limiter configuration', () => {
+      const config: GatewayConfig = {
+        dbPath: '/app/data/gateway.db',
+        healthPort: 3000,
+        natsServers: 'nats://nats:4222',
+        channels: [],
+        logLevel: 'info',
+        rateLimiter: {
+          enabled: true,
+          limits: {
+            messagesPerMinute: 0,
+          },
+        },
+      };
+
+      expect(() => validateConfig(config)).toThrow(
+        'Rate limiter messagesPerMinute must be at least 1'
+      );
     });
   });
 });

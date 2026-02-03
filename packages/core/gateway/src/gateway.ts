@@ -7,6 +7,11 @@ import { SessionManager } from './session.js';
 import { Router, InMemoryMessageBus, createEnvelope, type MessageBus } from './router.js';
 import { createHealthServer, performHealthCheck, type HealthCheckDeps } from './health.js';
 import { Salsa, type PolicyEngineConfig, type SecurityRequest } from './salsa/index.js';
+import {
+  createDefaultRateLimiterConfig,
+  RateLimiter,
+  type RateLimiterConfig,
+} from './security/rate-limiter.js';
 
 /**
  * Gateway configuration options
@@ -24,6 +29,8 @@ export interface GatewayOptions {
   channels?: string[];
   /** Policy engine configuration */
   policyConfig?: PolicyEngineConfig;
+  /** Rate limiting configuration */
+  rateLimiterConfig?: RateLimiterConfig;
 }
 
 /**
@@ -33,6 +40,7 @@ export class Gateway {
   private storage: StateStorage;
   private sessionManager: SessionManager;
   private router: Router;
+  private rateLimiter?: RateLimiter;
   private salsa: Salsa | null = null;
   private healthServer: ReturnType<typeof createHealthServer> | null = null;
   private options: GatewayOptions;
@@ -48,9 +56,16 @@ export class Gateway {
     // Initialize session manager
     this.sessionManager = new SessionManager(this.storage);
 
+    // Initialize rate limiter
+    if (options.rateLimiterConfig?.enabled !== false) {
+      this.rateLimiter = new RateLimiter(
+        options.rateLimiterConfig ?? createDefaultRateLimiterConfig()
+      );
+    }
+
     // Initialize router
     const bus = options.bus ?? new InMemoryMessageBus();
-    this.router = new Router({ bus, componentName: 'gateway' });
+    this.router = new Router({ bus, componentName: 'gateway', rateLimiter: this.rateLimiter });
 
     // Initialize Salsa policy engine if configured
     if (options.policyConfig) {
@@ -161,6 +176,10 @@ export class Gateway {
     // Cleanup Salsa
     if (this.salsa) {
       this.salsa.destroy();
+    }
+
+    if (this.rateLimiter) {
+      await this.rateLimiter.shutdown();
     }
 
     this.storage.close();

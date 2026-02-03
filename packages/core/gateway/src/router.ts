@@ -1,7 +1,12 @@
 /**
  * Message Router - Routes messages between components
  */
-import type { MessageEnvelope, ChannelInboundMessage, ChannelOutboundMessage } from '@nachos/types';
+import {
+  createRateLimitedError,
+  type MessageEnvelope,
+  type ChannelInboundMessage,
+  type ChannelOutboundMessage,
+} from '@nachos/types';
 import {
   TOPICS,
   type NachosBusClient,
@@ -9,6 +14,7 @@ import {
   type BusSubscription,
 } from '@nachos/bus';
 import { v4 as uuid } from 'uuid';
+import type { RateLimitAction, RateLimitCheckResult, RateLimiter } from './security/rate-limiter.js';
 
 /**
  * Route handler function type
@@ -194,6 +200,7 @@ export function createEnvelope(
 export interface RouterOptions {
   bus: MessageBus;
   componentName?: string;
+  rateLimiter?: RateLimiter;
 }
 
 /**
@@ -202,11 +209,13 @@ export interface RouterOptions {
 export class Router {
   private bus: MessageBus;
   private componentName: string;
+  private rateLimiter?: RateLimiter;
   private handlers: Map<string, RouteHandler> = new Map();
 
   constructor(options: RouterOptions) {
     this.bus = options.bus;
     this.componentName = options.componentName ?? 'gateway';
+    this.rateLimiter = options.rateLimiter;
   }
 
   /**
@@ -257,6 +266,12 @@ export class Router {
    * Send an outbound message to a channel
    */
   async sendToChannel(message: ChannelOutboundMessage): Promise<void> {
+    const limitResult = await this.checkRateLimit('message', message);
+    if (!limitResult.allowed) {
+      throw this.createRateLimitError(limitResult, 'Outbound message rate limit exceeded', {
+        channel: message.channel,
+      });
+    }
     const topic = TOPICS.channel.outbound(message.channel);
     const envelope = createEnvelope(this.componentName, 'channel.outbound', message);
     await this.bus.publish(topic, envelope);
@@ -266,6 +281,12 @@ export class Router {
    * Process an inbound channel message
    */
   async processInboundMessage(message: ChannelInboundMessage): Promise<MessageEnvelope> {
+    const limitResult = await this.checkRateLimit('message', message);
+    if (!limitResult.allowed) {
+      throw this.createRateLimitError(limitResult, 'Inbound message rate limit exceeded', {
+        channel: message.channel,
+      });
+    }
     const envelope = createEnvelope(this.componentName, 'channel.inbound', message);
     return envelope;
   }
@@ -274,6 +295,10 @@ export class Router {
    * Send an LLM request
    */
   async sendLLMRequest(payload: unknown): Promise<unknown> {
+    const limitResult = await this.checkRateLimit('llm', payload);
+    if (!limitResult.allowed) {
+      throw this.createRateLimitError(limitResult, 'LLM request rate limit exceeded');
+    }
     const envelope = createEnvelope(this.componentName, 'llm.request', payload);
     return this.bus.request(TOPICS.llm.request, envelope, 60000);
   }
@@ -282,9 +307,75 @@ export class Router {
    * Send a tool request
    */
   async sendToolRequest(tool: string, payload: unknown): Promise<unknown> {
+    const limitResult = await this.checkRateLimit('tool', payload);
+    if (!limitResult.allowed) {
+      throw this.createRateLimitError(limitResult, 'Tool request rate limit exceeded', { tool });
+    }
     const topic = TOPICS.tool.request(tool);
     const envelope = createEnvelope(this.componentName, 'tool.request', payload);
     return this.bus.request(topic, envelope, 30000);
+  }
+
+  private async checkRateLimit(
+    action: RateLimitAction,
+    payload: unknown
+  ): Promise<RateLimitCheckResult> {
+    if (!this.rateLimiter) {
+      return {
+        allowed: true,
+        remaining: Number.MAX_SAFE_INTEGER,
+        resetAt: Date.now(),
+        total: Number.MAX_SAFE_INTEGER,
+        source: 'memory',
+      };
+    }
+    const userId = this.getUserIdFromPayload(payload) ?? 'anonymous';
+    const result = await this.rateLimiter.check(userId, action);
+    if (!result.allowed) {
+      void this.bus.publish(
+        TOPICS.audit.log,
+        createEnvelope(this.componentName, 'audit.log', {
+          type: 'rate_limit',
+          action,
+          userId,
+          remaining: result.remaining,
+          resetAt: result.resetAt,
+          limit: result.total,
+          source: result.source,
+        })
+      );
+    }
+    return result;
+  }
+
+  private createRateLimitError(
+    result: RateLimitCheckResult,
+    message: string,
+    extraDetails?: Record<string, unknown>
+  ) {
+    return createRateLimitedError(message, {
+      component: this.componentName,
+      details: {
+        remaining: result.remaining,
+        resetAt: result.resetAt,
+        limit: result.total,
+        source: result.source,
+        ...extraDetails,
+      },
+    });
+  }
+
+  private getUserIdFromPayload(payload: unknown): string | undefined {
+    if (payload && typeof payload === 'object') {
+      const record = payload as { sessionId?: string; sender?: { id?: string } };
+      if (typeof record.sessionId === 'string') {
+        return record.sessionId;
+      }
+      if (record.sender && typeof record.sender.id === 'string') {
+        return record.sender.id;
+      }
+    }
+    return undefined;
   }
 
   /**

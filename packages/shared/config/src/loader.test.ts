@@ -124,6 +124,9 @@ patterns = ["api_key", "password"]
 [security.rate_limits]
 messages_per_minute = 30
 tool_calls_per_minute = 15
+
+[runtime]
+redis_url = "redis://localhost:6379"
       `;
 
       const config = parseToml(toml);
@@ -132,6 +135,7 @@ tool_calls_per_minute = 15
       expect(config.security.dlp?.action).toBe('warn');
       expect(config.security.dlp?.patterns).toEqual(['api_key', 'password']);
       expect(config.security.rate_limits?.messages_per_minute).toBe(30);
+      expect(config.runtime?.redis_url).toBe('redis://localhost:6379');
     });
   });
 });
