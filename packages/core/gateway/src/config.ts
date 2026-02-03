@@ -51,8 +51,7 @@ const defaults: GatewayConfig = {
  * Load configuration from environment variables
  */
 export function loadConfig(): GatewayConfig {
-  const securityMode =
-    (process.env.SECURITY_MODE as 'strict' | 'standard' | 'permissive') ?? 'standard';
+  const securityMode = parseSecurityMode(process.env.SECURITY_MODE);
   const rateLimiterDefaults = defaults.rateLimiter ?? createDefaultRateLimiterConfig();
   const modeDefaults = rateLimiterDefaults.presets?.[securityMode] ?? rateLimiterDefaults.limits;
 
@@ -89,6 +88,15 @@ export function loadConfig(): GatewayConfig {
       defaultEffect: 'deny',
     },
   };
+}
+
+function parseSecurityMode(
+  value: string | undefined
+): 'strict' | 'standard' | 'permissive' {
+  if (value === 'strict' || value === 'standard' || value === 'permissive') {
+    return value;
+  }
+  return 'standard';
 }
 
 /**

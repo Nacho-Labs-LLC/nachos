@@ -96,6 +96,14 @@ describe('Config', () => {
       });
     });
 
+    it('should default to standard mode for invalid security mode', () => {
+      process.env.SECURITY_MODE = 'invalid';
+
+      const config = loadConfig();
+
+      expect(config.policy?.securityMode).toBe('standard');
+    });
+
     it('should use runtime redis url when redis url is unset', () => {
       process.env.RUNTIME_REDIS_URL = 'redis://runtime:6379';
 

@@ -69,7 +69,8 @@ class RedisRateLimitStore implements RateLimitStore {
 
   constructor(redisUrl: string) {
     this.client = createClient({ url: redisUrl })
-    this.client.on('error', () => {
+    this.client.on('error', (error) => {
+      console.warn('[RateLimiter] Redis error', error)
       this.connected = false
     })
   }
@@ -187,7 +188,8 @@ export class RateLimiter {
     try {
       const count = await this.store.record(key, timestampMs, windowMs)
       return { count, source: this.store.getSource() }
-    } catch {
+    } catch (error) {
+      console.warn('[RateLimiter] Rate limit storage error', error)
       if (this.store instanceof RedisRateLimitStore) {
         await this.store.disconnect()
       }
