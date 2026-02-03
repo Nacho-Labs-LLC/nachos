@@ -22,6 +22,7 @@ export async function loadAuditProvider(config: AuditConfig): Promise<AuditProvi
         rotateSize: config.rotate_size,
         maxFiles: config.max_files,
         batchSize: config.batch_size,
+        flushIntervalMs: config.flush_interval_ms,
       });
     case 'webhook':
       if (!config.url) {

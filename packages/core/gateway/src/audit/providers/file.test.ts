@@ -23,6 +23,7 @@ describe('FileAuditProvider', () => {
 
   afterEach(() => {
     rmSync(logPath, { force: true });
+    rmSync(`${logPath}.1`, { force: true });
   });
 
   it('should write audit events to a file', async () => {
@@ -34,5 +35,21 @@ describe('FileAuditProvider', () => {
 
     const content = readFileSync(logPath, 'utf-8').trim();
     expect(content).toContain('"eventType":"tool_execute"');
+  });
+
+  it('should rotate log files when size exceeds threshold', async () => {
+    const provider = new FileAuditProvider({
+      path: logPath,
+      batchSize: 1,
+      rotateSize: 1,
+      maxFiles: 1,
+    });
+    await provider.init();
+
+    await provider.log(createEvent({ id: 'event-2' }));
+    await provider.close();
+
+    const rotatedContent = readFileSync(`${logPath}.1`, 'utf-8').trim();
+    expect(rotatedContent).toContain('"id":"event-2"');
   });
 });

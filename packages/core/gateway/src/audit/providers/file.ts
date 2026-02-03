@@ -20,12 +20,14 @@ export interface FileAuditProviderConfig {
   rotateSize?: number;
   maxFiles?: number;
   batchSize?: number;
+  flushIntervalMs?: number;
 }
 
 export class FileAuditProvider implements AuditProvider {
   readonly name = 'file';
   private stream: WriteStream | null = null;
   private buffer: string[] = [];
+  private flushTimer: NodeJS.Timeout | null = null;
 
   constructor(private readonly config: FileAuditProviderConfig) {}
 
@@ -35,6 +37,10 @@ export class FileAuditProvider implements AuditProvider {
       mkdirSync(directory, { recursive: true });
     }
     this.stream = createWriteStream(this.config.path, { flags: 'a' });
+    const interval = this.config.flushIntervalMs ?? 5000;
+    this.flushTimer = setInterval(() => {
+      void this.flush();
+    }, interval);
   }
 
   async log(event: AuditEvent): Promise<void> {
@@ -63,6 +69,10 @@ export class FileAuditProvider implements AuditProvider {
   }
 
   async close(): Promise<void> {
+    if (this.flushTimer) {
+      clearInterval(this.flushTimer);
+      this.flushTimer = null;
+    }
     await this.flush();
     await new Promise<void>((resolve) => {
       this.stream?.end(() => resolve());

@@ -45,4 +45,21 @@ describe('SQLiteAuditProvider', () => {
     await provider.flush();
     await provider.close();
   });
+
+  it('should flush events on interval before closing', async () => {
+    const provider = new SQLiteAuditProvider({
+      path: dbPath,
+      batchSize: 100,
+      flushIntervalMs: 10,
+    });
+    await provider.init();
+
+    await provider.log(createEvent({ eventType: 'llm_request' }));
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    const results = await provider.query({ eventType: 'llm_request' });
+    expect(results).toHaveLength(1);
+
+    await provider.close();
+  });
 });

@@ -24,6 +24,17 @@ describe('loadAuditProvider', () => {
     expect(provider).toBeInstanceOf(CompositeAuditProvider);
   });
 
+  it('should load file provider with flush interval', async () => {
+    const provider = await loadAuditProvider({
+      enabled: true,
+      provider: 'file',
+      path: './audit.log',
+      flush_interval_ms: 1234,
+    });
+
+    expect(provider).toBeInstanceOf(FileAuditProvider);
+  });
+
   it('should reject composite provider containing itself', async () => {
     await expect(
       loadAuditProvider({
