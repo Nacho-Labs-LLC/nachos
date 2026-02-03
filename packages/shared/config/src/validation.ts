@@ -159,7 +159,7 @@ function validateSecurityConfig(config: NachosConfig, errors: string[], _warning
     }
 
     if (provider === 'sqlite' || provider === 'file') {
-      if (!path) {
+      if (path === undefined || path === '') {
         errors.push('security.audit.path is required for sqlite or file providers');
       }
     }

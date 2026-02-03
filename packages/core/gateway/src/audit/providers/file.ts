@@ -1,4 +1,11 @@
-import { createWriteStream, existsSync, mkdirSync, rename, statSync, unlink } from 'node:fs';
+import {
+  createWriteStream,
+  existsSync,
+  mkdirSync,
+  rename,
+  stat,
+  unlink,
+} from 'node:fs';
 import { dirname } from 'node:path';
 import type { WriteStream } from 'node:fs';
 import type { AuditEvent } from '../types.js';
@@ -69,8 +76,21 @@ export class FileAuditProvider implements AuditProvider {
     }
     const rotateSize = this.config.rotateSize ?? DEFAULT_ROTATE_SIZE;
     const maxFiles = this.config.maxFiles ?? DEFAULT_MAX_FILES;
-    const stats = statSync(this.config.path);
-    if (stats.size < rotateSize) {
+    let size = 0;
+    try {
+      size = await new Promise<number>((resolve, reject) => {
+        stat(this.config.path, (error, result) => {
+          if (error) {
+            reject(error);
+          } else {
+            resolve(result.size);
+          }
+        });
+      });
+    } catch {
+      return;
+    }
+    if (size < rotateSize) {
       return;
     }
 

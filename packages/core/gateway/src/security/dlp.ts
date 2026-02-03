@@ -3,6 +3,7 @@
  * Scans messages for sensitive data and applies configurable policies
  */
 import { Scanner, redact, type Finding, type ScannerConfig } from '@nacho-labs/nachos-dlp'
+import { randomUUID } from 'node:crypto'
 import type { AuditLogger } from '../audit/logger.js'
 
 /**
@@ -271,7 +272,7 @@ export class DLPSecurityLayer {
     }
 
     const timestamp = new Date().toISOString()
-    const uniqueId = Math.random().toString(36).slice(2, 10)
+    const uniqueId = randomUUID()
     void this.auditLogger.log({
       id: `dlp-${timestamp}-${uniqueId}`,
       timestamp,

@@ -56,8 +56,20 @@ export async function loadAuditProvider(config: AuditConfig): Promise<AuditProvi
       if (providerNames.includes('composite')) {
         throw new Error('Composite audit provider cannot include itself');
       }
+      const baseConfig: AuditConfig = {
+        enabled: config.enabled,
+        path: config.path,
+        rotate_size: config.rotate_size,
+        max_files: config.max_files,
+        url: config.url,
+        headers: config.headers,
+        batch_size: config.batch_size,
+        flush_interval_ms: config.flush_interval_ms,
+        custom_path: config.custom_path,
+        custom_config: config.custom_config,
+      };
       const providers = await Promise.all(
-        providerNames.map((name) => loadAuditProvider({ ...config, provider: name }))
+        providerNames.map((name) => loadAuditProvider({ ...baseConfig, provider: name }))
       );
       return new CompositeAuditProvider(providers);
     }

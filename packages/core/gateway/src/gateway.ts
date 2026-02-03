@@ -87,7 +87,7 @@ export class Gateway {
    */
   private async handleInboundMessage(envelope: MessageEnvelope): Promise<void> {
     const message = envelope.payload as ChannelInboundMessage;
-    const isNewSession = !this.sessionManager.getSessionByConversation(
+    const existingSession = this.sessionManager.getSessionByConversation(
       message.channel,
       message.conversation.id
     );
@@ -122,7 +122,7 @@ export class Gateway {
     // Publish the processed message (for further handling)
     await this.router.getBus().publish('nachos.gateway.processed', processedEnvelope);
 
-    if (isNewSession) {
+    if (!existingSession) {
       await this.logAuditEvent({
         id: envelope.id,
         timestamp: new Date().toISOString(),
