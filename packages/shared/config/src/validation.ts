@@ -145,6 +145,45 @@ function validateSecurityConfig(config: NachosConfig, errors: string[], _warning
       errors.push('security.audit.retention_days must be between 1 and 365');
     }
   }
+  if (config.security.audit) {
+    const validProviders = ['sqlite', 'file', 'webhook', 'custom', 'composite'];
+    const { provider, providers, path, url, batch_size, flush_interval_ms } =
+      config.security.audit;
+
+    if (provider && !validProviders.includes(provider)) {
+      errors.push(`security.audit.provider must be one of: ${validProviders.join(', ')}`);
+    }
+
+    if (providers && providers.some((item) => typeof item !== 'string')) {
+      errors.push('security.audit.providers must be an array of strings');
+    }
+
+    if (provider === 'sqlite' || provider === 'file') {
+      if (!path) {
+        errors.push('security.audit.path is required for sqlite or file providers');
+      }
+    }
+
+    if (provider === 'webhook' && !url) {
+      errors.push('security.audit.url is required for webhook providers');
+    }
+
+    if (provider === 'custom' && !config.security.audit.custom_path) {
+      errors.push('security.audit.custom_path is required for custom providers');
+    }
+
+    if (provider === 'composite' && (!providers || providers.length === 0)) {
+      errors.push('security.audit.providers is required for composite providers');
+    }
+
+    if (batch_size !== undefined && batch_size < 1) {
+      errors.push('security.audit.batch_size must be at least 1');
+    }
+
+    if (flush_interval_ms !== undefined && flush_interval_ms < 100) {
+      errors.push('security.audit.flush_interval_ms must be at least 100');
+    }
+  }
 }
 
 /**

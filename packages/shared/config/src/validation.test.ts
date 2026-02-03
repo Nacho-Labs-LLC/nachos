@@ -218,6 +218,21 @@ describe('Configuration Validation', () => {
       expect(result.errors.some((e) => e.includes('retention_days'))).toBe(true);
     });
 
+    it('should reject invalid audit provider config', () => {
+      const config: NachosConfig = {
+        nachos: { name: 'test', version: '1.0' },
+        llm: { provider: 'anthropic', model: 'claude' },
+        security: {
+          mode: 'standard',
+          audit: { enabled: true, provider: 'sqlite', path: '' }
+        }
+      };
+
+      const result = validateConfig(config);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.includes('security.audit.path'))).toBe(true);
+    });
+       
     it('should reject invalid redis url', () => {
       const config: NachosConfig = {
         nachos: { name: 'test', version: '1.0' },
@@ -229,9 +244,40 @@ describe('Configuration Validation', () => {
       };
 
       const result = validateConfig(config);
-
       expect(result.valid).toBe(false);
       expect(result.errors).toContain('runtime.redis_url must be a valid URL');
+    });
+
+    it('should reject missing custom audit provider path', () => {
+      const config: NachosConfig = {
+        nachos: { name: 'test', version: '1.0' },
+        llm: { provider: 'anthropic', model: 'claude' },
+        security: {
+          mode: 'standard',
+          audit: { enabled: true, provider: 'custom' },
+        },
+      };
+
+      const result = validateConfig(config);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.includes('custom_path'))).toBe(true);
+    });
+
+    it('should reject missing composite audit providers', () => {
+      const config: NachosConfig = {
+        nachos: { name: 'test', version: '1.0' },
+        llm: { provider: 'anthropic', model: 'claude' },
+        security: {
+          mode: 'standard',
+          audit: { enabled: true, provider: 'composite', providers: [] },
+        },
+      };
+
+      const result = validateConfig(config);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.includes('security.audit.providers'))).toBe(true);
     });
 
     it('should reject invalid webchat port', () => {

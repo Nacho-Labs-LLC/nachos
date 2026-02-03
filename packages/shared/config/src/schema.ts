@@ -153,6 +153,17 @@ export interface AuditConfig {
   log_inputs?: boolean;
   log_outputs?: boolean;
   log_tool_calls?: boolean;
+  provider?: 'sqlite' | 'file' | 'webhook' | 'custom' | 'composite';
+  providers?: string[];
+  path?: string;
+  rotate_size?: number;
+  max_files?: number;
+  url?: string;
+  headers?: Record<string, string>;
+  batch_size?: number;
+  flush_interval_ms?: number;
+  custom_path?: string;
+  custom_config?: Record<string, unknown>;
 }
 
 /**

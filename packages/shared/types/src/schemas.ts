@@ -538,17 +538,44 @@ export const AuditLogEntrySchema = Type.Object(
   {
     id: Type.String({ description: 'Unique audit entry identifier' }),
     timestamp: TimestampSchema,
-    component: Type.String({ description: 'Component that generated the audit entry' }),
+    instanceId: Type.String({ description: 'Gateway instance identifier' }),
+    userId: Type.String({ description: 'User who performed the action' }),
+    sessionId: Type.String({ description: 'Related session identifier' }),
+    channel: Type.String({ description: 'Channel identifier' }),
+    eventType: Type.Union(
+      [
+        Type.Literal('policy_check'),
+        Type.Literal('dlp_scan'),
+        Type.Literal('dlp_block'),
+        Type.Literal('rate_limit'),
+        Type.Literal('session_create'),
+        Type.Literal('session_end'),
+        Type.Literal('tool_execute'),
+        Type.Literal('llm_request'),
+        Type.Literal('config_reload'),
+        Type.Literal('error'),
+      ],
+      { description: 'Audit event type' }
+    ),
     action: Type.String({ description: 'Action that was performed' }),
-    sessionId: Type.Optional(Type.String({ description: 'Related session identifier' })),
-    userId: Type.Optional(Type.String({ description: 'User who performed the action' })),
+    resource: Type.Optional(Type.String({ description: 'Resource identifier' })),
+    outcome: Type.Union(
+      [
+        Type.Literal('allowed'),
+        Type.Literal('denied'),
+        Type.Literal('blocked'),
+        Type.Literal('error'),
+      ],
+      { description: 'Outcome of the action' }
+    ),
+    reason: Type.Optional(Type.String({ description: 'Reason for the outcome' })),
+    securityMode: Type.Union(
+      [Type.Literal('strict'), Type.Literal('standard'), Type.Literal('permissive')],
+      { description: 'Security mode at time of event' }
+    ),
+    policyMatched: Type.Optional(Type.String({ description: 'Matched policy rule ID' })),
     details: Type.Optional(
       Type.Record(Type.String(), Type.Unknown(), { description: 'Additional details' })
-    ),
-    result: Type.Optional(
-      Type.Union([Type.Literal('success'), Type.Literal('failure'), Type.Literal('denied')], {
-        description: 'Result of the action',
-      })
     ),
   },
   { $id: 'AuditLogEntry', description: 'Audit log entry' }

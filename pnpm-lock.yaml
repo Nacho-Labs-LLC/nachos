@@ -79,6 +79,9 @@ importers:
       '@nachos/bus':
         specifier: workspace:*
         version: link:../bus
+      '@nachos/config':
+        specifier: workspace:*
+        version: link:../../shared/config
       '@nachos/types':
         specifier: workspace:*
         version: link:../../shared/types

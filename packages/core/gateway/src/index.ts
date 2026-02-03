@@ -59,6 +59,21 @@ export {
 // Re-export TOPICS from @nachos/bus for convenience
 export { TOPICS } from '@nachos/bus';
 
+// Audit logging
+export {
+  AuditLogger,
+  loadAuditProvider,
+  CompositeAuditProvider,
+  FileAuditProvider,
+  SQLiteAuditProvider,
+  WebhookAuditProvider,
+  type AuditEvent,
+  type AuditEventType,
+  type AuditOutcome,
+  type AuditProvider,
+  type AuditQueryFilter,
+} from './audit/index.js';
+
 // Health check
 export {
   createHealthServer,

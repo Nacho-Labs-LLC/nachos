@@ -569,15 +569,20 @@ describe('AuditLogEntrySchema', () => {
     const entry = {
       id: 'audit-123',
       timestamp: '2024-01-15T10:30:00.000Z',
-      component: 'gateway',
-      action: 'session.create',
-      sessionId: 'session-456',
+      instanceId: 'gateway-1',
       userId: 'user-789',
+      sessionId: 'session-456',
+      channel: 'slack',
+      eventType: 'session_create' as const,
+      action: 'session.create',
+      resource: 'session-456',
+      outcome: 'allowed' as const,
+      securityMode: 'standard' as const,
+      policyMatched: 'policy-1',
+      reason: 'allowed by policy',
       details: {
-        channel: 'slack',
         conversationId: 'conv-000',
       },
-      result: 'success' as const,
     };
 
     expect(Value.Check(AuditLogEntrySchema, entry)).toBe(true);
@@ -587,8 +592,14 @@ describe('AuditLogEntrySchema', () => {
     const entry = {
       id: 'audit-456',
       timestamp: '2024-01-15T10:31:00.000Z',
-      component: 'bus',
-      action: 'message.publish',
+      instanceId: 'gateway-2',
+      userId: 'user-111',
+      sessionId: 'session-999',
+      channel: 'webchat',
+      eventType: 'tool_execute' as const,
+      action: 'tool.execute',
+      outcome: 'allowed' as const,
+      securityMode: 'strict' as const,
     };
 
     expect(Value.Check(AuditLogEntrySchema, entry)).toBe(true);

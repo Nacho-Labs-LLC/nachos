@@ -31,6 +31,11 @@ const ENV_VAR_MAPPINGS: Record<string, string> = {
   SECURITY_RATE_LIMIT_LLM: 'security.rate_limits.llm_requests_per_minute',
   SECURITY_AUDIT_ENABLED: 'security.audit.enabled',
   SECURITY_AUDIT_RETENTION_DAYS: 'security.audit.retention_days',
+  SECURITY_AUDIT_PROVIDER: 'security.audit.provider',
+  SECURITY_AUDIT_PATH: 'security.audit.path',
+  SECURITY_AUDIT_URL: 'security.audit.url',
+  SECURITY_AUDIT_BATCH_SIZE: 'security.audit.batch_size',
+  SECURITY_AUDIT_FLUSH_INTERVAL_MS: 'security.audit.flush_interval_ms',
 
   // Runtime settings
   RUNTIME_STATE_DIR: 'runtime.state_dir',

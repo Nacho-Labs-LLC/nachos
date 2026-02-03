@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Gateway } from './gateway.js';
 import type { ChannelInboundMessage } from '@nachos/types';
+import type { AuditConfig } from '@nachos/config';
+import type { AuditProvider } from './audit/provider.js';
+import * as auditLoader from './audit/loader.js';
 
 describe('Gateway', () => {
   let gateway: Gateway;
@@ -64,6 +67,36 @@ describe('Gateway', () => {
       // Verify health endpoint is accessible
       const response = await fetch('http://localhost:9001/health');
       expect(response.status).toBe(200);
+
+      await customGateway.stop();
+    });
+
+    it('should initialize audit logging when enabled', async () => {
+      const provider: AuditProvider = {
+        name: 'test',
+        init: vi.fn().mockResolvedValue(undefined),
+        log: vi.fn().mockResolvedValue(undefined),
+        flush: vi.fn().mockResolvedValue(undefined),
+        close: vi.fn().mockResolvedValue(undefined),
+      };
+      const auditConfig: AuditConfig = {
+        enabled: true,
+        provider: 'sqlite',
+        path: ':memory:',
+      };
+      vi.spyOn(auditLoader, 'loadAuditProvider').mockResolvedValue(provider);
+
+      const customGateway = new Gateway({
+        dbPath: ':memory:',
+        healthPort: 9002,
+        auditConfig,
+      });
+
+      vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      await customGateway.start();
+
+      expect(provider.init).toHaveBeenCalled();
 
       await customGateway.stop();
     });

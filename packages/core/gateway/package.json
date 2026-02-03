@@ -16,6 +16,7 @@
   "dependencies": {
     "@nacho-labs/nachos-dlp": "^1.0.0",
     "@nachos/bus": "workspace:*",
+    "@nachos/config": "workspace:*",
     "@nachos/types": "workspace:*",
     "better-sqlite3": "^12.6.2",
     "redis": "^4.7.0",
