@@ -3,6 +3,7 @@
  * Scans messages for sensitive data and applies configurable policies
  */
 import { Scanner, type Finding, type ScannerConfig } from '@nacho-labs/nachos-dlp'
+import type { AuditLogger } from '../audit/logger.js'
 
 /**
  * DLP action to take when sensitive data is detected
@@ -81,9 +82,11 @@ export class DLPSecurityLayer {
   private scanner: Scanner
   private config: DLPConfig
   private channelConfigs: Map<string, ChannelDLPConfig>
+  private auditLogger?: AuditLogger
 
-  constructor(config: DLPConfig) {
+  constructor(config: DLPConfig, auditLogger?: AuditLogger) {
     this.config = config
+    this.auditLogger = auditLogger
     this.channelConfigs = new Map()
 
     // Build channel configuration map
@@ -258,13 +261,35 @@ export class DLPSecurityLayer {
    * @param channelId - Channel ID where findings were detected
    */
   private logFindings(findings: Finding[], channelId?: string): void {
-    // TODO: Integrate with audit provider system
-    console.warn('[DLP]', {
-      timestamp: new Date().toISOString(),
-      channelId,
-      findingsCount: findings.length,
-      severities: findings.map((f) => f.severity),
-      patternIds: findings.map((f) => f.patternId),
+    if (!this.auditLogger) {
+      console.warn('[DLP]', {
+        timestamp: new Date().toISOString(),
+        channelId,
+        findingsCount: findings.length,
+        severities: findings.map((f) => f.severity),
+        patternIds: findings.map((f) => f.patternId),
+      })
+      return
+    }
+
+    const timestamp = new Date().toISOString()
+    const uniqueId = Math.random().toString(36).slice(2, 10)
+    void this.auditLogger.log({
+      id: `dlp-${timestamp}-${uniqueId}`,
+      timestamp,
+      instanceId: 'gateway',
+      userId: 'unknown',
+      sessionId: 'unknown',
+      channel: channelId ?? 'unknown',
+      eventType: 'dlp_scan',
+      action: 'dlp.scan',
+      outcome: 'allowed',
+      securityMode: 'standard',
+      details: {
+        findingsCount: findings.length,
+        severities: findings.map((f) => f.severity),
+        patternIds: findings.map((f) => f.patternId),
+      },
     })
   }
 

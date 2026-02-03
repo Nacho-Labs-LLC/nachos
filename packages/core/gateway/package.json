@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@nachos/bus": "workspace:*",
+    "@nachos/config": "workspace:*",
     "@nachos/types": "workspace:*",
     "@nacho-labs/nachos-dlp": "^1.0.0",
     "better-sqlite3": "^12.6.2",

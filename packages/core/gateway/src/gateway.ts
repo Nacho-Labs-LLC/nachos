@@ -2,11 +2,14 @@
  * Gateway - Main entry point for the Nachos Gateway service
  */
 import type { ChannelInboundMessage, MessageEnvelope, Session } from '@nachos/types';
+import type { AuditConfig } from '@nachos/config';
 import { StateStorage } from './state.js';
 import { SessionManager } from './session.js';
 import { Router, InMemoryMessageBus, createEnvelope, type MessageBus } from './router.js';
 import { createHealthServer, performHealthCheck, type HealthCheckDeps } from './health.js';
 import { Salsa, type PolicyEngineConfig, type SecurityRequest } from './salsa/index.js';
+import { AuditLogger, loadAuditProvider } from './audit/index.js';
+import type { AuditEvent } from './audit/types.js';
 
 /**
  * Gateway configuration options
@@ -24,6 +27,10 @@ export interface GatewayOptions {
   channels?: string[];
   /** Policy engine configuration */
   policyConfig?: PolicyEngineConfig;
+  /** Audit configuration */
+  auditConfig?: AuditConfig;
+  /** Gateway instance ID */
+  instanceId?: string;
 }
 
 /**
@@ -34,6 +41,8 @@ export class Gateway {
   private sessionManager: SessionManager;
   private router: Router;
   private salsa: Salsa | null = null;
+  private auditLogger: AuditLogger | null = null;
+  private instanceId: string;
   private healthServer: ReturnType<typeof createHealthServer> | null = null;
   private options: GatewayOptions;
   private isConnected: boolean = false;
@@ -41,6 +50,7 @@ export class Gateway {
 
   constructor(options: GatewayOptions = {}) {
     this.options = options;
+    this.instanceId = options.instanceId ?? 'gateway';
 
     // Initialize storage
     this.storage = new StateStorage(options.dbPath ?? ':memory:');
@@ -77,6 +87,10 @@ export class Gateway {
    */
   private async handleInboundMessage(envelope: MessageEnvelope): Promise<void> {
     const message = envelope.payload as ChannelInboundMessage;
+    const isNewSession = !this.sessionManager.getSessionByConversation(
+      message.channel,
+      message.conversation.id
+    );
 
     // Get or create session for this conversation
     const session = this.sessionManager.getOrCreateSession({
@@ -107,12 +121,38 @@ export class Gateway {
 
     // Publish the processed message (for further handling)
     await this.router.getBus().publish('nachos.gateway.processed', processedEnvelope);
+
+    if (isNewSession) {
+      await this.logAuditEvent({
+        id: envelope.id,
+        timestamp: new Date().toISOString(),
+        instanceId: this.instanceId,
+        userId: message.sender.id,
+        sessionId: session.id,
+        channel: message.channel,
+        eventType: 'session_create',
+        action: 'session.create',
+        resource: session.id,
+        outcome: 'allowed',
+        securityMode: this.options.policyConfig?.securityMode ?? 'standard',
+        details: {
+          conversationId: message.conversation.id,
+          messageId: message.channelMessageId,
+        },
+      });
+    }
   }
 
   /**
    * Start the gateway
    */
   async start(): Promise<void> {
+    if (this.options.auditConfig?.enabled) {
+      const provider = await loadAuditProvider(this.options.auditConfig);
+      this.auditLogger = new AuditLogger(provider);
+      await this.auditLogger.init();
+    }
+
     // Create health server
     const healthDeps: HealthCheckDeps = {
       checkDatabase: () => {
@@ -161,6 +201,11 @@ export class Gateway {
     // Cleanup Salsa
     if (this.salsa) {
       this.salsa.destroy();
+    }
+
+    if (this.auditLogger) {
+      await this.auditLogger.close();
+      this.auditLogger = null;
     }
 
     this.storage.close();
@@ -215,6 +260,16 @@ export class Gateway {
    */
   getRouter(): Router {
     return this.router;
+  }
+
+  /**
+   * Log an audit event when audit logging is enabled.
+   */
+  async logAuditEvent(event: AuditEvent): Promise<void> {
+    if (!this.auditLogger) {
+      return;
+    }
+    await this.auditLogger.log(event);
   }
 
   /**

@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { DLPSecurityLayer, createDefaultDLPConfig, type DLPConfig } from './dlp.js'
+import type { AuditLogger } from '../audit/logger.js'
 
 describe('DLPSecurityLayer', () => {
   let dlp: DLPSecurityLayer
@@ -305,5 +306,23 @@ describe('DLPSecurityLayer', () => {
       expect(result.action).toBe('block')
       expect(result.allowed).toBe(false)
     })
+  })
+
+  it('should log findings to audit logger when configured', () => {
+    const config: DLPConfig = {
+      enabled: true,
+      globalPolicy: {
+        action: 'alert',
+        minConfidence: 0.6,
+        logFindings: true,
+      },
+    }
+    const auditLogger = { log: vi.fn().mockResolvedValue(undefined) } as unknown as AuditLogger
+    dlp = new DLPSecurityLayer(config, auditLogger)
+
+    const message = 'AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE'
+    dlp.scan(message)
+
+    expect(auditLogger.log).toHaveBeenCalledTimes(1)
   })
 })
