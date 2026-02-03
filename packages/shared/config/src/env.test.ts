@@ -76,6 +76,7 @@ describe('Environment Variable Overlay', () => {
       process.env.RUNTIME_LOG_FORMAT = 'json';
       process.env.RUNTIME_MEMORY = '1GB';
       process.env.RUNTIME_CPUS = '2';
+      process.env.RUNTIME_REDIS_URL = 'redis://localhost:6379';
 
       const overlay = createEnvOverlay();
 
@@ -83,6 +84,7 @@ describe('Environment Variable Overlay', () => {
       expect(overlay.runtime?.log_format).toBe('json');
       expect(overlay.runtime?.resources?.memory).toBe('1GB');
       expect(overlay.runtime?.resources?.cpus).toBe(2);
+      expect(overlay.runtime?.redis_url).toBe('redis://localhost:6379');
     });
 
     it('should parse boolean values correctly', () => {
@@ -135,15 +137,20 @@ describe('Environment Variable Overlay', () => {
           dlp: { enabled: true, action: 'warn' },
           rate_limits: { messages_per_minute: 30 },
         },
+        runtime: {
+          redis_url: 'redis://base:6379',
+        },
       };
 
       process.env.SECURITY_DLP_ACTION = 'block';
+      process.env.RUNTIME_REDIS_URL = 'redis://env:6379';
 
       const merged = applyEnvOverlay(baseConfig);
 
       expect(merged.security.dlp?.action).toBe('block');
       expect(merged.security.dlp?.enabled).toBe(true); // Preserved
       expect(merged.security.rate_limits?.messages_per_minute).toBe(30); // Preserved
+      expect(merged.runtime?.redis_url).toBe('redis://env:6379');
     });
 
     it('should handle empty environment', () => {

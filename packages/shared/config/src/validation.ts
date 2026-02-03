@@ -169,6 +169,15 @@ function validateRuntimeConfig(config: NachosConfig, errors: string[], _warnings
     );
   }
 
+  if (config.runtime.redis_url) {
+    try {
+      // eslint-disable-next-line no-new
+      new URL(config.runtime.redis_url);
+    } catch {
+      errors.push('runtime.redis_url must be a valid URL');
+    }
+  }
+
   if (config.runtime.resources) {
     if (config.runtime.resources.cpus !== undefined && config.runtime.resources.cpus <= 0) {
       errors.push('runtime.resources.cpus must be greater than 0');

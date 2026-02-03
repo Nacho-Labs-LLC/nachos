@@ -218,6 +218,22 @@ describe('Configuration Validation', () => {
       expect(result.errors.some((e) => e.includes('retention_days'))).toBe(true);
     });
 
+    it('should reject invalid redis url', () => {
+      const config: NachosConfig = {
+        nachos: { name: 'test', version: '1.0' },
+        llm: { provider: 'anthropic', model: 'claude' },
+        security: { mode: 'standard' },
+        runtime: {
+          redis_url: 'not-a-url',
+        },
+      };
+
+      const result = validateConfig(config);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain('runtime.redis_url must be a valid URL');
+    });
+
     it('should reject invalid webchat port', () => {
       const config: NachosConfig = {
         nachos: { name: 'test', version: '1.0' },
