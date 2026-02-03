@@ -52,7 +52,11 @@ export class FileAuditProvider implements AuditProvider {
         return;
       }
       void this.flush().catch((error) => {
-        console.error('[Audit] Failed to flush file audit buffer', error);
+        console.error('[Audit] Failed to flush file audit buffer', {
+          path: this.config.path,
+          bufferSize: this.buffer.length,
+          error,
+        });
       });
     }, flushIntervalMs);
   }
