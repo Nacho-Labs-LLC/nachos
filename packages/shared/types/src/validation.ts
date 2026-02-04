@@ -13,6 +13,8 @@ import {
   ChannelInboundMessageSchema,
   ChannelOutboundMessageSchema,
   LLMRequestSchema,
+  LLMResponseSchema,
+  LLMStreamChunkSchema,
   ToolRequestSchema,
   ToolResponseSchema,
   NachosErrorSchema,
@@ -218,6 +220,24 @@ export function validateLLMRequest(
   data: unknown
 ): ValidationResult<Static<typeof LLMRequestSchema>> {
   return validate(LLMRequestSchema, data);
+}
+
+/**
+ * Validate an LLM response payload
+ */
+export function validateLLMResponse(
+  data: unknown
+): ValidationResult<Static<typeof LLMResponseSchema>> {
+  return validate(LLMResponseSchema, data);
+}
+
+/**
+ * Validate an LLM stream chunk payload
+ */
+export function validateLLMStreamChunk(
+  data: unknown
+): ValidationResult<Static<typeof LLMStreamChunkSchema>> {
+  return validate(LLMStreamChunkSchema, data);
 }
 
 /**

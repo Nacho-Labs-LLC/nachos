@@ -89,6 +89,13 @@ export {
   LLMContentPartSchema,
   LLMToolDefinitionSchema,
   LLMRequestOptionsSchema,
+  LLMToolCallSchema,
+  LLMUsageSchema,
+  LLMErrorSchema,
+  LLMResponseSchema,
+  type LLMResponseType,
+  LLMStreamChunkSchema,
+  type LLMStreamChunkType,
 
   // Tool schemas
   ToolRequestSchema,
@@ -140,6 +147,8 @@ export {
   validateChannelInboundMessage,
   validateChannelOutboundMessage,
   validateLLMRequest,
+  validateLLMResponse,
+  validateLLMStreamChunk,
   validateToolRequest,
   validateToolResponse,
   validatePolicyCheckRequest,
@@ -211,7 +220,7 @@ export {
 // For new code, prefer using the TypeBox schema types (e.g., MessageEnvelopeType)
 // which provide both compile-time and runtime type safety.
 
-export type NachosConfig = Record<string, unknown>;
+// NachosConfig is already exported from @nachos/config (line 5)
 
 /**
  * Base message envelope for all inter-component communication

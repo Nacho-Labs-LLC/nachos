@@ -80,7 +80,7 @@ export class RedisRateLimitStore implements RateLimitStore {
   private async ensureConnected(): Promise<void> {
     if (!this.connected) {
       if (!this.connecting) {
-        this.connecting = this.client.connect()
+        this.connecting = this.client.connect().then(() => undefined)
       }
       await this.connecting
       this.connected = true
@@ -95,12 +95,12 @@ export class RedisRateLimitStore implements RateLimitStore {
     pipeline.zRemRangeByScore(key, 0, windowStart)
     pipeline.zAdd(key, [{ score: timestampMs, value: uuid() }])
     pipeline.zCard(key)
-    pipeline.pexpire(key, windowMs)
+    pipeline.pExpire(key, windowMs)
     const results = await pipeline.exec()
     if (!results) {
       throw new Error('Redis rate limit pipeline failed')
     }
-    const countResult = results[2]
+    const countResult = results[2] as [Error | null, number] | undefined
     if (!countResult || countResult[0]) {
       throw new Error('Redis rate limit count failed')
     }

@@ -160,7 +160,77 @@ const LLMRequest = Type.Object({
 });
 ```
 
-### 1.5 Tool Request/Response
+### 1.5 LLM Response
+
+```typescript
+const LLMResponse = Type.Object({
+  sessionId: Type.String(),
+  success: Type.Boolean(),
+  message: Type.Optional(LLMMessage),
+  toolCalls: Type.Optional(
+    Type.Array(
+      Type.Object({
+        id: Type.String(),
+        name: Type.String(),
+        arguments: Type.String(), // JSON string
+      })
+    )
+  ),
+  usage: Type.Optional(
+    Type.Object({
+      promptTokens: Type.Optional(Type.Number()),
+      completionTokens: Type.Optional(Type.Number()),
+      totalTokens: Type.Optional(Type.Number()),
+    })
+  ),
+  provider: Type.Optional(Type.String()),
+  model: Type.Optional(Type.String()),
+  finishReason: Type.Optional(Type.String()),
+  error: Type.Optional(
+    Type.Object({
+      code: Type.String(),
+      message: Type.String(),
+      providerCode: Type.Optional(Type.String()),
+    })
+  ),
+});
+```
+
+### 1.6 LLM Stream Chunk
+
+```typescript
+const LLMStreamChunk = Type.Object({
+  sessionId: Type.String(),
+  index: Type.Number(),
+  type: Type.Union([
+    Type.Literal('delta'),
+    Type.Literal('tool_call'),
+    Type.Literal('tool_result'),
+    Type.Literal('metadata'),
+    Type.Literal('done'),
+  ]),
+  delta: Type.Optional(Type.String()),
+  toolCall: Type.Optional(
+    Type.Object({
+      id: Type.String(),
+      name: Type.String(),
+      arguments: Type.String(),
+    })
+  ),
+  usage: Type.Optional(
+    Type.Object({
+      promptTokens: Type.Optional(Type.Number()),
+      completionTokens: Type.Optional(Type.Number()),
+      totalTokens: Type.Optional(Type.Number()),
+    })
+  ),
+  provider: Type.Optional(Type.String()),
+  model: Type.Optional(Type.String()),
+  finishReason: Type.Optional(Type.String()),
+});
+```
+
+### 1.7 Tool Request/Response
 
 ```typescript
 const ToolRequest = Type.Object({
@@ -184,7 +254,7 @@ const ToolResponse = Type.Object({
 });
 ```
 
-### 1.6 Policy Check Request/Response
+### 1.8 Policy Check Request/Response
 
 ```typescript
 const PolicyCheckRequest = Type.Object({

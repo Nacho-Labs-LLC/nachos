@@ -15,10 +15,47 @@ export interface NachosSection {
 /**
  * LLM provider configuration
  */
+export interface LLMAuthProfileConfig {
+  name: string;
+  provider: 'anthropic' | 'openai' | 'ollama' | 'custom';
+  api_key_env: string;
+  base_url?: string;
+}
+
+export interface LLMProviderConfig {
+  name: string;
+  type: 'anthropic' | 'openai' | 'ollama' | 'custom';
+  base_url?: string;
+  models?: string[];
+  profiles?: string[];
+}
+
+export interface LLMRetryConfig {
+  attempts?: number;
+  min_delay_ms?: number;
+  max_delay_ms?: number;
+  jitter?: number;
+}
+
+export interface LLMCooldownConfig {
+  initial_seconds?: number;
+  multiplier?: number;
+  max_seconds?: number;
+  billing_initial_hours?: number;
+  billing_max_hours?: number;
+}
+
 export interface LLMConfig {
   provider: 'anthropic' | 'openai' | 'ollama' | 'custom';
   model: string;
   fallback_model?: string;
+  fallback_models?: string[];
+  fallback_providers?: string[];
+  providers?: LLMProviderConfig[];
+  profiles?: LLMAuthProfileConfig[];
+  profile_order?: string[];
+  retry?: LLMRetryConfig;
+  cooldowns?: LLMCooldownConfig;
   max_tokens?: number;
   temperature?: number;
   base_url?: string; // For Ollama and custom providers

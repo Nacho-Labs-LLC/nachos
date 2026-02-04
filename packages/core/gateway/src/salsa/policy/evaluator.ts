@@ -13,8 +13,6 @@ import type {
   SecurityRequest,
   SecurityResult,
   PolicyEffect,
-  ResourceType,
-  ActionType,
 } from '../types/index.js'
 
 /**
@@ -177,12 +175,12 @@ export class PolicyEvaluator {
 
       case 'in': {
         if (!Array.isArray(expectedValue)) return false
-        return expectedValue.includes(actualValue as string | number)
+        return expectedValue.includes(String(actualValue))
       }
 
       case 'not_in': {
         if (!Array.isArray(expectedValue)) return false
-        return !expectedValue.includes(actualValue as string | number)
+        return !expectedValue.includes(String(actualValue))
       }
 
       case 'contains': {

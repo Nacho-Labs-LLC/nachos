@@ -70,7 +70,7 @@ export async function loadAuditProvider(config: AuditConfig): Promise<AuditProvi
         custom_config: config.custom_config,
       };
       const providers = await Promise.all(
-        providerNames.map((name) => loadAuditProvider({ ...baseConfig, provider: name }))
+        providerNames.map((name) => loadAuditProvider({ ...baseConfig, provider: name as AuditConfig['provider'] }))
       );
       return new CompositeAuditProvider(providers);
     }

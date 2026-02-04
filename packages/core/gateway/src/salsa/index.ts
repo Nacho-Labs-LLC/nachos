@@ -22,15 +22,12 @@ import { PolicyEvaluator } from './policy/evaluator.js'
  * Provides <1ms policy evaluation with hot-reload support.
  */
 export class Salsa {
-  private config: PolicyEngineConfig
   private loader: PolicyLoader
   private evaluator: PolicyEvaluator
   private lastReload: Date | null = null
   private validationErrors: PolicyValidationError[] = []
 
   constructor(config: PolicyEngineConfig) {
-    this.config = config
-
     // Create evaluator with default deny
     this.evaluator = new PolicyEvaluator(config.defaultEffect)
 

@@ -6,10 +6,6 @@
  */
 
 import type {
-  PolicyDocument,
-  PolicyRule,
-  PolicyMatch,
-  PolicyCondition,
   PolicyValidationError,
   ResourceType,
   ActionType,

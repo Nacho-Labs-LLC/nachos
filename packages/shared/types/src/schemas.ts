@@ -366,6 +366,82 @@ export const LLMRequestSchema = Type.Object(
 
 export type LLMRequestType = Static<typeof LLMRequestSchema>;
 
+/**
+ * LLM tool call structure
+ */
+export const LLMToolCallSchema = Type.Object({
+  id: Type.String({ description: 'Tool call identifier' }),
+  name: Type.String({ description: 'Tool name' }),
+  arguments: Type.String({ description: 'Tool arguments (JSON string)' }),
+});
+
+/**
+ * LLM usage metrics
+ */
+export const LLMUsageSchema = Type.Object({
+  promptTokens: Type.Optional(Type.Number({ description: 'Prompt tokens used' })),
+  completionTokens: Type.Optional(Type.Number({ description: 'Completion tokens used' })),
+  totalTokens: Type.Optional(Type.Number({ description: 'Total tokens used' })),
+});
+
+/**
+ * LLM error structure
+ */
+export const LLMErrorSchema = Type.Object({
+  code: Type.String({ description: 'Error code' }),
+  message: Type.String({ description: 'Error message' }),
+  providerCode: Type.Optional(Type.String({ description: 'Provider-specific error code' })),
+});
+
+/**
+ * LLM response structure
+ */
+export const LLMResponseSchema = Type.Object(
+  {
+    sessionId: Type.String({ description: 'Session this response belongs to' }),
+    success: Type.Boolean({ description: 'Whether the request succeeded' }),
+    message: Type.Optional(LLMMessageSchema),
+    toolCalls: Type.Optional(Type.Array(LLMToolCallSchema)),
+    usage: Type.Optional(LLMUsageSchema),
+    provider: Type.Optional(Type.String({ description: 'Provider name' })),
+    model: Type.Optional(Type.String({ description: 'Model name' })),
+    finishReason: Type.Optional(Type.String({ description: 'Completion finish reason' })),
+    error: Type.Optional(LLMErrorSchema),
+  },
+  { $id: 'LLMResponse', description: 'LLM response structure' }
+);
+
+export type LLMResponseType = Static<typeof LLMResponseSchema>;
+
+/**
+ * LLM stream chunk structure
+ */
+export const LLMStreamChunkSchema = Type.Object(
+  {
+    sessionId: Type.String({ description: 'Session this stream chunk belongs to' }),
+    index: Type.Number({ description: 'Chunk index for ordering' }),
+    type: Type.Union(
+      [
+        Type.Literal('delta'),
+        Type.Literal('tool_call'),
+        Type.Literal('tool_result'),
+        Type.Literal('metadata'),
+        Type.Literal('done'),
+      ],
+      { description: 'Chunk type' }
+    ),
+    delta: Type.Optional(Type.String({ description: 'Text delta for streaming' })),
+    toolCall: Type.Optional(LLMToolCallSchema),
+    usage: Type.Optional(LLMUsageSchema),
+    provider: Type.Optional(Type.String({ description: 'Provider name' })),
+    model: Type.Optional(Type.String({ description: 'Model name' })),
+    finishReason: Type.Optional(Type.String({ description: 'Completion finish reason' })),
+  },
+  { $id: 'LLMStreamChunk', description: 'LLM streaming chunk' }
+);
+
+export type LLMStreamChunkType = Static<typeof LLMStreamChunkSchema>;
+
 // ============================================================================
 // Tool Schemas
 // ============================================================================
