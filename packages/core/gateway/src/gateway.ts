@@ -1,7 +1,14 @@
 /**
  * Gateway - Main entry point for the Nachos Gateway service
  */
-import type { ChannelInboundMessage, MessageEnvelope, Session } from '@nachos/types';
+import type {
+  ChannelInboundMessage,
+  ChannelOutboundMessage,
+  LLMRequestType,
+  LLMResponseType,
+  MessageEnvelope,
+  Session,
+} from '@nachos/types';
 import type { AuditConfig } from '@nachos/config';
 import { StateStorage } from './state.js';
 import { SessionManager } from './session.js';
@@ -38,6 +45,12 @@ export interface GatewayOptions {
   instanceId?: string;
   /** Rate limiting configuration */
   rateLimiterConfig?: RateLimiterConfig;
+  /** Enable streaming passthrough to channels */
+  streamingPassthrough?: boolean;
+  /** Minimum characters between streaming updates */
+  streamingChunkSize?: number;
+  /** Minimum interval between streaming updates (ms) */
+  streamingMinIntervalMs?: number;
 }
 
 /**
@@ -55,6 +68,15 @@ export class Gateway {
   private options: GatewayOptions;
   private isConnected: boolean = false;
   private shutdownHandlers: (() => void)[] = [];
+  private streamingSessions: Map<
+    string,
+    {
+      inbound: ChannelInboundMessage;
+      buffer: string;
+      lastSentAt: number;
+      lastSentLength: number;
+    }
+  > = new Map();
 
   constructor(options: GatewayOptions = {}) {
     this.options = options;
@@ -115,6 +137,26 @@ export class Gateway {
       systemPrompt: this.options.defaultSystemPrompt,
     });
 
+    if (!existingSession) {
+      await this.logAuditEvent({
+        id: envelope.id,
+        timestamp: new Date().toISOString(),
+        instanceId: this.instanceId,
+        userId: message.sender.id,
+        sessionId: session.id,
+        channel: message.channel,
+        eventType: 'session_create',
+        action: 'session.create',
+        resource: session.id,
+        outcome: 'allowed',
+        securityMode: this.options.policyConfig?.securityMode ?? 'standard',
+        details: {
+          conversationId: message.conversation.id,
+          messageId: message.channelMessageId,
+        },
+      });
+    }
+
     // Add user message to session
     if (message.content.text) {
       this.sessionManager.addMessage(session.id, {
@@ -137,25 +179,157 @@ export class Gateway {
     // Publish the processed message (for further handling)
     await this.router.getBus().publish('nachos.gateway.processed', processedEnvelope);
 
-    if (!existingSession) {
-      await this.logAuditEvent({
-        id: envelope.id,
-        timestamp: new Date().toISOString(),
-        instanceId: this.instanceId,
-        userId: message.sender.id,
-        sessionId: session.id,
-        channel: message.channel,
-        eventType: 'session_create',
-        action: 'session.create',
-        resource: session.id,
-        outcome: 'allowed',
-        securityMode: this.options.policyConfig?.securityMode ?? 'standard',
-        details: {
-          conversationId: message.conversation.id,
-          messageId: message.channelMessageId,
-        },
+    // Request LLM response and send back to channel
+    if (this.options.streamingPassthrough) {
+      this.streamingSessions.set(session.id, {
+        inbound: message,
+        buffer: '',
+        lastSentAt: 0,
+        lastSentLength: 0,
       });
     }
+
+    const response = await this.requestLLMResponse(
+      session.id,
+      [],
+      this.options.streamingPassthrough ?? false
+    );
+    await this.sendLLMResponse(message, session.id, response);
+  }
+
+  private buildLLMRequest(
+    sessionId: string,
+    extraMessages: LLMRequestType['messages'] = [],
+    stream: boolean = false
+  ): LLMRequestType {
+    const session = this.sessionManager.getSessionWithMessages(sessionId);
+    if (!session) {
+      throw new Error('Session not found');
+    }
+
+    const messages: LLMRequestType['messages'] = [];
+    if (session.systemPrompt) {
+      messages.push({ role: 'system', content: session.systemPrompt });
+    }
+
+    for (const message of session.messages) {
+      messages.push({ role: message.role, content: message.content });
+    }
+
+    if (extraMessages.length > 0) {
+      messages.push(...extraMessages);
+    }
+
+    return {
+      sessionId,
+      messages,
+      options: {
+        model: session.config?.model,
+        maxTokens: session.config?.maxTokens,
+        stream,
+      },
+    };
+  }
+
+  private async requestLLMResponse(
+    sessionId: string,
+    extraMessages: LLMRequestType['messages'] = [],
+    stream: boolean = false
+  ): Promise<LLMResponseType> {
+    const request = this.buildLLMRequest(sessionId, extraMessages, stream);
+    const responseEnvelope = await this.router.sendLLMRequest(request);
+
+    const envelope = responseEnvelope as MessageEnvelope;
+    if (envelope && typeof envelope === 'object' && 'payload' in envelope) {
+      return envelope.payload as LLMResponseType;
+    }
+
+    return responseEnvelope as LLMResponseType;
+  }
+
+  private async executeToolCalls(
+    sessionId: string,
+    toolCalls: Array<{ id: string; name: string; arguments: string }>
+  ): Promise<LLMRequestType['messages']> {
+    const toolMessages: LLMRequestType['messages'] = [];
+
+    for (const toolCall of toolCalls) {
+      let parameters: Record<string, unknown> = {};
+      try {
+        parameters = JSON.parse(toolCall.arguments || '{}') as Record<string, unknown>;
+      } catch {
+        parameters = { _parseError: 'Invalid tool arguments JSON' };
+      }
+
+      const responseEnvelope = await this.router.sendToolRequest(toolCall.name, {
+        sessionId,
+        tool: toolCall.name,
+        callId: toolCall.id,
+        parameters,
+      });
+
+      const envelope = responseEnvelope as MessageEnvelope;
+      const payload = envelope && typeof envelope === 'object' && 'payload' in envelope
+        ? (envelope.payload as { success: boolean; result?: unknown; error?: unknown })
+        : (responseEnvelope as { success: boolean; result?: unknown; error?: unknown });
+
+      toolMessages.push({
+        role: 'tool',
+        tool_call_id: toolCall.id,
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: toolCall.id,
+            tool_result: payload.success ? payload.result ?? {} : payload.error ?? {},
+          },
+        ],
+      });
+    }
+
+    return toolMessages;
+  }
+
+  private async sendLLMResponse(
+    inbound: ChannelInboundMessage,
+    sessionId: string,
+    response: LLMResponseType
+  ): Promise<void> {
+    const content = response.success ? response.message?.content : response.error?.message;
+    const toolCalls = response.success ? response.toolCalls : undefined;
+
+    if (toolCalls && toolCalls.length > 0) {
+      this.sessionManager.addMessage(sessionId, {
+        role: 'assistant',
+        content: typeof content === 'string' ? content : '',
+        toolCalls,
+      });
+
+      const toolMessages = await this.executeToolCalls(sessionId, toolCalls);
+      const followUp = await this.requestLLMResponse(sessionId, toolMessages);
+      await this.sendLLMResponse(inbound, sessionId, followUp);
+      return;
+    }
+
+    if (content && typeof content === 'string') {
+      this.sessionManager.addMessage(sessionId, {
+        role: 'assistant',
+        content,
+      });
+    } else {
+      return;
+    }
+
+    const outbound: ChannelOutboundMessage = {
+      channel: inbound.channel,
+      conversationId: inbound.conversation.id,
+      replyToMessageId: inbound.channelMessageId,
+      content: {
+        text: typeof content === 'string' ? content : '',
+        format: 'markdown',
+      },
+    };
+
+    await this.router.sendToChannel(outbound);
   }
 
   /**
@@ -166,6 +340,48 @@ export class Gateway {
       const provider = await loadAuditProvider(this.options.auditConfig);
       this.auditLogger = new AuditLogger(provider);
       await this.auditLogger.init();
+    }
+
+    if (this.options.streamingPassthrough) {
+      await this.router.getBus().subscribe('nachos.llm.stream.*', async (data) => {
+        const chunk = data as { sessionId?: string; type?: string; delta?: string };
+        if (!chunk.sessionId) return;
+        const state = this.streamingSessions.get(chunk.sessionId);
+        if (!state) return;
+
+        if (chunk.type === 'done') {
+          this.streamingSessions.delete(chunk.sessionId);
+          return;
+        }
+
+        if (chunk.type === 'delta' && chunk.delta) {
+          state.buffer += chunk.delta;
+          const now = Date.now();
+          const minInterval = this.options.streamingMinIntervalMs ?? 500;
+          const chunkSize = this.options.streamingChunkSize ?? 200;
+          const shouldSend =
+            state.buffer.length - state.lastSentLength >= chunkSize &&
+            now - state.lastSentAt >= minInterval;
+
+          if (shouldSend) {
+            state.lastSentAt = now;
+            state.lastSentLength = state.buffer.length;
+            const outbound: ChannelOutboundMessage = {
+              channel: state.inbound.channel,
+              conversationId: state.inbound.conversation.id,
+              replyToMessageId: state.inbound.channelMessageId,
+              content: {
+                text: state.buffer,
+                format: 'markdown',
+              },
+              options: {
+                ephemeral: true,
+              },
+            };
+            await this.router.sendToChannel(outbound);
+          }
+        }
+      });
     }
 
     // Create health server

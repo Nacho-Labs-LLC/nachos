@@ -13,7 +13,13 @@
     "clean": "rm -rf dist *.tsbuildinfo",
     "typecheck": "tsc --noEmit"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "@nachos/bus": "workspace:*",
+    "@nachos/config": "workspace:*",
+    "@nachos/types": "workspace:*",
+    "openai": "^4.83.0"
+  },
   "devDependencies": {
     "@types/node": "^22.10.5",
     "tsx": "^4.19.2",

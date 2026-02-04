@@ -81,6 +81,21 @@ function validateLLMConfig(config: NachosConfig, errors: string[], warnings: str
   if (config.llm.provider === 'ollama' && !config.llm.base_url) {
     warnings.push('llm.base_url should be specified for Ollama provider');
   }
+
+  if (config.llm.fallback_order) {
+    for (const entry of config.llm.fallback_order) {
+      const [provider, model] = entry.split(':');
+      if (!provider || !model) {
+        errors.push(`llm.fallback_order entry must be "provider:model": "${entry}"`);
+        continue;
+      }
+      if (!validProviders.includes(provider)) {
+        errors.push(
+          `Invalid llm.fallback_order provider: "${provider}". Must be one of: ${validProviders.join(', ')}`,
+        );
+      }
+    }
+  }
 }
 
 /**
@@ -228,6 +243,20 @@ function validateRuntimeConfig(config: NachosConfig, errors: string[], _warnings
     ) {
       errors.push('runtime.resources.pids_limit must be at least 1');
     }
+  }
+
+  if (
+    config.runtime.gateway_streaming_chunk_size !== undefined &&
+    config.runtime.gateway_streaming_chunk_size < 1
+  ) {
+    errors.push('runtime.gateway_streaming_chunk_size must be at least 1');
+  }
+
+  if (
+    config.runtime.gateway_streaming_min_interval_ms !== undefined &&
+    config.runtime.gateway_streaming_min_interval_ms < 0
+  ) {
+    errors.push('runtime.gateway_streaming_min_interval_ms must be 0 or greater');
   }
 }
 

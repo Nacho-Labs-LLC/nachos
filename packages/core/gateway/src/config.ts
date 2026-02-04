@@ -32,6 +32,12 @@ export interface GatewayConfig {
   policy?: Partial<PolicyEngineConfig>;
   /** Rate limiting configuration */
   rateLimiter?: RateLimiterConfig;
+  /** Enable streaming passthrough to channels */
+  streamingPassthrough?: boolean;
+  /** Minimum characters between streaming updates */
+  streamingChunkSize?: number;
+  /** Minimum interval between streaming updates (ms) */
+  streamingMinIntervalMs?: number;
 }
 
 /**
@@ -45,6 +51,9 @@ const defaults: GatewayConfig = {
   channels: [],
   logLevel: 'info',
   rateLimiter: createDefaultRateLimiterConfig(),
+  streamingPassthrough: false,
+  streamingChunkSize: 200,
+  streamingMinIntervalMs: 500,
 };
 
 /**
@@ -62,6 +71,19 @@ export function loadConfig(): GatewayConfig {
     defaultSystemPrompt: process.env.GATEWAY_SYSTEM_PROMPT ?? defaults.defaultSystemPrompt,
     channels: process.env.GATEWAY_CHANNELS?.split(',').filter(Boolean) ?? defaults.channels,
     logLevel: (process.env.GATEWAY_LOG_LEVEL as GatewayConfig['logLevel']) ?? defaults.logLevel,
+    streamingPassthrough:
+      parseBoolean(
+        process.env.GATEWAY_STREAMING_PASSTHROUGH ??
+          process.env.RUNTIME_GATEWAY_STREAMING_PASSTHROUGH
+      ) ?? defaults.streamingPassthrough,
+    streamingChunkSize: parseOptionalInt(
+      process.env.GATEWAY_STREAMING_CHUNK_SIZE ??
+        process.env.RUNTIME_GATEWAY_STREAMING_CHUNK_SIZE
+    ) ?? defaults.streamingChunkSize,
+    streamingMinIntervalMs: parseOptionalInt(
+      process.env.GATEWAY_STREAMING_MIN_INTERVAL_MS ??
+        process.env.RUNTIME_GATEWAY_STREAMING_MIN_INTERVAL_MS
+    ) ?? defaults.streamingMinIntervalMs,
     rateLimiter: {
       enabled: process.env.GATEWAY_RATE_LIMIT_ENABLED
         ? process.env.GATEWAY_RATE_LIMIT_ENABLED === 'true'
@@ -134,4 +156,27 @@ export function validateConfig(config: GatewayConfig): void {
       throw new Error('Rate limiter llmRequestsPerMinute must be at least 1');
     }
   }
+
+  if (config.streamingChunkSize !== undefined && config.streamingChunkSize < 1) {
+    throw new Error('Streaming chunk size must be at least 1');
+  }
+
+  if (config.streamingMinIntervalMs !== undefined && config.streamingMinIntervalMs < 0) {
+    throw new Error('Streaming min interval must be non-negative');
+  }
+}
+
+function parseOptionalInt(value: string | undefined): number | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const parsed = Number.parseInt(value, 10);
+  return Number.isNaN(parsed) ? undefined : parsed;
+}
+
+function parseBoolean(value: string | undefined): boolean | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  return value === 'true';
 }

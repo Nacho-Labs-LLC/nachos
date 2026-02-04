@@ -375,6 +375,8 @@ export const LLMToolCallSchema = Type.Object({
   arguments: Type.String({ description: 'Tool arguments (JSON string)' }),
 });
 
+export type LLMToolCallType = Static<typeof LLMToolCallSchema>;
+
 /**
  * LLM usage metrics
  */
@@ -384,6 +386,8 @@ export const LLMUsageSchema = Type.Object({
   totalTokens: Type.Optional(Type.Number({ description: 'Total tokens used' })),
 });
 
+export type LLMUsageType = Static<typeof LLMUsageSchema>;
+
 /**
  * LLM error structure
  */
@@ -392,6 +396,8 @@ export const LLMErrorSchema = Type.Object({
   message: Type.String({ description: 'Error message' }),
   providerCode: Type.Optional(Type.String({ description: 'Provider-specific error code' })),
 });
+
+export type LLMErrorType = Static<typeof LLMErrorSchema>;
 
 /**
  * LLM response structure
@@ -691,6 +697,8 @@ export const Schemas = {
   // LLM
   LLMMessage: LLMMessageSchema,
   LLMRequest: LLMRequestSchema,
+  LLMResponse: LLMResponseSchema,
+  LLMStreamChunk: LLMStreamChunkSchema,
 
   // Tool
   ToolRequest: ToolRequestSchema,

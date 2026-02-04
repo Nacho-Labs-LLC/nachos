@@ -48,9 +48,7 @@ export interface LLMCooldownConfig {
 export interface LLMConfig {
   provider: 'anthropic' | 'openai' | 'ollama' | 'custom';
   model: string;
-  fallback_model?: string;
-  fallback_models?: string[];
-  fallback_providers?: string[];
+  fallback_order?: string[];
   providers?: LLMProviderConfig[];
   profiles?: LLMAuthProfileConfig[];
   profile_order?: string[];
@@ -232,6 +230,9 @@ export interface RuntimeConfig {
   log_format?: 'pretty' | 'json';
   redis_url?: string;
   resources?: ResourcesConfig;
+  gateway_streaming_passthrough?: boolean;
+  gateway_streaming_chunk_size?: number;
+  gateway_streaming_min_interval_ms?: number;
 }
 
 /**

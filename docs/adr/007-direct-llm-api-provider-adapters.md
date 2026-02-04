@@ -115,7 +115,8 @@ Direct SDK/HTTP integration provides the best balance of compliance, security, m
 
 5. **Failover & Cooldowns**
    - Apply cooldowns per auth profile (API key) in memory only
-   - Failover order: profile rotation → model fallback → provider fallback
+   - Failover order is a single ordered list of `provider:model` entries
+   - No fallback is attempted unless the ordered list is explicitly configured
    - Exponential cooldowns: 1m → 5m → 25m → 1h cap
    - Billing failures use longer backoff: 5h → 10h → 20h → 24h cap
    - Retry handling is per request only (no queue-wide scheduling)
@@ -125,7 +126,7 @@ Direct SDK/HTTP integration provides the best balance of compliance, security, m
    - LLM Proxy forwards deltas on `nachos.llm.stream.<sessionId>`
    - Final canonical response is sent on `nachos.llm.response`
 
-5. **Observability**
+7. **Observability**
    - Emit structured events for LLM requests, latency, token usage, and errors
    - Gateway/Salsa handles policy and audit logging
 

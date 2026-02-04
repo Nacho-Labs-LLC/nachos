@@ -230,6 +230,12 @@ const LLMStreamChunk = Type.Object({
 });
 ```
 
+### 1.6.1 LLM Failover Behavior
+
+- Fallback is **config-only** and **silent** when unset.
+- Fallback order is a single ordered list of `provider:model` entries.
+- If the list is missing or empty, the proxy returns the original provider error.
+
 ### 1.7 Tool Request/Response
 
 ```typescript
