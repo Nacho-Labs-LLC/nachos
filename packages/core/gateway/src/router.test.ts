@@ -1,6 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Router, InMemoryMessageBus, Topics, createEnvelope } from './router.js';
-import type { MessageEnvelope, ChannelOutboundMessage } from '@nachos/types';
+import {
+  NachosError,
+  NachosErrorCodes,
+  type MessageEnvelope,
+  type ChannelOutboundMessage,
+} from '@nachos/types';
+import type { RateLimiter } from './security/rate-limiter.js';
 
 describe('Router', () => {
   let bus: InMemoryMessageBus;
@@ -156,6 +162,52 @@ describe('Router', () => {
       const envelope = publishedMessages[0]?.data as MessageEnvelope;
       expect(envelope.type).toBe('channel.outbound');
       expect(envelope.payload).toEqual(message);
+    });
+
+    it('should emit audit log and throw when rate limit exceeded', async () => {
+      const publishSpy = vi.spyOn(bus, 'publish').mockResolvedValue(undefined);
+      const rateLimiter = {
+        check: vi.fn().mockResolvedValue({
+          allowed: false,
+          remaining: 0,
+          resetAt: Date.now() + 1000,
+          total: 1,
+          source: 'memory',
+        }),
+      } as unknown as RateLimiter;
+
+      const limitedRouter = new Router({
+        bus,
+        componentName: 'test-gateway',
+        rateLimiter,
+      });
+
+      const message: ChannelOutboundMessage = {
+        channel: 'slack',
+        conversationId: 'conv-123',
+        content: { text: 'Hello!' },
+      };
+
+      let thrown: unknown;
+      try {
+        await limitedRouter.sendToChannel(message);
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).toBeInstanceOf(NachosError);
+      expect((thrown as NachosError).code).toBe(NachosErrorCodes.RATE_LIMITED);
+      expect(publishSpy).toHaveBeenCalledWith(
+        'nachos.audit.log',
+        expect.objectContaining({
+          type: 'audit.log',
+          payload: expect.objectContaining({
+            type: 'rate_limit',
+            action: 'message',
+            userId: 'anonymous',
+          }),
+        })
+      );
     });
 
   });

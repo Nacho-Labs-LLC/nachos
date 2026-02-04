@@ -108,6 +108,33 @@ const ChannelOutboundMessage = Type.Object({
 });
 ```
 
+### 1.3.1 Channel Policy Defaults
+
+- **Registry**: Config-driven; loaded at startup (restart-to-reload)
+- **Validation**: Strict config validation; unknown keys fail startup
+- **Group contexts**: Mention-gating enabled by default
+- **DMs**: Explicit allowlist required; pairing supported when enabled; DM config optional
+- **Server/Guilds**: Explicit allowlist + channel ID allowlist required
+
+### 1.3.2 Minimal Channel Config Schema (Per Platform)
+
+Each platform provides a minimal, explicit configuration to keep setup simple and secure:
+
+```typescript
+const ChannelServerConfig = Type.Object({
+  id: Type.String(), // Server/Guild/Workspace ID
+  channel_ids: Type.Array(Type.String()),
+  user_allowlist: Type.Array(Type.String()),
+});
+
+const ChannelBaseConfig = Type.Object({
+  token: Type.String(),
+  servers: Type.Array(ChannelServerConfig),
+});
+```
+
+Platform-specific fields are permitted but must be explicitly enumerated per platform.
+
 ### 1.4 LLM Request
 
 ```typescript

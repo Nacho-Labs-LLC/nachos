@@ -50,6 +50,7 @@ ADRs follow this lifecycle:
 | [001 - Docker-Native Architecture](./001-docker-native-architecture.md) | Accepted | 2026-01-15 |
 | [002 - NATS for Message Bus](./002-nats-message-bus.md) | Accepted | 2026-01-18 |
 | [003 - Security-First Design](./003-security-first-design.md) | Accepted | 2026-01-20 |
+| [008 - Channel Registry and Channel Policy Defaults](./008-channel-registry-and-channel-policy-defaults.md) | Proposed | 2026-02-04 |
 | [007 - Direct LLM API Provider Adapters](./007-direct-llm-api-provider-adapters.md) | Proposed | 2026-02-02 |
 
 ## Creating a New ADR

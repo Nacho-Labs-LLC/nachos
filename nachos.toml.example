@@ -20,7 +20,7 @@ version = "1.0"
 [llm]
 provider = "anthropic"                    # "anthropic" | "openai" | "ollama" | "custom"
 model = "claude-sonnet-4-20250514"        # Default model
-fallback_model = "claude-haiku"           # Used if primary fails
+fallback_order = ["anthropic:claude-haiku"] # Used if primary fails
 max_tokens = 4096                         # Max response tokens
 temperature = 0.7                         # 0.0 = deterministic, 1.0 = creative
 
@@ -43,18 +43,49 @@ port = 8080                               # Local port for web interface
 
 [channels.slack]
 enabled = false
-# Requires: SLACK_BOT_TOKEN, SLACK_APP_TOKEN in .env
+mode = "socket"                           # "socket" | "http"
+app_token = "${SLACK_APP_TOKEN}"
+bot_token = "${SLACK_BOT_TOKEN}"
+# For HTTP mode:
+# signing_secret = "${SLACK_SIGNING_SECRET}"
+# webhook_path = "/slack/events"
+
+[[channels.slack.servers]]
+id = "T123456"
+channel_ids = ["C111", "C222"]
+user_allowlist = ["U123", "U456"]
 
 [channels.discord]
 enabled = false
-dm_policy = "allowlist"                   # "allowlist" | "pairing" | "open"
-allowed_users = []                        # Discord user IDs (when dm_policy = "allowlist")
-# Requires: DISCORD_BOT_TOKEN in .env
+token = "${DISCORD_BOT_TOKEN}"
+
+[[channels.discord.servers]]
+id = "1234567890"
+channel_ids = ["111", "222"]
+user_allowlist = ["user_a", "user_b"]
 
 [channels.telegram]
 enabled = false
-dm_policy = "pairing"                     # New users must enter pairing code
-# Requires: TELEGRAM_BOT_TOKEN in .env
+token = "${TELEGRAM_BOT_TOKEN}"
+
+[[channels.telegram.servers]]
+id = "9876543210"
+channel_ids = ["333", "444"]
+user_allowlist = ["user_c", "user_d"]
+
+[channels.whatsapp]
+enabled = false
+token = "${WHATSAPP_TOKEN}"
+phone_number_id = "${WHATSAPP_PHONE_NUMBER_ID}"
+verify_token = "${WHATSAPP_VERIFY_TOKEN}"
+app_secret = "${WHATSAPP_APP_SECRET}" # Optional: enables signature verification
+webhook_path = "/whatsapp/webhook"
+api_version = "v20.0"
+
+[channels.whatsapp.dm]
+user_allowlist = ["15551234567"]
+
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 🫑 MORE TOPPINGS - Tools
@@ -134,6 +165,8 @@ state_dir = "./state"                     # Persistent state storage
 log_level = "info"                        # "debug" | "info" | "warn" | "error"
 log_format = "pretty"                     # "pretty" | "json"
 redis_url = "redis://localhost:6379"
+
+# Pairing (DMs): set NACHOS_PAIRING_TOKEN in your environment to require a token
 
 [runtime.resources]
 # Default resource limits per container

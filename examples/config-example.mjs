@@ -51,7 +51,7 @@ async function main() {
     console.log('📡 Channels:');
     if (config.channels) {
       const enabledChannels = Object.entries(config.channels)
-        .filter(([_, cfg]) => cfg?.enabled)
+        .filter(([_, cfg]) => cfg && cfg.enabled !== false)
         .map(([name, _]) => name);
       
       if (enabledChannels.length > 0) {

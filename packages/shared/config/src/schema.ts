@@ -63,7 +63,25 @@ export interface LLMConfig {
  * Base channel configuration
  */
 export interface BaseChannelConfig {
-  enabled: boolean;
+  enabled?: boolean;
+}
+
+/**
+ * Channel DM configuration (optional)
+ */
+export interface ChannelDMConfig {
+  user_allowlist: string[];
+  pairing?: boolean;
+}
+
+/**
+ * Channel server/guild configuration
+ */
+export interface ChannelServerConfig {
+  id: string;
+  channel_ids: string[];
+  user_allowlist: string[];
+  mention_gating?: boolean;
 }
 
 /**
@@ -77,22 +95,45 @@ export interface WebchatChannelConfig extends BaseChannelConfig {
  * Slack channel configuration
  */
 export interface SlackChannelConfig extends BaseChannelConfig {
-  // Credentials come from environment variables
+  mode?: 'socket' | 'http';
+  app_token?: string;
+  bot_token?: string;
+  signing_secret?: string;
+  webhook_path?: string;
+  dm?: ChannelDMConfig;
+  servers?: ChannelServerConfig[];
 }
 
 /**
  * Discord channel configuration
  */
 export interface DiscordChannelConfig extends BaseChannelConfig {
-  dm_policy?: 'allowlist' | 'pairing' | 'open';
-  allowed_users?: string[];
+  token?: string;
+  dm?: ChannelDMConfig;
+  servers?: ChannelServerConfig[];
 }
 
 /**
  * Telegram channel configuration
  */
 export interface TelegramChannelConfig extends BaseChannelConfig {
-  dm_policy?: 'pairing' | 'allowlist' | 'open';
+  token?: string;
+  dm?: ChannelDMConfig;
+  servers?: ChannelServerConfig[];
+}
+
+/**
+ * WhatsApp channel configuration
+ */
+export interface WhatsappChannelConfig extends BaseChannelConfig {
+  token?: string;
+  phone_number_id?: string;
+  verify_token?: string;
+  webhook_path?: string;
+  api_version?: string;
+  app_secret?: string;
+  dm?: ChannelDMConfig;
+  servers?: ChannelServerConfig[];
 }
 
 /**
@@ -103,6 +144,7 @@ export interface ChannelsConfig {
   slack?: SlackChannelConfig;
   discord?: DiscordChannelConfig;
   telegram?: TelegramChannelConfig;
+  whatsapp?: WhatsappChannelConfig;
 }
 
 /**

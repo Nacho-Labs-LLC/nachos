@@ -103,11 +103,22 @@ provider = "anthropic"
 model = "claude-sonnet-4-20250514"
 
 [channels.slack]
-enabled = true
+mode = "socket"
+app_token = "${SLACK_APP_TOKEN}"
+bot_token = "${SLACK_BOT_TOKEN}"
+
+[[channels.slack.servers]]
+id = "T123456"
+channel_ids = ["C111"]
+user_allowlist = ["U123"]
 
 [channels.discord]
-enabled = true
-dm_policy = "allowlist"
+token = "${DISCORD_BOT_TOKEN}"
+
+[[channels.discord.servers]]
+id = "1234567890"
+channel_ids = ["111"]
+user_allowlist = ["user_a"]
 
 [tools.browser]
 enabled = true

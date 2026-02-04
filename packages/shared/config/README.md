@@ -73,6 +73,7 @@ Override any configuration value with environment variables:
 # LLM Configuration
 export LLM_PROVIDER="openai"
 export LLM_MODEL="gpt-4"
+export LLM_FALLBACK_ORDER="anthropic:claude-haiku,openai:gpt-4o-mini"
 export LLM_MAX_TOKENS="8192"
 export LLM_TEMPERATURE="0.7"
 
@@ -88,6 +89,23 @@ export RUNTIME_REDIS_URL="redis://localhost:6379"
 # Channel Configuration
 export CHANNEL_WEBCHAT_ENABLED="true"
 export CHANNEL_WEBCHAT_PORT="8080"
+export CHANNEL_SLACK_ENABLED="true"
+export CHANNEL_SLACK_MODE="socket"
+export CHANNEL_SLACK_APP_TOKEN="xapp-..."
+export CHANNEL_SLACK_BOT_TOKEN="xoxb-..."
+export CHANNEL_SLACK_SIGNING_SECRET="..."
+export CHANNEL_SLACK_WEBHOOK_PATH="/slack/events"
+export CHANNEL_DISCORD_ENABLED="true"
+export CHANNEL_DISCORD_TOKEN="..."
+export CHANNEL_TELEGRAM_ENABLED="true"
+export CHANNEL_TELEGRAM_TOKEN="..."
+export CHANNEL_WHATSAPP_ENABLED="true"
+export CHANNEL_WHATSAPP_TOKEN="..."
+export CHANNEL_WHATSAPP_PHONE_NUMBER_ID="..."
+export CHANNEL_WHATSAPP_VERIFY_TOKEN="..."
+export CHANNEL_WHATSAPP_WEBHOOK_PATH="/whatsapp/webhook"
+export CHANNEL_WHATSAPP_API_VERSION="v20.0"
+export CHANNEL_WHATSAPP_APP_SECRET="..."
 
 # Tool Configuration
 export TOOL_FILESYSTEM_ENABLED="true"

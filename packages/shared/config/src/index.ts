@@ -20,6 +20,9 @@ export type {
   SlackChannelConfig,
   DiscordChannelConfig,
   TelegramChannelConfig,
+  WhatsappChannelConfig,
+  ChannelDMConfig,
+  ChannelServerConfig,
   ToolsConfig,
   FilesystemToolConfig,
   BrowserToolConfig,
@@ -45,6 +48,15 @@ export {
   getConfigSearchPaths,
   ConfigLoadError,
 } from './loader.js';
+
+// Export channel registry helpers
+export {
+  isChannelEnabled,
+  listEnabledChannels,
+  getChannelConfig,
+  buildChannelRegistry,
+  type ChannelRegistryEntry,
+} from './registry.js';
 
 // Export environment overlay functions
 export { createEnvOverlay, applyEnvOverlay } from './env.js';

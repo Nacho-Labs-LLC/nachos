@@ -232,6 +232,19 @@ describe('Configuration Validation', () => {
       expect(result.valid).toBe(false);
       expect(result.errors.some((e) => e.includes('security.audit.path'))).toBe(true);
     });
+
+    it('should reject unknown config keys', () => {
+      const config = {
+        nachos: { name: 'test', version: '1.0' },
+        llm: { provider: 'anthropic', model: 'claude' },
+        security: { mode: 'standard' },
+        channels: { discord: { token: 'x', unknown: true } },
+      } as unknown as NachosConfig;
+
+      const result = validateConfig(config);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.includes('Unknown config key: channels.discord.unknown'))).toBe(true);
+    });
        
     it('should reject invalid redis url', () => {
       const config: NachosConfig = {

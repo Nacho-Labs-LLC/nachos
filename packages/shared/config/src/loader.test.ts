@@ -94,13 +94,17 @@ paths = ["./workspace", "/tmp"]
 
 [channels.discord]
 enabled = true
-allowed_users = ["user1", "user2"]
+
+[[channels.discord.servers]]
+id = "1234567890"
+channel_ids = ["111", "222"]
+user_allowlist = ["user1", "user2"]
       `;
 
       const config = parseToml(toml);
 
       expect(config.tools?.filesystem?.paths).toEqual(['./workspace', '/tmp']);
-      expect(config.channels?.discord?.allowed_users).toEqual(['user1', 'user2']);
+      expect(config.channels?.discord?.servers?.[0]?.user_allowlist).toEqual(['user1', 'user2']);
     });
 
     it('should parse nested objects', () => {

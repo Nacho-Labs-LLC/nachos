@@ -47,6 +47,7 @@ flowchart TB
                 Discord["Discord"]
                 Telegram["Telegram"]
                 WebChat["WebChat"]
+                WhatsApp["WhatsApp"]
             end
             subgraph Tools["Tools"]
                 Browser["Browser"]
@@ -215,6 +216,14 @@ flowchart TD
 - Publish to bus
 - Subscribe to responses
 - Format for platform delivery
+
+**Channel Registry + Policy Defaults:**
+
+- Registry is config-driven and loaded at startup (restart-to-reload)
+- Strict config validation: unknown keys fail startup
+- Group contexts require mention by default (mention-gating on)
+- DMs require explicit allowlist; pairing supported when enabled
+- Server/guild contexts require explicit allowlist + channel ID allowlist
 
 ### Tools (Toppings)
 

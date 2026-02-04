@@ -1,0 +1,30 @@
+{
+  "name": "@nachos/channel-whatsapp",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "WhatsApp channel adapter for Nachos",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@nachos/channel-base": "workspace:*",
+    "@nachos/config": "workspace:*",
+    "@nachos/types": "workspace:*",
+    "@nachos/utils": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "typescript": "^5.7.3"
+  }
+}

@@ -17,7 +17,7 @@ const ENV_VAR_MAPPINGS: Record<string, string> = {
   // LLM settings
   LLM_PROVIDER: 'llm.provider',
   LLM_MODEL: 'llm.model',
-  LLM_FALLBACK_MODEL: 'llm.fallback_model',
+  LLM_FALLBACK_ORDER: 'llm.fallback_order',
   LLM_MAX_TOKENS: 'llm.max_tokens',
   LLM_TEMPERATURE: 'llm.temperature',
   LLM_BASE_URL: 'llm.base_url',
@@ -54,10 +54,22 @@ const ENV_VAR_MAPPINGS: Record<string, string> = {
   CHANNEL_WEBCHAT_ENABLED: 'channels.webchat.enabled',
   CHANNEL_WEBCHAT_PORT: 'channels.webchat.port',
   CHANNEL_SLACK_ENABLED: 'channels.slack.enabled',
+  CHANNEL_SLACK_MODE: 'channels.slack.mode',
+  CHANNEL_SLACK_APP_TOKEN: 'channels.slack.app_token',
+  CHANNEL_SLACK_BOT_TOKEN: 'channels.slack.bot_token',
+  CHANNEL_SLACK_SIGNING_SECRET: 'channels.slack.signing_secret',
+  CHANNEL_SLACK_WEBHOOK_PATH: 'channels.slack.webhook_path',
   CHANNEL_DISCORD_ENABLED: 'channels.discord.enabled',
-  CHANNEL_DISCORD_DM_POLICY: 'channels.discord.dm_policy',
+  CHANNEL_DISCORD_TOKEN: 'channels.discord.token',
   CHANNEL_TELEGRAM_ENABLED: 'channels.telegram.enabled',
-  CHANNEL_TELEGRAM_DM_POLICY: 'channels.telegram.dm_policy',
+  CHANNEL_TELEGRAM_TOKEN: 'channels.telegram.token',
+  CHANNEL_WHATSAPP_ENABLED: 'channels.whatsapp.enabled',
+  CHANNEL_WHATSAPP_TOKEN: 'channels.whatsapp.token',
+  CHANNEL_WHATSAPP_PHONE_NUMBER_ID: 'channels.whatsapp.phone_number_id',
+  CHANNEL_WHATSAPP_VERIFY_TOKEN: 'channels.whatsapp.verify_token',
+  CHANNEL_WHATSAPP_WEBHOOK_PATH: 'channels.whatsapp.webhook_path',
+  CHANNEL_WHATSAPP_API_VERSION: 'channels.whatsapp.api_version',
+  CHANNEL_WHATSAPP_APP_SECRET: 'channels.whatsapp.app_secret',
 
   // Tool settings
   TOOL_FILESYSTEM_ENABLED: 'tools.filesystem.enabled',
@@ -101,7 +113,14 @@ function parseEnvValue(value: string, path: string): string | number | boolean |
   }
 
   // Array values (comma-separated)
-  if (path.includes('allowed_users') || path.includes('languages') || path.includes('patterns')) {
+  if (
+    path.includes('allowed_users') ||
+    path.includes('user_allowlist') ||
+    path.includes('channel_ids') ||
+    path.includes('fallback_order') ||
+    path.includes('languages') ||
+    path.includes('patterns')
+  ) {
     return value.split(',').map((v) => v.trim());
   }
 

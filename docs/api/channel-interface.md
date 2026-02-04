@@ -7,6 +7,14 @@
 
 The Channel Interface defines the contract that all channel adapters must implement to integrate messaging platforms with Nachos.
 
+**Defaults and policy constraints:**
+
+- Registry is config-driven and loaded at startup (restart-to-reload)
+- Configuration is strictly validated; unknown keys fail startup
+- Group contexts require mention-gating by default
+- DMs require explicit allowlist; pairing supported; DM config optional
+- Server/guild contexts require explicit allowlist + channel ID allowlist
+
 ## Channel Adapter Interface
 
 ```typescript
@@ -28,7 +36,7 @@ export interface ChannelAdapter {
    * Initialize the channel adapter
    * Called once during startup
    */
-  initialize(config: ChannelConfig): Promise<void>;
+  initialize(config: ChannelAdapterConfig): Promise<void>;
 
   /**
    * Start listening for messages from the platform
@@ -56,12 +64,12 @@ export interface ChannelAdapter {
 
 ## Type Definitions
 
-### ChannelConfig
+### ChannelAdapterConfig
 
 Configuration passed to the adapter during initialization.
 
 ```typescript
-interface ChannelConfig {
+interface ChannelAdapterConfig {
   /**
    * Configuration from nachos.toml
    */
@@ -73,9 +81,9 @@ interface ChannelConfig {
   secrets: Record<string, string>;
 
   /**
-   * NATS connection for publishing messages
+  * Message bus connection for publishing messages
    */
-  nats: NatsConnection;
+  bus: ChannelBus;
 
   /**
    * Security mode
@@ -86,10 +94,74 @@ interface ChannelConfig {
    * DM policy configuration
    */
   dmPolicy?: {
-    mode: 'allowlist' | 'denylist' | 'pairing' | 'open';
-    userIds?: string[];
+    userAllowlist: string[];
+    pairing?: boolean;
+  };
+
+  /**
+   * Group policy configuration
+   */
+  groupPolicy?: {
+    mentionGating: boolean;
+    channelIds: string[];
+    userAllowlist: string[];
   };
 }
+```
+
+### ChannelBus
+
+Minimal bus interface used by channel adapters.
+
+```typescript
+interface ChannelBus {
+  publish<T>(topic: string, payload: T): void | Promise<void>;
+  subscribe<T>(topic: string, handler: (payload: T) => void | Promise<void>): Promise<unknown>;
+}
+```
+
+### Minimal Per-Platform Configuration
+
+All platforms share a minimal, explicit structure. One token can serve multiple servers/guilds:
+
+```toml
+[channels.discord]
+token = "${DISCORD_BOT_TOKEN}"
+
+[[channels.discord.servers]]
+id = "1234567890"
+channel_ids = ["111", "222"]
+user_allowlist = ["user_a", "user_b"]
+```
+
+Slack supports Socket Mode and HTTP Events API:
+
+```toml
+[channels.slack]
+mode = "socket" # or "http"
+app_token = "${SLACK_APP_TOKEN}"
+bot_token = "${SLACK_BOT_TOKEN}"
+signing_secret = "${SLACK_SIGNING_SECRET}" # required for http mode
+webhook_path = "/slack/events"             # required for http mode
+
+[[channels.slack.servers]]
+id = "T123456"
+channel_ids = ["C111", "C222"]
+user_allowlist = ["U123", "U456"]
+```
+
+WhatsApp Cloud API requires a webhook for inbound messages:
+
+```toml
+[channels.whatsapp]
+token = "${WHATSAPP_TOKEN}"
+phone_number_id = "${WHATSAPP_PHONE_NUMBER_ID}"
+verify_token = "${WHATSAPP_VERIFY_TOKEN}"
+webhook_path = "/whatsapp/webhook"
+api_version = "v20.0"
+
+[channels.whatsapp.dm]
+user_allowlist = ["15551234567"]
 ```
 
 ### OutboundMessage
@@ -267,26 +339,33 @@ async function checkDMPolicy(userId: string): Promise<boolean> {
   const policy = this.config.dmPolicy;
 
   if (!policy) {
-    return true; // No policy = allow
+    return false; // No DM policy = do not allow DMs
   }
 
-  switch (policy.mode) {
-    case 'allowlist':
-      return policy.userIds?.includes(userId) ?? false;
-
-    case 'denylist':
-      return !policy.userIds?.includes(userId);
-
-    case 'pairing':
-      return await this.isPaired(userId);
-
-    case 'open':
-      return true;
-
-    default:
-      return false;
+  if (policy.userAllowlist.includes(userId)) {
+    return true;
   }
+
+  if (policy.pairing) {
+    return await this.isPaired(userId);
+  }
+
+  return false;
 }
+```
+
+### Pairing Command
+
+When pairing is enabled, adapters should support a simple DM command:
+
+```
+pair
+```
+
+If a token is configured, require:
+
+```
+pair <token>
 ```
 
 ## Example Implementation
@@ -296,7 +375,7 @@ async function checkDMPolicy(userId: string): Promise<boolean> {
 ```typescript
 import { WebClient } from '@slack/web-api';
 import { createEventAdapter } from '@slack/events-api';
-import type { ChannelAdapter, ChannelConfig, OutboundMessage } from '@nachos/types';
+import type { ChannelAdapter, ChannelAdapterConfig, OutboundMessage } from '@nachos/types';
 
 export class SlackAdapter implements ChannelAdapter {
   readonly channelId = 'slack';
@@ -304,10 +383,10 @@ export class SlackAdapter implements ChannelAdapter {
 
   private client!: WebClient;
   private events!: SlackEventAdapter;
-  private nats!: NatsConnection;
+  private bus!: ChannelBus;
 
-  async initialize(config: ChannelConfig): Promise<void> {
-    this.nats = config.nats;
+  async initialize(config: ChannelAdapterConfig): Promise<void> {
+    this.bus = config.bus;
     
     const token = config.secrets.SLACK_BOT_TOKEN;
     this.client = new WebClient(token);
@@ -344,7 +423,7 @@ export class SlackAdapter implements ChannelAdapter {
       },
     };
 
-    await this.nats.publish(
+    await this.bus.publish(
       'nachos.channel.slack.inbound',
       JSON.stringify(message)
     );

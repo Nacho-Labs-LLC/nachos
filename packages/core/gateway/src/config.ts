@@ -4,6 +4,7 @@
  * Environment-based configuration with sensible defaults.
  */
 import type { DLPConfig } from './security/dlp.js'
+import { ConfigLoadError, listEnabledChannels, loadAndValidateConfig } from '@nachos/config';
 import {
   createDefaultRateLimiterConfig,
   type RateLimiterConfig,
@@ -63,13 +64,14 @@ export function loadConfig(): GatewayConfig {
   const securityMode = parseSecurityMode(process.env.SECURITY_MODE);
   const rateLimiterDefaults = defaults.rateLimiter ?? createDefaultRateLimiterConfig();
   const modeDefaults = rateLimiterDefaults.presets?.[securityMode] ?? rateLimiterDefaults.limits;
+  const envChannels = process.env.GATEWAY_CHANNELS?.split(',').filter(Boolean);
 
   return {
     dbPath: process.env.GATEWAY_DB_PATH ?? defaults.dbPath,
     healthPort: parseInt(process.env.GATEWAY_HEALTH_PORT ?? String(defaults.healthPort), 10),
     natsServers: process.env.NATS_SERVERS?.split(',') ?? defaults.natsServers,
     defaultSystemPrompt: process.env.GATEWAY_SYSTEM_PROMPT ?? defaults.defaultSystemPrompt,
-    channels: process.env.GATEWAY_CHANNELS?.split(',').filter(Boolean) ?? defaults.channels,
+    channels: envChannels ?? resolveChannelsFromConfig(),
     logLevel: (process.env.GATEWAY_LOG_LEVEL as GatewayConfig['logLevel']) ?? defaults.logLevel,
     streamingPassthrough:
       parseBoolean(
@@ -110,6 +112,19 @@ export function loadConfig(): GatewayConfig {
       defaultEffect: 'deny',
     },
   };
+}
+
+function resolveChannelsFromConfig(): string[] {
+  try {
+    const configPath = process.env.NACHOS_CONFIG_PATH;
+    const config = loadAndValidateConfig({ configPath });
+    return listEnabledChannels(config);
+  } catch (error) {
+    if (error instanceof ConfigLoadError) {
+      return defaults.channels;
+    }
+    throw error;
+  }
 }
 
 function parseSecurityMode(

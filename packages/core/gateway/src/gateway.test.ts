@@ -121,6 +121,54 @@ describe('Gateway', () => {
       expect(session.status).toBe('active');
     });
 
+    it('should log audit event for new session when audit is enabled', async () => {
+      const provider: AuditProvider = {
+        name: 'test',
+        init: vi.fn().mockResolvedValue(undefined),
+        log: vi.fn().mockResolvedValue(undefined),
+        flush: vi.fn().mockResolvedValue(undefined),
+        close: vi.fn().mockResolvedValue(undefined),
+      };
+      const auditConfig: AuditConfig = {
+        enabled: true,
+        provider: 'sqlite',
+        path: ':memory:',
+      };
+      vi.spyOn(auditLoader, 'loadAuditProvider').mockResolvedValue(provider);
+
+      const customGateway = new Gateway({
+        dbPath: ':memory:',
+        healthPort: 0,
+        auditConfig,
+      });
+
+      vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      await customGateway.start();
+
+      const message: ChannelInboundMessage = {
+        channel: 'slack',
+        channelMessageId: 'msg-123',
+        sender: { id: 'user-456', isAllowed: true },
+        conversation: { id: 'conv-789', type: 'dm' },
+        content: { text: 'Hello!' },
+      };
+
+      await customGateway.processMessage(message);
+
+      expect(provider.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: 'session_create',
+          action: 'session.create',
+          outcome: 'allowed',
+          channel: 'slack',
+          userId: 'user-456',
+        })
+      );
+
+      await customGateway.stop();
+    });
+
     it('should reuse existing session for same conversation', async () => {
       const message1: ChannelInboundMessage = {
         channel: 'slack',

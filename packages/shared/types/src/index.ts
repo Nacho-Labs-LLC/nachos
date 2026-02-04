@@ -219,6 +219,17 @@ export {
 // Legacy Interface Types (for backwards compatibility)
 // ============================================================================
 
+export type {
+  ChannelAdapter,
+  ChannelAdapterConfig,
+  ChannelBus,
+  ChannelDMPolicy,
+  ChannelGroupPolicy,
+  SendResult,
+  InboundMessage,
+  OutboundMessage,
+} from './channel.js';
+
 // NOTE: These interfaces are maintained for backwards compatibility.
 // For new code, prefer using the TypeBox schema types (e.g., MessageEnvelopeType)
 // which provide both compile-time and runtime type safety.

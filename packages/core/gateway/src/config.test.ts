@@ -1,4 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import * as os from 'node:os';
 import { loadConfig, validateConfig, type GatewayConfig } from './config.js';
 
 describe('Config', () => {
@@ -82,6 +85,45 @@ describe('Config', () => {
       const config = loadConfig();
 
       expect(config.channels).toEqual(['slack', 'discord']);
+    });
+
+    it('should load channels from nachos.toml when env is unset', () => {
+      delete process.env.GATEWAY_CHANNELS;
+
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nachos-gateway-'));
+      const configPath = path.join(tempDir, 'nachos.toml');
+      fs.writeFileSync(
+        configPath,
+        `
+[nachos]
+name = "test"
+version = "1.0"
+
+[llm]
+provider = "anthropic"
+model = "claude"
+
+[security]
+mode = "standard"
+
+[channels.discord]
+token = "test"
+
+[[channels.discord.servers]]
+id = "123"
+channel_ids = ["C1"]
+user_allowlist = ["U1"]
+        `
+      );
+
+      process.env.NACHOS_CONFIG_PATH = configPath;
+
+      const config = loadConfig();
+
+      expect(config.channels).toEqual(['discord']);
+
+      fs.rmSync(tempDir, { recursive: true, force: true });
+      delete process.env.NACHOS_CONFIG_PATH;
     });
 
     it('should apply security mode rate limit presets', () => {
