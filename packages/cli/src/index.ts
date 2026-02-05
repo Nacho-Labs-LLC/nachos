@@ -1,3 +1,11 @@
 #!/usr/bin/env node
 
-console.log('Nachos CLI - Coming soon!');
+/**
+ * Nachos CLI entry point
+ */
+
+import { createProgram } from './cli.js';
+
+const program = createProgram();
+
+program.parse(process.argv);

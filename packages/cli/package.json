@@ -7,16 +7,28 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "nachos": "./dist/cli.js"
+    "nachos": "./dist/index.js"
   },
   "scripts": {
     "build": "tsc --build",
     "clean": "rm -rf dist *.tsbuildinfo",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "dev": "tsx watch src/index.ts"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@iarna/toml": "^2.2.5",
+    "@nachos/config": "workspace:*",
+    "chalk": "^5.4.1",
+    "commander": "^12.1.0",
+    "ora": "^8.2.0",
+    "prompts": "^2.4.2",
+    "yaml": "^2.8.2"
+  },
   "devDependencies": {
     "@types/node": "^22.10.5",
-    "typescript": "^5.7.3"
+    "@types/prompts": "^2.4.9",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
   }
 }
