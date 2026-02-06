@@ -12,6 +12,34 @@ export type {
   RuntimeConfig,
   AssistantConfig,
 } from '@nachos/config';
+
+// ============================================================================
+// Tool Types (Phase 6)
+// ============================================================================
+
+export {
+  SecurityTier,
+  type ContentBlock,
+  type TextContentBlock,
+  type ImageContentBlock,
+  type FileContentBlock,
+  type ToolResult,
+  type ToolParameters,
+  type ValidationResult,
+  type HealthStatus,
+  type ParameterSchema,
+  type JSONSchemaProperty,
+  type ToolConfig,
+  type Tool,
+  type ToolCall,
+  type ToolManifest,
+  type ExecutionOptions,
+  type ChainResult,
+  type ChainContext,
+  type RecoveryAction,
+  type RecoveryResult,
+} from './tool-types.js';
+
 /**
  * @nachos/types - Shared TypeScript types and schemas for Nachos
  *

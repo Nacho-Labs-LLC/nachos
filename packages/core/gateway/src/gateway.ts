@@ -22,6 +22,10 @@ import {
   RateLimiter,
   type RateLimiterConfig,
 } from './security/rate-limiter.js';
+import { ToolCoordinator } from './tools/coordinator.js';
+import { ToolCache } from './tools/cache.js';
+import { ApprovalManager } from './tools/approval-manager.js';
+import type { ToolCall, ToolResult } from '@nachos/types';
 
 /**
  * Gateway configuration options
@@ -63,6 +67,9 @@ export class Gateway {
   private rateLimiter?: RateLimiter;
   private salsa: Salsa | null = null;
   private auditLogger: AuditLogger | null = null;
+  private toolCoordinator: ToolCoordinator | null = null;
+  private toolCache: ToolCache | null = null;
+  private approvalManager: ApprovalManager | null = null;
   private instanceId: string;
   private healthServer: ReturnType<typeof createHealthServer> | null = null;
   private options: GatewayOptions;
@@ -165,6 +172,49 @@ export class Gateway {
       });
     }
 
+    const approvalText = message.content.text?.trim();
+    if (approvalText && this.approvalManager) {
+      const approveMatch = approvalText.match(/^\/approve\s+(\S+)$/i);
+      const denyMatch = approvalText.match(/^\/deny\s+(\S+)(?:\s+(.+))?$/i);
+
+      if (approveMatch) {
+        const requestId = approveMatch[1];
+        const approved = this.approvalManager.approve(requestId, message.sender.id);
+        const outbound: ChannelOutboundMessage = {
+          channel: message.channel,
+          conversationId: message.conversation.id,
+          replyToMessageId: message.channelMessageId,
+          content: {
+            text: approved
+              ? `✅ Approved request ${requestId}.`
+              : `⚠️ No pending approval found for ${requestId}.`,
+            format: 'markdown',
+          },
+        };
+        await this.router.sendToChannel(outbound);
+        return;
+      }
+
+      if (denyMatch) {
+        const requestId = denyMatch[1];
+        const reason = denyMatch[2] ?? 'Denied by user';
+        const denied = this.approvalManager.deny(requestId, reason, message.sender.id);
+        const outbound: ChannelOutboundMessage = {
+          channel: message.channel,
+          conversationId: message.conversation.id,
+          replyToMessageId: message.channelMessageId,
+          content: {
+            text: denied
+              ? `⛔ Denied request ${requestId}.`
+              : `⚠️ No pending approval found for ${requestId}.`,
+            format: 'markdown',
+          },
+        };
+        await this.router.sendToChannel(outbound);
+        return;
+      }
+    }
+
     // Emit a processed message envelope
     const processedEnvelope = createEnvelope(
       'gateway',
@@ -251,40 +301,64 @@ export class Gateway {
     sessionId: string,
     toolCalls: Array<{ id: string; name: string; arguments: string }>
   ): Promise<LLMRequestType['messages']> {
-    const toolMessages: LLMRequestType['messages'] = [];
+    if (!this.toolCoordinator) {
+      throw new Error('Tool coordinator not initialized');
+    }
 
-    for (const toolCall of toolCalls) {
+    // Convert LLM tool calls to our ToolCall format
+    const calls: ToolCall[] = toolCalls.map((tc) => {
       let parameters: Record<string, unknown> = {};
       try {
-        parameters = JSON.parse(toolCall.arguments || '{}') as Record<string, unknown>;
+        parameters = JSON.parse(tc.arguments || '{}') as Record<string, unknown>;
       } catch {
         parameters = { _parseError: 'Invalid tool arguments JSON' };
       }
 
-      const responseEnvelope = await this.router.sendToolRequest(toolCall.name, {
+      return {
+        id: tc.id,
+        tool: tc.name,
         sessionId,
-        tool: toolCall.name,
-        callId: toolCall.id,
         parameters,
-      });
+      };
+    });
 
-      const envelope = responseEnvelope as MessageEnvelope;
-      const payload = envelope && typeof envelope === 'object' && 'payload' in envelope
-        ? (envelope.payload as { success: boolean; result?: unknown; error?: unknown })
-        : (responseEnvelope as { success: boolean; result?: unknown; error?: unknown });
+    // Execute tools using coordinator (handles parallel execution, caching, policy checks)
+    const results = await this.toolCoordinator.executeTools(calls);
 
-      toolMessages.push({
+    // Convert ToolResult[] to LLM message format
+    const toolMessages: LLMRequestType['messages'] = results.map((result, i) => {
+      const toolCall = calls[i];
+
+      // Extract result data from content blocks
+      let resultData: unknown = {};
+      if (result.success && result.content.length > 0) {
+        // If single text block, try to parse as JSON
+        if (result.content.length === 1 && result.content[0].type === 'text') {
+          try {
+            resultData = JSON.parse(result.content[0].text);
+          } catch {
+            resultData = result.content[0].text;
+          }
+        } else {
+          // Multiple content blocks, return structured
+          resultData = { content: result.content, metadata: result.metadata };
+        }
+      } else if (result.error) {
+        resultData = result.error;
+      }
+
+      return {
         role: 'tool',
         tool_call_id: toolCall.id,
         content: [
           {
             type: 'tool_result',
             tool_use_id: toolCall.id,
-            tool_result: payload.success ? payload.result ?? {} : payload.error ?? {},
+            tool_result: resultData,
           },
         ],
-      });
-    }
+      };
+    });
 
     return toolMessages;
   }
@@ -341,6 +415,36 @@ export class Gateway {
       this.auditLogger = new AuditLogger(provider);
       await this.auditLogger.init();
     }
+
+    // Initialize tool infrastructure
+    this.approvalManager = new ApprovalManager();
+    this.toolCache = new ToolCache();
+    this.toolCoordinator = new ToolCoordinator({
+      bus: this.router.getBus(),
+      salsa: this.salsa ?? undefined,
+      cache: this.toolCache,
+      approvalManager: this.approvalManager,
+    });
+    console.log('[Gateway] Tool coordinator initialized');
+
+    this.approvalManager.on('approval-requested', async (request) => {
+      const session = this.sessionManager.getSession(request.sessionId);
+      if (!session) {
+        console.warn(`[Gateway] Approval request for unknown session: ${request.sessionId}`);
+        return;
+      }
+
+      const outbound: ChannelOutboundMessage = {
+        channel: session.channel,
+        conversationId: session.conversationId,
+        content: {
+          text: this.approvalManager?.formatApprovalMessage(request) ?? 'Approval required.',
+          format: 'markdown',
+        },
+      };
+
+      await this.router.sendToChannel(outbound);
+    });
 
     if (this.options.streamingPassthrough) {
       await this.router.getBus().subscribe('nachos.llm.stream.*', async (data) => {

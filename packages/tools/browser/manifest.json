@@ -1,0 +1,18 @@
+{
+  "name": "browser",
+  "version": "0.1.0",
+  "type": "tool",
+  "capabilities": {
+    "network": {
+      "egress": ["http", "https"]
+    },
+    "resources": {
+      "memory": "512Mi",
+      "cpus": 1
+    }
+  },
+  "provides": {
+    "tool": "browser",
+    "securityTier": 1
+  }
+}

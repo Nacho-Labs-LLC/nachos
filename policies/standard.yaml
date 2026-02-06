@@ -65,97 +65,132 @@ rules:
   # Tools - Common tools enabled
   # ============================================================================
 
-  # Browser tool - Read-only access
-  - id: "standard-tool-browser-read"
-    description: "Allow browser read access in standard mode"
+  # Browser tool - Standard tier, allowed with SSRF protection
+  - id: "standard-tool-browser"
+    description: "Allow browser tool (SecurityTier: STANDARD)"
     priority: 800
     match:
       resource: "tool"
       resourceId: "browser"
-      action: "read"
     effect: "allow"
+    audit: true
 
-  # Filesystem tool - Read access to workspace only
-  - id: "standard-tool-filesystem-read-workspace"
-    description: "Allow filesystem read in workspace directory"
+  # Filesystem Read - Safe tier, workspace only
+  - id: "standard-tool-filesystem-read"
+    description: "Allow filesystem read tool (SecurityTier: SAFE) in workspace"
     priority: 750
     match:
       resource: "tool"
-      resourceId: "filesystem"
-      action: "read"
+      resourceId: "filesystem_read"
     conditions:
-      - field: "metadata.path"
+      - field: "parameters.path"
         operator: "starts_with"
         value: "./workspace"
     effect: "allow"
 
-  # Filesystem tool - Write access to workspace only
-  - id: "standard-tool-filesystem-write-workspace"
-    description: "Allow filesystem write in workspace directory"
+  - id: "standard-tool-filesystem-read-deny-outside"
+    description: "Deny filesystem read outside workspace"
+    priority: 749
+    match:
+      resource: "tool"
+      resourceId: "filesystem_read"
+    effect: "deny"
+    reason: "Filesystem read is restricted to ./workspace directory"
+
+  # Filesystem Write - Elevated tier, workspace only with file size limit
+  - id: "standard-tool-filesystem-write"
+    description: "Allow filesystem write tool (SecurityTier: ELEVATED) in workspace"
     priority: 740
     match:
       resource: "tool"
-      resourceId: "filesystem"
-      action: "write"
+      resourceId: "filesystem_write"
     conditions:
-      - field: "metadata.path"
+      - field: "parameters.path"
+        operator: "starts_with"
+        value: "./workspace"
+      - field: "parameters.size"
+        operator: "less_than"
+        value: 10485760  # 10MB
+    effect: "allow"
+    audit: true
+    dlp_scan: true  # Scan content before write
+
+  - id: "standard-tool-filesystem-write-deny-outside"
+    description: "Deny filesystem write outside workspace"
+    priority: 739
+    match:
+      resource: "tool"
+      resourceId: "filesystem_write"
+    effect: "deny"
+    reason: "Filesystem write is restricted to ./workspace directory"
+
+  # Filesystem Edit - Elevated tier, workspace only
+  - id: "standard-tool-filesystem-edit"
+    description: "Allow filesystem edit tool (SecurityTier: ELEVATED) in workspace"
+    priority: 730
+    match:
+      resource: "tool"
+      resourceId: "filesystem_edit"
+    conditions:
+      - field: "parameters.path"
         operator: "starts_with"
         value: "./workspace"
     effect: "allow"
+    audit: true
 
-  # Filesystem - Deny access outside workspace
-  - id: "standard-filesystem-deny-outside-workspace"
-    description: "Deny filesystem access outside workspace"
-    priority: 730
+  - id: "standard-tool-filesystem-edit-deny-outside"
+    description: "Deny filesystem edit outside workspace"
+    priority: 729
     match:
-      resource: "filesystem"
+      resource: "tool"
+      resourceId: "filesystem_edit"
     effect: "deny"
-    reason: "Filesystem access is restricted to ./workspace directory in standard mode"
+    reason: "Filesystem edit is restricted to ./workspace directory"
 
-  # Code runner tool - Sandboxed execution
-  - id: "standard-tool-code-runner-sandboxed"
-    description: "Allow sandboxed code execution"
+  # Filesystem Patch - Elevated tier, workspace only
+  - id: "standard-tool-filesystem-patch"
+    description: "Allow filesystem patch tool (SecurityTier: ELEVATED) in workspace"
     priority: 720
     match:
       resource: "tool"
-      resourceId: "code_runner"
-      action: "execute"
+      resourceId: "filesystem_patch"
     conditions:
-      - field: "metadata.runtime"
-        operator: "equals"
-        value: "sandboxed"
+      - field: "parameters.path"
+        operator: "starts_with"
+        value: "./workspace"
     effect: "allow"
+    audit: true
 
-  # Code runner - Deny native execution
-  - id: "standard-tool-code-runner-native-deny"
-    description: "Deny native code execution in standard mode"
-    priority: 710
+  - id: "standard-tool-filesystem-patch-deny-outside"
+    description: "Deny filesystem patch outside workspace"
+    priority: 719
     match:
       resource: "tool"
-      resourceId: "code_runner"
-      action: "execute"
+      resourceId: "filesystem_patch"
     effect: "deny"
-    reason: "Native code execution requires permissive mode"
+    reason: "Filesystem patch is restricted to ./workspace directory"
 
-  # Shell tool - Disabled in standard mode
-  - id: "standard-tool-shell-deny"
-    description: "Deny shell access in standard mode"
+  # Code Runner Python - Restricted tier, requires user approval
+  - id: "standard-tool-code-runner-python"
+    description: "Allow Python code runner (SecurityTier: RESTRICTED, requires approval)"
     priority: 700
     match:
       resource: "tool"
-      resourceId: "shell"
-    effect: "deny"
-    reason: "Shell access requires permissive mode"
+      resourceId: "code_runner_python"
+    effect: "allow"
+    audit: true
+    require_approval: true
 
-  # Web search - Allow if configured
-  - id: "standard-tool-web-search-allow"
-    description: "Allow web search in standard mode"
+  # Code Runner JavaScript - Restricted tier, requires user approval
+  - id: "standard-tool-code-runner-javascript"
+    description: "Allow JavaScript code runner (SecurityTier: RESTRICTED, requires approval)"
     priority: 690
     match:
       resource: "tool"
-      resourceId: "web_search"
-      action: "read"
+      resourceId: "code_runner_javascript"
     effect: "allow"
+    audit: true
+    require_approval: true
 
   # ============================================================================
   # Network Access - Limited egress

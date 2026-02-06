@@ -54,97 +54,150 @@ rules:
   # Tools - Most tools enabled
   # ============================================================================
 
-  # Browser tool - Full access
-  - id: "permissive-tool-browser-allow"
-    description: "Allow full browser access in permissive mode"
+  # Browser tool - Full access (SecurityTier: STANDARD)
+  - id: "permissive-tool-browser"
+    description: "Allow browser tool with full access"
     priority: 800
     match:
       resource: "tool"
       resourceId: "browser"
     effect: "allow"
+    audit: true
 
-  # Filesystem tool - Broader access (still restricted to safe areas)
-  - id: "permissive-tool-filesystem-allow"
-    description: "Allow broader filesystem access in permissive mode"
+  # Filesystem Read - Broader access (still deny system paths)
+  - id: "permissive-tool-filesystem-read"
+    description: "Allow filesystem read with broader access"
     priority: 750
     match:
       resource: "tool"
-      resourceId: "filesystem"
+      resourceId: "filesystem_read"
     conditions:
-      # Allow access to workspace, temp, and user home
-      - field: "metadata.path"
-        operator: "in"
-        value:
-          - "./workspace"
-          - "./temp"
-          - "~/Documents"
-    effect: "allow"
-
-  # Filesystem - Still deny system directories for safety
-  - id: "permissive-filesystem-deny-system"
-    description: "Deny filesystem access to system directories"
-    priority: 740
-    match:
-      resource: "filesystem"
-    conditions:
-      - field: "metadata.path"
-        operator: "in"
+      # Deny system directories
+      - field: "parameters.path"
+        operator: "not_starts_with_any"
         value:
           - "/etc"
           - "/sys"
           - "/proc"
           - "/dev"
-    effect: "deny"
-    reason: "Access to system directories is not allowed even in permissive mode"
+          - "/root"
+    effect: "allow"
 
-  # Code runner - Allow both sandboxed and native
-  - id: "permissive-tool-code-runner-allow"
-    description: "Allow code execution in permissive mode"
+  - id: "permissive-tool-filesystem-read-deny-system"
+    description: "Deny filesystem read in system directories"
+    priority: 749
+    match:
+      resource: "tool"
+      resourceId: "filesystem_read"
+    effect: "deny"
+    reason: "System directories are not accessible even in permissive mode"
+
+  # Filesystem Write - Broader access (still deny system paths)
+  - id: "permissive-tool-filesystem-write"
+    description: "Allow filesystem write with broader access"
+    priority: 740
+    match:
+      resource: "tool"
+      resourceId: "filesystem_write"
+    conditions:
+      # Deny system directories
+      - field: "parameters.path"
+        operator: "not_starts_with_any"
+        value:
+          - "/etc"
+          - "/sys"
+          - "/proc"
+          - "/dev"
+          - "/root"
+    effect: "allow"
+    audit: true
+
+  - id: "permissive-tool-filesystem-write-deny-system"
+    description: "Deny filesystem write in system directories"
+    priority: 739
+    match:
+      resource: "tool"
+      resourceId: "filesystem_write"
+    effect: "deny"
+    reason: "System directories are not accessible even in permissive mode"
+
+  # Filesystem Edit - Broader access
+  - id: "permissive-tool-filesystem-edit"
+    description: "Allow filesystem edit with broader access"
+    priority: 730
+    match:
+      resource: "tool"
+      resourceId: "filesystem_edit"
+    conditions:
+      - field: "parameters.path"
+        operator: "not_starts_with_any"
+        value:
+          - "/etc"
+          - "/sys"
+          - "/proc"
+          - "/dev"
+          - "/root"
+    effect: "allow"
+    audit: true
+
+  - id: "permissive-tool-filesystem-edit-deny-system"
+    description: "Deny filesystem edit in system directories"
+    priority: 729
+    match:
+      resource: "tool"
+      resourceId: "filesystem_edit"
+    effect: "deny"
+    reason: "System directories are not accessible even in permissive mode"
+
+  # Filesystem Patch - Broader access
+  - id: "permissive-tool-filesystem-patch"
+    description: "Allow filesystem patch with broader access"
     priority: 720
     match:
       resource: "tool"
-      resourceId: "code_runner"
-      action: "execute"
-    effect: "allow"
-
-  # Shell tool - Allow if explicitly enabled
-  - id: "permissive-tool-shell-allow"
-    description: "Allow shell access in permissive mode"
-    priority: 710
-    match:
-      resource: "tool"
-      resourceId: "shell"
+      resourceId: "filesystem_patch"
     conditions:
-      - field: "metadata.explicitly_enabled"
-        operator: "equals"
-        value: true
+      - field: "parameters.path"
+        operator: "not_starts_with_any"
+        value:
+          - "/etc"
+          - "/sys"
+          - "/proc"
+          - "/dev"
+          - "/root"
     effect: "allow"
+    audit: true
 
-  - id: "permissive-tool-shell-deny-not-enabled"
-    description: "Deny shell if not explicitly enabled"
-    priority: 709
+  - id: "permissive-tool-filesystem-patch-deny-system"
+    description: "Deny filesystem patch in system directories"
+    priority: 719
     match:
       resource: "tool"
-      resourceId: "shell"
+      resourceId: "filesystem_patch"
     effect: "deny"
-    reason: "Shell access requires explicit enablement via configuration"
+    reason: "System directories are not accessible even in permissive mode"
 
-  # Web search - Allow
-  - id: "permissive-tool-web-search-allow"
-    description: "Allow web search in permissive mode"
+  # Code Runner Python - Allow (still requires user approval due to RESTRICTED tier)
+  - id: "permissive-tool-code-runner-python"
+    description: "Allow Python code runner"
+    priority: 700
+    match:
+      resource: "tool"
+      resourceId: "code_runner_python"
+    effect: "allow"
+    audit: true
+    require_approval: true
+
+  # Code Runner JavaScript - Allow (still requires user approval due to RESTRICTED tier)
+  - id: "permissive-tool-code-runner-javascript"
+    description: "Allow JavaScript code runner"
     priority: 690
     match:
       resource: "tool"
-      resourceId: "web_search"
+      resourceId: "code_runner_javascript"
     effect: "allow"
-
-  # Other tools - Allow by default
-  - id: "permissive-tool-allow-default"
-    description: "Allow other tools by default in permissive mode"
-    priority: 680
-    match:
-      resource: "tool"
-    effect: "allow"
+    audit: true
+    require_approval: true
 
   # ============================================================================
   # Network Access - Broader access

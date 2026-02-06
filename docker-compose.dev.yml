@@ -224,3 +224,349 @@ services:
   # NOTE: Salsa (Policy Engine) is now embedded in Gateway
   # See ADR-004: Embedded Salsa & Shardable Gateway Architecture
   # The packages/core/salsa directory contains the library code used by Gateway
+
+  # ==================== Tools (Phase 6) ====================
+
+  # -------------------- Filesystem Read Tool --------------------
+  filesystem-read:
+    container_name: nachos-tool-filesystem-read
+    build:
+      context: .
+      dockerfile: packages/tools/filesystem/Dockerfile
+    image: nachos-tool-filesystem:dev
+    restart: unless-stopped
+
+    depends_on:
+      bus:
+        condition: service_healthy
+
+    networks:
+      - nachos-internal
+
+    environment:
+      - TOOL_MODE=read
+      - NODE_ENV=development
+      - NATS_URL=nats://bus:4222
+      - ALLOWED_PATHS=./workspace
+      - SECURITY_MODE=${SECURITY_MODE:-standard}
+
+    volumes:
+      - ./workspace:/workspace:ro  # Read-only mount
+      - ./packages/tools/filesystem/src:/app/src:ro
+      - ./packages/shared:/app/packages/shared:ro
+      - nachos-logs:/var/log/nachos
+
+    security_opt:
+      - no-new-privileges:true
+
+    user: "1000:1000"
+
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=10m
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=filesystem-read"
+
+  # -------------------- Filesystem Write Tool --------------------
+  filesystem-write:
+    container_name: nachos-tool-filesystem-write
+    build:
+      context: .
+      dockerfile: packages/tools/filesystem/Dockerfile
+    image: nachos-tool-filesystem:dev
+    restart: unless-stopped
+
+    depends_on:
+      bus:
+        condition: service_healthy
+
+    networks:
+      - nachos-internal
+
+    environment:
+      - TOOL_MODE=write
+      - NODE_ENV=development
+      - NATS_URL=nats://bus:4222
+      - ALLOWED_PATHS=./workspace
+      - MAX_FILE_SIZE=10MB
+      - SECURITY_MODE=${SECURITY_MODE:-standard}
+
+    volumes:
+      - ./workspace:/workspace:rw  # Read-write mount
+      - ./packages/tools/filesystem/src:/app/src:ro
+      - ./packages/shared:/app/packages/shared:ro
+      - nachos-logs:/var/log/nachos
+
+    security_opt:
+      - no-new-privileges:true
+
+    user: "1000:1000"
+
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=filesystem-write"
+
+  # -------------------- Filesystem Edit Tool --------------------
+  filesystem-edit:
+    container_name: nachos-tool-filesystem-edit
+    build:
+      context: .
+      dockerfile: packages/tools/filesystem/Dockerfile
+    image: nachos-tool-filesystem:dev
+    restart: unless-stopped
+
+    depends_on:
+      bus:
+        condition: service_healthy
+
+    networks:
+      - nachos-internal
+
+    environment:
+      - TOOL_MODE=edit
+      - NODE_ENV=development
+      - NATS_URL=nats://bus:4222
+      - ALLOWED_PATHS=./workspace
+      - SECURITY_MODE=${SECURITY_MODE:-standard}
+
+    volumes:
+      - ./workspace:/workspace:rw
+      - ./packages/tools/filesystem/src:/app/src:ro
+      - ./packages/shared:/app/packages/shared:ro
+      - nachos-logs:/var/log/nachos
+
+    security_opt:
+      - no-new-privileges:true
+
+    user: "1000:1000"
+
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=filesystem-edit"
+
+  # -------------------- Filesystem Patch Tool --------------------
+  filesystem-patch:
+    container_name: nachos-tool-filesystem-patch
+    build:
+      context: .
+      dockerfile: packages/tools/filesystem/Dockerfile
+    image: nachos-tool-filesystem:dev
+    restart: unless-stopped
+
+    depends_on:
+      bus:
+        condition: service_healthy
+
+    networks:
+      - nachos-internal
+
+    environment:
+      - TOOL_MODE=patch
+      - NODE_ENV=development
+      - NATS_URL=nats://bus:4222
+      - ALLOWED_PATHS=./workspace
+      - SECURITY_MODE=${SECURITY_MODE:-standard}
+
+    volumes:
+      - ./workspace:/workspace:rw
+      - ./packages/tools/filesystem/src:/app/src:ro
+      - ./packages/shared:/app/packages/shared:ro
+      - nachos-logs:/var/log/nachos
+
+    security_opt:
+      - no-new-privileges:true
+
+    user: "1000:1000"
+
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=filesystem-patch"
+
+  # -------------------- Browser Tool --------------------
+  browser:
+    container_name: nachos-tool-browser
+    build:
+      context: .
+      dockerfile: packages/tools/browser/Dockerfile
+    image: nachos-tool-browser:dev
+    restart: unless-stopped
+
+    depends_on:
+      bus:
+        condition: service_healthy
+
+    networks:
+      - nachos-internal
+      - nachos-egress  # Needs external access for web browsing
+
+    environment:
+      - NODE_ENV=development
+      - NATS_URL=nats://bus:4222
+      - ALLOWED_DOMAINS=${BROWSER_ALLOWED_DOMAINS:-*}
+      - BROWSER_HEADLESS=${BROWSER_HEADLESS:-true}
+      - BROWSER_TIMEOUT_MS=${BROWSER_TIMEOUT_MS:-30000}
+      - SECURITY_MODE=${SECURITY_MODE:-standard}
+
+    volumes:
+      - ./workspace/browser-downloads:/downloads:rw
+      - ./packages/tools/browser/src:/app/src:ro
+      - ./packages/shared:/app/packages/shared:ro
+      - nachos-logs:/var/log/nachos
+
+    security_opt:
+      - no-new-privileges:true
+
+    user: "pwuser"
+
+    shm_size: 512m
+    mem_limit: 1g
+
+    healthcheck:
+      test: ["CMD", "node", "-e", "process.exit(0)"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=browser"
+
+  # -------------------- Code Runner - Python --------------------
+  code-runner-python:
+    container_name: nachos-tool-code-python
+    build:
+      context: .
+      dockerfile: packages/tools/code-runner/Dockerfile.python
+    image: nachos-tool-code-python:dev
+    restart: unless-stopped
+
+    depends_on:
+      bus:
+        condition: service_healthy
+
+    networks:
+      - nachos-internal  # NO external access
+
+    environment:
+      - NODE_ENV=development
+      - NATS_URL=nats://bus:4222
+      - LANGUAGE=python
+      - EXECUTION_TIMEOUT=${CODE_EXECUTION_TIMEOUT:-30}
+      - SECURITY_MODE=${SECURITY_MODE:-standard}
+
+    volumes:
+      - ./packages/tools/code-runner/src:/app/src:ro
+      - ./packages/shared:/app/packages/shared:ro
+      - nachos-logs:/var/log/nachos
+
+    security_opt:
+      - no-new-privileges:true
+
+    user: "1000:1000"
+
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m
+
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 50
+
+    healthcheck:
+      test: ["CMD", "node", "-e", "process.exit(0)"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=code-runner-python"
+
+  # -------------------- Code Runner - JavaScript --------------------
+  code-runner-javascript:
+    container_name: nachos-tool-code-javascript
+    build:
+      context: .
+      dockerfile: packages/tools/code-runner/Dockerfile.javascript
+    image: nachos-tool-code-javascript:dev
+    restart: unless-stopped
+
+    depends_on:
+      bus:
+        condition: service_healthy
+
+    networks:
+      - nachos-internal  # NO external access
+
+    environment:
+      - NODE_ENV=development
+      - NATS_URL=nats://bus:4222
+      - LANGUAGE=javascript
+      - EXECUTION_TIMEOUT=${CODE_EXECUTION_TIMEOUT:-30}
+      - SECURITY_MODE=${SECURITY_MODE:-standard}
+
+    volumes:
+      - ./packages/tools/code-runner/src:/app/src:ro
+      - ./packages/shared:/app/packages/shared:ro
+      - nachos-logs:/var/log/nachos
+
+    security_opt:
+      - no-new-privileges:true
+
+    user: "1000:1000"
+
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m
+
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 50
+
+    healthcheck:
+      test: ["CMD", "node", "-e", "process.exit(0)"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=code-runner-javascript"

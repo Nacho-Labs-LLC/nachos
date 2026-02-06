@@ -95,9 +95,14 @@ interface ToolConfig {
   secrets: Record<string, string>;
 
   /**
-   * NATS connection
+   * Sandbox configuration (if supported by tool runtime)
    */
-  nats: NatsConnection;
+  sandbox?: {
+    enabled?: boolean;
+    provider?: 'docker' | 'native' | 'none';
+    workspaceDir?: string;
+    network?: 'none' | 'egress' | 'full';
+  };
 
   /**
    * Security mode
@@ -112,6 +117,17 @@ interface ToolConfig {
     maxMemory?: number;
     maxConcurrent?: number;
   };
+}
+```
+
+### ToolServiceConfig
+
+```typescript
+interface ToolServiceConfig extends ToolConfig {
+  /**
+   * NATS connection (required for tool services)
+   */
+  nats: NatsConnection;
 }
 ```
 
@@ -146,9 +162,13 @@ interface ToolResult {
   success: boolean;
 
   /**
-   * Result data (if successful)
+   * Result content blocks
    */
-  result?: unknown;
+  content: Array<
+    | { type: 'text'; text: string }
+    | { type: 'image'; data: string; mimeType: string; source?: 'base64' | 'url' }
+    | { type: 'file'; path: string; mimeType?: string; size?: number }
+  >;
 
   /**
    * Error information (if failed)

@@ -1,0 +1,43 @@
+# Python Code Runner Dockerfile
+# Sandboxed Python execution environment
+
+FROM python:3.11-slim
+
+# Create app directory
+WORKDIR /app
+
+# Install Node.js (needed for the tool runner)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates && \
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
+    apt-get install -y --no-install-recommends nodejs && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Node.js dependencies
+COPY package.json ./
+RUN npm install --production
+
+# Copy source code
+COPY dist ./dist
+
+# Create non-root user
+RUN useradd -m -u 1000 coderunner && \
+    mkdir -p /tmp && \
+    chown -R coderunner:coderunner /tmp
+
+# Switch to non-root user
+USER coderunner
+
+# Set environment variables
+ENV NODE_ENV=production
+ENV LANGUAGE=python
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD node -e "process.exit(0)"
+
+# Start the tool
+CMD ["node", "dist/index.js"]

@@ -1,0 +1,18 @@
+{
+  "name": "filesystem_edit",
+  "version": "0.1.0",
+  "type": "tool",
+  "capabilities": {
+    "network": {
+      "egress": []
+    },
+    "resources": {
+      "memory": "256Mi",
+      "cpus": 0.5
+    }
+  },
+  "provides": {
+    "tool": "filesystem_edit",
+    "securityTier": 2
+  }
+}
