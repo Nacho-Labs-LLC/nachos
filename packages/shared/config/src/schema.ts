@@ -264,6 +264,101 @@ export interface ResourcesConfig {
 }
 
 /**
+ * Context Management - Zone Thresholds
+ */
+export interface ContextZoneThresholds {
+  proactive_prune?: number; // default: 0.60
+  light_compaction?: number; // default: 0.75
+  aggressive_compaction?: number; // default: 0.85
+  emergency?: number; // default: 0.95
+}
+
+/**
+ * Context Management - Sliding Window Configuration
+ */
+export interface SlidingWindowConfig {
+  enabled?: boolean;
+  mode?: 'token-based' | 'message-based' | 'hybrid';
+  thresholds?: ContextZoneThresholds;
+  keep_recent?: {
+    turns?: number; // default: 10
+    messages?: number; // default: 20
+    token_budget?: number; // default: 10000
+  };
+  slide_strategy?: 'chunk' | 'message' | 'turn';
+  chunk_size?: number;
+}
+
+/**
+ * Context Management - Summarization Tier Configuration
+ */
+export interface SummarizationTierConfig {
+  compression_ratio?: number;
+  format?: 'bullet-points' | 'structured-summary' | 'detailed-summary';
+  preserves?: string[];
+}
+
+/**
+ * Context Management - Summarization Configuration
+ */
+export interface SummarizationConfig {
+  enabled?: boolean;
+  mode?: 'single' | 'multi-tier';
+  tiers?: {
+    archival?: SummarizationTierConfig;
+    compressed?: SummarizationTierConfig;
+    condensed?: SummarizationTierConfig;
+  };
+  content_classification?: {
+    enabled?: boolean;
+    preserve_critical?: boolean;
+    preserve_code?: boolean;
+    preserve_errors?: boolean;
+  };
+  custom_instructions?: string;
+}
+
+/**
+ * Context Management - Proactive History Configuration
+ */
+export interface ProactiveHistoryConfig {
+  enabled?: boolean;
+  extractors?: {
+    decisions?: boolean;
+    facts?: boolean;
+    tasks?: boolean;
+    issues?: boolean;
+    files?: boolean;
+  };
+  triggers?: {
+    on_compaction?: boolean;
+    on_threshold?: number;
+    on_memory_flush?: boolean;
+    periodic?: string; // e.g., '1h', '30m'
+  };
+  snapshots?: {
+    enabled?: boolean;
+    dir?: string;
+    max_snapshots?: number;
+  };
+  summary_archive?: {
+    enabled?: boolean;
+    dir?: string;
+    max_summaries?: number;
+  };
+  custom_pattern_files?: string[];
+}
+
+/**
+ * Context Management Configuration
+ */
+export interface ContextManagementConfig {
+  sliding_window?: SlidingWindowConfig;
+  summarization?: SummarizationConfig;
+  proactive_history?: ProactiveHistoryConfig;
+}
+
+/**
  * Runtime configuration
  */
 export interface RuntimeConfig {
@@ -275,6 +370,7 @@ export interface RuntimeConfig {
   gateway_streaming_passthrough?: boolean;
   gateway_streaming_chunk_size?: number;
   gateway_streaming_min_interval_ms?: number;
+  context_management?: ContextManagementConfig;
 }
 
 /**

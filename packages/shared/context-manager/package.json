@@ -1,0 +1,41 @@
+{
+  "name": "@nachos/context-manager",
+  "version": "0.1.0",
+  "description": "Context management system for NACHOS - enables indefinite sessions through sliding windows, summarization, and proactive history saving",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src/**/*.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@nachos/types": "workspace:*",
+    "@nachos/config": "workspace:*",
+    "@nacho-labs/nachos-dlp": "^1.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.0.0"
+  },
+  "keywords": [
+    "nachos",
+    "context-management",
+    "sliding-window",
+    "summarization",
+    "session-management"
+  ],
+  "author": "NACHOS Team",
+  "license": "MIT"
+}

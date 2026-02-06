@@ -1,0 +1,301 @@
+# NACHOS Context Management - Extraction Patterns
+#
+# Patterns for extracting important information from conversation history
+# before compaction. Uses nachos-dlp Scanner for pattern matching.
+#
+# Categories:
+# - Decisions: Important choices and agreements made
+# - Tasks: Action items, TODOs, and planned work
+# - Facts: User preferences, requirements, and important details
+# - Issues: Errors, bugs, and problems encountered
+# - Files: File operations and code changes
+
+patterns:
+  # ============================================================================
+  # DECISIONS
+  # ============================================================================
+
+  - id: decision-explicit
+    name: Explicit Decision Statement
+    severity: info
+    category: decision
+    pattern: "(?:decided to|chose to|will use|agreed on|opted for|selected|going with)\\s+([^.!?\\n]{10,200}[.!?])"
+    flags: gi
+    keywords:
+      - decided
+      - chose
+      - selected
+      - agreed
+    description: "Captures explicit decision statements in conversation"
+
+  - id: decision-approach
+    name: Approach Decision
+    severity: info
+    category: decision
+    pattern: "(?:approach is to|strategy is|plan is to|method will be)\\s+([^.!?\\n]{10,200}[.!?])"
+    flags: gi
+    keywords:
+      - approach
+      - strategy
+      - plan
+    description: "Captures architectural and strategic decisions"
+
+  - id: decision-implementation
+    name: Implementation Decision
+    severity: info
+    category: decision
+    pattern: "(?:implement|build|create|design)(?:ing)?\\s+(?:this|it|the)\\s+(?:using|with|by|via)\\s+([^.!?\\n]{10,200}[.!?])"
+    flags: gi
+    keywords:
+      - implement
+      - build
+      - using
+    description: "Captures implementation technology and pattern decisions"
+
+  # ============================================================================
+  # TASKS
+  # ============================================================================
+
+  - id: task-todo
+    name: TODO Task
+    severity: info
+    category: task
+    pattern: "TODO:\\s*([^.!?\\n]+)"
+    flags: gi
+    keywords:
+      - TODO
+    description: "Captures explicit TODO markers"
+
+  - id: task-fixme
+    name: FIXME Task
+    severity: info
+    category: task
+    pattern: "FIXME:\\s*([^.!?\\n]+)"
+    flags: gi
+    keywords:
+      - FIXME
+    description: "Captures FIXME markers"
+
+  - id: task-action-item
+    name: Action Item
+    severity: info
+    category: task
+    pattern: "(?:need to|should|must|have to|will need to|plan to)\\s+([^.!?\\n]{10,200}[.!?])"
+    flags: gi
+    keywords:
+      - need to
+      - should
+      - must
+      - plan to
+    description: "Captures action items and future work"
+
+  - id: task-checkbox
+    name: Checkbox Task
+    severity: info
+    category: task
+    pattern: "[-*]\\s*\\[[ x]\\]\\s+([^\\n]+)"
+    flags: gi
+    keywords:
+      - "[ ]"
+      - "[x]"
+    description: "Captures markdown checkbox tasks"
+
+  - id: task-next-step
+    name: Next Step
+    severity: info
+    category: task
+    pattern: "(?:next step|next task|following step)(?:\\s+is)?(?:\\s+to)?:\\s+([^.!?\\n]{10,200}[.!?])"
+    flags: gi
+    keywords:
+      - next step
+      - next task
+    description: "Captures explicitly defined next steps"
+
+  # ============================================================================
+  # FACTS (User Preferences & Requirements)
+  # ============================================================================
+
+  - id: fact-preference
+    name: User Preference
+    severity: info
+    category: fact
+    pattern: "(?:I|user|we|my|our)\\s+(?:prefer|prefers|like|likes|want|wants|need|needs)\\s+([^.!?\\n]{10,200}[.!?])"
+    flags: gi
+    keywords:
+      - prefer
+      - like
+      - want
+      - need
+    description: "Captures user preferences and requirements"
+
+  - id: fact-usage
+    name: Usage Pattern
+    severity: info
+    category: fact
+    pattern: "(?:I|we|my|our)\\s+(?:use|uses|work with|rely on)\\s+([^.!?\\n]{10,200}[.!?])"
+    flags: gi
+    keywords:
+      - use
+      - work with
+      - rely on
+    description: "Captures tools and patterns the user employs"
+
+  - id: fact-important
+    name: Important Detail
+    severity: info
+    category: fact
+    pattern: "(?:important|critical|essential|key|crucial)(?:\\s+that|\\s+to)?:\\s+([^.!?\\n]{10,200}[.!?])"
+    flags: gi
+    keywords:
+      - important
+      - critical
+      - essential
+    description: "Captures explicitly marked important information"
+
+  - id: fact-requirement
+    name: Requirement
+    severity: info
+    category: fact
+    pattern: "(?:requirement|constraint|limitation|must have)(?:\\s+is)?:\\s+([^.!?\\n]{10,200}[.!?])"
+    flags: gi
+    keywords:
+      - requirement
+      - constraint
+      - must have
+    description: "Captures project requirements and constraints"
+
+  # ============================================================================
+  # ISSUES (Errors & Problems)
+  # ============================================================================
+
+  - id: issue-error
+    name: Error Message
+    severity: warning
+    category: issue
+    pattern: "(?:error|Error|ERROR):\\s*([^\\n]{10,300})"
+    flags: g
+    keywords:
+      - error
+      - ERROR
+    description: "Captures error messages"
+
+  - id: issue-failed
+    name: Failure Report
+    severity: warning
+    category: issue
+    pattern: "(?:failed to|failure|failing|unsuccessful)\\s+([^.!?\\n]{10,200}[.!?])"
+    flags: gi
+    keywords:
+      - failed
+      - failure
+      - failing
+    description: "Captures failure reports"
+
+  - id: issue-bug
+    name: Bug Report
+    severity: warning
+    category: issue
+    pattern: "(?:bug|Bug|BUG):\\s*([^\\n]{10,300})"
+    flags: g
+    keywords:
+      - bug
+      - BUG
+    description: "Captures bug reports"
+
+  - id: issue-problem
+    name: Problem Statement
+    severity: warning
+    category: issue
+    pattern: "(?:problem|issue|trouble)(?:\\s+is)?:\\s+([^.!?\\n]{10,200}[.!?])"
+    flags: gi
+    keywords:
+      - problem
+      - issue
+      - trouble
+    description: "Captures problem statements"
+
+  - id: issue-exception
+    name: Exception
+    severity: warning
+    category: issue
+    pattern: "(?:Exception|exception):\\s*([^\\n]{10,300})"
+    flags: g
+    keywords:
+      - Exception
+      - exception
+    description: "Captures exception messages"
+
+  # ============================================================================
+  # FILES (Code Changes & Operations)
+  # ============================================================================
+
+  - id: file-created
+    name: File Created
+    severity: info
+    category: file
+    pattern: "(?:created|wrote|generated)\\s+(?:file|the file|new file)?\\s*[`']?([\\w/.\\-]+\\.\\w{1,10})[`']?"
+    flags: gi
+    keywords:
+      - created
+      - wrote
+      - generated
+    description: "Captures file creation operations"
+
+  - id: file-modified
+    name: File Modified
+    severity: info
+    category: file
+    pattern: "(?:modified|updated|changed|edited)\\s+(?:file|the file)?\\s*[`']?([\\w/.\\-]+\\.\\w{1,10})[`']?"
+    flags: gi
+    keywords:
+      - modified
+      - updated
+      - changed
+    description: "Captures file modification operations"
+
+  - id: file-deleted
+    name: File Deleted
+    severity: info
+    category: file
+    pattern: "(?:deleted|removed)\\s+(?:file|the file)?\\s*[`']?([\\w/.\\-]+\\.\\w{1,10})[`']?"
+    flags: gi
+    keywords:
+      - deleted
+      - removed
+    description: "Captures file deletion operations"
+
+  - id: file-backtick-reference
+    name: File Reference (Backticks)
+    severity: info
+    category: file
+    pattern: "`([\\w/.\\-]+\\.\\w{1,10})`"
+    flags: g
+    keywords:
+      - "`"
+    description: "Captures file references in backticks"
+
+  - id: file-path-mention
+    name: File Path Mention
+    severity: info
+    category: file
+    pattern: "(?:in|at|from|to)\\s+(?:file|path)?\\s*[`']?([\\w/.\\-]+/[\\w/.\\-]+\\.\\w{1,10})[`']?"
+    flags: gi
+    keywords:
+      - "/"
+      - file
+      - path
+    description: "Captures file path mentions in conversation"
+
+# Configuration for DLP Scanner
+config:
+  # Minimum confidence threshold (0.0 - 1.0)
+  minConfidence: 0.5
+
+  # Maximum pattern length to match
+  maxMatchLength: 500
+
+  # Enable deduplication
+  deduplicate: true
+
+  # Case sensitivity
+  caseSensitive: false

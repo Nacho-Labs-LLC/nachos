@@ -228,4 +228,14 @@ export class SessionManager {
   getMessageCount(sessionId: string): number {
     return this.storage.getMessageCount(sessionId);
   }
+
+  /**
+   * Replace all messages for a session (used after context compaction)
+   *
+   * This is an atomic operation that deletes existing messages and inserts new ones.
+   * Used by context management to update message history after compaction.
+   */
+  replaceMessages(sessionId: string, messages: Message[]): number {
+    return this.storage.replaceMessages(sessionId, messages);
+  }
 }

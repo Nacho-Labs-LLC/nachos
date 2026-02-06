@@ -6,9 +6,14 @@ import {
   type MessageEnvelope,
   type ChannelInboundMessage,
   type ChannelOutboundMessage,
+  type Message,
+  type CompactionEventSchema,
+  type ExtractionEventSchema,
+  type ZoneChangeEventSchema,
 } from '@nachos/types';
 import {
   TOPICS,
+  CONTEXT_TOPICS,
   type NachosBusClient,
   type MessageEnvelope as BusMessageEnvelope,
   type BusSubscription,
@@ -16,6 +21,10 @@ import {
 import { v4 as uuid } from 'uuid';
 import type { RateLimitAction, RateLimitCheckResult, RateLimiter } from './security/rate-limiter.js';
 import { getRateLimitUserId } from './router-utils.js';
+import type { ContextManager, ContextCheckResult, EnhancedCompactionResult } from '@nachos/context-manager';
+import { messageAdapter } from '@nachos/context-manager';
+import type { SessionManager } from './session.js';
+import type { Value } from '@sinclair/typebox/value';
 
 /**
  * Route handler function type
@@ -202,6 +211,8 @@ export interface RouterOptions {
   bus: MessageBus;
   componentName?: string;
   rateLimiter?: RateLimiter;
+  contextManager?: ContextManager;
+  sessionManager?: SessionManager;
 }
 
 /**
@@ -211,12 +222,16 @@ export class Router {
   private bus: MessageBus;
   private componentName: string;
   private rateLimiter?: RateLimiter;
+  private contextManager?: ContextManager;
+  private sessionManager?: SessionManager;
   private handlers: Map<string, RouteHandler> = new Map();
 
   constructor(options: RouterOptions) {
     this.bus = options.bus;
     this.componentName = options.componentName ?? 'gateway';
     this.rateLimiter = options.rateLimiter;
+    this.contextManager = options.contextManager;
+    this.sessionManager = options.sessionManager;
   }
 
   /**
@@ -293,13 +308,200 @@ export class Router {
   }
 
   /**
+   * Check context budget and perform compaction if needed
+   *
+   * This runs before each LLM request to ensure context stays within limits.
+   * If compaction is needed, it will:
+   * 1. Execute compaction (sliding window + optional summarization)
+   * 2. Replace messages in StateStorage
+   * 3. Update session metadata with context state
+   * 4. Publish context events to message bus
+   */
+  private async checkAndCompactContext(params: {
+    sessionId: string;
+    contextWindow?: number;
+    systemPromptTokens?: number;
+  }): Promise<void> {
+    // Skip if context manager or session manager not configured
+    if (!this.contextManager || !this.sessionManager) {
+      return;
+    }
+
+    const { sessionId, contextWindow = 200000, systemPromptTokens = 0 } = params;
+
+    // Get session with messages
+    const sessionWithMessages = this.sessionManager.getSessionWithMessages(sessionId);
+    if (!sessionWithMessages) {
+      console.warn(`[Router] Cannot check context: session ${sessionId} not found`);
+      return;
+    }
+
+    // Convert NACHOS messages to ContextMessages
+    const contextMessages = sessionWithMessages.messages.map((msg) =>
+      messageAdapter.toContextMessage(msg)
+    );
+
+    // Check if compaction is needed
+    const check: ContextCheckResult = await this.contextManager.checkBeforeTurn({
+      sessionId,
+      messages: contextMessages,
+      systemPromptTokens,
+      contextWindow,
+      reserveTokens: 20000, // Reserve 20k tokens for response
+    });
+
+    // Publish budget update event
+    const budgetEvent = {
+      sessionId,
+      timestamp: new Date().toISOString(),
+      budget: check.budget,
+      needsCompaction: check.needsCompaction,
+    };
+    await this.bus.publish(
+      CONTEXT_TOPICS.budgetUpdate,
+      createEnvelope(this.componentName, 'context.budget_update', budgetEvent)
+    );
+
+    // Publish zone change if zone is concerning
+    if (
+      check.budget.zone === 'yellow' ||
+      check.budget.zone === 'orange' ||
+      check.budget.zone === 'red' ||
+      check.budget.zone === 'critical'
+    ) {
+      const zoneEvent = {
+        sessionId,
+        timestamp: new Date().toISOString(),
+        zone: check.budget.zone,
+        utilizationRatio: check.budget.utilizationRatio,
+        currentUsage: check.budget.currentUsage,
+        historyBudget: check.budget.historyBudget,
+      };
+      await this.bus.publish(
+        CONTEXT_TOPICS.zoneChange,
+        createEnvelope(this.componentName, 'context.zone_change', zoneEvent)
+      );
+    }
+
+    // If compaction not needed, we're done
+    if (!check.needsCompaction || !check.action) {
+      return;
+    }
+
+    console.log(
+      `[Router] Context compaction needed for session ${sessionId}: ${check.action.reason}`
+    );
+
+    // Execute compaction
+    const compactionResult: EnhancedCompactionResult = await this.contextManager.compact({
+      sessionId,
+      messages: contextMessages,
+      action: check.action,
+    });
+
+    // Convert compacted messages back to NACHOS format
+    const compactedNachosMessages: Message[] = compactionResult.messagesKept.map((msg) =>
+      messageAdapter.toNachosMessage(msg)
+    );
+
+    // Replace messages in StateStorage (atomic operation)
+    const messageCount = this.sessionManager.getMessageCount(sessionId);
+    console.log(
+      `[Router] Replacing ${messageCount} messages with ${compactedNachosMessages.length} compacted messages`
+    );
+
+    // Atomically replace messages in storage
+    this.sessionManager.replaceMessages(sessionId, compactedNachosMessages);
+
+    // Update session metadata with context state
+    this.sessionManager.updateMetadata(sessionId, {
+      contextManagement: {
+        lastCompaction: new Date().toISOString(),
+        budget: check.budget,
+        compactionHistory: [
+          ...(sessionWithMessages.metadata?.contextManagement?.compactionHistory || []),
+          {
+            timestamp: new Date().toISOString(),
+            trigger: check.action.type,
+            zone: check.action.zone,
+            tokensBefore: check.budget.currentUsage,
+            tokensAfter: compactionResult.budget.currentUsage,
+            messagesDropped: compactionResult.messagesDropped.length,
+          },
+        ],
+      },
+    });
+
+    // Publish compaction event
+    const compactionEvent = {
+      sessionId,
+      timestamp: new Date().toISOString(),
+      trigger: check.action.type,
+      zone: check.action.zone,
+      result: {
+        tokensBefore: check.budget.currentUsage,
+        tokensAfter: compactionResult.budget.currentUsage,
+        messagesDropped: compactionResult.messagesDropped.length,
+        messagesKept: compactionResult.messagesKept.length,
+        tokensRemoved: compactionResult.slidingResult.tokensRemoved,
+        summaryGenerated: compactionResult.summary !== undefined,
+      },
+    };
+    await this.bus.publish(
+      CONTEXT_TOPICS.compaction,
+      createEnvelope(this.componentName, 'context.compaction', compactionEvent)
+    );
+
+    // Publish extraction event if history was extracted
+    if (compactionResult.extracted) {
+      const extractionEvent = {
+        sessionId,
+        timestamp: new Date().toISOString(),
+        trigger: 'compaction',
+        counts: {
+          decisions: compactionResult.extracted.decisions.length,
+          facts: compactionResult.extracted.facts.length,
+          tasks: compactionResult.extracted.tasks.length,
+          issues: compactionResult.extracted.issues.length,
+          files: compactionResult.extracted.files.length,
+        },
+      };
+      await this.bus.publish(
+        CONTEXT_TOPICS.extraction,
+        createEnvelope(this.componentName, 'context.extraction', extractionEvent)
+      );
+    }
+
+    console.log(
+      `[Router] Context compaction completed: ${check.budget.currentUsage} → ${compactionResult.budget.currentUsage} tokens`
+    );
+  }
+
+  /**
    * Send an LLM request
+   *
+   * Before sending the request, performs a context check and compaction if needed.
    */
   async sendLLMRequest(payload: unknown): Promise<unknown> {
     const limitResult = await this.checkRateLimit('llm', payload);
     if (!limitResult.allowed) {
       throw this.createRateLimitError(limitResult, 'LLM request rate limit exceeded');
     }
+
+    // Extract sessionId from payload for context check
+    // Payload structure depends on LLM proxy expectations - adjust as needed
+    const payloadObj = payload as Record<string, unknown>;
+    const sessionId = payloadObj.sessionId as string | undefined;
+
+    // Perform context check and compaction if needed
+    if (sessionId) {
+      await this.checkAndCompactContext({
+        sessionId,
+        contextWindow: (payloadObj.contextWindow as number) ?? 200000,
+        systemPromptTokens: (payloadObj.systemPromptTokens as number) ?? 0,
+      });
+    }
+
     const envelope = createEnvelope(this.componentName, 'llm.request', payload);
     return this.bus.request(TOPICS.llm.request, envelope, 60000);
   }

@@ -380,6 +380,50 @@ export class StateStorage {
   }
 
   /**
+   * Replace all messages for a session (used after compaction)
+   *
+   * This is an atomic operation that deletes existing messages and inserts new ones.
+   * Used by context management to update message history after compaction.
+   *
+   * @param sessionId - Session ID to replace messages for
+   * @param messages - New messages to insert
+   * @returns Number of messages inserted
+   */
+  replaceMessages(sessionId: string, messages: Message[]): number {
+    const transaction = this.db.transaction((sessionId: string, messages: Message[]) => {
+      // Delete existing messages
+      const deleteStmt = this.db.prepare('DELETE FROM messages WHERE session_id = ?');
+      deleteStmt.run(sessionId);
+
+      // Insert new messages
+      const insertStmt = this.db.prepare(`
+        INSERT INTO messages (id, session_id, role, content, tool_calls, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `);
+
+      for (const msg of messages) {
+        insertStmt.run(
+          msg.id,
+          sessionId,
+          msg.role,
+          msg.content,
+          msg.toolCalls ? JSON.stringify(msg.toolCalls) : null,
+          msg.createdAt
+        );
+      }
+
+      // Update session's updated_at timestamp
+      const now = new Date().toISOString();
+      const updateSession = this.db.prepare('UPDATE sessions SET updated_at = ? WHERE id = ?');
+      updateSession.run(now, sessionId);
+
+      return messages.length;
+    });
+
+    return transaction(sessionId, messages);
+  }
+
+  /**
    * Close the database connection
    */
   close(): void {

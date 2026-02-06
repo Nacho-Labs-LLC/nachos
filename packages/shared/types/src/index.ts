@@ -134,6 +134,35 @@ export {
 } from './schemas.js';
 
 // ============================================================================
+// Context Management Event Schemas
+// ============================================================================
+
+export {
+  // Compaction event
+  CompactionEventSchema,
+  type CompactionEvent,
+
+  // Extraction event
+  ExtractionEventSchema,
+  type ExtractionEvent,
+
+  // Zone change event
+  ZoneChangeEventSchema,
+  type ZoneChangeEvent,
+
+  // Snapshot event
+  SnapshotEventSchema,
+  type SnapshotEvent,
+
+  // Budget update event
+  BudgetUpdateEventSchema,
+  type BudgetUpdateEvent,
+
+  // Schema collection
+  ContextEventSchemas,
+} from './context-events.js';
+
+// ============================================================================
 // Validation Middleware
 // ============================================================================
 

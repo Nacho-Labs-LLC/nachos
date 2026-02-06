@@ -144,6 +144,51 @@ export const HEALTH_TOPICS = {
 } as const;
 
 /**
+ * Context management topics
+ */
+export const CONTEXT_TOPICS = {
+  /**
+   * Context compaction events
+   * Publisher: Gateway
+   * Subscriber: Audit, Monitoring
+   */
+  compaction: `${TOPIC_PREFIX}.context.compaction`,
+
+  /**
+   * History extraction events
+   * Publisher: Gateway
+   * Subscriber: Audit, Monitoring
+   */
+  extraction: `${TOPIC_PREFIX}.context.extraction`,
+
+  /**
+   * Context zone change events
+   * Publisher: Gateway
+   * Subscriber: Monitoring
+   */
+  zoneChange: `${TOPIC_PREFIX}.context.zone_change`,
+
+  /**
+   * Context snapshot created events
+   * Publisher: Gateway
+   * Subscriber: Audit
+   */
+  snapshot: `${TOPIC_PREFIX}.context.snapshot`,
+
+  /**
+   * Context budget update events
+   * Publisher: Gateway
+   * Subscriber: Monitoring
+   */
+  budgetUpdate: `${TOPIC_PREFIX}.context.budget_update`,
+
+  /**
+   * Wildcard for all context events
+   */
+  all: `${TOPIC_PREFIX}.context.*`,
+} as const;
+
+/**
  * All topic namespaces aggregated for convenience
  */
 export const TOPICS = {
@@ -153,6 +198,7 @@ export const TOPICS = {
   policy: POLICY_TOPICS,
   audit: AUDIT_TOPICS,
   health: HEALTH_TOPICS,
+  context: CONTEXT_TOPICS,
 } as const;
 
 /**
