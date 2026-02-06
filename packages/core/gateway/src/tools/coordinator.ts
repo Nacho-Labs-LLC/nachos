@@ -53,10 +53,7 @@ export class ToolCoordinator {
    * Execute multiple tool calls
    * Automatically determines whether to run in parallel or sequential
    */
-  async executeTools(
-    toolCalls: ToolCall[],
-    options?: ExecutionOptions
-  ): Promise<ToolResult[]> {
+  async executeTools(toolCalls: ToolCall[], options?: ExecutionOptions): Promise<ToolResult[]> {
     if (toolCalls.length === 0) {
       return [];
     }
@@ -74,10 +71,7 @@ export class ToolCoordinator {
   /**
    * Execute a single tool call
    */
-  async executeSingle(
-    call: ToolCall,
-    options?: ExecutionOptions
-  ): Promise<ToolResult> {
+  async executeSingle(call: ToolCall, options?: ExecutionOptions): Promise<ToolResult> {
     const startTime = Date.now();
 
     if (!call.sessionId) {
@@ -200,14 +194,17 @@ export class ToolCoordinator {
     options?: ExecutionOptions
   ): Promise<ToolResult[]> {
     const promises = toolCalls.map((call) =>
-      this.executeSingle(call, options).catch((error) => ({
-        success: false,
-        content: [],
-        error: {
-          code: 'EXECUTION_ERROR',
-          message: error instanceof Error ? error.message : 'Unknown error',
-        },
-      } as ToolResult))
+      this.executeSingle(call, options).catch(
+        (error) =>
+          ({
+            success: false,
+            content: [],
+            error: {
+              code: 'EXECUTION_ERROR',
+              message: error instanceof Error ? error.message : 'Unknown error',
+            },
+          }) as ToolResult
+      )
     );
 
     return await Promise.all(promises);
@@ -233,10 +230,7 @@ export class ToolCoordinator {
   /**
    * Execute a tool via NATS request/reply
    */
-  private async executeViaNats(
-    call: ToolCall,
-    options?: ExecutionOptions
-  ): Promise<ToolResult> {
+  private async executeViaNats(call: ToolCall, options?: ExecutionOptions): Promise<ToolResult> {
     const topic = `nachos.tool.${call.tool}.request`;
     const timeout = options?.timeout ?? call.timeout ?? this.defaultTimeout;
 
@@ -436,7 +430,11 @@ export class ToolCoordinator {
       return SecurityTier.RESTRICTED;
     }
 
-    if (tool.includes('filesystem_write') || tool.includes('filesystem_edit') || tool.includes('filesystem_patch')) {
+    if (
+      tool.includes('filesystem_write') ||
+      tool.includes('filesystem_edit') ||
+      tool.includes('filesystem_patch')
+    ) {
       return SecurityTier.ELEVATED;
     }
 

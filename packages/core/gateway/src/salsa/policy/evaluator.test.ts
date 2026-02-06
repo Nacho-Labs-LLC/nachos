@@ -1,13 +1,13 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { PolicyEvaluator } from './evaluator.js'
-import type { PolicyDocument, SecurityRequest } from '../types/index.js'
+import { describe, it, expect, beforeEach } from 'vitest';
+import { PolicyEvaluator } from './evaluator.js';
+import type { PolicyDocument, SecurityRequest } from '../types/index.js';
 
 describe('PolicyEvaluator', () => {
-  let evaluator: PolicyEvaluator
+  let evaluator: PolicyEvaluator;
 
   beforeEach(() => {
-    evaluator = new PolicyEvaluator('deny')
-  })
+    evaluator = new PolicyEvaluator('deny');
+  });
 
   describe('Basic Evaluation', () => {
     it('should allow when rule matches with allow effect', () => {
@@ -24,9 +24,9 @@ describe('PolicyEvaluator', () => {
             effect: 'allow',
           },
         ],
-      }
+      };
 
-      evaluator.loadPolicies([policy])
+      evaluator.loadPolicies([policy]);
 
       const request: SecurityRequest = {
         requestId: 'test-1',
@@ -40,13 +40,13 @@ describe('PolicyEvaluator', () => {
         action: 'read',
         metadata: {},
         timestamp: new Date(),
-      }
+      };
 
-      const result = evaluator.evaluate(request)
-      expect(result.allowed).toBe(true)
-      expect(result.effect).toBe('allow')
-      expect(result.ruleId).toBe('allow-tool-read')
-    })
+      const result = evaluator.evaluate(request);
+      expect(result.allowed).toBe(true);
+      expect(result.effect).toBe('allow');
+      expect(result.ruleId).toBe('allow-tool-read');
+    });
 
     it('should deny when rule matches with deny effect', () => {
       const policy: PolicyDocument = {
@@ -63,9 +63,9 @@ describe('PolicyEvaluator', () => {
             reason: 'Shell access is not allowed',
           },
         ],
-      }
+      };
 
-      evaluator.loadPolicies([policy])
+      evaluator.loadPolicies([policy]);
 
       const request: SecurityRequest = {
         requestId: 'test-2',
@@ -79,17 +79,17 @@ describe('PolicyEvaluator', () => {
         action: 'execute',
         metadata: {},
         timestamp: new Date(),
-      }
+      };
 
-      const result = evaluator.evaluate(request)
-      expect(result.allowed).toBe(false)
-      expect(result.effect).toBe('deny')
-      expect(result.ruleId).toBe('deny-shell')
-      expect(result.reason).toBe('Shell access is not allowed')
-    })
+      const result = evaluator.evaluate(request);
+      expect(result.allowed).toBe(false);
+      expect(result.effect).toBe('deny');
+      expect(result.ruleId).toBe('deny-shell');
+      expect(result.reason).toBe('Shell access is not allowed');
+    });
 
     it('should apply default deny when no rule matches', () => {
-      evaluator.loadPolicies([])
+      evaluator.loadPolicies([]);
 
       const request: SecurityRequest = {
         requestId: 'test-3',
@@ -103,14 +103,14 @@ describe('PolicyEvaluator', () => {
         action: 'read',
         metadata: {},
         timestamp: new Date(),
-      }
+      };
 
-      const result = evaluator.evaluate(request)
-      expect(result.allowed).toBe(false)
-      expect(result.effect).toBe('deny')
-      expect(result.ruleId).toBeUndefined()
-      expect(result.reason).toContain('default deny')
-    })
+      const result = evaluator.evaluate(request);
+      expect(result.allowed).toBe(false);
+      expect(result.effect).toBe('deny');
+      expect(result.ruleId).toBeUndefined();
+      expect(result.reason).toContain('default deny');
+    });
 
     it('should evaluate rules in priority order', () => {
       const policy: PolicyDocument = {
@@ -133,9 +133,9 @@ describe('PolicyEvaluator', () => {
             effect: 'allow',
           },
         ],
-      }
+      };
 
-      evaluator.loadPolicies([policy])
+      evaluator.loadPolicies([policy]);
 
       const request: SecurityRequest = {
         requestId: 'test-4',
@@ -149,13 +149,13 @@ describe('PolicyEvaluator', () => {
         action: 'read',
         metadata: {},
         timestamp: new Date(),
-      }
+      };
 
-      const result = evaluator.evaluate(request)
-      expect(result.allowed).toBe(true)
-      expect(result.ruleId).toBe('high-priority-allow')
-    })
-  })
+      const result = evaluator.evaluate(request);
+      expect(result.allowed).toBe(true);
+      expect(result.ruleId).toBe('high-priority-allow');
+    });
+  });
 
   describe('Match Criteria', () => {
     it('should match specific resource ID', () => {
@@ -172,9 +172,9 @@ describe('PolicyEvaluator', () => {
             effect: 'allow',
           },
         ],
-      }
+      };
 
-      evaluator.loadPolicies([policy])
+      evaluator.loadPolicies([policy]);
 
       // Should match browser
       const request1: SecurityRequest = {
@@ -186,18 +186,18 @@ describe('PolicyEvaluator', () => {
         action: 'read',
         metadata: {},
         timestamp: new Date(),
-      }
+      };
 
-      expect(evaluator.evaluate(request1).allowed).toBe(true)
+      expect(evaluator.evaluate(request1).allowed).toBe(true);
 
       // Should not match shell
       const request2: SecurityRequest = {
         ...request1,
         resource: { type: 'tool', id: 'shell' },
-      }
+      };
 
-      expect(evaluator.evaluate(request2).allowed).toBe(false)
-    })
+      expect(evaluator.evaluate(request2).allowed).toBe(false);
+    });
 
     it('should match multiple resource IDs', () => {
       const policy: PolicyDocument = {
@@ -213,9 +213,9 @@ describe('PolicyEvaluator', () => {
             effect: 'allow',
           },
         ],
-      }
+      };
 
-      evaluator.loadPolicies([policy])
+      evaluator.loadPolicies([policy]);
 
       const request1: SecurityRequest = {
         requestId: 'test-6',
@@ -226,17 +226,17 @@ describe('PolicyEvaluator', () => {
         action: 'read',
         metadata: {},
         timestamp: new Date(),
-      }
+      };
 
-      expect(evaluator.evaluate(request1).allowed).toBe(true)
+      expect(evaluator.evaluate(request1).allowed).toBe(true);
 
       const request2: SecurityRequest = {
         ...request1,
         resource: { type: 'tool', id: 'web_search' },
-      }
+      };
 
-      expect(evaluator.evaluate(request2).allowed).toBe(true)
-    })
+      expect(evaluator.evaluate(request2).allowed).toBe(true);
+    });
 
     it('should match multiple actions', () => {
       const policy: PolicyDocument = {
@@ -252,9 +252,9 @@ describe('PolicyEvaluator', () => {
             effect: 'allow',
           },
         ],
-      }
+      };
 
-      evaluator.loadPolicies([policy])
+      evaluator.loadPolicies([policy]);
 
       const baseRequest: SecurityRequest = {
         requestId: 'test-7',
@@ -265,13 +265,13 @@ describe('PolicyEvaluator', () => {
         action: 'read',
         metadata: {},
         timestamp: new Date(),
-      }
+      };
 
-      expect(evaluator.evaluate(baseRequest).allowed).toBe(true)
-      expect(evaluator.evaluate({ ...baseRequest, action: 'write' }).allowed).toBe(true)
-      expect(evaluator.evaluate({ ...baseRequest, action: 'execute' }).allowed).toBe(false)
-    })
-  })
+      expect(evaluator.evaluate(baseRequest).allowed).toBe(true);
+      expect(evaluator.evaluate({ ...baseRequest, action: 'write' }).allowed).toBe(true);
+      expect(evaluator.evaluate({ ...baseRequest, action: 'execute' }).allowed).toBe(false);
+    });
+  });
 
   describe('Condition Evaluation', () => {
     it('should evaluate equals condition', () => {
@@ -292,9 +292,9 @@ describe('PolicyEvaluator', () => {
             effect: 'allow',
           },
         ],
-      }
+      };
 
-      evaluator.loadPolicies([policy])
+      evaluator.loadPolicies([policy]);
 
       const request1: SecurityRequest = {
         requestId: 'test-8',
@@ -305,17 +305,17 @@ describe('PolicyEvaluator', () => {
         action: 'read',
         metadata: {},
         timestamp: new Date(),
-      }
+      };
 
-      expect(evaluator.evaluate(request1).allowed).toBe(true)
+      expect(evaluator.evaluate(request1).allowed).toBe(true);
 
       const request2: SecurityRequest = {
         ...request1,
         securityMode: 'strict',
-      }
+      };
 
-      expect(evaluator.evaluate(request2).allowed).toBe(false)
-    })
+      expect(evaluator.evaluate(request2).allowed).toBe(false);
+    });
 
     it('should evaluate in condition', () => {
       const policy: PolicyDocument = {
@@ -335,9 +335,9 @@ describe('PolicyEvaluator', () => {
             effect: 'allow',
           },
         ],
-      }
+      };
 
-      evaluator.loadPolicies([policy])
+      evaluator.loadPolicies([policy]);
 
       const baseRequest: SecurityRequest = {
         requestId: 'test-9',
@@ -348,14 +348,12 @@ describe('PolicyEvaluator', () => {
         action: 'read',
         metadata: {},
         timestamp: new Date(),
-      }
+      };
 
-      expect(evaluator.evaluate(baseRequest).allowed).toBe(true)
-      expect(evaluator.evaluate({ ...baseRequest, securityMode: 'permissive' }).allowed).toBe(
-        true
-      )
-      expect(evaluator.evaluate({ ...baseRequest, securityMode: 'strict' }).allowed).toBe(false)
-    })
+      expect(evaluator.evaluate(baseRequest).allowed).toBe(true);
+      expect(evaluator.evaluate({ ...baseRequest, securityMode: 'permissive' }).allowed).toBe(true);
+      expect(evaluator.evaluate({ ...baseRequest, securityMode: 'strict' }).allowed).toBe(false);
+    });
 
     it('should evaluate starts_with condition', () => {
       const policy: PolicyDocument = {
@@ -375,9 +373,9 @@ describe('PolicyEvaluator', () => {
             effect: 'allow',
           },
         ],
-      }
+      };
 
-      evaluator.loadPolicies([policy])
+      evaluator.loadPolicies([policy]);
 
       const request1: SecurityRequest = {
         requestId: 'test-10',
@@ -388,17 +386,17 @@ describe('PolicyEvaluator', () => {
         action: 'read',
         metadata: { path: './workspace/file.txt' },
         timestamp: new Date(),
-      }
+      };
 
-      expect(evaluator.evaluate(request1).allowed).toBe(true)
+      expect(evaluator.evaluate(request1).allowed).toBe(true);
 
       const request2: SecurityRequest = {
         ...request1,
         metadata: { path: './etc/passwd' },
-      }
+      };
 
-      expect(evaluator.evaluate(request2).allowed).toBe(false)
-    })
+      expect(evaluator.evaluate(request2).allowed).toBe(false);
+    });
 
     it('should evaluate matches (regex) condition', () => {
       const policy: PolicyDocument = {
@@ -418,9 +416,9 @@ describe('PolicyEvaluator', () => {
             effect: 'allow',
           },
         ],
-      }
+      };
 
-      evaluator.loadPolicies([policy])
+      evaluator.loadPolicies([policy]);
 
       const request1: SecurityRequest = {
         requestId: 'test-11',
@@ -431,17 +429,17 @@ describe('PolicyEvaluator', () => {
         action: 'send',
         metadata: {},
         timestamp: new Date(),
-      }
+      };
 
-      expect(evaluator.evaluate(request1).allowed).toBe(true)
+      expect(evaluator.evaluate(request1).allowed).toBe(true);
 
       const request2: SecurityRequest = {
         ...request1,
         userId: 'user-123',
-      }
+      };
 
-      expect(evaluator.evaluate(request2).allowed).toBe(false)
-    })
+      expect(evaluator.evaluate(request2).allowed).toBe(false);
+    });
 
     it('should require all conditions to match (AND logic)', () => {
       const policy: PolicyDocument = {
@@ -466,9 +464,9 @@ describe('PolicyEvaluator', () => {
             effect: 'allow',
           },
         ],
-      }
+      };
 
-      evaluator.loadPolicies([policy])
+      evaluator.loadPolicies([policy]);
 
       const baseRequest: SecurityRequest = {
         requestId: 'test-12',
@@ -479,15 +477,13 @@ describe('PolicyEvaluator', () => {
         action: 'execute',
         metadata: { explicitly_enabled: true },
         timestamp: new Date(),
-      }
+      };
 
       // Both conditions match
-      expect(evaluator.evaluate(baseRequest).allowed).toBe(true)
+      expect(evaluator.evaluate(baseRequest).allowed).toBe(true);
 
       // Wrong mode
-      expect(
-        evaluator.evaluate({ ...baseRequest, securityMode: 'strict' }).allowed
-      ).toBe(false)
+      expect(evaluator.evaluate({ ...baseRequest, securityMode: 'strict' }).allowed).toBe(false);
 
       // Not enabled
       expect(
@@ -495,9 +491,9 @@ describe('PolicyEvaluator', () => {
           ...baseRequest,
           metadata: { explicitly_enabled: false },
         }).allowed
-      ).toBe(false)
-    })
-  })
+      ).toBe(false);
+    });
+  });
 
   describe('Performance', () => {
     it('should evaluate in less than 1ms', () => {
@@ -512,9 +508,9 @@ describe('PolicyEvaluator', () => {
           },
           effect: 'allow' as const,
         })),
-      }
+      };
 
-      evaluator.loadPolicies([policy])
+      evaluator.loadPolicies([policy]);
 
       const request: SecurityRequest = {
         requestId: 'test-perf',
@@ -525,12 +521,12 @@ describe('PolicyEvaluator', () => {
         action: 'read',
         metadata: {},
         timestamp: new Date(),
-      }
+      };
 
-      const result = evaluator.evaluate(request)
-      expect(result.evaluationTimeMs).toBeLessThan(1)
-    })
-  })
+      const result = evaluator.evaluate(request);
+      expect(result.evaluationTimeMs).toBeLessThan(1);
+    });
+  });
 
   describe('Statistics', () => {
     it('should track evaluation statistics', () => {
@@ -544,9 +540,9 @@ describe('PolicyEvaluator', () => {
             effect: 'allow',
           },
         ],
-      }
+      };
 
-      evaluator.loadPolicies([policy])
+      evaluator.loadPolicies([policy]);
 
       const request: SecurityRequest = {
         requestId: 'test-stats',
@@ -557,16 +553,16 @@ describe('PolicyEvaluator', () => {
         action: 'read',
         metadata: {},
         timestamp: new Date(),
-      }
+      };
 
-      evaluator.evaluate(request)
-      evaluator.evaluate(request)
-      evaluator.evaluate(request)
+      evaluator.evaluate(request);
+      evaluator.evaluate(request);
+      evaluator.evaluate(request);
 
-      const stats = evaluator.getStats()
-      expect(stats.evaluationCount).toBe(3)
-      expect(stats.rulesLoaded).toBe(1)
-      expect(stats.avgEvaluationTimeMs).toBeGreaterThan(0)
-    })
-  })
-})
+      const stats = evaluator.getStats();
+      expect(stats.evaluationCount).toBe(3);
+      expect(stats.rulesLoaded).toBe(1);
+      expect(stats.avgEvaluationTimeMs).toBeGreaterThan(0);
+    });
+  });
+});

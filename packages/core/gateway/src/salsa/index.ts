@@ -11,9 +11,9 @@ import type {
   SecurityRequest,
   SecurityResult,
   PolicyValidationError,
-} from './types/index.js'
-import { PolicyLoader } from './policy/loader.js'
-import { PolicyEvaluator } from './policy/evaluator.js'
+} from './types/index.js';
+import { PolicyLoader } from './policy/loader.js';
+import { PolicyEvaluator } from './policy/evaluator.js';
 
 /**
  * Salsa Policy Engine
@@ -22,14 +22,14 @@ import { PolicyEvaluator } from './policy/evaluator.js'
  * Provides <1ms policy evaluation with hot-reload support.
  */
 export class Salsa {
-  private loader: PolicyLoader
-  private evaluator: PolicyEvaluator
-  private lastReload: Date | null = null
-  private validationErrors: PolicyValidationError[] = []
+  private loader: PolicyLoader;
+  private evaluator: PolicyEvaluator;
+  private lastReload: Date | null = null;
+  private validationErrors: PolicyValidationError[] = [];
 
   constructor(config: PolicyEngineConfig) {
     // Create evaluator with default deny
-    this.evaluator = new PolicyEvaluator(config.defaultEffect)
+    this.evaluator = new PolicyEvaluator(config.defaultEffect);
 
     // Create loader
     this.loader = new PolicyLoader({
@@ -37,14 +37,14 @@ export class Salsa {
       enableHotReload: config.enableHotReload,
       onReload: (policies, errors) => this.handleReload(policies, errors),
       onError: (error) => this.handleError(error),
-    })
+    });
 
     // Initial load
-    this.reload()
+    this.reload();
 
     // Start watching if enabled
     if (config.enableHotReload) {
-      this.loader.startWatching()
+      this.loader.startWatching();
     }
   }
 
@@ -54,32 +54,34 @@ export class Salsa {
    * @returns Security result with allow/deny decision
    */
   evaluate(request: SecurityRequest): SecurityResult {
-    return this.evaluator.evaluate(request)
+    return this.evaluator.evaluate(request);
   }
 
   /**
    * Reload policies from disk
    */
   reload(): void {
-    console.log('[Salsa] Loading policies...')
-    const [policies, errors] = this.loader.load()
+    console.log('[Salsa] Loading policies...');
+    const [policies, errors] = this.loader.load();
 
-    this.validationErrors = errors
-    this.lastReload = new Date()
+    this.validationErrors = errors;
+    this.lastReload = new Date();
 
     if (errors.length > 0) {
-      console.error('[Salsa] Policy validation errors:')
+      console.error('[Salsa] Policy validation errors:');
       for (const error of errors) {
-        console.error(`  [${error.file}${error.ruleId ? `:${error.ruleId}` : ''}] ${error.message}`)
+        console.error(
+          `  [${error.file}${error.ruleId ? `:${error.ruleId}` : ''}] ${error.message}`
+        );
       }
     }
 
     // Load valid policies into evaluator
     if (policies.length > 0) {
-      this.evaluator.loadPolicies(policies)
-      console.log(`[Salsa] Loaded ${policies.length} policy document(s) successfully`)
+      this.evaluator.loadPolicies(policies);
+      console.log(`[Salsa] Loaded ${policies.length} policy document(s) successfully`);
     } else {
-      console.warn('[Salsa] No valid policies loaded - using default deny')
+      console.warn('[Salsa] No valid policies loaded - using default deny');
     }
   }
 
@@ -87,20 +89,22 @@ export class Salsa {
    * Handle policy reload from file watcher
    */
   private handleReload(policies: any[], errors: PolicyValidationError[]): void {
-    console.log('[Salsa] Policies reloaded from disk')
-    this.validationErrors = errors
-    this.lastReload = new Date()
+    console.log('[Salsa] Policies reloaded from disk');
+    this.validationErrors = errors;
+    this.lastReload = new Date();
 
     if (errors.length > 0) {
-      console.error('[Salsa] Validation errors after reload:')
+      console.error('[Salsa] Validation errors after reload:');
       for (const error of errors) {
-        console.error(`  [${error.file}${error.ruleId ? `:${error.ruleId}` : ''}] ${error.message}`)
+        console.error(
+          `  [${error.file}${error.ruleId ? `:${error.ruleId}` : ''}] ${error.message}`
+        );
       }
     }
 
     if (policies.length > 0) {
-      this.evaluator.loadPolicies(policies)
-      console.log(`[Salsa] Reloaded ${policies.length} policy document(s)`)
+      this.evaluator.loadPolicies(policies);
+      console.log(`[Salsa] Reloaded ${policies.length} policy document(s)`);
     }
   }
 
@@ -108,15 +112,15 @@ export class Salsa {
    * Handle loader errors
    */
   private handleError(error: Error): void {
-    console.error('[Salsa] Policy loader error:', error)
+    console.error('[Salsa] Policy loader error:', error);
   }
 
   /**
    * Get engine statistics
    */
   getStats(): PolicyEngineStats {
-    const evalStats = this.evaluator.getStats()
-    const policies = this.loader.getPolicies()
+    const evalStats = this.evaluator.getStats();
+    const policies = this.loader.getPolicies();
 
     return {
       policiesLoaded: policies.length,
@@ -124,28 +128,28 @@ export class Salsa {
       evaluationsTotal: evalStats.evaluationCount,
       avgEvaluationTimeMs: evalStats.avgEvaluationTimeMs,
       lastReload: this.lastReload ?? undefined,
-    }
+    };
   }
 
   /**
    * Get current validation errors
    */
   getValidationErrors(): PolicyValidationError[] {
-    return this.validationErrors
+    return this.validationErrors;
   }
 
   /**
    * Check if engine has validation errors
    */
   hasValidationErrors(): boolean {
-    return this.validationErrors.length > 0
+    return this.validationErrors.length > 0;
   }
 
   /**
    * Cleanup resources
    */
   destroy(): void {
-    this.loader.destroy()
+    this.loader.destroy();
   }
 }
 
@@ -161,7 +165,7 @@ export function createSalsa(
     securityMode,
     enableHotReload: true,
     defaultEffect: 'deny', // Secure by default
-  })
+  });
 }
 
 // Re-export types for convenience
@@ -173,4 +177,4 @@ export type {
   PolicyValidationError,
   PolicyDocument,
   PolicyRule,
-} from './types/index.js'
+} from './types/index.js';

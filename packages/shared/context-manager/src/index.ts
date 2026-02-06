@@ -44,7 +44,12 @@ export {
 // Core Components
 // ============================================================================
 
-export { ContextBudgetCalculator, formatContextBudget, shouldCompact, getCompactionUrgency } from './budget/calculator.js';
+export {
+  ContextBudgetCalculator,
+  formatContextBudget,
+  shouldCompact,
+  getCompactionUrgency,
+} from './budget/calculator.js';
 
 export {
   SlidingWindowManager,

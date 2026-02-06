@@ -7,7 +7,7 @@ export class CLIError extends Error {
     message: string,
     public readonly code: string,
     public readonly exitCode: number = 1,
-    public readonly suggestion?: string,
+    public readonly suggestion?: string
   ) {
     super(message);
     this.name = 'CLIError';
@@ -22,7 +22,7 @@ export class ConfigNotFoundError extends CLIError {
       'No nachos.toml configuration file found',
       'CONFIG_NOT_FOUND',
       2,
-      `Run 'nachos init' to create a new project, or set NACHOS_CONFIG_PATH to specify the location.\n\nSearched paths:\n${pathList}`,
+      `Run 'nachos init' to create a new project, or set NACHOS_CONFIG_PATH to specify the location.\n\nSearched paths:\n${pathList}`
     );
   }
 }
@@ -33,7 +33,7 @@ export class DockerNotAvailableError extends CLIError {
       'Docker is not available',
       'DOCKER_NOT_AVAILABLE',
       3,
-      'Install Docker Desktop or Docker Engine: https://docs.docker.com/get-docker/',
+      'Install Docker Desktop or Docker Engine: https://docs.docker.com/get-docker/'
     );
   }
 }
@@ -44,7 +44,7 @@ export class DockerComposeNotAvailableError extends CLIError {
       'Docker Compose V2 is not available',
       'DOCKER_COMPOSE_NOT_AVAILABLE',
       3,
-      'Update to Docker Compose V2. Run: docker compose version',
+      'Update to Docker Compose V2. Run: docker compose version'
     );
   }
 }
@@ -55,7 +55,7 @@ export class ConfigValidationError extends CLIError {
       `Configuration validation failed: ${message}`,
       'CONFIG_VALIDATION_FAILED',
       2,
-      'Check your nachos.toml file for errors. Run: nachos config validate',
+      'Check your nachos.toml file for errors. Run: nachos config validate'
     );
     if (details) {
       (this as any).details = details;
@@ -69,18 +69,13 @@ export class ComposeGenerationError extends CLIError {
       `Failed to generate docker-compose file: ${message}`,
       'COMPOSE_GENERATION_FAILED',
       3,
-      'Check your nachos.toml configuration and ensure all required fields are present.',
+      'Check your nachos.toml configuration and ensure all required fields are present.'
     );
   }
 }
 
 export class DockerCommandError extends CLIError {
   constructor(command: string, stderr: string) {
-    super(
-      `Docker command failed: ${command}`,
-      'DOCKER_COMMAND_FAILED',
-      3,
-      `Error: ${stderr}`,
-    );
+    super(`Docker command failed: ${command}`, 'DOCKER_COMMAND_FAILED', 3, `Error: ${stderr}`);
   }
 }

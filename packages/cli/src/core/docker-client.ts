@@ -5,7 +5,11 @@
 
 import { spawn, spawnSync } from 'node:child_process';
 import type { ContainerStatus } from './types.js';
-import { DockerNotAvailableError, DockerComposeNotAvailableError, DockerCommandError } from './errors.js';
+import {
+  DockerNotAvailableError,
+  DockerComposeNotAvailableError,
+  DockerCommandError,
+} from './errors.js';
 
 export class DockerClient {
   /**
@@ -77,7 +81,10 @@ export class DockerClient {
   /**
    * Start services using docker compose up
    */
-  async up(composeFile: string, options: { detach?: boolean; build?: boolean } = {}): Promise<void> {
+  async up(
+    composeFile: string,
+    options: { detach?: boolean; build?: boolean } = {}
+  ): Promise<void> {
     const args = ['compose', '-f', composeFile, 'up'];
 
     if (options.detach) {
@@ -94,7 +101,10 @@ export class DockerClient {
   /**
    * Stop and remove services using docker compose down
    */
-  async down(composeFile: string, options: { volumes?: boolean; removeOrphans?: boolean } = {}): Promise<void> {
+  async down(
+    composeFile: string,
+    options: { volumes?: boolean; removeOrphans?: boolean } = {}
+  ): Promise<void> {
     const args = ['compose', '-f', composeFile, 'down'];
 
     if (options.volumes) {
@@ -122,7 +132,7 @@ export class DockerClient {
   async logs(
     composeFile: string,
     service?: string,
-    options: { follow?: boolean; tail?: number; timestamps?: boolean } = {},
+    options: { follow?: boolean; tail?: number; timestamps?: boolean } = {}
   ): Promise<void> {
     const args = ['compose', '-f', composeFile, 'logs'];
 
@@ -149,10 +159,14 @@ export class DockerClient {
    * Get container status for services
    */
   async ps(composeFile: string): Promise<ContainerStatus[]> {
-    const result = spawnSync('docker', ['compose', '-f', composeFile, 'ps', '--format', 'json', '--all'], {
-      encoding: 'utf-8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    const result = spawnSync(
+      'docker',
+      ['compose', '-f', composeFile, 'ps', '--format', 'json', '--all'],
+      {
+        encoding: 'utf-8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+      }
+    );
 
     if (result.status !== 0) {
       throw new DockerCommandError(`docker compose ps`, result.stderr);

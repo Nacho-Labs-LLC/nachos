@@ -3,13 +3,10 @@
  *
  * Environment-based configuration with sensible defaults.
  */
-import type { DLPConfig } from './security/dlp.js'
+import type { DLPConfig } from './security/dlp.js';
 import { ConfigLoadError, listEnabledChannels, loadAndValidateConfig } from '@nachos/config';
-import {
-  createDefaultRateLimiterConfig,
-  type RateLimiterConfig,
-} from './security/rate-limiter.js'
-import type { PolicyEngineConfig } from './salsa/types/index.js'
+import { createDefaultRateLimiterConfig, type RateLimiterConfig } from './security/rate-limiter.js';
+import type { PolicyEngineConfig } from './salsa/types/index.js';
 
 /**
  * Gateway configuration interface
@@ -78,18 +75,19 @@ export function loadConfig(): GatewayConfig {
         process.env.GATEWAY_STREAMING_PASSTHROUGH ??
           process.env.RUNTIME_GATEWAY_STREAMING_PASSTHROUGH
       ) ?? defaults.streamingPassthrough,
-    streamingChunkSize: parseOptionalInt(
-      process.env.GATEWAY_STREAMING_CHUNK_SIZE ??
-        process.env.RUNTIME_GATEWAY_STREAMING_CHUNK_SIZE
-    ) ?? defaults.streamingChunkSize,
-    streamingMinIntervalMs: parseOptionalInt(
-      process.env.GATEWAY_STREAMING_MIN_INTERVAL_MS ??
-        process.env.RUNTIME_GATEWAY_STREAMING_MIN_INTERVAL_MS
-    ) ?? defaults.streamingMinIntervalMs,
+    streamingChunkSize:
+      parseOptionalInt(
+        process.env.GATEWAY_STREAMING_CHUNK_SIZE ?? process.env.RUNTIME_GATEWAY_STREAMING_CHUNK_SIZE
+      ) ?? defaults.streamingChunkSize,
+    streamingMinIntervalMs:
+      parseOptionalInt(
+        process.env.GATEWAY_STREAMING_MIN_INTERVAL_MS ??
+          process.env.RUNTIME_GATEWAY_STREAMING_MIN_INTERVAL_MS
+      ) ?? defaults.streamingMinIntervalMs,
     rateLimiter: {
       enabled: process.env.GATEWAY_RATE_LIMIT_ENABLED
         ? process.env.GATEWAY_RATE_LIMIT_ENABLED === 'true'
-        : defaults.rateLimiter?.enabled ?? true,
+        : (defaults.rateLimiter?.enabled ?? true),
       redisUrl:
         process.env.REDIS_URL ?? process.env.RUNTIME_REDIS_URL ?? rateLimiterDefaults.redisUrl,
       limits: {
@@ -127,9 +125,7 @@ function resolveChannelsFromConfig(): string[] {
   }
 }
 
-function parseSecurityMode(
-  value: string | undefined
-): 'strict' | 'standard' | 'permissive' {
+function parseSecurityMode(value: string | undefined): 'strict' | 'standard' | 'permissive' {
   if (value === 'strict' || value === 'standard' || value === 'permissive') {
     return value;
   }

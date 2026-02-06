@@ -31,7 +31,8 @@ export async function checkPorts(): Promise<DoctorCheck> {
       name: 'Port Availability',
       status: 'warn',
       message: `Ports in use: ${unavailable.join(', ')}`,
-      suggestion: 'These ports may already be in use. Services will fail to start if ports are blocked.',
+      suggestion:
+        'These ports may already be in use. Services will fail to start if ports are blocked.',
     };
   }
 

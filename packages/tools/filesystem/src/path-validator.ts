@@ -59,10 +59,7 @@ export class PathValidator {
     this.allowedPaths = config.allowedPaths.map((p) => path.resolve(p));
 
     // Combine default and custom blocked patterns
-    this.blockedPatterns = [
-      ...DEFAULT_BLOCKED_PATTERNS,
-      ...(config.blockedPatterns ?? []),
-    ];
+    this.blockedPatterns = [...DEFAULT_BLOCKED_PATTERNS, ...(config.blockedPatterns ?? [])];
 
     this.allowTraversal = config.allowTraversal ?? false;
   }
@@ -83,9 +80,7 @@ export class PathValidator {
     }
 
     // Check if path is within allowed directories
-    const isAllowed = this.allowedPaths.some((allowedPath) =>
-      resolved.startsWith(allowedPath)
-    );
+    const isAllowed = this.allowedPaths.some((allowedPath) => resolved.startsWith(allowedPath));
 
     if (!isAllowed) {
       return {

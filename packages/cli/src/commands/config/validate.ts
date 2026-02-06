@@ -13,11 +13,7 @@ interface ValidateOptions {
 }
 
 export async function validateCommand(options: ValidateOptions): Promise<void> {
-  const output = new OutputFormatter(
-    options.json ?? false,
-    'config validate',
-    getVersion(),
-  );
+  const output = new OutputFormatter(options.json ?? false, 'config validate', getVersion());
 
   try {
     // Find config file
@@ -36,7 +32,7 @@ export async function validateCommand(options: ValidateOptions): Promise<void> {
     if (!result.valid) {
       throw new ConfigValidationError(
         result.errors?.join(', ') ?? 'Unknown validation error',
-        result.errors,
+        result.errors
       );
     }
 

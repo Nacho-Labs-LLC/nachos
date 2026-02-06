@@ -1,12 +1,16 @@
 # ADR-006: DLP Library as Separate Repository
 
-**Status**: Proposed
+**Status**: Accepted
 
 **Date**: 2026-02-01
+
+**Implemented**: 2026-02-06
 
 **Deciders**: Nachos Core Team
 
 **Context**: Data Loss Prevention (DLP) scanning implementation strategy
+
+**Update (2026-02-06)**: Outbound DLP scanning removed to reduce latency; DLP now applies only to inbound messages and tool inputs/outputs.
 
 ---
 
@@ -488,6 +492,13 @@ Patterns will be adapted (not copied verbatim) to:
 - Library can evolve independently
 - Community can contribute patterns
 - Version compatibility to manage
+
+**Implementation Update (2026-02-06):**
+
+- Outbound DLP scanning removed to reduce response latency
+- DLP scanning applied to: inbound messages, tool inputs, tool outputs
+- Outbound policy checks still enforced, but no DLP pattern matching
+- Trade-off: Faster responses vs. potential sensitive data in LLM outputs
 
 ---
 

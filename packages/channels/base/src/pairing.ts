@@ -64,10 +64,7 @@ class FilePairingStore implements PairingStore {
   }
 }
 
-export function createPairingStore(
-  channelId: string,
-  options?: PairingStoreOptions
-): PairingStore {
+export function createPairingStore(channelId: string, options?: PairingStoreOptions): PairingStore {
   return new FilePairingStore(channelId, options);
 }
 

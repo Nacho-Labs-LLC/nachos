@@ -6,7 +6,11 @@
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { loadAndValidateConfig } from '@nachos/config';
-import { findConfigFileOrThrow, getProjectRoot, getConfigSearchPaths } from '../core/config-discovery.js';
+import {
+  findConfigFileOrThrow,
+  getProjectRoot,
+  getConfigSearchPaths,
+} from '../core/config-discovery.js';
 import { OutputFormatter, prettyOutput } from '../core/output.js';
 import { DockerClient } from '../core/docker-client.js';
 import { getVersion } from '../cli.js';
@@ -16,11 +20,7 @@ interface DebugOptions {
 }
 
 export async function debugCommand(options: DebugOptions): Promise<void> {
-  const output = new OutputFormatter(
-    options.json ?? false,
-    'debug',
-    getVersion(),
-  );
+  const output = new OutputFormatter(options.json ?? false, 'debug', getVersion());
 
   try {
     const docker = new DockerClient();
@@ -115,7 +115,10 @@ export async function debugCommand(options: DebugOptions): Promise<void> {
         prettyOutput.keyValue('Project Root', debugInfo.config.project_root);
         prettyOutput.keyValue('Security Mode', debugInfo.config.security_mode || 'N/A');
         prettyOutput.keyValue('LLM Provider', debugInfo.config.llm_provider || 'N/A');
-        prettyOutput.keyValue('Compose Generated', debugInfo.config.compose_generated ? 'Yes' : 'No');
+        prettyOutput.keyValue(
+          'Compose Generated',
+          debugInfo.config.compose_generated ? 'Yes' : 'No'
+        );
       }
       prettyOutput.blank();
 
@@ -124,8 +127,14 @@ export async function debugCommand(options: DebugOptions): Promise<void> {
       if (debugInfo.docker.error) {
         prettyOutput.warn(`Error: ${debugInfo.docker.error}`);
       } else {
-        prettyOutput.keyValue('Docker', debugInfo.docker.available ? debugInfo.docker.version : 'Not available');
-        prettyOutput.keyValue('Compose', debugInfo.docker.compose_available ? debugInfo.docker.compose_version : 'Not available');
+        prettyOutput.keyValue(
+          'Docker',
+          debugInfo.docker.available ? debugInfo.docker.version : 'Not available'
+        );
+        prettyOutput.keyValue(
+          'Compose',
+          debugInfo.docker.compose_available ? debugInfo.docker.compose_version : 'Not available'
+        );
       }
       prettyOutput.blank();
 

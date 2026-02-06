@@ -1,7 +1,13 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages';
 import type { LLMRequestType, LLMMessageType } from '@nachos/types';
-import { ProviderError, type AdapterResponse, type AdapterSendOptions, type AdapterStreamOptions, type StreamChunkHandler } from './types.js';
+import {
+  ProviderError,
+  type AdapterResponse,
+  type AdapterSendOptions,
+  type AdapterStreamOptions,
+  type StreamChunkHandler,
+} from './types.js';
 
 function extractSystemPrompt(messages: LLMRequestType['messages']): string | undefined {
   const systemMessages = messages.filter(
@@ -16,13 +22,14 @@ function extractSystemPrompt(messages: LLMRequestType['messages']): string | und
     .join('\n\n');
 }
 
-function toAnthropicMessages(messages: LLMRequestType['messages']): MessageCreateParams['messages'] {
+function toAnthropicMessages(
+  messages: LLMRequestType['messages']
+): MessageCreateParams['messages'] {
   return messages
     .filter((message: LLMRequestType['messages'][number]) => message.role !== 'system')
     .map((message: LLMRequestType['messages'][number]) => {
-      const content = typeof message.content === 'string'
-        ? message.content
-        : JSON.stringify(message.content);
+      const content =
+        typeof message.content === 'string' ? message.content : JSON.stringify(message.content);
 
       return {
         role: message.role === 'tool' ? 'user' : (message.role as 'user' | 'assistant'),
@@ -55,7 +62,9 @@ interface AnthropicContentBlock {
 
 function mapToolCalls(content: AnthropicContentBlock[] | undefined): ToolCall[] | undefined {
   if (!content) return undefined;
-  const calls = content.filter((part): part is AnthropicContentBlock & { type: 'tool_use' } => part.type === 'tool_use');
+  const calls = content.filter(
+    (part): part is AnthropicContentBlock & { type: 'tool_use' } => part.type === 'tool_use'
+  );
   if (calls.length === 0) return undefined;
   return calls.map((call) => ({
     id: call.id ?? '',
@@ -67,7 +76,10 @@ function mapToolCalls(content: AnthropicContentBlock[] | undefined): ToolCall[] 
 function extractText(content: AnthropicContentBlock[] | undefined): string {
   if (!content) return '';
   return content
-    .filter((part): part is AnthropicContentBlock & { text: string } => part.type === 'text' && Boolean(part.text))
+    .filter(
+      (part): part is AnthropicContentBlock & { text: string } =>
+        part.type === 'text' && Boolean(part.text)
+    )
     .map((part) => part.text)
     .join('');
 }
@@ -117,7 +129,10 @@ export class AnthropicAdapter {
     } catch (error) {
       const mapped = this.mapError(error);
       if (profileName && (mapped.kind === 'rate_limit' || mapped.kind === 'billing')) {
-        options.onProfileCooldown?.(profileName, mapped.kind === 'billing' ? 'billing' : 'rate_limit');
+        options.onProfileCooldown?.(
+          profileName,
+          mapped.kind === 'billing' ? 'billing' : 'rate_limit'
+        );
       }
       throw mapped;
     }

@@ -148,18 +148,9 @@ mode = "strict"  # Start here, relax as needed
 
 ## Adding Modules
 
-```bash
-# See what's available
-nachos search channels
-nachos search tools
+**Coming soon**: Module registry and CLI commands.
 
-# Add what you need
-nachos add channel telegram
-nachos add tool code-runner
-
-# Remove what you don't
-nachos remove channel slack
-```
+For now, modules are configured in `nachos.toml` (restart required).
 
 ## Architecture
 
@@ -168,8 +159,8 @@ nachos remove channel slack
 │                      Docker Compose                           │
 │                                                               │
 │  ┌─────────────────────────────────────────────────────────┐ │
-│  │                   Salsa (Policy)                        │ │
-│  │    DLP │ Rate Limits │ Allowlists │ Audit Logging      │ │
+│  │                Gateway (with embedded security)          │ │
+│  │    DLP │ Rate Limits │ Policies │ Audit │ Sessions      │ │
 │  └─────────────────────────────────────────────────────────┘ │
 │                            │                                  │
 │  ┌─────────────────────────▼─────────────────────────────┐   │
@@ -178,12 +169,12 @@ nachos remove channel slack
 │  └────────────────────────────────────────────────────────┘  │
 │       │            │              │              │            │
 │  ┌────▼────┐  ┌────▼────┐  ┌─────▼─────┐  ┌────▼────┐       │
-│  │ Gateway │  │LLM Proxy│  │ Channels  │  │  Tools  │       │
-│  │         │  │         │  │           │  │         │       │
-│  │Sessions │  │ Claude  │  │  Slack    │  │ Browser │       │
-│  │Routing  │  │ GPT     │  │  Discord  │  │ Files   │       │
-│  │State    │  │ Ollama  │  │  Telegram │  │ Code    │       │
-│  └─────────┘  └─────────┘  └───────────┘  └─────────┘       │
+│  │LLM Proxy│  │ Channels  │  │  Tools    │  │ Redis   │      │
+│  │         │  │           │  │           │  │(optional)│      │
+│  │ Claude  │  │  Slack    │  │ Browser   │  │         │      │
+│  │ GPT     │  │  Discord  │  │ Files     │  │Scaling  │      │
+│  │ Ollama  │  │  Telegram │  │ Code      │  │Support  │      │
+│  └─────────┘  └───────────┘  └───────────┘  └─────────┘     │
 │                                                               │
 │  ┌─────────────────────────────────────────────────────────┐ │
 │  │              Internal Network (isolated)                │ │
@@ -196,26 +187,29 @@ nachos remove channel slack
 └──────────────────────────────────────────────────────────────┘
 ```
 
-## CLI Reference
+## CLI Reference (Coming in Phase 5)
+
+## CLI Reference (Coming in Phase 5)
+
+**Planned commands** (not yet implemented):
 
 ```bash
 nachos init          # Initialize new project
 nachos up            # Start all containers
 nachos down          # Stop all containers
-nachos restart       # Restart the stack
-nachos logs          # View aggregated logs
-nachos status        # Show running components
-nachos doctor        # Health check & diagnostics
+nachos logs          # View logs
+nachos status        # Show status
+nachos doctor        # Health check
 
-nachos add <type> <name>      # Add a channel or tool
-nachos remove <type> <name>   # Remove a channel or tool
-nachos search <type>          # Browse available modules
-
-nachos chat          # Interactive CLI chat
 nachos config        # Edit configuration
+```
 
-nachos create channel <name>  # Scaffold custom channel
-nachos create tool <name>     # Scaffold custom tool
+For now, use Docker Compose directly:
+
+```bash
+docker compose -f docker-compose.dev.yml up
+docker compose -f docker-compose.dev.yml down
+docker compose -f docker-compose.dev.yml logs -f
 ```
 
 ## Project Structure
@@ -253,19 +247,25 @@ nachos/
 ├── docker-compose.dev.yml # Development stack
 └── .env.example          # Environment template
 ```
+Current Phase**: Phase 7 - Additional Channels (🚧 In Progress)
 
-## Development Status
+**Completed**:
+- ✅ Phase 0: Foundation Setup
+- ✅ Phase 1: Core Infrastructure (Gateway, Bus, Message Flow)
+- ✅ Phase 2: Security Layer (Embedded in Gateway: DLP, Rate Limiting, Policy Engine, Audit)
+- ✅ Phase 3: LLM Integration (Multi-provider proxy: Claude, GPT, Ollama)
+- ✅ Phase 4: First Channels (Slack + Discord with attachments, mention gating, pairing)
+- ✅ Phase 6: Tools (Browser, Filesystem, Code Runner)
 
-**Phase 0: Foundation Setup** ✅ Complete
-- [x] Repository structure
-- [x] Docker infrastructure with hot-reload
-- [x] Network isolation (internal + egress)
-- [x] Core service scaffolding
+**In Progress**:
+- 🚧 Phase 5: CLI Tooling
+- 🚧 Phase 7: Additional Channels (Telegram, WhatsApp)
 
-**Phase 1: Core Infrastructure** 🚧 In Progress
-- [ ] Gateway implementation
-- [ ] NATS message handling
-- [ ] LLM proxy with provider abstraction
+**Next Steps**:
+- Phase 8: Polish & Launch
+- Phase 9: Registry & Addons
+
+See [../../PROJECT_ROADMAP.md](../../PROJECT_ROADMAP.md) for full details and [docs/adr/](docs/adr/) for architectural decisions.
 - [ ] Policy engine (Salsa)
 
 **Phase 2+**: Coming soon...

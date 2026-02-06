@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { validatePolicyDocument, isPolicyDocumentValid } from './validator.js'
+import { describe, it, expect } from 'vitest';
+import { validatePolicyDocument, isPolicyDocumentValid } from './validator.js';
 
 describe('PolicyValidator', () => {
   describe('validatePolicyDocument', () => {
@@ -17,39 +17,39 @@ describe('PolicyValidator', () => {
             effect: 'allow',
           },
         ],
-      }
+      };
 
-      const errors = validatePolicyDocument(doc, 'test.yaml')
-      expect(errors).toHaveLength(0)
-    })
+      const errors = validatePolicyDocument(doc, 'test.yaml');
+      expect(errors).toHaveLength(0);
+    });
 
     it('should error on missing version', () => {
       const doc = {
         rules: [],
-      }
+      };
 
-      const errors = validatePolicyDocument(doc, 'test.yaml')
-      expect(errors.some((e) => e.field === 'version')).toBe(true)
-    })
+      const errors = validatePolicyDocument(doc, 'test.yaml');
+      expect(errors.some((e) => e.field === 'version')).toBe(true);
+    });
 
     it('should error on missing rules array', () => {
       const doc = {
         version: '1.0',
-      }
+      };
 
-      const errors = validatePolicyDocument(doc, 'test.yaml')
-      expect(errors.some((e) => e.field === 'rules')).toBe(true)
-    })
+      const errors = validatePolicyDocument(doc, 'test.yaml');
+      expect(errors.some((e) => e.field === 'rules')).toBe(true);
+    });
 
     it('should error on invalid rules type', () => {
       const doc = {
         version: '1.0',
         rules: 'not-an-array',
-      }
+      };
 
-      const errors = validatePolicyDocument(doc, 'test.yaml')
-      expect(errors.some((e) => e.field === 'rules')).toBe(true)
-    })
+      const errors = validatePolicyDocument(doc, 'test.yaml');
+      expect(errors.some((e) => e.field === 'rules')).toBe(true);
+    });
 
     it('should detect duplicate rule IDs', () => {
       const doc = {
@@ -68,12 +68,12 @@ describe('PolicyValidator', () => {
             effect: 'deny',
           },
         ],
-      }
+      };
 
-      const errors = validatePolicyDocument(doc, 'test.yaml')
-      expect(errors.some((e) => e.message.includes('Duplicate rule ID'))).toBe(true)
-    })
-  })
+      const errors = validatePolicyDocument(doc, 'test.yaml');
+      expect(errors.some((e) => e.message.includes('Duplicate rule ID'))).toBe(true);
+    });
+  });
 
   describe('validatePolicyRule', () => {
     it('should error on missing rule id', () => {
@@ -86,11 +86,11 @@ describe('PolicyValidator', () => {
             effect: 'allow',
           },
         ],
-      }
+      };
 
-      const errors = validatePolicyDocument(doc, 'test.yaml')
-      expect(errors.some((e) => e.message.includes('id'))).toBe(true)
-    })
+      const errors = validatePolicyDocument(doc, 'test.yaml');
+      expect(errors.some((e) => e.message.includes('id'))).toBe(true);
+    });
 
     it('should error on missing priority', () => {
       const doc = {
@@ -102,11 +102,11 @@ describe('PolicyValidator', () => {
             effect: 'allow',
           },
         ],
-      }
+      };
 
-      const errors = validatePolicyDocument(doc, 'test.yaml')
-      expect(errors.some((e) => e.message.includes('priority'))).toBe(true)
-    })
+      const errors = validatePolicyDocument(doc, 'test.yaml');
+      expect(errors.some((e) => e.message.includes('priority'))).toBe(true);
+    });
 
     it('should error on missing match', () => {
       const doc = {
@@ -118,11 +118,11 @@ describe('PolicyValidator', () => {
             effect: 'allow',
           },
         ],
-      }
+      };
 
-      const errors = validatePolicyDocument(doc, 'test.yaml')
-      expect(errors.some((e) => e.message.includes('match'))).toBe(true)
-    })
+      const errors = validatePolicyDocument(doc, 'test.yaml');
+      expect(errors.some((e) => e.message.includes('match'))).toBe(true);
+    });
 
     it('should error on invalid effect', () => {
       const doc = {
@@ -135,11 +135,11 @@ describe('PolicyValidator', () => {
             effect: 'invalid',
           },
         ],
-      }
+      };
 
-      const errors = validatePolicyDocument(doc, 'test.yaml')
-      expect(errors.some((e) => e.message.includes('effect'))).toBe(true)
-    })
+      const errors = validatePolicyDocument(doc, 'test.yaml');
+      expect(errors.some((e) => e.message.includes('effect'))).toBe(true);
+    });
 
     it('should error on invalid resource type', () => {
       const doc = {
@@ -154,11 +154,11 @@ describe('PolicyValidator', () => {
             effect: 'allow',
           },
         ],
-      }
+      };
 
-      const errors = validatePolicyDocument(doc, 'test.yaml')
-      expect(errors.some((e) => e.message.includes('Invalid resource type'))).toBe(true)
-    })
+      const errors = validatePolicyDocument(doc, 'test.yaml');
+      expect(errors.some((e) => e.message.includes('Invalid resource type'))).toBe(true);
+    });
 
     it('should error on invalid action type', () => {
       const doc = {
@@ -173,11 +173,11 @@ describe('PolicyValidator', () => {
             effect: 'allow',
           },
         ],
-      }
+      };
 
-      const errors = validatePolicyDocument(doc, 'test.yaml')
-      expect(errors.some((e) => e.message.includes('Invalid action type'))).toBe(true)
-    })
+      const errors = validatePolicyDocument(doc, 'test.yaml');
+      expect(errors.some((e) => e.message.includes('Invalid action type'))).toBe(true);
+    });
 
     it('should validate array of resource types', () => {
       const doc = {
@@ -193,11 +193,11 @@ describe('PolicyValidator', () => {
             effect: 'allow',
           },
         ],
-      }
+      };
 
-      const errors = validatePolicyDocument(doc, 'test.yaml')
-      expect(errors).toHaveLength(0)
-    })
+      const errors = validatePolicyDocument(doc, 'test.yaml');
+      expect(errors).toHaveLength(0);
+    });
 
     it('should error on invalid condition operator', () => {
       const doc = {
@@ -217,11 +217,11 @@ describe('PolicyValidator', () => {
             effect: 'allow',
           },
         ],
-      }
+      };
 
-      const errors = validatePolicyDocument(doc, 'test.yaml')
-      expect(errors.some((e) => e.message.includes('valid operator'))).toBe(true)
-    })
+      const errors = validatePolicyDocument(doc, 'test.yaml');
+      expect(errors.some((e) => e.message.includes('valid operator'))).toBe(true);
+    });
 
     it('should error on missing condition field', () => {
       const doc = {
@@ -240,12 +240,12 @@ describe('PolicyValidator', () => {
             effect: 'allow',
           },
         ],
-      }
+      };
 
-      const errors = validatePolicyDocument(doc, 'test.yaml')
-      expect(errors.some((e) => e.message.includes('field'))).toBe(true)
-    })
-  })
+      const errors = validatePolicyDocument(doc, 'test.yaml');
+      expect(errors.some((e) => e.message.includes('field'))).toBe(true);
+    });
+  });
 
   describe('isPolicyDocumentValid', () => {
     it('should return true for valid document', () => {
@@ -259,18 +259,18 @@ describe('PolicyValidator', () => {
             effect: 'allow',
           },
         ],
-      }
+      };
 
-      expect(isPolicyDocumentValid(doc, 'test.yaml')).toBe(true)
-    })
+      expect(isPolicyDocumentValid(doc, 'test.yaml')).toBe(true);
+    });
 
     it('should return false for invalid document', () => {
       const doc = {
         version: '1.0',
         rules: 'invalid',
-      }
+      };
 
-      expect(isPolicyDocumentValid(doc, 'test.yaml')).toBe(false)
-    })
-  })
-})
+      expect(isPolicyDocumentValid(doc, 'test.yaml')).toBe(false);
+    });
+  });
+});

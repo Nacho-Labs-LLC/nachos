@@ -224,8 +224,8 @@ describe('Configuration Validation', () => {
         llm: { provider: 'anthropic', model: 'claude' },
         security: {
           mode: 'standard',
-          audit: { enabled: true, provider: 'sqlite', path: '' }
-        }
+          audit: { enabled: true, provider: 'sqlite', path: '' },
+        },
       };
 
       const result = validateConfig(config);
@@ -243,9 +243,11 @@ describe('Configuration Validation', () => {
 
       const result = validateConfig(config);
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.includes('Unknown config key: channels.discord.unknown'))).toBe(true);
+      expect(
+        result.errors.some((e) => e.includes('Unknown config key: channels.discord.unknown'))
+      ).toBe(true);
     });
-       
+
     it('should reject invalid redis url', () => {
       const config: NachosConfig = {
         nachos: { name: 'test', version: '1.0' },

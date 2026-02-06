@@ -63,7 +63,12 @@ describe('ContextBudgetCalculator', () => {
 
       // Green zone (0-60%)
       let messages = createMessages(500, 100); // ~50k tokens = 50%
-      let budget = calculator.calculate({ messages, systemPromptTokens, contextWindow, reserveTokens });
+      let budget = calculator.calculate({
+        messages,
+        systemPromptTokens,
+        contextWindow,
+        reserveTokens,
+      });
       expect(budget.zone).toBe('green');
 
       // Yellow zone (60-75%)

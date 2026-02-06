@@ -15,9 +15,17 @@ import {
   type BusSubscription,
 } from '@nachos/bus';
 import { v4 as uuid } from 'uuid';
-import type { RateLimitAction, RateLimitCheckResult, RateLimiter } from './security/rate-limiter.js';
+import type {
+  RateLimitAction,
+  RateLimitCheckResult,
+  RateLimiter,
+} from './security/rate-limiter.js';
 import { getRateLimitUserId } from './router-utils.js';
-import type { ContextManager, ContextCheckResult, EnhancedCompactionResult } from '@nachos/context-manager';
+import type {
+  ContextManager,
+  ContextCheckResult,
+  EnhancedCompactionResult,
+} from '@nachos/context-manager';
 import { messageAdapter } from '@nachos/context-manager';
 import type { SessionManager } from './session.js';
 
@@ -396,11 +404,17 @@ export class Router {
 
     // Convert compacted messages back to NACHOS format
     if (!compactionResult.messagesKept) {
-      console.warn('[Router] Compaction completed without messagesKept. Skipping message replacement.');
+      console.warn(
+        '[Router] Compaction completed without messagesKept. Skipping message replacement.'
+      );
       return;
     }
 
-    if (!compactionResult.budget || !compactionResult.messagesDropped || !compactionResult.slidingResult) {
+    if (
+      !compactionResult.budget ||
+      !compactionResult.messagesDropped ||
+      !compactionResult.slidingResult
+    ) {
       console.warn('[Router] Compaction result missing details. Skipping metadata update.');
       return;
     }

@@ -109,7 +109,7 @@ export class SlidingWindowManager implements ISlidingWindowManager {
   private calculateKeepRecent(
     messages: ContextMessage[],
     action: SlidingAction,
-    config: SlidingWindowConfig,
+    config: SlidingWindowConfig
   ): number {
     const { keepRecent } = config;
 
@@ -134,7 +134,7 @@ export class SlidingWindowManager implements ISlidingWindowManager {
   private calculateKeepByTokenBudget(
     messages: ContextMessage[],
     action: SlidingAction,
-    tokenBudget: number,
+    tokenBudget: number
   ): number {
     let tokensAccumulated = 0;
     let keepCount = 0;
@@ -191,7 +191,7 @@ export class SlidingWindowManager implements ISlidingWindowManager {
    * Get appropriate summary tier for compaction type
    */
   private getSummaryTier(
-    type: SlidingAction['type'],
+    type: SlidingAction['type']
   ): 'archival' | 'compressed' | 'condensed' | undefined {
     switch (type) {
       case 'compact-emergency':
@@ -213,7 +213,7 @@ export class SlidingWindowManager implements ISlidingWindowManager {
   validateResult(
     result: SlidingResult,
     action: SlidingAction,
-    config: SlidingWindowConfig,
+    config: SlidingWindowConfig
   ): { valid: boolean; reason?: string } {
     // Check minimum messages kept
     if (result.messagesKept.length < config.keepRecent.messages) {

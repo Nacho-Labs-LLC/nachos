@@ -61,7 +61,7 @@ export class FilesystemWriteTool extends ToolService {
       },
       recursive: {
         type: 'boolean',
-        description: 'Create parent directories if they don\'t exist (for mkdir)',
+        description: "Create parent directories if they don't exist (for mkdir)",
         default: false,
       },
     },
@@ -105,11 +105,12 @@ export class FilesystemWriteTool extends ToolService {
     }
 
     // Validate action enum
-    const actionValidation = this.validateEnum(
-      params,
-      'action',
-      ['write', 'create', 'delete', 'mkdir']
-    );
+    const actionValidation = this.validateEnum(params, 'action', [
+      'write',
+      'create',
+      'delete',
+      'mkdir',
+    ]);
 
     if (!actionValidation.valid) {
       return actionValidation;
@@ -150,11 +151,14 @@ export class FilesystemWriteTool extends ToolService {
 
     // Validate encoding if provided
     if (params.encoding) {
-      const encodingValidation = this.validateEnum(
-        params,
-        'encoding',
-        ['utf-8', 'utf8', 'ascii', 'base64', 'hex', 'binary']
-      );
+      const encodingValidation = this.validateEnum(params, 'encoding', [
+        'utf-8',
+        'utf8',
+        'ascii',
+        'base64',
+        'hex',
+        'binary',
+      ]);
       if (!encodingValidation.valid) {
         return encodingValidation;
       }
@@ -185,10 +189,7 @@ export class FilesystemWriteTool extends ToolService {
           return await this.makeDirectory(filePath, recursive);
 
         default:
-          return this.formatErrorResponse(
-            'INVALID_ACTION',
-            `Unknown action: ${action}`
-          );
+          return this.formatErrorResponse('INVALID_ACTION', `Unknown action: ${action}`);
       }
     } catch (error) {
       if (error instanceof Error) {
@@ -208,15 +209,9 @@ export class FilesystemWriteTool extends ToolService {
                 `Permission denied: ${filePath}`
               );
             case 'EEXIST':
-              return this.formatErrorResponse(
-                'FILE_EXISTS',
-                `File already exists: ${filePath}`
-              );
+              return this.formatErrorResponse('FILE_EXISTS', `File already exists: ${filePath}`);
             case 'ENOSPC':
-              return this.formatErrorResponse(
-                'NO_SPACE',
-                `No space left on device: ${filePath}`
-              );
+              return this.formatErrorResponse('NO_SPACE', `No space left on device: ${filePath}`);
             default:
               return this.formatErrorResponse(
                 'FILESYSTEM_ERROR',
@@ -315,10 +310,7 @@ export class FilesystemWriteTool extends ToolService {
     const stats = await fs.stat(filePath);
 
     if (!stats.isFile()) {
-      return this.formatErrorResponse(
-        'NOT_A_FILE',
-        `Path is not a file: ${filePath}`
-      );
+      return this.formatErrorResponse('NOT_A_FILE', `Path is not a file: ${filePath}`);
     }
 
     // Delete file
@@ -340,10 +332,7 @@ export class FilesystemWriteTool extends ToolService {
   /**
    * Create a directory
    */
-  private async makeDirectory(
-    dirPath: string,
-    recursive: boolean
-  ): Promise<ToolResult> {
+  private async makeDirectory(dirPath: string, recursive: boolean): Promise<ToolResult> {
     // Create directory
     await fs.mkdir(dirPath, { recursive });
 
@@ -383,11 +372,11 @@ export class FilesystemWriteTool extends ToolService {
     const unit = unitValue.toUpperCase();
 
     const multipliers: Record<string, number> = {
-      'B': 1,
-      'KB': 1024,
-      'MB': 1024 * 1024,
-      'GB': 1024 * 1024 * 1024,
-      'TB': 1024 * 1024 * 1024 * 1024,
+      B: 1,
+      KB: 1024,
+      MB: 1024 * 1024,
+      GB: 1024 * 1024 * 1024,
+      TB: 1024 * 1024 * 1024 * 1024,
     };
 
     return Math.floor(value * (multipliers[unit] ?? 1));

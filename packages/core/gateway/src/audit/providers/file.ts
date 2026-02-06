@@ -1,11 +1,4 @@
-import {
-  createWriteStream,
-  existsSync,
-  mkdirSync,
-  rename,
-  stat,
-  unlink,
-} from 'node:fs';
+import { createWriteStream, existsSync, mkdirSync, rename, stat, unlink } from 'node:fs';
 import { dirname } from 'node:path';
 import type { WriteStream } from 'node:fs';
 import type { AuditEvent } from '../types.js';

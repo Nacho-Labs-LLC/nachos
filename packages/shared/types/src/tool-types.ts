@@ -26,10 +26,7 @@ export enum SecurityTier {
  * Content block types for tool results
  * Adopted from OpenClaw for rich media support
  */
-export type ContentBlock =
-  | TextContentBlock
-  | ImageContentBlock
-  | FileContentBlock;
+export type ContentBlock = TextContentBlock | ImageContentBlock | FileContentBlock;
 
 export interface TextContentBlock {
   type: 'text';

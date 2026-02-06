@@ -45,15 +45,8 @@ const TOOL_STUBS: Record<string, any> = {
   },
 };
 
-export async function addToolCommand(
-  name: string,
-  options: AddToolOptions,
-): Promise<void> {
-  const output = new OutputFormatter(
-    options.json ?? false,
-    'add tool',
-    getVersion(),
-  );
+export async function addToolCommand(name: string, options: AddToolOptions): Promise<void> {
+  const output = new OutputFormatter(options.json ?? false, 'add tool', getVersion());
 
   // Find config file first (needs to be in scope for error handler)
   const configPath = findConfigFileOrThrow();
@@ -65,7 +58,7 @@ export async function addToolCommand(
         `Unknown tool: ${name}`,
         'UNKNOWN_TOOL',
         1,
-        `Valid tools: ${VALID_TOOLS.join(', ')}`,
+        `Valid tools: ${VALID_TOOLS.join(', ')}`
       );
     }
     const configContent = readFileSync(configPath, 'utf-8');
@@ -79,7 +72,7 @@ export async function addToolCommand(
         `Tool ${name} is already configured`,
         'TOOL_EXISTS',
         1,
-        `Edit the existing [tools.${name}] section in ${configPath}`,
+        `Edit the existing [tools.${name}] section in ${configPath}`
       );
     }
 
@@ -117,8 +110,8 @@ export async function addToolCommand(
           'Invalid TOML in configuration file',
           'INVALID_TOML',
           2,
-          `Fix syntax errors in ${configPath}`,
-        ),
+          `Fix syntax errors in ${configPath}`
+        )
       );
     } else {
       output.error(error as Error);

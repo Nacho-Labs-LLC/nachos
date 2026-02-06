@@ -20,11 +20,7 @@ interface RestartOptions {
 
 export async function restartCommand(options: RestartOptions): Promise<void> {
   const docker = new DockerClient();
-  const output = new OutputFormatter(
-    options.json ?? false,
-    'restart',
-    getVersion(),
-  );
+  const output = new OutputFormatter(options.json ?? false, 'restart', getVersion());
 
   try {
     // Check Docker availability

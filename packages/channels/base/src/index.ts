@@ -18,10 +18,6 @@ export function createChannelBus(client: INachosBusClient): ChannelBus {
 
 export { TOPICS };
 
-export {
-  resolveDmPolicy,
-  resolveGroupPolicy,
-  findServerConfig,
-} from './policy.js';
+export { resolveDmPolicy, resolveGroupPolicy, findServerConfig } from './policy.js';
 
 export { createPairingStore, parsePairingCommand } from './pairing.js';

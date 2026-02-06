@@ -10,9 +10,7 @@ import { dirname, join } from 'node:path';
 // Get CLI version from package.json
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const packageJson = JSON.parse(
-  readFileSync(join(__dirname, '../package.json'), 'utf-8'),
-);
+const packageJson = JSON.parse(readFileSync(join(__dirname, '../package.json'), 'utf-8'));
 
 export function createProgram(): Command {
   const program = new Command();
@@ -32,9 +30,7 @@ export function createProgram(): Command {
     });
 
   // Config subcommands
-  const configCmd = program
-    .command('config')
-    .description('Configuration management');
+  const configCmd = program.command('config').description('Configuration management');
 
   configCmd
     .command('validate')
@@ -45,9 +41,7 @@ export function createProgram(): Command {
     });
 
   // Policy subcommands
-  const policyCmd = program
-    .command('policy')
-    .description('Policy management');
+  const policyCmd = program.command('policy').description('Policy management');
 
   policyCmd
     .command('validate')
@@ -58,9 +52,7 @@ export function createProgram(): Command {
     });
 
   // Add subcommands
-  const addCmd = program
-    .command('add')
-    .description('Add modules to configuration');
+  const addCmd = program.command('add').description('Add modules to configuration');
 
   addCmd
     .command('channel <name>')

@@ -11,7 +11,11 @@ import { OutputFormatter, prettyOutput } from '../core/output.js';
 import { DockerClient } from '../core/docker-client.js';
 import { getVersion } from '../cli.js';
 import type { StackStatus } from '../core/types.js';
-import { DockerNotAvailableError, DockerComposeNotAvailableError, CLIError } from '../core/errors.js';
+import {
+  DockerNotAvailableError,
+  DockerComposeNotAvailableError,
+  CLIError,
+} from '../core/errors.js';
 
 interface StatusOptions {
   json?: boolean;
@@ -19,11 +23,7 @@ interface StatusOptions {
 
 export async function statusCommand(options: StatusOptions): Promise<void> {
   const docker = new DockerClient();
-  const output = new OutputFormatter(
-    options.json ?? false,
-    'status',
-    getVersion(),
-  );
+  const output = new OutputFormatter(options.json ?? false, 'status', getVersion());
 
   try {
     // Check Docker availability
@@ -46,7 +46,7 @@ export async function statusCommand(options: StatusOptions): Promise<void> {
         'No generated compose file found',
         'COMPOSE_FILE_NOT_FOUND',
         1,
-        'Run "nachos up" to start the stack.',
+        'Run "nachos up" to start the stack.'
       );
     }
 
@@ -86,7 +86,7 @@ export async function statusCommand(options: StatusOptions): Promise<void> {
         const statusIcon = getStatusIcon(container.State, container.Health);
         const healthText = container.Health ? ` (${container.Health})` : '';
         console.log(
-          `  ${statusIcon} ${chalk.cyan(container.Service.padEnd(15))} ${container.State}${healthText}`,
+          `  ${statusIcon} ${chalk.cyan(container.Service.padEnd(15))} ${container.State}${healthText}`
         );
       }
 

@@ -62,8 +62,7 @@ export class SlackChannelAdapter implements ChannelAdapter {
 
     const appToken = channelConfig.app_token ?? config.secrets.SLACK_APP_TOKEN;
     const botToken = channelConfig.bot_token ?? config.secrets.SLACK_BOT_TOKEN;
-    const signingSecret =
-      channelConfig.signing_secret ?? config.secrets.SLACK_SIGNING_SECRET;
+    const signingSecret = channelConfig.signing_secret ?? config.secrets.SLACK_SIGNING_SECRET;
 
     if (this.mode === 'socket') {
       if (!appToken || !botToken) {
@@ -111,12 +110,9 @@ export class SlackChannelAdapter implements ChannelAdapter {
     }
 
     if (this.config) {
-      await this.config.bus.subscribe(
-        TOPICS.channel.outbound(this.channelId),
-        async (payload) => {
-          await this.sendMessage(payload as OutboundMessage);
-        }
-      );
+      await this.config.bus.subscribe(TOPICS.channel.outbound(this.channelId), async (payload) => {
+        await this.sendMessage(payload as OutboundMessage);
+      });
     }
   }
 

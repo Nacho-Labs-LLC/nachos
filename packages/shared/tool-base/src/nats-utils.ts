@@ -64,10 +64,7 @@ export function serializeEnvelope(envelope: MessageEnvelope): string {
 /**
  * Wait for NATS connection to be ready
  */
-export async function waitForReady(
-  nc: NatsConnection,
-  timeoutMs: number = 30000
-): Promise<void> {
+export async function waitForReady(nc: NatsConnection, timeoutMs: number = 30000): Promise<void> {
   const startTime = Date.now();
 
   while (!nc.isClosed()) {
@@ -100,10 +97,7 @@ export async function closeNats(nc: NatsConnection): Promise<void> {
 /**
  * Setup signal handlers for graceful shutdown
  */
-export function setupShutdownHandlers(
-  nc: NatsConnection,
-  onShutdown?: () => Promise<void>
-): void {
+export function setupShutdownHandlers(nc: NatsConnection, onShutdown?: () => Promise<void>): void {
   const shutdown = async (signal: string) => {
     console.log(`Received ${signal}, shutting down gracefully...`);
 

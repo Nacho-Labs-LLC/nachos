@@ -100,7 +100,8 @@ export class PlaywrightWrapper {
 
     const context = await this.browser!.newContext({
       viewport: { width: 1920, height: 1080 },
-      userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Nachos/1.0',
+      userAgent:
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Nachos/1.0',
     });
 
     // Set default timeout
@@ -163,10 +164,7 @@ export class PlaywrightWrapper {
   /**
    * Take screenshot
    */
-  async screenshot(
-    contextId: string,
-    options: ScreenshotOptions = {}
-  ): Promise<Buffer> {
+  async screenshot(contextId: string, options: ScreenshotOptions = {}): Promise<Buffer> {
     const page = this.getPage(contextId);
 
     if (options.selector) {
@@ -213,15 +211,17 @@ export class PlaywrightWrapper {
         result.text = (await element.textContent()) ?? '';
       }
     } else {
-      result.text = await page.textContent('body') ?? '';
+      result.text = (await page.textContent('body')) ?? '';
     }
 
     // Extract links
     if (options.extractLinks) {
       result.links = await page.evaluate(() => {
-        const doc = (globalThis as unknown as {
-          document?: { querySelectorAll: (selector: string) => ArrayLike<unknown> };
-        }).document;
+        const doc = (
+          globalThis as unknown as {
+            document?: { querySelectorAll: (selector: string) => ArrayLike<unknown> };
+          }
+        ).document;
 
         if (!doc) {
           return [];
@@ -242,9 +242,11 @@ export class PlaywrightWrapper {
     // Extract images
     if (options.extractImages) {
       result.images = await page.evaluate(() => {
-        const doc = (globalThis as unknown as {
-          document?: { querySelectorAll: (selector: string) => ArrayLike<unknown> };
-        }).document;
+        const doc = (
+          globalThis as unknown as {
+            document?: { querySelectorAll: (selector: string) => ArrayLike<unknown> };
+          }
+        ).document;
 
         if (!doc) {
           return [];

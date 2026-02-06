@@ -9,7 +9,11 @@ import { getProjectRoot } from '../core/config-discovery.js';
 import { OutputFormatter } from '../core/output.js';
 import { DockerClient } from '../core/docker-client.js';
 import { getVersion } from '../cli.js';
-import { DockerNotAvailableError, DockerComposeNotAvailableError, CLIError } from '../core/errors.js';
+import {
+  DockerNotAvailableError,
+  DockerComposeNotAvailableError,
+  CLIError,
+} from '../core/errors.js';
 
 interface LogsOptions {
   json?: boolean;
@@ -20,14 +24,10 @@ interface LogsOptions {
 
 export async function logsCommand(
   service: string | undefined,
-  options: LogsOptions,
+  options: LogsOptions
 ): Promise<void> {
   const docker = new DockerClient();
-  const output = new OutputFormatter(
-    options.json ?? false,
-    'logs',
-    getVersion(),
-  );
+  const output = new OutputFormatter(options.json ?? false, 'logs', getVersion());
 
   try {
     // Check Docker availability
@@ -50,7 +50,7 @@ export async function logsCommand(
         'No generated compose file found',
         'COMPOSE_FILE_NOT_FOUND',
         1,
-        'Run "nachos up" to start the stack.',
+        'Run "nachos up" to start the stack.'
       );
     }
 

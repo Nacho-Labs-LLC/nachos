@@ -17,7 +17,9 @@ const CONFIG_SHAPE: SchemaNode = {
     provider: true,
     model: true,
     fallback_order: true,
-    providers: { __array: { name: true, type: true, base_url: true, models: true, profiles: true } },
+    providers: {
+      __array: { name: true, type: true, base_url: true, models: true, profiles: true },
+    },
     profiles: {
       __array: { name: true, provider: true, api_key_env: true, base_url: true },
     },
@@ -151,7 +153,7 @@ function validateNoUnknownKeys(
   value: unknown,
   shape: SchemaNode,
   errors: string[],
-  path: string,
+  path: string
 ): void {
   if (shape === true) {
     return;
@@ -198,7 +200,7 @@ function isChannelEnabled(config?: { enabled?: boolean }): boolean {
 export class ConfigValidationError extends Error {
   constructor(
     message: string,
-    public readonly errors: string[] = [],
+    public readonly errors: string[] = []
   ) {
     super(message);
     this.name = 'ConfigValidationError';
@@ -244,7 +246,7 @@ function validateLLMConfig(config: NachosConfig, errors: string[], warnings: str
   const validProviders = ['anthropic', 'openai', 'ollama', 'custom'];
   if (!validProviders.includes(config.llm.provider)) {
     errors.push(
-      `Invalid llm.provider: "${config.llm.provider}". Must be one of: ${validProviders.join(', ')}`,
+      `Invalid llm.provider: "${config.llm.provider}". Must be one of: ${validProviders.join(', ')}`
     );
   }
 
@@ -277,7 +279,7 @@ function validateLLMConfig(config: NachosConfig, errors: string[], warnings: str
       }
       if (!validProviders.includes(provider)) {
         errors.push(
-          `Invalid llm.fallback_order provider: "${provider}". Must be one of: ${validProviders.join(', ')}`,
+          `Invalid llm.fallback_order provider: "${provider}". Must be one of: ${validProviders.join(', ')}`
         );
       }
     }
@@ -296,15 +298,13 @@ function validateSecurityConfig(config: NachosConfig, errors: string[], _warning
   const validModes = ['strict', 'standard', 'permissive'];
   if (!validModes.includes(config.security.mode)) {
     errors.push(
-      `Invalid security.mode: "${config.security.mode}". Must be one of: ${validModes.join(', ')}`,
+      `Invalid security.mode: "${config.security.mode}". Must be one of: ${validModes.join(', ')}`
     );
   }
 
   // Permissive mode requires explicit acknowledgment
   if (config.security.mode === 'permissive' && !config.security.i_understand_the_risks) {
-    errors.push(
-      'security.mode = "permissive" requires security.i_understand_the_risks = true',
-    );
+    errors.push('security.mode = "permissive" requires security.i_understand_the_risks = true');
   }
 
   // Shell tool requires permissive mode
@@ -317,7 +317,7 @@ function validateSecurityConfig(config: NachosConfig, errors: string[], _warning
     const validActions = ['block', 'warn', 'audit'];
     if (config.security.dlp.action && !validActions.includes(config.security.dlp.action)) {
       errors.push(
-        `Invalid security.dlp.action: "${config.security.dlp.action}". Must be one of: ${validActions.join(', ')}`,
+        `Invalid security.dlp.action: "${config.security.dlp.action}". Must be one of: ${validActions.join(', ')}`
       );
     }
   }
@@ -348,8 +348,7 @@ function validateSecurityConfig(config: NachosConfig, errors: string[], _warning
   }
   if (config.security.audit) {
     const validProviders = ['sqlite', 'file', 'webhook', 'custom', 'composite'];
-    const { provider, providers, path, url, batch_size, flush_interval_ms } =
-      config.security.audit;
+    const { provider, providers, path, url, batch_size, flush_interval_ms } = config.security.audit;
 
     if (provider && !validProviders.includes(provider)) {
       errors.push(`security.audit.provider must be one of: ${validProviders.join(', ')}`);
@@ -398,20 +397,19 @@ function validateRuntimeConfig(config: NachosConfig, errors: string[], _warnings
   const validLogLevels = ['debug', 'info', 'warn', 'error'];
   if (config.runtime.log_level && !validLogLevels.includes(config.runtime.log_level)) {
     errors.push(
-      `Invalid runtime.log_level: "${config.runtime.log_level}". Must be one of: ${validLogLevels.join(', ')}`,
+      `Invalid runtime.log_level: "${config.runtime.log_level}". Must be one of: ${validLogLevels.join(', ')}`
     );
   }
 
   const validLogFormats = ['pretty', 'json'];
   if (config.runtime.log_format && !validLogFormats.includes(config.runtime.log_format)) {
     errors.push(
-      `Invalid runtime.log_format: "${config.runtime.log_format}". Must be one of: ${validLogFormats.join(', ')}`,
+      `Invalid runtime.log_format: "${config.runtime.log_format}". Must be one of: ${validLogFormats.join(', ')}`
     );
   }
 
   if (config.runtime.redis_url) {
     try {
-      // eslint-disable-next-line no-new
       new URL(config.runtime.redis_url);
     } catch {
       errors.push('runtime.redis_url must be a valid URL');
@@ -455,8 +453,8 @@ function validateChannelsConfig(config: NachosConfig, errors: string[], warnings
     return;
   }
 
-  const enabledChannels = Object.entries(config.channels).filter(
-    ([_, cfg]) => isChannelEnabled(cfg),
+  const enabledChannels = Object.entries(config.channels).filter(([_, cfg]) =>
+    isChannelEnabled(cfg)
   );
 
   if (enabledChannels.length === 0) {
@@ -595,17 +593,12 @@ function validateToolsConfig(config: NachosConfig, errors: string[], warnings: s
     const validRuntimes = ['sandboxed', 'native'];
     if (!validRuntimes.includes(config.tools.code_runner.runtime)) {
       errors.push(
-        `Invalid tools.code_runner.runtime: "${config.tools.code_runner.runtime}". Must be one of: ${validRuntimes.join(', ')}`,
+        `Invalid tools.code_runner.runtime: "${config.tools.code_runner.runtime}". Must be one of: ${validRuntimes.join(', ')}`
       );
     }
 
-    if (
-      config.tools.code_runner.runtime === 'native' &&
-      config.security.mode !== 'permissive'
-    ) {
-      errors.push(
-        'tools.code_runner.runtime = "native" requires security.mode = "permissive"',
-      );
+    if (config.tools.code_runner.runtime === 'native' && config.security.mode !== 'permissive') {
+      errors.push('tools.code_runner.runtime = "native" requires security.mode = "permissive"');
     }
   }
 
@@ -614,16 +607,15 @@ function validateToolsConfig(config: NachosConfig, errors: string[], warnings: s
     errors.push('tools.browser.timeout must be at least 1 second');
   }
 
-  if (
-    config.tools.code_runner?.timeout !== undefined &&
-    config.tools.code_runner.timeout < 1
-  ) {
+  if (config.tools.code_runner?.timeout !== undefined && config.tools.code_runner.timeout < 1) {
     errors.push('tools.code_runner.timeout must be at least 1 second');
   }
 
   // Warn about filesystem write permissions
   if (config.tools.filesystem?.enabled && config.tools.filesystem.write) {
-    warnings.push('tools.filesystem.write = true allows file modifications - ensure proper paths are configured');
+    warnings.push(
+      'tools.filesystem.write = true allows file modifications - ensure proper paths are configured'
+    );
   }
 }
 
@@ -658,7 +650,7 @@ export function validateConfigOrThrow(config: NachosConfig): void {
   if (!result.valid) {
     throw new ConfigValidationError(
       `Configuration validation failed:\n${result.errors.join('\n')}`,
-      result.errors,
+      result.errors
     );
   }
 

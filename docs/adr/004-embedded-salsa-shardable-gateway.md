@@ -1,8 +1,10 @@
 # ADR-004: Embedded Salsa & Shardable Gateway Architecture
 
-**Status**: Proposed
+**Status**: Accepted
 
 **Date**: 2026-02-01
+
+**Implemented**: 2026-02-06
 
 **Deciders**: Nachos Core Team
 

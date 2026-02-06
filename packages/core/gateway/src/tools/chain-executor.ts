@@ -5,12 +5,7 @@
  * Supports variable substitution from previous results.
  */
 
-import type {
-  ToolCall,
-  ToolResult,
-  ChainResult,
-  ChainContext,
-} from '@nachos/types';
+import type { ToolCall, ToolResult, ChainResult, ChainContext } from '@nachos/types';
 import type { ToolCoordinator } from './coordinator.js';
 
 /**
@@ -23,10 +18,7 @@ export class ToolChainExecutor {
    * Execute a chain of tool calls sequentially
    * Each step can reference results from previous steps
    */
-  async executeChain(
-    chain: ToolCall[],
-    initialContext: ChainContext = {}
-  ): Promise<ChainResult> {
+  async executeChain(chain: ToolCall[], initialContext: ChainContext = {}): Promise<ChainResult> {
     const results: ToolResult[] = [];
     let currentContext = { ...initialContext };
 
@@ -105,10 +97,7 @@ export class ToolChainExecutor {
               : item
         );
       } else if (typeof value === 'object' && value !== null) {
-        result[key] = this.replaceVariables(
-          value as Record<string, unknown>,
-          context
-        );
+        result[key] = this.replaceVariables(value as Record<string, unknown>, context);
       } else {
         result[key] = value;
       }
@@ -228,9 +217,7 @@ export class ToolChainExecutor {
 
           const refIndex = parseInt(stepIndexValue, 10);
           if (refIndex >= i) {
-            errors.push(
-              `Step ${i} references future step ${refIndex} in variable ${variable}`
-            );
+            errors.push(`Step ${i} references future step ${refIndex} in variable ${variable}`);
           }
         }
       }
@@ -245,10 +232,7 @@ export class ToolChainExecutor {
   /**
    * Extract all variable references from parameters
    */
-  private extractVariables(
-    obj: Record<string, unknown>,
-    variables: string[] = []
-  ): string[] {
+  private extractVariables(obj: Record<string, unknown>, variables: string[] = []): string[] {
     for (const value of Object.values(obj)) {
       if (typeof value === 'string') {
         const matches = value.matchAll(/\$\{([^}]+)\}/g);

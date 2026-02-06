@@ -76,7 +76,9 @@ function getApiKey(profileName: string): string | null {
   return process.env[profile.api_key_env] ?? null;
 }
 
-async function emitAudit(event: Omit<AuditLogEntryType, 'id' | 'timestamp' | 'instanceId'>): Promise<void> {
+async function emitAudit(
+  event: Omit<AuditLogEntryType, 'id' | 'timestamp' | 'instanceId'>
+): Promise<void> {
   if (!config.security?.audit?.enabled) return;
 
   const entry: AuditLogEntryType = {
@@ -401,7 +403,10 @@ async function start(): Promise<void> {
         },
       };
       meta.respond?.(response);
-      bus.publish(TOPICS.llm.response, response, { type: 'llm.response', correlationId: envelope.id });
+      bus.publish(TOPICS.llm.response, response, {
+        type: 'llm.response',
+        correlationId: envelope.id,
+      });
       return;
     }
 
@@ -424,16 +429,25 @@ async function start(): Promise<void> {
 
     if (shouldStream) {
       const response = await handleStream(request, async (chunk) => {
-        bus.publish(TOPICS.llm.stream(request.sessionId), chunk, { type: 'llm.stream', correlationId: envelope.id });
+        bus.publish(TOPICS.llm.stream(request.sessionId), chunk, {
+          type: 'llm.stream',
+          correlationId: envelope.id,
+        });
       });
       meta.respond?.(response);
-      bus.publish(TOPICS.llm.response, response, { type: 'llm.response', correlationId: envelope.id });
+      bus.publish(TOPICS.llm.response, response, {
+        type: 'llm.response',
+        correlationId: envelope.id,
+      });
       return;
     }
 
     const response = await handleRequest(request);
     meta.respond?.(response);
-    bus.publish(TOPICS.llm.response, response, { type: 'llm.response', correlationId: envelope.id });
+    bus.publish(TOPICS.llm.response, response, {
+      type: 'llm.response',
+      correlationId: envelope.id,
+    });
   });
 
   console.log('✅ LLM Proxy service ready');

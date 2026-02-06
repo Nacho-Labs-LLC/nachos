@@ -20,11 +20,7 @@ interface UpOptions {
 
 export async function upCommand(options: UpOptions): Promise<void> {
   const docker = new DockerClient();
-  const output = new OutputFormatter(
-    options.json ?? false,
-    'up',
-    getVersion(),
-  );
+  const output = new OutputFormatter(options.json ?? false, 'up', getVersion());
 
   try {
     // Check Docker availability
@@ -126,7 +122,7 @@ export async function upCommand(options: UpOptions): Promise<void> {
 async function waitForHealthy(
   docker: DockerClient,
   composePath: string,
-  timeoutSeconds: number,
+  timeoutSeconds: number
 ): Promise<void> {
   const startTime = Date.now();
   const timeoutMs = timeoutSeconds * 1000;
@@ -136,9 +132,7 @@ async function waitForHealthy(
     const runningContainers = containers.filter((c) => c.State === 'running');
 
     // Check if all running containers are healthy (or don't have health checks)
-    const allHealthy = runningContainers.every(
-      (c) => !c.Health || c.Health === 'healthy',
-    );
+    const allHealthy = runningContainers.every((c) => !c.Health || c.Health === 'healthy');
 
     if (allHealthy && runningContainers.length > 0) {
       return;
@@ -146,9 +140,7 @@ async function waitForHealthy(
 
     // Check timeout
     if (Date.now() - startTime > timeoutMs) {
-      throw new Error(
-        `Timeout waiting for services to become healthy after ${timeoutSeconds}s`,
-      );
+      throw new Error(`Timeout waiting for services to become healthy after ${timeoutSeconds}s`);
     }
 
     // Wait 2 seconds before checking again

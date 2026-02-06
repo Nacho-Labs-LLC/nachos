@@ -134,7 +134,7 @@ export class ContextBudgetCalculator implements IContextBudgetCalculator {
   estimateTurnsUntilNextZone(
     budget: ContextBudget,
     thresholds: ContextZoneThresholds,
-    avgTokensPerTurn: number,
+    avgTokensPerTurn: number
   ): number {
     const tokensRemaining = this.tokensUntilNextZone(budget, thresholds);
 
@@ -149,7 +149,7 @@ export class ContextBudgetCalculator implements IContextBudgetCalculator {
    */
   calculateCompactionTarget(
     budget: ContextBudget,
-    zone: ContextZone,
+    zone: ContextZone
   ): { targetTokens: number; dropRatio: number } {
     const { historyBudget } = budget;
 
@@ -217,7 +217,7 @@ export function shouldCompact(budget: ContextBudget, thresholds: ContextZoneThre
  * Utility: Get compaction urgency
  */
 export function getCompactionUrgency(
-  budget: ContextBudget,
+  budget: ContextBudget
 ): 'none' | 'low' | 'medium' | 'high' | 'critical' {
   switch (budget.zone) {
     case 'critical':

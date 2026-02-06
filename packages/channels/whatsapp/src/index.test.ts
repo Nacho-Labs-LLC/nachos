@@ -84,8 +84,11 @@ describe('WhatsappChannelAdapter', () => {
     await adapter.initialize(config);
     await adapter.start();
 
-    const port = ((adapter as unknown as { server?: { address: () => AddressInfo } })
-      .server?.address() as AddressInfo).port;
+    const port = (
+      (
+        adapter as unknown as { server?: { address: () => AddressInfo } }
+      ).server?.address() as AddressInfo
+    ).port;
 
     const response = await fetch(
       `http://localhost:${port}/whatsapp/webhook?hub.mode=subscribe&hub.verify_token=verify-token&hub.challenge=challenge-token`
@@ -99,8 +102,11 @@ describe('WhatsappChannelAdapter', () => {
     await adapter.initialize(config);
     await adapter.start();
 
-    const port = ((adapter as unknown as { server?: { address: () => AddressInfo } })
-      .server?.address() as AddressInfo).port;
+    const port = (
+      (
+        adapter as unknown as { server?: { address: () => AddressInfo } }
+      ).server?.address() as AddressInfo
+    ).port;
 
     const response = await fetch(
       `http://localhost:${port}/whatsapp/webhook?hub.mode=subscribe&hub.verify_token=bad-token&hub.challenge=challenge-token`
@@ -119,8 +125,11 @@ describe('WhatsappChannelAdapter', () => {
     });
     await adapter.start();
 
-    const port = ((adapter as unknown as { server?: { address: () => AddressInfo } })
-      .server?.address() as AddressInfo).port;
+    const port = (
+      (
+        adapter as unknown as { server?: { address: () => AddressInfo } }
+      ).server?.address() as AddressInfo
+    ).port;
 
     const payload = {
       object: 'whatsapp_business_account',
@@ -194,8 +203,11 @@ describe('WhatsappChannelAdapter', () => {
     });
     await adapter.start();
 
-    const port = ((adapter as unknown as { server?: { address: () => AddressInfo } })
-      .server?.address() as AddressInfo).port;
+    const port = (
+      (
+        adapter as unknown as { server?: { address: () => AddressInfo } }
+      ).server?.address() as AddressInfo
+    ).port;
 
     const payload = {
       object: 'whatsapp_business_account',

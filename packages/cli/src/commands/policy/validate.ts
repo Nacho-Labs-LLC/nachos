@@ -16,11 +16,7 @@ interface ValidateOptions {
 }
 
 export async function validateCommand(options: ValidateOptions): Promise<void> {
-  const output = new OutputFormatter(
-    options.json ?? false,
-    'policy validate',
-    getVersion(),
-  );
+  const output = new OutputFormatter(options.json ?? false, 'policy validate', getVersion());
 
   try {
     // Find policies directory
@@ -42,7 +38,7 @@ export async function validateCommand(options: ValidateOptions): Promise<void> {
         'Policies directory not found',
         'POLICIES_DIR_NOT_FOUND',
         4,
-        `Create a "policies" directory in ${projectRoot}`,
+        `Create a "policies" directory in ${projectRoot}`
       );
     }
 
@@ -51,7 +47,7 @@ export async function validateCommand(options: ValidateOptions): Promise<void> {
         'No policy files found',
         'NO_POLICY_FILES',
         4,
-        `Add .yaml policy files to ${policiesDir}`,
+        `Add .yaml policy files to ${policiesDir}`
       );
     }
 
@@ -90,8 +86,8 @@ export async function validateCommand(options: ValidateOptions): Promise<void> {
             `${failures.length} policy file(s) failed validation`,
             'POLICY_VALIDATION_FAILED',
             4,
-            failures.map((f) => `${f.file}: ${f.error}`).join('\n'),
-          ),
+            failures.map((f) => `${f.file}: ${f.error}`).join('\n')
+          )
         );
       } else {
         output.success({

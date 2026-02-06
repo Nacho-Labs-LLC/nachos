@@ -3,7 +3,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { TokenEstimator, tokenEstimator, estimateTokens, estimateMessageTokens } from './token-counter.js';
+import {
+  TokenEstimator,
+  tokenEstimator,
+  estimateTokens,
+  estimateMessageTokens,
+} from './token-counter.js';
 import type { ContextMessage } from '../types/index.js';
 
 describe('TokenEstimator', () => {
@@ -130,7 +135,6 @@ describe('TokenEstimator', () => {
       expect(estimator.estimateMessages([])).toBe(0);
     });
   });
-
 });
 
 describe('Exported functions', () => {

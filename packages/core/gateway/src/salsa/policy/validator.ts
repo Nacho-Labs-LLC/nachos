@@ -11,7 +11,7 @@ import type {
   ActionType,
   ConditionOperator,
   PolicyEffect,
-} from '../types/index.js'
+} from '../types/index.js';
 
 const VALID_RESOURCE_TYPES: ResourceType[] = [
   'tool',
@@ -20,8 +20,8 @@ const VALID_RESOURCE_TYPES: ResourceType[] = [
   'filesystem',
   'network',
   'llm',
-]
-const VALID_ACTION_TYPES: ActionType[] = ['read', 'write', 'execute', 'send', 'receive', 'call']
+];
+const VALID_ACTION_TYPES: ActionType[] = ['read', 'write', 'execute', 'send', 'receive', 'call'];
 const VALID_OPERATORS: ConditionOperator[] = [
   'equals',
   'not_equals',
@@ -31,8 +31,8 @@ const VALID_OPERATORS: ConditionOperator[] = [
   'matches',
   'starts_with',
   'ends_with',
-]
-const VALID_EFFECTS: PolicyEffect[] = ['allow', 'deny']
+];
+const VALID_EFFECTS: PolicyEffect[] = ['allow', 'deny'];
 
 /**
  * Validate a policy document
@@ -40,11 +40,8 @@ const VALID_EFFECTS: PolicyEffect[] = ['allow', 'deny']
  * @param filename - Filename for error messages
  * @returns Array of validation errors (empty if valid)
  */
-export function validatePolicyDocument(
-  doc: any,
-  filename: string
-): PolicyValidationError[] {
-  const errors: PolicyValidationError[] = []
+export function validatePolicyDocument(doc: any, filename: string): PolicyValidationError[] {
+  const errors: PolicyValidationError[] = [];
 
   // Check required fields
   if (!doc.version) {
@@ -52,7 +49,7 @@ export function validatePolicyDocument(
       file: filename,
       message: 'Missing required field: version',
       field: 'version',
-    })
+    });
   }
 
   if (!doc.rules || !Array.isArray(doc.rules)) {
@@ -60,16 +57,16 @@ export function validatePolicyDocument(
       file: filename,
       message: 'Missing or invalid rules array',
       field: 'rules',
-    })
-    return errors // Can't continue without rules array
+    });
+    return errors; // Can't continue without rules array
   }
 
   // Validate each rule
-  const ruleIds = new Set<string>()
+  const ruleIds = new Set<string>();
   for (let i = 0; i < doc.rules.length; i++) {
-    const rule = doc.rules[i]
-    const ruleErrors = validatePolicyRule(rule, filename, i)
-    errors.push(...ruleErrors)
+    const rule = doc.rules[i];
+    const ruleErrors = validatePolicyRule(rule, filename, i);
+    errors.push(...ruleErrors);
 
     // Check for duplicate rule IDs
     if (rule.id) {
@@ -79,25 +76,21 @@ export function validatePolicyDocument(
           ruleId: rule.id,
           message: `Duplicate rule ID: ${rule.id}`,
           field: 'id',
-        })
+        });
       }
-      ruleIds.add(rule.id)
+      ruleIds.add(rule.id);
     }
   }
 
-  return errors
+  return errors;
 }
 
 /**
  * Validate a single policy rule
  */
-function validatePolicyRule(
-  rule: any,
-  filename: string,
-  index: number
-): PolicyValidationError[] {
-  const errors: PolicyValidationError[] = []
-  const ruleId = rule.id || `rule-${index}`
+function validatePolicyRule(rule: any, filename: string, index: number): PolicyValidationError[] {
+  const errors: PolicyValidationError[] = [];
+  const ruleId = rule.id || `rule-${index}`;
 
   // Required fields
   if (!rule.id || typeof rule.id !== 'string') {
@@ -106,7 +99,7 @@ function validatePolicyRule(
       ruleId,
       message: 'Rule must have a string id',
       field: 'id',
-    })
+    });
   }
 
   if (typeof rule.priority !== 'number') {
@@ -115,7 +108,7 @@ function validatePolicyRule(
       ruleId,
       message: 'Rule must have a numeric priority',
       field: 'priority',
-    })
+    });
   }
 
   if (!rule.match || typeof rule.match !== 'object') {
@@ -124,9 +117,9 @@ function validatePolicyRule(
       ruleId,
       message: 'Rule must have a match object',
       field: 'match',
-    })
+    });
   } else {
-    errors.push(...validatePolicyMatch(rule.match, filename, ruleId))
+    errors.push(...validatePolicyMatch(rule.match, filename, ruleId));
   }
 
   if (!rule.effect || !VALID_EFFECTS.includes(rule.effect)) {
@@ -135,7 +128,7 @@ function validatePolicyRule(
       ruleId,
       message: `Rule must have a valid effect (${VALID_EFFECTS.join(', ')})`,
       field: 'effect',
-    })
+    });
   }
 
   // Optional fields
@@ -146,15 +139,15 @@ function validatePolicyRule(
         ruleId,
         message: 'Conditions must be an array',
         field: 'conditions',
-      })
+      });
     } else {
       for (let i = 0; i < rule.conditions.length; i++) {
-        errors.push(...validatePolicyCondition(rule.conditions[i], filename, ruleId, i))
+        errors.push(...validatePolicyCondition(rule.conditions[i], filename, ruleId, i));
       }
     }
   }
 
-  return errors
+  return errors;
 }
 
 /**
@@ -165,10 +158,10 @@ function validatePolicyMatch(
   filename: string,
   ruleId: string
 ): PolicyValidationError[] {
-  const errors: PolicyValidationError[] = []
+  const errors: PolicyValidationError[] = [];
 
   if (match.resource) {
-    const resources = Array.isArray(match.resource) ? match.resource : [match.resource]
+    const resources = Array.isArray(match.resource) ? match.resource : [match.resource];
     for (const resource of resources) {
       if (!VALID_RESOURCE_TYPES.includes(resource)) {
         errors.push({
@@ -176,13 +169,13 @@ function validatePolicyMatch(
           ruleId,
           message: `Invalid resource type: ${resource}. Must be one of: ${VALID_RESOURCE_TYPES.join(', ')}`,
           field: 'match.resource',
-        })
+        });
       }
     }
   }
 
   if (match.action) {
-    const actions = Array.isArray(match.action) ? match.action : [match.action]
+    const actions = Array.isArray(match.action) ? match.action : [match.action];
     for (const action of actions) {
       if (!VALID_ACTION_TYPES.includes(action)) {
         errors.push({
@@ -190,7 +183,7 @@ function validatePolicyMatch(
           ruleId,
           message: `Invalid action type: ${action}. Must be one of: ${VALID_ACTION_TYPES.join(', ')}`,
           field: 'match.action',
-        })
+        });
       }
     }
   }
@@ -198,18 +191,21 @@ function validatePolicyMatch(
   if (match.resourceId !== undefined) {
     if (
       typeof match.resourceId !== 'string' &&
-      !(Array.isArray(match.resourceId) && match.resourceId.every((id: any) => typeof id === 'string'))
+      !(
+        Array.isArray(match.resourceId) &&
+        match.resourceId.every((id: any) => typeof id === 'string')
+      )
     ) {
       errors.push({
         file: filename,
         ruleId,
         message: 'resourceId must be a string or array of strings',
         field: 'match.resourceId',
-      })
+      });
     }
   }
 
-  return errors
+  return errors;
 }
 
 /**
@@ -221,7 +217,7 @@ function validatePolicyCondition(
   ruleId: string,
   index: number
 ): PolicyValidationError[] {
-  const errors: PolicyValidationError[] = []
+  const errors: PolicyValidationError[] = [];
 
   if (!condition.field || typeof condition.field !== 'string') {
     errors.push({
@@ -229,7 +225,7 @@ function validatePolicyCondition(
       ruleId,
       message: `Condition ${index} must have a string field`,
       field: `conditions[${index}].field`,
-    })
+    });
   }
 
   if (!condition.operator || !VALID_OPERATORS.includes(condition.operator)) {
@@ -238,7 +234,7 @@ function validatePolicyCondition(
       ruleId,
       message: `Condition ${index} must have a valid operator (${VALID_OPERATORS.join(', ')})`,
       field: `conditions[${index}].operator`,
-    })
+    });
   }
 
   if (condition.value === undefined) {
@@ -247,16 +243,16 @@ function validatePolicyCondition(
       ruleId,
       message: `Condition ${index} must have a value`,
       field: `conditions[${index}].value`,
-    })
+    });
   }
 
-  return errors
+  return errors;
 }
 
 /**
  * Check if a policy document is valid
  */
 export function isPolicyDocumentValid(doc: any, filename: string): boolean {
-  const errors = validatePolicyDocument(doc, filename)
-  return errors.length === 0
+  const errors = validatePolicyDocument(doc, filename);
+  return errors.length === 0;
 }

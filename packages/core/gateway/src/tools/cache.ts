@@ -233,11 +233,7 @@ export class ToolCache {
   /**
    * Store result in Redis
    */
-  private async setInRedis(
-    key: string,
-    result: ToolResult,
-    ttl: number
-  ): Promise<void> {
+  private async setInRedis(key: string, result: ToolResult, ttl: number): Promise<void> {
     if (!this.redis) {
       return;
     }

@@ -1,8 +1,10 @@
 # ADR-008: Channel Registry and Channel Policy Defaults
 
-**Status**: Proposed
+**Status**: Accepted
 
 **Date**: 2026-02-04
+
+**Implemented**: 2026-02-06
 
 **Deciders**: Nachos core maintainers
 

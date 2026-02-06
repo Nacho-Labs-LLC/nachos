@@ -88,11 +88,7 @@ export class FilesystemReadTool extends ToolService {
     }
 
     // Validate action enum
-    const actionValidation = this.validateEnum(
-      params,
-      'action',
-      ['read', 'list', 'stat']
-    );
+    const actionValidation = this.validateEnum(params, 'action', ['read', 'list', 'stat']);
 
     if (!actionValidation.valid) {
       return actionValidation;
@@ -112,11 +108,14 @@ export class FilesystemReadTool extends ToolService {
 
     // Validate encoding if provided
     if (params.encoding) {
-      const encodingValidation = this.validateEnum(
-        params,
-        'encoding',
-        ['utf-8', 'utf8', 'ascii', 'base64', 'hex', 'binary']
-      );
+      const encodingValidation = this.validateEnum(params, 'encoding', [
+        'utf-8',
+        'utf8',
+        'ascii',
+        'base64',
+        'hex',
+        'binary',
+      ]);
       if (!encodingValidation.valid) {
         return encodingValidation;
       }
@@ -142,10 +141,7 @@ export class FilesystemReadTool extends ToolService {
           return await this.getStats(filePath);
 
         default:
-          return this.formatErrorResponse(
-            'INVALID_ACTION',
-            `Unknown action: ${action}`
-          );
+          return this.formatErrorResponse('INVALID_ACTION', `Unknown action: ${action}`);
       }
     } catch (error) {
       if (error instanceof Error) {
@@ -192,17 +188,11 @@ export class FilesystemReadTool extends ToolService {
   /**
    * Read a file's contents
    */
-  private async readFile(
-    filePath: string,
-    encoding: BufferEncoding
-  ): Promise<ToolResult> {
+  private async readFile(filePath: string, encoding: BufferEncoding): Promise<ToolResult> {
     // Check if file exists and is a file
     const stats = await fs.stat(filePath);
     if (!stats.isFile()) {
-      return this.formatErrorResponse(
-        'NOT_A_FILE',
-        `Path is not a file: ${filePath}`
-      );
+      return this.formatErrorResponse('NOT_A_FILE', `Path is not a file: ${filePath}`);
     }
 
     // Read file contents
@@ -219,10 +209,7 @@ export class FilesystemReadTool extends ToolService {
     // Check if directory exists and is a directory
     const stats = await fs.stat(dirPath);
     if (!stats.isDirectory()) {
-      return this.formatErrorResponse(
-        'NOT_A_DIRECTORY',
-        `Path is not a directory: ${dirPath}`
-      );
+      return this.formatErrorResponse('NOT_A_DIRECTORY', `Path is not a directory: ${dirPath}`);
     }
 
     // Read directory contents with file types

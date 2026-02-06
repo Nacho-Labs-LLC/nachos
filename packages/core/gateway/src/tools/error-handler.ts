@@ -180,11 +180,7 @@ export class ToolErrorHandler {
     }
 
     // Configuration errors
-    if (
-      code.includes('CONFIG') ||
-      code.includes('INITIALIZATION') ||
-      code.includes('SETUP')
-    ) {
+    if (code.includes('CONFIG') || code.includes('INITIALIZATION') || code.includes('SETUP')) {
       return 'configuration';
     }
 
@@ -204,11 +200,7 @@ export class ToolErrorHandler {
     }
 
     // Resource errors
-    if (
-      code.includes('NOT_FOUND') ||
-      code.includes('ENOENT') ||
-      code.includes('MISSING')
-    ) {
+    if (code.includes('NOT_FOUND') || code.includes('ENOENT') || code.includes('MISSING')) {
       return 'resource';
     }
 
@@ -230,10 +222,7 @@ export class ToolErrorHandler {
   /**
    * Handle configuration errors (report)
    */
-  private handleConfigurationError(
-    call: ToolCall,
-    error: ToolResult
-  ): RecoveryResult {
+  private handleConfigurationError(call: ToolCall, error: ToolResult): RecoveryResult {
     return {
       action: 'report',
       message: this.formatUserMessage(
@@ -263,10 +252,7 @@ export class ToolErrorHandler {
   /**
    * Handle authorization errors (report)
    */
-  private handleAuthorizationError(
-    call: ToolCall,
-    error: ToolResult
-  ): RecoveryResult {
+  private handleAuthorizationError(call: ToolCall, error: ToolResult): RecoveryResult {
     return {
       action: 'report',
       message: this.formatUserMessage(
@@ -299,12 +285,7 @@ export class ToolErrorHandler {
   private handleFatalError(call: ToolCall, error: ToolResult): RecoveryResult {
     return {
       action: 'report',
-      message: this.formatUserMessage(
-        call,
-        error,
-        '💥 Error',
-        'An unexpected error occurred.'
-      ),
+      message: this.formatUserMessage(call, error, '💥 Error', 'An unexpected error occurred.'),
     };
   }
 
@@ -354,10 +335,8 @@ export class ToolErrorHandler {
     }
 
     // Calculate exponential backoff
-    const backoff = this.retryConfig.initialBackoff * Math.pow(
-      this.retryConfig.backoffMultiplier,
-      attempt
-    );
+    const backoff =
+      this.retryConfig.initialBackoff * Math.pow(this.retryConfig.backoffMultiplier, attempt);
 
     return Math.min(backoff, this.retryConfig.maxBackoff);
   }
@@ -379,15 +358,10 @@ export class ToolErrorHandler {
       return 'All operations completed successfully.';
     }
 
-    const summary = [
-      `❌ ${errors.length} operation(s) failed:`,
-      '',
-    ];
+    const summary = [`❌ ${errors.length} operation(s) failed:`, ''];
 
     for (const { call, result } of errors) {
-      summary.push(
-        `• **${call.tool}**: ${result.error?.message ?? 'Unknown error'}`
-      );
+      summary.push(`• **${call.tool}**: ${result.error?.message ?? 'Unknown error'}`);
     }
 
     return summary.join('\n');

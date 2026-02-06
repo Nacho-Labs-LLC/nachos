@@ -19,13 +19,9 @@ interface RemoveOptions {
 export async function removeCommand(
   type: string,
   name: string,
-  options: RemoveOptions,
+  options: RemoveOptions
 ): Promise<void> {
-  const output = new OutputFormatter(
-    options.json ?? false,
-    'remove',
-    getVersion(),
-  );
+  const output = new OutputFormatter(options.json ?? false, 'remove', getVersion());
 
   // Find config file first (needs to be in scope for error handler)
   const configPath = findConfigFileOrThrow();
@@ -37,7 +33,7 @@ export async function removeCommand(
         `Invalid module type: ${type}`,
         'INVALID_MODULE_TYPE',
         1,
-        'Valid types: channel, tool, skill',
+        'Valid types: channel, tool, skill'
       );
     }
     const configContent = readFileSync(configPath, 'utf-8');
@@ -54,7 +50,7 @@ export async function removeCommand(
         `${type} "${name}" not found in configuration`,
         'MODULE_NOT_FOUND',
         1,
-        `No [${section}.${name}] section exists in ${configPath}`,
+        `No [${section}.${name}] section exists in ${configPath}`
       );
     }
 
@@ -101,8 +97,8 @@ export async function removeCommand(
           'Invalid TOML in configuration file',
           'INVALID_TOML',
           2,
-          `Fix syntax errors in ${configPath} before removing modules`,
-        ),
+          `Fix syntax errors in ${configPath} before removing modules`
+        )
       );
     } else {
       output.error(error as Error);

@@ -76,16 +76,16 @@ export type ContextZone = 'green' | 'yellow' | 'orange' | 'red' | 'critical';
 
 export interface ContextZoneThresholds {
   /** Green zone: 0 - proactivePrune */
-  proactivePrune: number;  // default: 0.60
+  proactivePrune: number; // default: 0.60
 
   /** Yellow zone: proactivePrune - lightCompaction */
-  lightCompaction: number;  // default: 0.75
+  lightCompaction: number; // default: 0.75
 
   /** Orange zone: lightCompaction - aggressiveCompaction */
-  aggressiveCompaction: number;  // default: 0.85
+  aggressiveCompaction: number; // default: 0.85
 
   /** Red zone: aggressiveCompaction - emergency */
-  emergency: number;  // default: 0.95
+  emergency: number; // default: 0.95
 
   /** Critical zone: emergency+ */
 }
@@ -241,9 +241,9 @@ export interface ProactiveHistoryConfig {
 
   triggers: {
     onCompaction: boolean;
-    onThreshold: number;  // Context ratio to trigger
+    onThreshold: number; // Context ratio to trigger
     onMemoryFlush: boolean;
-    periodic?: string;  // e.g., '1h', '30m'
+    periodic?: string; // e.g., '1h', '30m'
   };
 
   snapshots: {
@@ -445,10 +445,7 @@ export interface ISummarizationService {
 
 export interface IHistoryExtractorService {
   /** Extract important items from messages */
-  extract(params: {
-    messages: ContextMessage[];
-    config: ProactiveHistoryConfig;
-  }): Promise<{
+  extract(params: { messages: ContextMessage[]; config: ProactiveHistoryConfig }): Promise<{
     decisions: ExtractedItem[];
     facts: ExtractedItem[];
     tasks: ExtractedItem[];
@@ -457,10 +454,7 @@ export interface IHistoryExtractorService {
   }>;
 
   /** Save extracted items to memory files */
-  save(params: {
-    sessionId: string;
-    extracted: Record<string, ExtractedItem[]>;
-  }): Promise<void>;
+  save(params: { sessionId: string; extracted: Record<string, ExtractedItem[]> }): Promise<void>;
 }
 
 export interface IContextSnapshotService {

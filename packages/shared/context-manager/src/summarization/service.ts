@@ -53,7 +53,10 @@ export class SummarizationService implements ISummarizationService {
   /**
    * Summarize messages at a specific compression tier
    */
-  async summarize(messages: ContextMessage[], tier: SummarizationTier): Promise<SummarizationResult> {
+  async summarize(
+    messages: ContextMessage[],
+    tier: SummarizationTier
+  ): Promise<SummarizationResult> {
     if (!this.config.enabled) {
       throw new Error('Summarization is disabled');
     }
@@ -100,7 +103,10 @@ export class SummarizationService implements ISummarizationService {
   /**
    * Summarize with automatic tier selection
    */
-  async summarizeAuto(messages: ContextMessage[], targetReduction: number): Promise<SummarizationResult> {
+  async summarizeAuto(
+    messages: ContextMessage[],
+    targetReduction: number
+  ): Promise<SummarizationResult> {
     // Select tier based on target reduction
     let tier: SummarizationTier;
     if (targetReduction >= 0.9) {
@@ -183,7 +189,8 @@ Generate a ${tier.toUpperCase()} summary that preserves critical information:`;
 
     for (const msg of messages) {
       const role = msg.role.toUpperCase();
-      const content = typeof msg.content === 'string' ? msg.content : this.contentBlocksToText(msg.content);
+      const content =
+        typeof msg.content === 'string' ? msg.content : this.contentBlocksToText(msg.content);
 
       lines.push(`[${role}]: ${content}`);
 
@@ -202,7 +209,9 @@ Generate a ${tier.toUpperCase()} summary that preserves critical information:`;
   /**
    * Convert content blocks to text
    */
-  private contentBlocksToText(blocks: Array<{ type: string; text?: string; [key: string]: unknown }>): string {
+  private contentBlocksToText(
+    blocks: Array<{ type: string; text?: string; [key: string]: unknown }>
+  ): string {
     return blocks
       .map((block) => {
         if (block.type === 'text' && block.text) {

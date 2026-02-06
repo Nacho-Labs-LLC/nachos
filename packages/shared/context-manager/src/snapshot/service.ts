@@ -127,19 +127,26 @@ export class ContextSnapshotService implements IContextSnapshotService {
   /**
    * List snapshots for a session
    */
-  async listSnapshots(sessionId: string, options?: ListSnapshotsOptions): Promise<ContextSnapshot[]> {
+  async listSnapshots(
+    sessionId: string,
+    options?: ListSnapshotsOptions
+  ): Promise<ContextSnapshot[]> {
     const snapshotDir = this.getSnapshotDirectory(sessionId);
 
     try {
       const files = await fs.readdir(snapshotDir);
       const snapshotFiles = files
-        .filter((f) => f.startsWith('snapshot-') && f.endsWith(this.compression ? '.json.gz' : '.json'))
+        .filter(
+          (f) => f.startsWith('snapshot-') && f.endsWith(this.compression ? '.json.gz' : '.json')
+        )
         .sort()
         .reverse(); // Most recent first
 
       // Apply pagination
       const { limit, offset = 0 } = options ?? {};
-      const paginatedFiles = limit ? snapshotFiles.slice(offset, offset + limit) : snapshotFiles.slice(offset);
+      const paginatedFiles = limit
+        ? snapshotFiles.slice(offset, offset + limit)
+        : snapshotFiles.slice(offset);
 
       // Read snapshot metadata (without full message content for efficiency)
       const snapshots: ContextSnapshot[] = [];

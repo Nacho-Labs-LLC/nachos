@@ -91,9 +91,7 @@ describe('DiscordChannelAdapter', () => {
 
     expect(result.success).toBe(true);
     expect(fetch).toHaveBeenCalledWith('channel-1');
-    expect(send).toHaveBeenCalledWith(
-      expect.objectContaining({ content: 'Hi' })
-    );
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({ content: 'Hi' }));
   });
 
   it('publishes inbound channel messages when mention-gated and allowlisted', async () => {

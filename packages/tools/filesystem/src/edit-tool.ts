@@ -94,11 +94,7 @@ export class FilesystemEditTool extends ToolService {
     }
 
     // Validate action enum
-    const actionValidation = this.validateEnum(
-      params,
-      'action',
-      ['replace', 'insert', 'delete']
-    );
+    const actionValidation = this.validateEnum(params, 'action', ['replace', 'insert', 'delete']);
 
     if (!actionValidation.valid) {
       return actionValidation;
@@ -193,10 +189,7 @@ export class FilesystemEditTool extends ToolService {
           break;
 
         default:
-          return this.formatErrorResponse(
-            'INVALID_ACTION',
-            `Unknown action: ${action}`
-          );
+          return this.formatErrorResponse('INVALID_ACTION', `Unknown action: ${action}`);
       }
 
       // Write back to file
@@ -222,10 +215,7 @@ export class FilesystemEditTool extends ToolService {
           const fsError = error as NodeJS.ErrnoException;
           switch (fsError.code) {
             case 'ENOENT':
-              return this.formatErrorResponse(
-                'FILE_NOT_FOUND',
-                `File not found: ${filePath}`
-              );
+              return this.formatErrorResponse('FILE_NOT_FOUND', `File not found: ${filePath}`);
             case 'EACCES':
             case 'EPERM':
               return this.formatErrorResponse(

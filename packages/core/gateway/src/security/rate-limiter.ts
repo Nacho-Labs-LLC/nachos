@@ -1,137 +1,137 @@
 /**
  * Sliding window rate limiter with Redis optional backend.
  */
-import { createClient, type RedisClientType } from 'redis'
-import { v4 as uuid } from 'uuid'
+import { createClient, type RedisClientType } from 'redis';
+import { v4 as uuid } from 'uuid';
 
-export type RateLimitAction = 'message' | 'tool' | 'llm'
+export type RateLimitAction = 'message' | 'tool' | 'llm';
 
 export interface RateLimitPresets {
-  strict: RateLimiterLimits
-  standard: RateLimiterLimits
-  permissive: RateLimiterLimits
+  strict: RateLimiterLimits;
+  standard: RateLimiterLimits;
+  permissive: RateLimiterLimits;
 }
 
 export interface RateLimiterLimits {
-  messagesPerMinute?: number
-  toolCallsPerMinute?: number
-  llmRequestsPerMinute?: number
+  messagesPerMinute?: number;
+  toolCallsPerMinute?: number;
+  llmRequestsPerMinute?: number;
 }
 
 export interface RateLimiterConfig {
-  enabled: boolean
-  limits: RateLimiterLimits
-  redisUrl?: string
-  presets?: RateLimitPresets
+  enabled: boolean;
+  limits: RateLimiterLimits;
+  redisUrl?: string;
+  presets?: RateLimitPresets;
 }
 
 export interface RateLimitCheckResult {
-  allowed: boolean
-  remaining: number
-  resetAt: number
-  total: number
-  retryAfterSeconds?: number
-  source: 'memory' | 'redis'
+  allowed: boolean;
+  remaining: number;
+  resetAt: number;
+  total: number;
+  retryAfterSeconds?: number;
+  source: 'memory' | 'redis';
 }
 
 export interface RateLimitStore {
-  record(key: string, timestampMs: number, windowMs: number): Promise<number>
-  disconnect(): Promise<void>
-  getSource(): 'memory' | 'redis'
+  record(key: string, timestampMs: number, windowMs: number): Promise<number>;
+  disconnect(): Promise<void>;
+  getSource(): 'memory' | 'redis';
 }
 
-const DEFAULT_WINDOW_MS = 60_000
+const DEFAULT_WINDOW_MS = 60_000;
 
 export class MemoryRateLimitStore implements RateLimitStore {
-  private entries = new Map<string, number[]>()
+  private entries = new Map<string, number[]>();
 
   async record(key: string, timestampMs: number, windowMs: number): Promise<number> {
-    const windowStart = timestampMs - windowMs
-    const entries = this.entries.get(key) ?? []
-    const filtered = entries.filter((value) => value > windowStart)
-    filtered.push(timestampMs)
-    this.entries.set(key, filtered)
-    return filtered.length
+    const windowStart = timestampMs - windowMs;
+    const entries = this.entries.get(key) ?? [];
+    const filtered = entries.filter((value) => value > windowStart);
+    filtered.push(timestampMs);
+    this.entries.set(key, filtered);
+    return filtered.length;
   }
 
   async disconnect(): Promise<void> {
-    this.entries.clear()
+    this.entries.clear();
   }
 
   getSource(): 'memory' | 'redis' {
-    return 'memory'
+    return 'memory';
   }
 }
 
 export class RedisRateLimitStore implements RateLimitStore {
-  private client: RedisClientType
-  private connecting: Promise<void> | null = null
-  private connected = false
+  private client: RedisClientType;
+  private connecting: Promise<void> | null = null;
+  private connected = false;
 
   constructor(redisUrl: string) {
-    this.client = createClient({ url: redisUrl })
+    this.client = createClient({ url: redisUrl });
     this.client.on('error', (error) => {
-      console.warn('[RateLimiter] Redis error', error)
-      this.connected = false
-      this.connecting = null
-    })
+      console.warn('[RateLimiter] Redis error', error);
+      this.connected = false;
+      this.connecting = null;
+    });
   }
 
   private async ensureConnected(): Promise<void> {
     if (!this.connected) {
       if (!this.connecting) {
-        this.connecting = this.client.connect().then(() => undefined)
+        this.connecting = this.client.connect().then(() => undefined);
       }
-      await this.connecting
-      this.connected = true
-      this.connecting = null
+      await this.connecting;
+      this.connected = true;
+      this.connecting = null;
     }
   }
 
   async record(key: string, timestampMs: number, windowMs: number): Promise<number> {
-    await this.ensureConnected()
-    const windowStart = timestampMs - windowMs
-    const pipeline = this.client.multi()
-    pipeline.zRemRangeByScore(key, 0, windowStart)
-    pipeline.zAdd(key, [{ score: timestampMs, value: uuid() }])
-    pipeline.zCard(key)
-    pipeline.pExpire(key, windowMs)
-    const results = await pipeline.exec()
+    await this.ensureConnected();
+    const windowStart = timestampMs - windowMs;
+    const pipeline = this.client.multi();
+    pipeline.zRemRangeByScore(key, 0, windowStart);
+    pipeline.zAdd(key, [{ score: timestampMs, value: uuid() }]);
+    pipeline.zCard(key);
+    pipeline.pExpire(key, windowMs);
+    const results = await pipeline.exec();
     if (!results) {
-      throw new Error('Redis rate limit pipeline failed')
+      throw new Error('Redis rate limit pipeline failed');
     }
-    const countResult = results[2] as [Error | null, number] | undefined
+    const countResult = results[2] as [Error | null, number] | undefined;
     if (!countResult || countResult[0]) {
-      throw new Error('Redis rate limit count failed')
+      throw new Error('Redis rate limit count failed');
     }
-    return Number(countResult[1])
+    return Number(countResult[1]);
   }
 
   async disconnect(): Promise<void> {
     if (this.connected) {
-      await this.client.disconnect()
-      this.connected = false
+      await this.client.disconnect();
+      this.connected = false;
     }
   }
 
   getSource(): 'memory' | 'redis' {
-    return 'redis'
+    return 'redis';
   }
 }
 
 export class RateLimiter {
-  private config: RateLimiterConfig
-  private store: RateLimitStore
-  private fallbackStore: RateLimitStore
+  private config: RateLimiterConfig;
+  private store: RateLimitStore;
+  private fallbackStore: RateLimitStore;
 
   constructor(config: RateLimiterConfig) {
-    this.config = config
-    this.fallbackStore = new MemoryRateLimitStore()
-    this.store = config.redisUrl ? new RedisRateLimitStore(config.redisUrl) : this.fallbackStore
+    this.config = config;
+    this.fallbackStore = new MemoryRateLimitStore();
+    this.store = config.redisUrl ? new RedisRateLimitStore(config.redisUrl) : this.fallbackStore;
   }
 
   getLimitsForMode(securityMode: 'strict' | 'standard' | 'permissive'): RateLimiterLimits {
-    return this.config.presets?.[securityMode] ?? this.config.limits
+    return this.config.presets?.[securityMode] ?? this.config.limits;
   }
 
   async check(
@@ -146,11 +146,11 @@ export class RateLimiter {
         resetAt: Date.now() + DEFAULT_WINDOW_MS,
         total: Number.MAX_SAFE_INTEGER,
         source: this.store.getSource(),
-      }
+      };
     }
 
-    const limits = limitOverride ?? this.config.limits
-    const limit = this.getLimitForAction(action, limits)
+    const limits = limitOverride ?? this.config.limits;
+    const limit = this.getLimitForAction(action, limits);
     if (!limit || limit <= 0) {
       return {
         allowed: true,
@@ -158,17 +158,17 @@ export class RateLimiter {
         resetAt: Date.now() + DEFAULT_WINDOW_MS,
         total: Number.MAX_SAFE_INTEGER,
         source: this.store.getSource(),
-      }
+      };
     }
 
-    const windowMs = DEFAULT_WINDOW_MS
-    const timestampMs = Date.now()
-    const key = `rate:${action}:${userId}`
+    const windowMs = DEFAULT_WINDOW_MS;
+    const timestampMs = Date.now();
+    const key = `rate:${action}:${userId}`;
 
-    const { count, source } = await this.recordWithFallback(key, timestampMs, windowMs)
-    const remaining = Math.max(limit - count, 0)
-    const allowed = count <= limit
-    const resetAt = timestampMs + windowMs
+    const { count, source } = await this.recordWithFallback(key, timestampMs, windowMs);
+    const remaining = Math.max(limit - count, 0);
+    const allowed = count <= limit;
+    const resetAt = timestampMs + windowMs;
 
     return {
       allowed,
@@ -177,7 +177,7 @@ export class RateLimiter {
       total: limit,
       retryAfterSeconds: allowed ? undefined : Math.ceil(windowMs / 1000),
       source,
-    }
+    };
   }
 
   async recordWithFallback(
@@ -186,41 +186,44 @@ export class RateLimiter {
     windowMs: number
   ): Promise<{ count: number; source: 'memory' | 'redis' }> {
     try {
-      const count = await this.store.record(key, timestampMs, windowMs)
-      return { count, source: this.store.getSource() }
+      const count = await this.store.record(key, timestampMs, windowMs);
+      return { count, source: this.store.getSource() };
     } catch (error) {
       console.warn(
         `[RateLimiter] ${this.store.getSource()} store failed; falling back to memory`,
         error
-      )
+      );
       if (this.store instanceof RedisRateLimitStore) {
-        await this.store.disconnect()
+        await this.store.disconnect();
       }
       if (this.store !== this.fallbackStore) {
-        const count = await this.fallbackStore.record(key, timestampMs, windowMs)
-        return { count, source: this.fallbackStore.getSource() }
+        const count = await this.fallbackStore.record(key, timestampMs, windowMs);
+        return { count, source: this.fallbackStore.getSource() };
       }
-      throw new Error('Rate limit storage unavailable')
+      throw new Error('Rate limit storage unavailable');
     }
   }
 
   async shutdown(): Promise<void> {
-    await this.store.disconnect()
+    await this.store.disconnect();
     if (this.store !== this.fallbackStore) {
-      await this.fallbackStore.disconnect()
+      await this.fallbackStore.disconnect();
     }
   }
 
-  private getLimitForAction(action: RateLimitAction, limits: RateLimiterLimits): number | undefined {
+  private getLimitForAction(
+    action: RateLimitAction,
+    limits: RateLimiterLimits
+  ): number | undefined {
     switch (action) {
       case 'message':
-        return limits.messagesPerMinute
+        return limits.messagesPerMinute;
       case 'tool':
-        return limits.toolCallsPerMinute
+        return limits.toolCallsPerMinute;
       case 'llm':
-        return limits.llmRequestsPerMinute
+        return limits.llmRequestsPerMinute;
       default:
-        return undefined
+        return undefined;
     }
   }
 }
@@ -250,5 +253,5 @@ export function createDefaultRateLimiterConfig(): RateLimiterConfig {
         llmRequestsPerMinute: 120,
       },
     },
-  }
+  };
 }

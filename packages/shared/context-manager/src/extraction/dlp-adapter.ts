@@ -93,7 +93,7 @@ export class DLPExtractionAdapter {
    */
   async extractCategory(
     messages: ContextMessage[],
-    category: 'decisions' | 'tasks' | 'facts' | 'issues' | 'files',
+    category: 'decisions' | 'tasks' | 'facts' | 'issues' | 'files'
   ): Promise<ExtractedItem[]> {
     const items: ExtractedItem[] = [];
     const prefix = category.slice(0, -1); // Remove 's' to get pattern prefix

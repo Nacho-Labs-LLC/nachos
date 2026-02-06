@@ -183,7 +183,9 @@ export class SnapshotRotation {
   /**
    * Delete all snapshots for a session
    */
-  async deleteSessionSnapshots(sessionId: string): Promise<{ deleted: number; bytesFreed: number }> {
+  async deleteSessionSnapshots(
+    sessionId: string
+  ): Promise<{ deleted: number; bytesFreed: number }> {
     const snapshotDir = join(this.stateDir, 'sessions', sessionId, 'snapshots');
 
     let deleted = 0;

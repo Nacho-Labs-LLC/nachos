@@ -26,7 +26,7 @@ export const CompactionEventSchema = Type.Object(
         Type.Literal('auto-red'),
         Type.Literal('auto-critical'),
       ],
-      { description: 'What triggered the compaction' },
+      { description: 'What triggered the compaction' }
     ),
     zone: Type.Union(
       [
@@ -36,7 +36,7 @@ export const CompactionEventSchema = Type.Object(
         Type.Literal('red'),
         Type.Literal('critical'),
       ],
-      { description: 'Context zone at time of compaction' },
+      { description: 'Context zone at time of compaction' }
     ),
     result: Type.Object(
       {
@@ -46,12 +46,15 @@ export const CompactionEventSchema = Type.Object(
         messagesKept: Type.Number({ description: 'Number of messages kept' }),
         compressionRatio: Type.Number({ description: 'Compression ratio (0.0-1.0)' }),
         tier: Type.Optional(
-          Type.Union([Type.Literal('archival'), Type.Literal('compressed'), Type.Literal('condensed')], {
-            description: 'Summarization tier applied',
-          }),
+          Type.Union(
+            [Type.Literal('archival'), Type.Literal('compressed'), Type.Literal('condensed')],
+            {
+              description: 'Summarization tier applied',
+            }
+          )
         ),
       },
-      { description: 'Compaction results' },
+      { description: 'Compaction results' }
     ),
     snapshot: Type.Optional(
       Type.Object(
@@ -59,14 +62,14 @@ export const CompactionEventSchema = Type.Object(
           path: Type.String({ description: 'Path to snapshot file' }),
           itemsExtracted: Type.Number({ description: 'Number of items extracted' }),
         },
-        { description: 'Snapshot information if created' },
-      ),
+        { description: 'Snapshot information if created' }
+      )
     ),
   },
   {
     $id: 'CompactionEvent',
     description: 'Event emitted when context compaction occurs',
-  },
+  }
 );
 
 export type CompactionEvent = Static<typeof CompactionEventSchema>;
@@ -90,17 +93,22 @@ export const ExtractionEventSchema = Type.Object(
         issues: Type.Number({ description: 'Number of issues extracted' }),
         files: Type.Number({ description: 'Number of file references extracted' }),
       },
-      { description: 'Extraction counts by category' },
+      { description: 'Extraction counts by category' }
     ),
     trigger: Type.Union(
-      [Type.Literal('compaction'), Type.Literal('threshold'), Type.Literal('periodic'), Type.Literal('manual')],
-      { description: 'What triggered the extraction' },
+      [
+        Type.Literal('compaction'),
+        Type.Literal('threshold'),
+        Type.Literal('periodic'),
+        Type.Literal('manual'),
+      ],
+      { description: 'What triggered the extraction' }
     ),
   },
   {
     $id: 'ExtractionEvent',
     description: 'Event emitted when history extraction occurs',
-  },
+  }
 );
 
 export type ExtractionEvent = Static<typeof ExtractionEventSchema>;
@@ -124,7 +132,7 @@ export const ZoneChangeEventSchema = Type.Object(
         Type.Literal('red'),
         Type.Literal('critical'),
       ],
-      { description: 'Previous zone' },
+      { description: 'Previous zone' }
     ),
     toZone: Type.Union(
       [
@@ -134,7 +142,7 @@ export const ZoneChangeEventSchema = Type.Object(
         Type.Literal('red'),
         Type.Literal('critical'),
       ],
-      { description: 'New zone' },
+      { description: 'New zone' }
     ),
     utilizationRatio: Type.Number({
       minimum: 0,
@@ -147,7 +155,7 @@ export const ZoneChangeEventSchema = Type.Object(
   {
     $id: 'ZoneChangeEvent',
     description: 'Event emitted when context zone changes',
-  },
+  }
 );
 
 export type ZoneChangeEvent = Static<typeof ZoneChangeEventSchema>;
@@ -171,7 +179,7 @@ export const SnapshotEventSchema = Type.Object(
   {
     $id: 'SnapshotEvent',
     description: 'Event emitted when context snapshot is created',
-  },
+  }
 );
 
 export type SnapshotEvent = Static<typeof SnapshotEventSchema>;
@@ -203,13 +211,13 @@ export const BudgetUpdateEventSchema = Type.Object(
           Type.Literal('critical'),
         ]),
       },
-      { description: 'Current budget state' },
+      { description: 'Current budget state' }
     ),
   },
   {
     $id: 'BudgetUpdateEvent',
     description: 'Event emitted when context budget is updated',
-  },
+  }
 );
 
 export type BudgetUpdateEvent = Static<typeof BudgetUpdateEventSchema>;

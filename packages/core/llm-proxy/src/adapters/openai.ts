@@ -1,10 +1,19 @@
 import OpenAI from 'openai';
 import type { LLMRequestType, LLMMessageType } from '@nachos/types';
-import { ProviderError, type AdapterResponse, type AdapterSendOptions, type AdapterStreamOptions, type StreamChunkHandler } from './types.js';
+import {
+  ProviderError,
+  type AdapterResponse,
+  type AdapterSendOptions,
+  type AdapterStreamOptions,
+  type StreamChunkHandler,
+} from './types.js';
 
-function toOpenAiMessages(messages: LLMRequestType['messages']): OpenAI.ChatCompletionMessageParam[] {
+function toOpenAiMessages(
+  messages: LLMRequestType['messages']
+): OpenAI.ChatCompletionMessageParam[] {
   return messages.map((message: LLMRequestType['messages'][number]) => {
-    const content = typeof message.content === 'string' ? message.content : JSON.stringify(message.content);
+    const content =
+      typeof message.content === 'string' ? message.content : JSON.stringify(message.content);
     const base = {
       role: message.role,
       content,
@@ -37,7 +46,12 @@ function toOpenAiTools(tools: LLMRequestType['tools']) {
 
 type ToolCall = { id: string; name: string; arguments: string };
 
-function mapToolCalls(toolCalls: Array<{ id?: string; function?: { name?: string; arguments?: string } }> | null | undefined): ToolCall[] | undefined {
+function mapToolCalls(
+  toolCalls:
+    | Array<{ id?: string; function?: { name?: string; arguments?: string } }>
+    | null
+    | undefined
+): ToolCall[] | undefined {
   if (!toolCalls || toolCalls.length === 0) return undefined;
   return toolCalls
     .filter((call) => call.function?.name)
@@ -101,7 +115,10 @@ export class OpenAIAdapter {
     } catch (error) {
       const mapped = this.mapError(error);
       if (profileName && (mapped.kind === 'rate_limit' || mapped.kind === 'billing')) {
-        options.onProfileCooldown?.(profileName, mapped.kind === 'billing' ? 'billing' : 'rate_limit');
+        options.onProfileCooldown?.(
+          profileName,
+          mapped.kind === 'billing' ? 'billing' : 'rate_limit'
+        );
       }
       throw mapped;
     }
@@ -186,7 +203,10 @@ export class OpenAIAdapter {
     } catch (error) {
       const mapped = this.mapError(error);
       if (profileName && (mapped.kind === 'rate_limit' || mapped.kind === 'billing')) {
-        options.onProfileCooldown?.(profileName, mapped.kind === 'billing' ? 'billing' : 'rate_limit');
+        options.onProfileCooldown?.(
+          profileName,
+          mapped.kind === 'billing' ? 'billing' : 'rate_limit'
+        );
       }
       throw mapped;
     }

@@ -14,11 +14,8 @@ import type { NachosConfig } from './schema.js';
  */
 export class ConfigLoadError extends Error {
   public override readonly cause?: Error;
-  
-  constructor(
-    message: string,
-    cause?: Error,
-  ) {
+
+  constructor(message: string, cause?: Error) {
     super(message);
     this.name = 'ConfigLoadError';
     if (cause) {

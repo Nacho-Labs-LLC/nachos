@@ -155,9 +155,7 @@ export class ApprovalManager extends EventEmitter {
    * Get all pending requests for a session
    */
   getPendingRequestsForSession(sessionId: string): ApprovalRequest[] {
-    return Array.from(this.pendingRequests.values()).filter(
-      (req) => req.sessionId === sessionId
-    );
+    return Array.from(this.pendingRequests.values()).filter((req) => req.sessionId === sessionId);
   }
 
   /**

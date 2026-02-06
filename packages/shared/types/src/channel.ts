@@ -2,14 +2,15 @@
  * Channel adapter interfaces and types
  */
 
-import type { ChannelInboundMessageType, ChannelOutboundMessageType, HealthStatusType } from './schemas.js';
+import type {
+  ChannelInboundMessageType,
+  ChannelOutboundMessageType,
+  HealthStatusType,
+} from './schemas.js';
 
 export interface ChannelBus {
   publish<T>(topic: string, payload: T): void | Promise<void>;
-  subscribe<T>(
-    topic: string,
-    handler: (payload: T) => void | Promise<void>
-  ): Promise<unknown>;
+  subscribe<T>(topic: string, handler: (payload: T) => void | Promise<void>): Promise<unknown>;
 }
 
 export interface ChannelDMPolicy {

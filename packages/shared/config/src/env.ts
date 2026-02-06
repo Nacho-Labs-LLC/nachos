@@ -187,7 +187,7 @@ function deepMerge<T extends Record<string, unknown>>(target: T, source: Partial
     if (!isSafeKey(key)) {
       continue;
     }
-    
+
     const sourceValue = source[key];
     const targetValue = result[key];
 
@@ -202,7 +202,7 @@ function deepMerge<T extends Record<string, unknown>>(target: T, source: Partial
       ) {
         result[key] = deepMerge(
           targetValue as Record<string, unknown>,
-          sourceValue as Record<string, unknown>,
+          sourceValue as Record<string, unknown>
         ) as T[Extract<keyof T, string>];
       } else {
         result[key] = sourceValue as T[Extract<keyof T, string>];
@@ -221,6 +221,6 @@ export function applyEnvOverlay(config: NachosConfig): NachosConfig {
   // Use type assertion through unknown for deep merge
   return deepMerge(
     config as unknown as Record<string, unknown>,
-    overlay as unknown as Record<string, unknown>,
+    overlay as unknown as Record<string, unknown>
   ) as unknown as NachosConfig;
 }

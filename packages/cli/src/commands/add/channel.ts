@@ -43,15 +43,8 @@ const CHANNEL_STUBS: Record<string, any> = {
   },
 };
 
-export async function addChannelCommand(
-  name: string,
-  options: AddChannelOptions,
-): Promise<void> {
-  const output = new OutputFormatter(
-    options.json ?? false,
-    'add channel',
-    getVersion(),
-  );
+export async function addChannelCommand(name: string, options: AddChannelOptions): Promise<void> {
+  const output = new OutputFormatter(options.json ?? false, 'add channel', getVersion());
 
   // Find config file first (needs to be in scope for error handler)
   const configPath = findConfigFileOrThrow();
@@ -63,7 +56,7 @@ export async function addChannelCommand(
         `Unknown channel: ${name}`,
         'UNKNOWN_CHANNEL',
         1,
-        `Valid channels: ${VALID_CHANNELS.join(', ')}`,
+        `Valid channels: ${VALID_CHANNELS.join(', ')}`
       );
     }
     const configContent = readFileSync(configPath, 'utf-8');
@@ -77,7 +70,7 @@ export async function addChannelCommand(
         `Channel ${name} is already configured`,
         'CHANNEL_EXISTS',
         1,
-        `Edit the existing [channels.${name}] section in ${configPath}`,
+        `Edit the existing [channels.${name}] section in ${configPath}`
       );
     }
 
@@ -116,8 +109,8 @@ export async function addChannelCommand(
           'Invalid TOML in configuration file',
           'INVALID_TOML',
           2,
-          `Fix syntax errors in ${configPath}, or use --force to overwrite`,
-        ),
+          `Fix syntax errors in ${configPath}, or use --force to overwrite`
+        )
       );
     } else {
       output.error(error as Error);

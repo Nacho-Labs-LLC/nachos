@@ -10,7 +10,11 @@ import { getProjectRoot } from '../core/config-discovery.js';
 import { OutputFormatter, prettyOutput } from '../core/output.js';
 import { DockerClient } from '../core/docker-client.js';
 import { getVersion } from '../cli.js';
-import { DockerNotAvailableError, DockerComposeNotAvailableError, CLIError } from '../core/errors.js';
+import {
+  DockerNotAvailableError,
+  DockerComposeNotAvailableError,
+  CLIError,
+} from '../core/errors.js';
 
 interface DownOptions {
   json?: boolean;
@@ -19,11 +23,7 @@ interface DownOptions {
 
 export async function downCommand(options: DownOptions): Promise<void> {
   const docker = new DockerClient();
-  const output = new OutputFormatter(
-    options.json ?? false,
-    'down',
-    getVersion(),
-  );
+  const output = new OutputFormatter(options.json ?? false, 'down', getVersion());
 
   try {
     // Check Docker availability
@@ -46,7 +46,7 @@ export async function downCommand(options: DownOptions): Promise<void> {
         'No generated compose file found',
         'COMPOSE_FILE_NOT_FOUND',
         1,
-        'The stack may not be running, or was started manually. Run "nachos up" to start the stack.',
+        'The stack may not be running, or was started manually. Run "nachos up" to start the stack.'
       );
     }
 

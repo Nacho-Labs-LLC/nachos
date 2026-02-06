@@ -187,9 +187,7 @@ export abstract class ToolService implements Tool {
       // Send success response
       await this.respond(msg, result, envelope.id);
 
-      this.logger.debug(
-        `Request completed: ${envelope.id} (${result.metadata.duration}ms)`
-      );
+      this.logger.debug(`Request completed: ${envelope.id} (${result.metadata.duration}ms)`);
     } catch (error) {
       this.logger.error('Error handling request:', error);
 
@@ -211,11 +209,7 @@ export abstract class ToolService implements Tool {
   /**
    * Send a response back to the caller
    */
-  private async respond(
-    msg: Msg,
-    result: ToolResult,
-    correlationId?: string
-  ): Promise<void> {
+  private async respond(msg: Msg, result: ToolResult, correlationId?: string): Promise<void> {
     const response: MessageEnvelope = {
       id: this.generateId(),
       timestamp: new Date().toISOString(),
@@ -231,11 +225,7 @@ export abstract class ToolService implements Tool {
   /**
    * Format an error response
    */
-  protected formatErrorResponse(
-    code: string,
-    message: string,
-    details?: unknown
-  ): ToolResult {
+  protected formatErrorResponse(code: string, message: string, details?: unknown): ToolResult {
     return {
       success: false,
       content: [],
@@ -300,10 +290,7 @@ export abstract class ToolService implements Tool {
   /**
    * Validate a required parameter exists
    */
-  protected validateRequired(
-    params: ToolParameters,
-    field: string
-  ): ToolValidationResult {
+  protected validateRequired(params: ToolParameters, field: string): ToolValidationResult {
     if (!(field in params) || params[field] === undefined || params[field] === null) {
       return {
         valid: false,
@@ -346,9 +333,7 @@ export abstract class ToolService implements Tool {
     if (!allowedValues.includes(value)) {
       return {
         valid: false,
-        errors: [
-          `Parameter ${field} must be one of: ${allowedValues.join(', ')}`,
-        ],
+        errors: [`Parameter ${field} must be one of: ${allowedValues.join(', ')}`],
       };
     }
     return { valid: true };

@@ -126,20 +126,14 @@ export class FilesystemPatchTool extends ToolService {
       const hunks = this.parsePatch(patchContent);
 
       if (hunks.length === 0) {
-        return this.formatErrorResponse(
-          'INVALID_PATCH',
-          'No valid hunks found in patch'
-        );
+        return this.formatErrorResponse('INVALID_PATCH', 'No valid hunks found in patch');
       }
 
       // Apply patch
       const result = this.applyPatch(fileLines, hunks, reverse);
 
       if (!result.success) {
-        return this.formatErrorResponse(
-          'PATCH_FAILED',
-          result.error ?? 'Failed to apply patch'
-        );
+        return this.formatErrorResponse('PATCH_FAILED', result.error ?? 'Failed to apply patch');
       }
 
       // Write back (unless dry run)
@@ -167,10 +161,7 @@ export class FilesystemPatchTool extends ToolService {
           const fsError = error as NodeJS.ErrnoException;
           switch (fsError.code) {
             case 'ENOENT':
-              return this.formatErrorResponse(
-                'FILE_NOT_FOUND',
-                `File not found: ${filePath}`
-              );
+              return this.formatErrorResponse('FILE_NOT_FOUND', `File not found: ${filePath}`);
             case 'EACCES':
             case 'EPERM':
               return this.formatErrorResponse(
@@ -325,9 +316,7 @@ export class FilesystemPatchTool extends ToolService {
       const content = patchLine.slice(1);
 
       // Check context and deletion lines match
-      if (
-        (prefix === ' ' || (!reverse && prefix === '-') || (reverse && prefix === '+'))
-      ) {
+      if (prefix === ' ' || (!reverse && prefix === '-') || (reverse && prefix === '+')) {
         if (currentLine >= fileLines.length) {
           return {
             valid: false,

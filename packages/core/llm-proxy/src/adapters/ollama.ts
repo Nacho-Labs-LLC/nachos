@@ -1,6 +1,11 @@
 import type { LLMRequestType } from '@nachos/types';
 import { OpenAIAdapter } from './openai.js';
-import type { AdapterResponse, AdapterSendOptions, AdapterStreamOptions, StreamChunkHandler } from './types.js';
+import type {
+  AdapterResponse,
+  AdapterSendOptions,
+  AdapterStreamOptions,
+  StreamChunkHandler,
+} from './types.js';
 
 export class OllamaAdapter {
   public readonly name = 'ollama';

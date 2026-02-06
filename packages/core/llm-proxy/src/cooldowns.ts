@@ -25,10 +25,16 @@ export class CooldownManager {
     state.count += 1;
 
     if (reason === 'billing') {
-      const hours = Math.min(this.billingBaseHours * Math.pow(2, state.count - 1), this.billingMaxHours);
+      const hours = Math.min(
+        this.billingBaseHours * Math.pow(2, state.count - 1),
+        this.billingMaxHours
+      );
       state.until = Date.now() + hours * 60 * 60 * 1000;
     } else {
-      const seconds = Math.min(this.baseSeconds * Math.pow(this.multiplier, state.count - 1), this.maxSeconds);
+      const seconds = Math.min(
+        this.baseSeconds * Math.pow(this.multiplier, state.count - 1),
+        this.maxSeconds
+      );
       state.until = Date.now() + seconds * 1000;
     }
 

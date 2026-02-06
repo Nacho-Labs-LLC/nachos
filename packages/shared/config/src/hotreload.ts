@@ -58,7 +58,7 @@ export class HotReloadWatcher {
     // Create watcher if it doesn't exist
     if (!this.watcher) {
       const watchPatterns = this.options.patterns!.map((pattern) =>
-        path.join(normalizedPath, pattern),
+        path.join(normalizedPath, pattern)
       );
 
       this.watcher = watch(watchPatterns, {
@@ -168,7 +168,7 @@ export class HotReloadWatcher {
 export function createPolicyWatcher(
   policyDir: string,
   callback: FileChangeCallback,
-  options?: WatchOptions,
+  options?: WatchOptions
 ): HotReloadWatcher {
   const watcher = new HotReloadWatcher(options);
   watcher.watch(policyDir, callback);

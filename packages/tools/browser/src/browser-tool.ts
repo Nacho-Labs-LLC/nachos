@@ -35,7 +35,8 @@ type BrowserAction = 'navigate' | 'screenshot' | 'extract' | 'get_url' | 'reload
 export class BrowserTool extends ToolService {
   readonly toolId = 'browser';
   readonly name = 'Browser';
-  readonly description = 'Web browser automation for navigation, screenshots, and content extraction';
+  readonly description =
+    'Web browser automation for navigation, screenshots, and content extraction';
   readonly securityTier = SecurityTier.STANDARD;
 
   readonly parameters: ParameterSchema = {
@@ -113,11 +114,13 @@ export class BrowserTool extends ToolService {
     }
 
     // Validate action enum
-    const actionValidation = this.validateEnum(
-      params,
-      'action',
-      ['navigate', 'screenshot', 'extract', 'get_url', 'reload']
-    );
+    const actionValidation = this.validateEnum(params, 'action', [
+      'navigate',
+      'screenshot',
+      'extract',
+      'get_url',
+      'reload',
+    ]);
     if (!actionValidation.valid) {
       return actionValidation;
     }
@@ -168,10 +171,7 @@ export class BrowserTool extends ToolService {
           return await this.reloadAction(contextId);
 
         default:
-          return this.formatErrorResponse(
-            'INVALID_ACTION',
-            `Unknown action: ${action}`
-          );
+          return this.formatErrorResponse('INVALID_ACTION', `Unknown action: ${action}`);
       }
     } catch (error) {
       if (error instanceof Error) {
@@ -184,10 +184,7 @@ export class BrowserTool extends ToolService {
   /**
    * Navigate to URL
    */
-  private async navigateAction(
-    contextId: string,
-    params: ToolParameters
-  ): Promise<ToolResult> {
+  private async navigateAction(contextId: string, params: ToolParameters): Promise<ToolResult> {
     const url = params.url as string;
 
     // Validate URL with SSRF protection
@@ -219,10 +216,7 @@ export class BrowserTool extends ToolService {
   /**
    * Take screenshot
    */
-  private async screenshotAction(
-    contextId: string,
-    params: ToolParameters
-  ): Promise<ToolResult> {
+  private async screenshotAction(contextId: string, params: ToolParameters): Promise<ToolResult> {
     const fullPage = params.fullPage === true;
     const selector = params.selector as string | undefined;
 
@@ -245,10 +239,7 @@ export class BrowserTool extends ToolService {
   /**
    * Extract content from page
    */
-  private async extractAction(
-    contextId: string,
-    params: ToolParameters
-  ): Promise<ToolResult> {
+  private async extractAction(contextId: string, params: ToolParameters): Promise<ToolResult> {
     const selector = params.selector as string | undefined;
     const extractLinks = params.extractLinks === true;
     const extractImages = params.extractImages === true;

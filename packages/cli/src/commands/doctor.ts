@@ -13,11 +13,7 @@ interface DoctorOptions {
 }
 
 export async function doctorCommand(options: DoctorOptions): Promise<void> {
-  const output = new OutputFormatter(
-    options.json ?? false,
-    'doctor',
-    getVersion(),
-  );
+  const output = new OutputFormatter(options.json ?? false, 'doctor', getVersion());
 
   try {
     if (!options.json) {
@@ -54,7 +50,9 @@ export async function doctorCommand(options: DoctorOptions): Promise<void> {
       }
 
       if (summary.warned > 0) {
-        summaryParts.push(chalk.yellow(`${summary.warned} warning${summary.warned === 1 ? '' : 's'}`));
+        summaryParts.push(
+          chalk.yellow(`${summary.warned} warning${summary.warned === 1 ? '' : 's'}`)
+        );
       }
 
       if (summary.failed > 0) {

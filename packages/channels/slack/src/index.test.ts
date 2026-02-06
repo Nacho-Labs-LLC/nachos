@@ -94,9 +94,7 @@ describe('SlackChannelAdapter', () => {
     });
 
     const appMock = vi.mocked(App);
-    expect(appMock).toHaveBeenCalledWith(
-      expect.objectContaining({ endpoints: '/slack/custom' })
-    );
+    expect(appMock).toHaveBeenCalledWith(expect.objectContaining({ endpoints: '/slack/custom' }));
   });
 
   it('publishes inbound DM messages when allowlisted', async () => {

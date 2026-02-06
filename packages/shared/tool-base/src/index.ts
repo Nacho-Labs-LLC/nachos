@@ -5,11 +5,7 @@
  */
 
 // Export ToolService base class
-export {
-  ToolService,
-  type ToolServiceConfig,
-  type Logger,
-} from './tool-service.js';
+export { ToolService, type ToolServiceConfig, type Logger } from './tool-service.js';
 
 // Export NATS utilities
 export {

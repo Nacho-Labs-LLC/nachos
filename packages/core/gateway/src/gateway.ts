@@ -141,10 +141,7 @@ export class Gateway {
     const securityMode = this.options.policyConfig?.securityMode ?? 'standard';
 
     if (this.rateLimiter) {
-      const limitResult = await this.rateLimiter.check(
-        message.sender.id ?? 'anonymous',
-        'message'
-      );
+      const limitResult = await this.rateLimiter.check(message.sender.id ?? 'anonymous', 'message');
 
       if (!limitResult.allowed) {
         void this.logAuditEvent({
@@ -678,7 +675,7 @@ export class Gateway {
   ): Promise<void> {
     const content = response.success ? response.message?.content : response.error?.message;
     const securityMode = this.options.policyConfig?.securityMode ?? 'standard';
-    let responseText = typeof content === 'string' ? content : '';
+    const responseText = typeof content === 'string' ? content : '';
     const toolCalls = response.success ? response.toolCalls : undefined;
 
     if (toolCalls && toolCalls.length > 0) {

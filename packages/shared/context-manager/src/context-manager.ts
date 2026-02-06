@@ -189,11 +189,11 @@ export class ContextManager {
       // Step 7: Calculate token statistics
       const tokensBefore = messages.reduce(
         (sum, m) => sum + this.messageAdapter.estimateMessageTokens(m),
-        0,
+        0
       );
       const tokensAfter = slidingResult.messagesKept.reduce(
         (sum, m) => sum + this.messageAdapter.estimateMessageTokens(m),
-        0,
+        0
       );
 
       // Step 8: Recalculate budget after compaction
@@ -237,8 +237,12 @@ export class ContextManager {
    * Generate human-readable summary of compaction
    */
   private generateCompactionSummary(
-    result: { messagesKept: ContextMessage[]; messagesDropped: ContextMessage[]; tokensRemoved: number },
-    action: SlidingAction,
+    result: {
+      messagesKept: ContextMessage[];
+      messagesDropped: ContextMessage[];
+      tokensRemoved: number;
+    },
+    action: SlidingAction
   ): string {
     const { messagesKept, messagesDropped, tokensRemoved } = result;
 
@@ -277,7 +281,7 @@ export class ContextManager {
  */
 export function createContextManager(
   config?: Partial<ContextManagementConfig>,
-  dependencies?: ContextManagerDependencies,
+  dependencies?: ContextManagerDependencies
 ): ContextManager {
   const defaultConfig: ContextManagementConfig = {
     sliding_window: {

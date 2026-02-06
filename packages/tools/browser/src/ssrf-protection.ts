@@ -31,16 +31,16 @@ export interface SSRFProtectionConfig {
  * Private IP ranges (RFC1918)
  */
 const PRIVATE_IP_RANGES = [
-  /^10\./,                    // 10.0.0.0/8
+  /^10\./, // 10.0.0.0/8
   /^172\.(1[6-9]|2[0-9]|3[01])\./, // 172.16.0.0/12
-  /^192\.168\./,               // 192.168.0.0/16
-  /^169\.254\./,               // 169.254.0.0/16 (link-local)
-  /^127\./,                    // 127.0.0.0/8 (loopback)
-  /^0\./,                      // 0.0.0.0/8
-  /^fc00:/i,                   // fc00::/7 (IPv6 unique local)
-  /^fe80:/i,                   // fe80::/10 (IPv6 link-local)
-  /^::1$/,                     // ::1 (IPv6 loopback)
-  /^::$/,                      // :: (IPv6 unspecified)
+  /^192\.168\./, // 192.168.0.0/16
+  /^169\.254\./, // 169.254.0.0/16 (link-local)
+  /^127\./, // 127.0.0.0/8 (loopback)
+  /^0\./, // 0.0.0.0/8
+  /^fc00:/i, // fc00::/7 (IPv6 unique local)
+  /^fe80:/i, // fe80::/10 (IPv6 link-local)
+  /^::1$/, // ::1 (IPv6 loopback)
+  /^::$/, // :: (IPv6 unspecified)
 ];
 
 /**
@@ -70,7 +70,9 @@ export class SSRFProtection {
       if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
         return {
           valid: false,
-          errors: [`Protocol '${parsed.protocol}' not allowed. Only http: and https: are supported.`],
+          errors: [
+            `Protocol '${parsed.protocol}' not allowed. Only http: and https: are supported.`,
+          ],
         };
       }
 
@@ -118,10 +120,7 @@ export class SSRFProtection {
     // Check exact match or subdomain match
     const isAllowed = this.allowedDomains.some((allowed) => {
       const normalizedAllowed = allowed.toLowerCase();
-      return (
-        normalized === normalizedAllowed ||
-        normalized.endsWith(`.${normalizedAllowed}`)
-      );
+      return normalized === normalizedAllowed || normalized.endsWith(`.${normalizedAllowed}`);
     });
 
     if (!isAllowed) {
@@ -182,10 +181,7 @@ export class SSRFProtection {
   private async checkDNSResolution(hostname: string): Promise<ToolValidationResult> {
     try {
       // Resolve both IPv4 and IPv6
-      const results = await Promise.allSettled([
-        dns.resolve4(hostname),
-        dns.resolve6(hostname),
-      ]);
+      const results = await Promise.allSettled([dns.resolve4(hostname), dns.resolve6(hostname)]);
 
       const ips: string[] = [];
 

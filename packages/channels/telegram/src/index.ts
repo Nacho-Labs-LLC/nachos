@@ -53,12 +53,9 @@ export class TelegramChannelAdapter implements ChannelAdapter {
 
     await this.bot.launch();
 
-    await this.config.bus.subscribe(
-      TOPICS.channel.outbound(this.channelId),
-      async (payload) => {
-        await this.sendMessage(payload as OutboundMessage);
-      }
-    );
+    await this.config.bus.subscribe(TOPICS.channel.outbound(this.channelId), async (payload) => {
+      await this.sendMessage(payload as OutboundMessage);
+    });
   }
 
   async stop(): Promise<void> {

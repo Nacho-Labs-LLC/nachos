@@ -56,10 +56,9 @@ export class MessageAdapter {
       role: contextMsg.role as MessageRole,
       content: this.serializeContent(contextMsg.content),
       toolCalls: contextMsg.toolCalls,
-      createdAt:
-        contextMsg.timestamp
-          ? new Date(contextMsg.timestamp).toISOString()
-          : new Date().toISOString(),
+      createdAt: contextMsg.timestamp
+        ? new Date(contextMsg.timestamp).toISOString()
+        : new Date().toISOString(),
     };
   }
 

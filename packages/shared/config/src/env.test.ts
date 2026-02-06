@@ -174,13 +174,13 @@ describe('Environment Variable Overlay', () => {
 
       // Try to pollute via environment variables (should be ignored)
       process.env.LLM_MODEL = 'safe-model';
-      
+
       const merged = applyEnvOverlay(baseConfig);
 
       // Verify no prototype pollution
       expect(Object.prototype).not.toHaveProperty('polluted');
       expect({}).not.toHaveProperty('polluted');
-      
+
       // Normal values should still work
       expect(merged.llm.model).toBe('safe-model');
     });

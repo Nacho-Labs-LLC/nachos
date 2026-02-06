@@ -142,7 +142,11 @@ describe('ContextSnapshotService', () => {
 
       // Create multiple snapshots
       await service.createSnapshot({ sessionId: testSessionId, messages, trigger: 'manual' });
-      await service.createSnapshot({ sessionId: testSessionId, messages, trigger: 'auto-compaction' });
+      await service.createSnapshot({
+        sessionId: testSessionId,
+        messages,
+        trigger: 'auto-compaction',
+      });
       await service.createSnapshot({ sessionId: testSessionId, messages, trigger: 'periodic' });
 
       const snapshots = await service.listSnapshots(testSessionId);
@@ -242,10 +246,18 @@ describe('ContextSnapshotService', () => {
       const service = new ContextSnapshotService({ stateDir: testStateDir, compression: false });
       const messages = createTestMessages(5);
 
-      const first = await service.createSnapshot({ sessionId: testSessionId, messages, trigger: 'manual' });
+      const first = await service.createSnapshot({
+        sessionId: testSessionId,
+        messages,
+        trigger: 'manual',
+      });
       // Small delay to ensure different timestamp
       await new Promise((resolve) => setTimeout(resolve, 10));
-      const second = await service.createSnapshot({ sessionId: testSessionId, messages, trigger: 'manual' });
+      const second = await service.createSnapshot({
+        sessionId: testSessionId,
+        messages,
+        trigger: 'manual',
+      });
 
       const latest = await service.getLatestSnapshot(testSessionId);
 

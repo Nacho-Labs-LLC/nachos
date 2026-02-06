@@ -61,12 +61,9 @@ export class DiscordChannelAdapter implements ChannelAdapter {
     await this.client.login(token);
     this.botUserId = this.client.user?.id;
 
-    await this.config.bus.subscribe(
-      TOPICS.channel.outbound(this.channelId),
-      async (payload) => {
-        await this.sendMessage(payload as OutboundMessage);
-      }
-    );
+    await this.config.bus.subscribe(TOPICS.channel.outbound(this.channelId), async (payload) => {
+      await this.sendMessage(payload as OutboundMessage);
+    });
   }
 
   async stop(): Promise<void> {
@@ -95,7 +92,9 @@ export class DiscordChannelAdapter implements ChannelAdapter {
       }
 
       const files = this.buildDiscordFiles(message.content.attachments ?? []);
-      const response = await (channel as { send: (options: unknown) => Promise<{ id: string }> }).send({
+      const response = await (
+        channel as { send: (options: unknown) => Promise<{ id: string }> }
+      ).send({
         content: message.content.text,
         reply: message.replyToMessageId
           ? { messageReference: message.replyToMessageId }
@@ -189,15 +188,16 @@ export class DiscordChannelAdapter implements ChannelAdapter {
     }
 
     const attachmentCollection = message.attachments;
-    const attachments = attachmentCollection && attachmentCollection.size > 0
-      ? attachmentCollection.map((attachment) => ({
-          type: 'file',
-          url: attachment.url,
-          name: attachment.name ?? undefined,
-          mimeType: attachment.contentType ?? undefined,
-          size: attachment.size ?? undefined,
-        }))
-      : undefined;
+    const attachments =
+      attachmentCollection && attachmentCollection.size > 0
+        ? attachmentCollection.map((attachment) => ({
+            type: 'file',
+            url: attachment.url,
+            name: attachment.name ?? undefined,
+            mimeType: attachment.contentType ?? undefined,
+            size: attachment.size ?? undefined,
+          }))
+        : undefined;
 
     const inbound = {
       channel: this.channelId,

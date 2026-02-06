@@ -1,7 +1,12 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { WhatsappChannelConfig } from '@nachos/config';
-import { TOPICS, resolveDmPolicy, createPairingStore, parsePairingCommand } from '@nachos/channel-base';
+import {
+  TOPICS,
+  resolveDmPolicy,
+  createPairingStore,
+  parsePairingCommand,
+} from '@nachos/channel-base';
 import type {
   ChannelAdapter,
   ChannelAdapterConfig,
@@ -81,10 +86,8 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
     const channelConfig = (config.config ?? {}) as WhatsappChannelConfig;
 
     this.token = channelConfig.token ?? config.secrets.WHATSAPP_TOKEN;
-    this.phoneNumberId =
-      channelConfig.phone_number_id ?? config.secrets.WHATSAPP_PHONE_NUMBER_ID;
-    this.verifyToken =
-      channelConfig.verify_token ?? config.secrets.WHATSAPP_VERIFY_TOKEN;
+    this.phoneNumberId = channelConfig.phone_number_id ?? config.secrets.WHATSAPP_PHONE_NUMBER_ID;
+    this.verifyToken = channelConfig.verify_token ?? config.secrets.WHATSAPP_VERIFY_TOKEN;
     this.webhookPath = channelConfig.webhook_path ?? '/whatsapp/webhook';
     this.apiVersion = channelConfig.api_version ?? 'v20.0';
     this.appSecret = channelConfig.app_secret ?? config.secrets.WHATSAPP_APP_SECRET;
@@ -108,12 +111,9 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
       this.server?.listen(port, () => resolve());
     });
 
-    await this.config.bus.subscribe(
-      TOPICS.channel.outbound(this.channelId),
-      async (payload) => {
-        await this.sendMessage(payload as OutboundMessage);
-      }
-    );
+    await this.config.bus.subscribe(TOPICS.channel.outbound(this.channelId), async (payload) => {
+      await this.sendMessage(payload as OutboundMessage);
+    });
   }
 
   async stop(): Promise<void> {
@@ -198,10 +198,7 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
     return 'healthy';
   }
 
-  private async handleWebhookRequest(
-    req: IncomingMessage,
-    res: ServerResponse
-  ): Promise<void> {
+  private async handleWebhookRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const url = new URL(req.url ?? '/', 'http://localhost');
     if (url.pathname !== this.webhookPath) {
       res.writeHead(404, { 'Content-Type': 'application/json' });
@@ -380,10 +377,7 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
             },
           };
 
-          await this.config.bus.publish(
-            TOPICS.channel.inbound(this.channelId),
-            inbound
-          );
+          await this.config.bus.publish(TOPICS.channel.inbound(this.channelId), inbound);
         }
       }
     }

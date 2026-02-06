@@ -14,7 +14,7 @@ export class OutputFormatter {
     private readonly jsonMode: boolean,
     private readonly command: string,
     private readonly version: string,
-    private readonly configPath?: string,
+    private readonly configPath?: string
   ) {
     this.startTime = Date.now();
   }

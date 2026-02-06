@@ -75,7 +75,7 @@ export async function checkContainerHealth(): Promise<DoctorCheck> {
 
     const running = containers.filter((c) => c.State === 'running');
     const unhealthy = running.filter(
-      (c) => c.Health && c.Health !== 'healthy' && c.Health !== 'starting',
+      (c) => c.Health && c.Health !== 'healthy' && c.Health !== 'starting'
     );
 
     if (unhealthy.length > 0) {

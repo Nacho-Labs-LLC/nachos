@@ -144,9 +144,7 @@ export function generateComposeFile(config: NachosConfig, projectRoot: string): 
 
     return compose;
   } catch (error) {
-    throw new ComposeGenerationError(
-      error instanceof Error ? error.message : String(error),
-    );
+    throw new ComposeGenerationError(error instanceof Error ? error.message : String(error));
   }
 }
 
@@ -203,7 +201,14 @@ function buildBusService(projectRoot: string): Service {
     ],
     command: ['-c', '/etc/nats/nats-server.conf'],
     healthcheck: {
-      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:8222/healthz'],
+      test: [
+        'CMD',
+        'wget',
+        '--no-verbose',
+        '--tries=1',
+        '--spider',
+        'http://localhost:8222/healthz',
+      ],
       interval: '10s',
       timeout: '3s',
       retries: 3,
@@ -577,10 +582,7 @@ function buildFilesystemService(_config: NachosConfig, projectRoot: string): Ser
       NATS_URL: 'nats://bus:4222',
       LOG_LEVEL: 'debug',
     },
-    volumes: [
-      `${projectRoot}/workspace:/workspace`,
-      'nachos-logs:/var/log/nachos',
-    ],
+    volumes: [`${projectRoot}/workspace:/workspace`, 'nachos-logs:/var/log/nachos'],
     logging: {
       driver: 'json-file',
       options: {
@@ -670,10 +672,7 @@ function buildShellService(_config: NachosConfig, projectRoot: string): Service 
       NATS_URL: 'nats://bus:4222',
       LOG_LEVEL: 'debug',
     },
-    volumes: [
-      `${projectRoot}/workspace:/workspace`,
-      'nachos-logs:/var/log/nachos',
-    ],
+    volumes: [`${projectRoot}/workspace:/workspace`, 'nachos-logs:/var/log/nachos'],
     logging: {
       driver: 'json-file',
       options: {
@@ -742,7 +741,7 @@ export function writeComposeFile(compose: ComposeFile, projectRoot: string): str
     return composePath;
   } catch (error) {
     throw new ComposeGenerationError(
-      `Failed to write compose file: ${error instanceof Error ? error.message : String(error)}`,
+      `Failed to write compose file: ${error instanceof Error ? error.message : String(error)}`
     );
   }
 }
@@ -754,10 +753,7 @@ export function writeComposeFile(compose: ComposeFile, projectRoot: string): str
  * @param projectRoot Project root directory
  * @returns Path to generated compose file
  */
-export function generateAndWriteComposeFile(
-  config: NachosConfig,
-  projectRoot: string,
-): string {
+export function generateAndWriteComposeFile(config: NachosConfig, projectRoot: string): string {
   const compose = generateComposeFile(config, projectRoot);
   return writeComposeFile(compose, projectRoot);
 }

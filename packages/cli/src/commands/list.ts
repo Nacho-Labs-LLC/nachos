@@ -15,11 +15,7 @@ interface ListOptions {
 }
 
 export async function listCommand(options: ListOptions): Promise<void> {
-  const output = new OutputFormatter(
-    options.json ?? false,
-    'list',
-    getVersion(),
-  );
+  const output = new OutputFormatter(options.json ?? false, 'list', getVersion());
 
   try {
     // Find and load config

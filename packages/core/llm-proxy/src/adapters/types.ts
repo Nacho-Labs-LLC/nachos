@@ -1,8 +1,4 @@
-import type {
-  LLMMessageType,
-  LLMRequestType,
-  LLMStreamChunkType,
-} from '@nachos/types';
+import type { LLMMessageType, LLMRequestType, LLMStreamChunkType } from '@nachos/types';
 
 type LLMToolCallType = {
   id: string;
@@ -44,7 +40,11 @@ export interface LLMProviderAdapter {
   readonly name: string;
   readonly type: 'anthropic' | 'openai' | 'ollama' | 'custom';
   send(request: LLMRequestType, options: AdapterSendOptions): Promise<AdapterResponse>;
-  stream?(request: LLMRequestType, options: AdapterStreamOptions, onChunk: StreamChunkHandler): Promise<AdapterResponse>;
+  stream?(
+    request: LLMRequestType,
+    options: AdapterStreamOptions,
+    onChunk: StreamChunkHandler
+  ): Promise<AdapterResponse>;
 }
 
 export class ProviderError extends Error {
