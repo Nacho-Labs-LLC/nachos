@@ -22,12 +22,21 @@ type SlackEventMessage = {
   user?: string;
   text?: string;
   ts?: string;
+  thread_ts?: string;
   channel?: string;
   channel_type?: string;
   subtype?: string;
   bot_id?: string;
   team?: string;
   team_id?: string;
+  files?: Array<{
+    id?: string;
+    name?: string;
+    mimetype?: string;
+    size?: number;
+    url_private?: string;
+    url_private_download?: string;
+  }>;
 };
 
 export class SlackChannelAdapter implements ChannelAdapter {
@@ -129,6 +138,36 @@ export class SlackChannelAdapter implements ChannelAdapter {
         thread_ts: message.replyToMessageId,
       });
 
+      const attachments = message.content.attachments ?? [];
+      if (attachments.length > 0) {
+        for (let i = 0; i < attachments.length; i += 1) {
+          const attachment = attachments[i];
+          if (!attachment) continue;
+
+          const data = attachment.data;
+          if (typeof data === 'string') {
+            const buffer = this.decodeAttachmentData(data);
+            if (buffer) {
+              await this.app.client.files.upload({
+                channels: message.conversationId,
+                file: buffer,
+                filename: attachment.name ?? `attachment-${i + 1}`,
+                thread_ts: message.replyToMessageId,
+              });
+              continue;
+            }
+
+            if (this.isUrl(data)) {
+              await this.app.client.chat.postMessage({
+                channel: message.conversationId,
+                text: `Attachment: ${data}`,
+                thread_ts: message.replyToMessageId,
+              });
+            }
+          }
+        }
+      }
+
       return {
         success: true,
         messageId: response.ts,
@@ -223,6 +262,22 @@ export class SlackChannelAdapter implements ChannelAdapter {
       if (!allowed) return;
     }
 
+    const attachments = event.files
+      ? event.files
+          .map((file) => {
+            const url = file.url_private_download ?? file.url_private;
+            if (!url) return null;
+            return {
+              type: 'file',
+              url,
+              name: file.name,
+              mimeType: file.mimetype,
+              size: file.size,
+            };
+          })
+          .filter((item): item is NonNullable<typeof item> => Boolean(item))
+      : undefined;
+
     const inbound = {
       channel: this.channelId,
       channelMessageId: event.ts,
@@ -236,12 +291,48 @@ export class SlackChannelAdapter implements ChannelAdapter {
       },
       content: {
         text: event.text ?? '',
+        attachments: attachments && attachments.length > 0 ? attachments : undefined,
       },
       metadata: {
         teamId: serverId,
+        thread_ts: event.thread_ts,
+        event_ts: (event as { event_ts?: string }).event_ts,
       },
     };
 
     await this.config.bus.publish(TOPICS.channel.inbound(this.channelId), inbound);
+  }
+
+  private decodeAttachmentData(data: string): Buffer | null {
+    if (data.startsWith('data:')) {
+      const base64Index = data.indexOf('base64,');
+      if (base64Index !== -1) {
+        const base64 = data.slice(base64Index + 7);
+        try {
+          return Buffer.from(base64, 'base64');
+        } catch {
+          return null;
+        }
+      }
+      return null;
+    }
+
+    if (this.looksLikeBase64(data)) {
+      try {
+        return Buffer.from(data, 'base64');
+      } catch {
+        return null;
+      }
+    }
+
+    return null;
+  }
+
+  private looksLikeBase64(data: string): boolean {
+    return /^[A-Za-z0-9+/=]+$/.test(data) && data.length % 4 === 0;
+  }
+
+  private isUrl(value: string): boolean {
+    return value.startsWith('http://') || value.startsWith('https://');
   }
 }

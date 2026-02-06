@@ -17,6 +17,7 @@ import { createHealthServer, performHealthCheck, type HealthCheckDeps } from './
 import { Salsa, type PolicyEngineConfig, type SecurityRequest } from './salsa/index.js';
 import { AuditLogger, loadAuditProvider } from './audit/index.js';
 import type { AuditEvent } from './audit/types.js';
+import { DLPSecurityLayer, type DLPConfig } from './security/dlp.js';
 import {
   createDefaultRateLimiterConfig,
   RateLimiter,
@@ -25,7 +26,7 @@ import {
 import { ToolCoordinator } from './tools/coordinator.js';
 import { ToolCache } from './tools/cache.js';
 import { ApprovalManager } from './tools/approval-manager.js';
-import type { ToolCall } from '@nachos/types';
+import type { ToolCall, ToolResult } from '@nachos/types';
 
 /**
  * Gateway configuration options
@@ -45,6 +46,8 @@ export interface GatewayOptions {
   policyConfig?: PolicyEngineConfig;
   /** Audit configuration */
   auditConfig?: AuditConfig;
+  /** DLP configuration */
+  dlpConfig?: DLPConfig;
   /** Gateway instance ID */
   instanceId?: string;
   /** Rate limiting configuration */
@@ -67,6 +70,8 @@ export class Gateway {
   private rateLimiter?: RateLimiter;
   private salsa: Salsa | null = null;
   private auditLogger: AuditLogger | null = null;
+  private dlp: DLPSecurityLayer | null = null;
+  private dlpConfig?: DLPConfig;
   private toolCoordinator: ToolCoordinator | null = null;
   private toolCache: ToolCache | null = null;
   private approvalManager: ApprovalManager | null = null;
@@ -88,6 +93,7 @@ export class Gateway {
   constructor(options: GatewayOptions = {}) {
     this.options = options;
     this.instanceId = options.instanceId ?? 'gateway';
+    this.dlpConfig = options.dlpConfig;
 
     // Initialize storage
     this.storage = new StateStorage(options.dbPath ?? ':memory:');
@@ -131,6 +137,53 @@ export class Gateway {
    */
   private async handleInboundMessage(envelope: MessageEnvelope): Promise<void> {
     const message = envelope.payload as ChannelInboundMessage;
+    let messageText = message.content.text ?? '';
+    const securityMode = this.options.policyConfig?.securityMode ?? 'standard';
+
+    if (this.rateLimiter) {
+      const limitResult = await this.rateLimiter.check(
+        message.sender.id ?? 'anonymous',
+        'message'
+      );
+
+      if (!limitResult.allowed) {
+        void this.logAuditEvent({
+          id: envelope.id,
+          timestamp: new Date().toISOString(),
+          instanceId: this.instanceId,
+          userId: message.sender.id,
+          sessionId: message.sessionId ?? 'unknown',
+          channel: message.channel,
+          eventType: 'rate_limit',
+          action: 'rate_limit',
+          resource: message.channel,
+          outcome: 'blocked',
+          reason: 'Inbound message rate limit exceeded',
+          securityMode,
+          details: {
+            remaining: limitResult.remaining,
+            resetAt: limitResult.resetAt,
+            limit: limitResult.total,
+            retryAfterSeconds: limitResult.retryAfterSeconds,
+            source: limitResult.source,
+          },
+        });
+
+        const outbound: ChannelOutboundMessage = {
+          channel: message.channel,
+          conversationId: message.conversation.id,
+          replyToMessageId: this.getReplyToMessageId(message),
+          content: {
+            text: `Rate limit exceeded. Retry after ${limitResult.retryAfterSeconds ?? 60}s.`,
+            format: 'markdown',
+          },
+        };
+
+        await this.router.sendToChannel(outbound);
+        return;
+      }
+    }
+
     const existingSession = this.sessionManager.getSessionByConversation(
       message.channel,
       message.conversation.id
@@ -144,6 +197,60 @@ export class Gateway {
       systemPrompt: this.options.defaultSystemPrompt,
     });
 
+    if (this.salsa) {
+      const policyResult = this.salsa.evaluate({
+        requestId: envelope.id,
+        userId: message.sender.id,
+        sessionId: session.id,
+        securityMode,
+        resource: {
+          type: message.conversation.type === 'dm' ? 'dm' : 'channel',
+          id: message.channel,
+        },
+        action: 'receive',
+        metadata: {
+          channel: message.channel,
+          conversationId: message.conversation.id,
+          conversationType: message.conversation.type,
+          channelMessageId: message.channelMessageId,
+          userId: message.sender.id,
+          ...message.metadata,
+        },
+        timestamp: new Date(),
+      });
+
+      if (!policyResult.allowed) {
+        void this.logAuditEvent({
+          id: envelope.id,
+          timestamp: new Date().toISOString(),
+          instanceId: this.instanceId,
+          userId: message.sender.id,
+          sessionId: session.id,
+          channel: message.channel,
+          eventType: 'policy_check',
+          action: 'policy.receive',
+          resource: message.channel,
+          outcome: 'denied',
+          reason: policyResult.reason,
+          securityMode,
+          policyMatched: policyResult.ruleId,
+        });
+
+        const outbound: ChannelOutboundMessage = {
+          channel: message.channel,
+          conversationId: message.conversation.id,
+          replyToMessageId: this.getReplyToMessageId(message),
+          content: {
+            text: policyResult.reason ?? 'Message denied by policy.',
+            format: 'markdown',
+          },
+        };
+
+        await this.router.sendToChannel(outbound);
+        return;
+      }
+    }
+
     if (!existingSession) {
       await this.logAuditEvent({
         id: envelope.id,
@@ -156,7 +263,7 @@ export class Gateway {
         action: 'session.create',
         resource: session.id,
         outcome: 'allowed',
-        securityMode: this.options.policyConfig?.securityMode ?? 'standard',
+        securityMode,
         details: {
           conversationId: message.conversation.id,
           messageId: message.channelMessageId,
@@ -164,15 +271,78 @@ export class Gateway {
       });
     }
 
+    // DLP scan before processing content
+    if (messageText && this.dlp) {
+      const scanResult = this.dlp.scan(messageText, message.channel);
+      if (!scanResult.allowed) {
+        void this.logAuditEvent({
+          id: envelope.id,
+          timestamp: new Date().toISOString(),
+          instanceId: this.instanceId,
+          userId: message.sender.id,
+          sessionId: session.id,
+          channel: message.channel,
+          eventType: 'dlp_block',
+          action: 'dlp.block',
+          resource: message.channel,
+          outcome: 'blocked',
+          reason: scanResult.reason,
+          securityMode,
+          details: {
+            findingsCount: scanResult.findings.length,
+            action: scanResult.action,
+          },
+        });
+
+        const outbound: ChannelOutboundMessage = {
+          channel: message.channel,
+          conversationId: message.conversation.id,
+          replyToMessageId: this.getReplyToMessageId(message),
+          content: {
+            text: scanResult.reason ?? 'Message blocked by DLP policy.',
+            format: 'markdown',
+          },
+        };
+
+        await this.router.sendToChannel(outbound);
+        return;
+      }
+
+      if (scanResult.action === 'redact' && scanResult.message) {
+        messageText = scanResult.message;
+      }
+
+      if (scanResult.action === 'alert') {
+        await this.logAuditEvent({
+          id: envelope.id,
+          timestamp: new Date().toISOString(),
+          instanceId: this.instanceId,
+          userId: message.sender.id,
+          sessionId: session.id,
+          channel: message.channel,
+          eventType: 'dlp_scan',
+          action: 'dlp.alert',
+          resource: message.channel,
+          outcome: 'allowed',
+          reason: scanResult.reason,
+          securityMode: this.options.policyConfig?.securityMode ?? 'standard',
+          details: {
+            findingsCount: scanResult.findings.length,
+            action: scanResult.action,
+          },
+        });
+      }
+    }
+
     // Add user message to session
-    if (message.content.text) {
+    if (messageText) {
       this.sessionManager.addMessage(session.id, {
         role: 'user',
-        content: message.content.text,
+        content: messageText,
       });
     }
 
-    const approvalText = message.content.text?.trim();
+    const approvalText = messageText.trim();
     if (approvalText && this.approvalManager) {
       const approveMatch = approvalText.match(/^\/approve\s+(\S+)$/i);
       const denyMatch = approvalText.match(/^\/deny\s+(\S+)(?:\s+(.+))?$/i);
@@ -330,8 +500,124 @@ export class Gateway {
       };
     });
 
-    // Execute tools using coordinator (handles parallel execution, caching, policy checks)
-    const results = await this.toolCoordinator.executeTools(calls);
+    const securityMode = this.options.policyConfig?.securityMode ?? 'standard';
+    const session = this.sessionManager.getSession(sessionId);
+
+    const blockedResults: Array<{ index: number; result: ToolResult }> = [];
+    const allowedCalls: Array<{ index: number; call: ToolCall }> = [];
+
+    for (let i = 0; i < calls.length; i += 1) {
+      const call = calls[i];
+      if (!call) continue;
+
+      if (this.dlp) {
+        const paramText = this.stringifyToolParameters(call.parameters);
+        if (paramText) {
+          const scanResult = this.dlp.scan(paramText, session?.channel);
+          if (!scanResult.allowed) {
+            void this.logAuditEvent({
+              id: `dlp-tool-${call.id}`,
+              timestamp: new Date().toISOString(),
+              instanceId: this.instanceId,
+              userId: session?.userId ?? 'unknown',
+              sessionId,
+              channel: session?.channel ?? 'unknown',
+              eventType: 'dlp_block',
+              action: 'dlp.block.tool_input',
+              resource: call.tool,
+              outcome: 'blocked',
+              reason: scanResult.reason,
+              securityMode,
+              details: {
+                findingsCount: scanResult.findings.length,
+                action: scanResult.action,
+              },
+            });
+
+            blockedResults.push({
+              index: i,
+              result: {
+                success: false,
+                content: [],
+                error: {
+                  code: 'DLP_BLOCKED',
+                  message: scanResult.reason ?? 'Tool call blocked by DLP policy.',
+                },
+              },
+            });
+            continue;
+          }
+
+          if (scanResult.action === 'alert') {
+            void this.logAuditEvent({
+              id: `dlp-tool-alert-${call.id}`,
+              timestamp: new Date().toISOString(),
+              instanceId: this.instanceId,
+              userId: session?.userId ?? 'unknown',
+              sessionId,
+              channel: session?.channel ?? 'unknown',
+              eventType: 'dlp_scan',
+              action: 'dlp.alert.tool_input',
+              resource: call.tool,
+              outcome: 'allowed',
+              reason: scanResult.reason,
+              securityMode,
+              details: {
+                findingsCount: scanResult.findings.length,
+                action: scanResult.action,
+              },
+            });
+          }
+        }
+      }
+
+      allowedCalls.push({ index: i, call });
+    }
+
+    const results: ToolResult[] = new Array(calls.length);
+
+    for (const blocked of blockedResults) {
+      results[blocked.index] = blocked.result;
+    }
+
+    const executedResults = allowedCalls.length
+      ? await this.toolCoordinator.executeTools(allowedCalls.map((item) => item.call))
+      : [];
+
+    for (let i = 0; i < allowedCalls.length; i += 1) {
+      const allowed = allowedCalls[i];
+      if (!allowed) continue;
+      results[allowed.index] = executedResults[i] as ToolResult;
+    }
+
+    // Apply DLP to tool results
+    if (this.dlp) {
+      for (let i = 0; i < results.length; i += 1) {
+        const result = results[i];
+        const call = calls[i];
+        if (!result || !call || !result.success) continue;
+
+        const scanned = this.scanToolResult(result, session, call.tool, securityMode);
+        if (!scanned.allowed) {
+          results[i] = {
+            success: false,
+            content: [],
+            error: {
+              code: 'DLP_BLOCKED',
+              message: scanned.reason ?? 'Tool result blocked by DLP policy.',
+            },
+          };
+          continue;
+        }
+
+        if (scanned.redactedContent) {
+          results[i] = {
+            ...result,
+            content: scanned.redactedContent,
+          };
+        }
+      }
+    }
 
     // Convert ToolResult[] to LLM message format
     const toolMessages: LLMRequestType['messages'] = results.map((result, i) => {
@@ -391,12 +677,14 @@ export class Gateway {
     response: LLMResponseType
   ): Promise<void> {
     const content = response.success ? response.message?.content : response.error?.message;
+    const securityMode = this.options.policyConfig?.securityMode ?? 'standard';
+    let responseText = typeof content === 'string' ? content : '';
     const toolCalls = response.success ? response.toolCalls : undefined;
 
     if (toolCalls && toolCalls.length > 0) {
       this.sessionManager.addMessage(sessionId, {
         role: 'assistant',
-        content: typeof content === 'string' ? content : '',
+        content: responseText,
         toolCalls,
       });
 
@@ -406,10 +694,51 @@ export class Gateway {
       return;
     }
 
-    if (content && typeof content === 'string') {
+    if (this.salsa) {
+      const policyResult = this.salsa.evaluate({
+        requestId: `${sessionId}-outbound-${Date.now()}`,
+        userId: inbound.sender.id,
+        sessionId,
+        securityMode,
+        resource: {
+          type: inbound.conversation.type === 'dm' ? 'dm' : 'channel',
+          id: inbound.channel,
+        },
+        action: 'send',
+        metadata: {
+          channel: inbound.channel,
+          conversationId: inbound.conversation.id,
+          conversationType: inbound.conversation.type,
+          replyToMessageId: inbound.channelMessageId,
+          userId: inbound.sender.id,
+        },
+        timestamp: new Date(),
+      });
+
+      if (!policyResult.allowed) {
+        void this.logAuditEvent({
+          id: `${sessionId}-policy-outbound-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          instanceId: this.instanceId,
+          userId: inbound.sender.id,
+          sessionId,
+          channel: inbound.channel,
+          eventType: 'policy_check',
+          action: 'policy.send',
+          resource: inbound.channel,
+          outcome: 'denied',
+          reason: policyResult.reason,
+          securityMode,
+          policyMatched: policyResult.ruleId,
+        });
+        return;
+      }
+    }
+
+    if (responseText) {
       this.sessionManager.addMessage(sessionId, {
         role: 'assistant',
-        content,
+        content: responseText,
       });
     } else {
       return;
@@ -418,14 +747,114 @@ export class Gateway {
     const outbound: ChannelOutboundMessage = {
       channel: inbound.channel,
       conversationId: inbound.conversation.id,
-      replyToMessageId: inbound.channelMessageId,
+      replyToMessageId: this.getReplyToMessageId(inbound),
       content: {
-        text: typeof content === 'string' ? content : '',
+        text: responseText,
         format: 'markdown',
       },
     };
 
     await this.router.sendToChannel(outbound);
+  }
+
+  private stringifyToolParameters(parameters: Record<string, unknown>): string {
+    try {
+      return JSON.stringify(parameters);
+    } catch {
+      return '';
+    }
+  }
+
+  private getReplyToMessageId(message: ChannelInboundMessage): string | undefined {
+    const metadata = message.metadata as { thread_ts?: string } | undefined;
+    return metadata?.thread_ts ?? message.channelMessageId;
+  }
+
+  private scanToolResult(
+    result: ToolResult,
+    session: Session | null,
+    tool: string,
+    securityMode: 'strict' | 'standard' | 'permissive'
+  ): {
+    allowed: boolean;
+    reason?: string;
+    redactedContent?: ToolResult['content'];
+  } {
+    if (!this.dlp || result.content.length === 0) {
+      return { allowed: true };
+    }
+
+    const redactedContent: ToolResult['content'] = [];
+    let blocked = false;
+    let blockReason: string | undefined;
+
+    for (const block of result.content) {
+      if (block.type !== 'text') {
+        redactedContent.push(block);
+        continue;
+      }
+
+      const scanResult = this.dlp.scan(block.text, session?.channel);
+      if (!scanResult.allowed) {
+        blocked = true;
+        blockReason = scanResult.reason;
+        void this.logAuditEvent({
+          id: `dlp-tool-result-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          instanceId: this.instanceId,
+          userId: session?.userId ?? 'unknown',
+          sessionId: session?.id ?? 'unknown',
+          channel: session?.channel ?? 'unknown',
+          eventType: 'dlp_block',
+          action: 'dlp.block.tool_output',
+          resource: tool,
+          outcome: 'blocked',
+          reason: scanResult.reason,
+          securityMode,
+          details: {
+            findingsCount: scanResult.findings.length,
+            action: scanResult.action,
+          },
+        });
+        break;
+      }
+
+      if (scanResult.action === 'redact' && scanResult.message) {
+        redactedContent.push({
+          ...block,
+          text: scanResult.message,
+        });
+      } else {
+        redactedContent.push(block);
+      }
+
+      if (scanResult.action === 'alert') {
+        void this.logAuditEvent({
+          id: `dlp-tool-result-alert-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          instanceId: this.instanceId,
+          userId: session?.userId ?? 'unknown',
+          sessionId: session?.id ?? 'unknown',
+          channel: session?.channel ?? 'unknown',
+          eventType: 'dlp_scan',
+          action: 'dlp.alert.tool_output',
+          resource: tool,
+          outcome: 'allowed',
+          reason: scanResult.reason,
+          securityMode,
+          details: {
+            findingsCount: scanResult.findings.length,
+            action: scanResult.action,
+          },
+        });
+      }
+    }
+
+    if (blocked) {
+      return { allowed: false, reason: blockReason };
+    }
+
+    return redactedContent.length > 0 ? { allowed: true, redactedContent } : { allowed: true };
   }
 
   /**
@@ -436,6 +865,11 @@ export class Gateway {
       const provider = await loadAuditProvider(this.options.auditConfig);
       this.auditLogger = new AuditLogger(provider);
       await this.auditLogger.init();
+    }
+
+    if (this.dlpConfig) {
+      this.dlp = new DLPSecurityLayer(this.dlpConfig, this.auditLogger ?? undefined);
+      console.log('[Gateway] DLP security layer initialized');
     }
 
     // Initialize tool infrastructure

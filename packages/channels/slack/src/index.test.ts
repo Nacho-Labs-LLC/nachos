@@ -22,6 +22,7 @@ describe('SlackChannelAdapter', () => {
     client: {
       auth: { test: ReturnType<typeof vi.fn> };
       chat: { postMessage: ReturnType<typeof vi.fn> };
+      files: { upload: ReturnType<typeof vi.fn> };
     };
     event: ReturnType<typeof vi.fn>;
     start: ReturnType<typeof vi.fn>;
@@ -35,6 +36,7 @@ describe('SlackChannelAdapter', () => {
         client: {
           auth: { test: vi.fn().mockResolvedValue({ user_id: 'U123' }) },
           chat: { postMessage: vi.fn().mockResolvedValue({ ts: '123.456' }) },
+          files: { upload: vi.fn().mockResolvedValue({ ok: true }) },
         },
         event: vi.fn(),
         start: vi.fn(),
@@ -151,6 +153,86 @@ describe('SlackChannelAdapter', () => {
     expect(result.success).toBe(true);
     expect(appInstances[0]?.client.chat.postMessage).toHaveBeenCalledWith(
       expect.objectContaining({ channel: 'C123', text: 'Hi' })
+    );
+  });
+
+  it('publishes inbound channel messages when mention-gated and allowlisted', async () => {
+    const publish = vi.fn();
+    const adapter = new SlackChannelAdapter();
+
+    const channelConfig = {
+      servers: [
+        {
+          id: 'T123',
+          channel_ids: ['C999'],
+          user_allowlist: ['U777'],
+          mention_gating: true,
+        },
+      ],
+    };
+
+    await adapter.initialize({
+      ...baseConfig,
+      config: channelConfig,
+      secrets: { SLACK_APP_TOKEN: 'app-token', SLACK_BOT_TOKEN: 'bot-token' },
+      bus: {
+        publish,
+        subscribe: async () => {},
+      },
+    });
+
+    await (adapter as unknown as { handleMessage: Function }).handleMessage(
+      {
+        type: 'message',
+        user: 'U777',
+        text: 'Hello <@U123>',
+        ts: '123.456',
+        channel: 'C999',
+        channel_type: 'channel',
+        team: 'T123',
+      },
+      channelConfig
+    );
+
+    expect(publish).toHaveBeenCalledWith(
+      'nachos.channel.slack.inbound',
+      expect.objectContaining({
+        sender: expect.objectContaining({ id: 'U777' }),
+        conversation: expect.objectContaining({ id: 'C999', type: 'channel' }),
+      })
+    );
+  });
+
+  it('uploads outbound attachments when base64 provided', async () => {
+    const adapter = new SlackChannelAdapter();
+
+    await adapter.initialize({
+      ...baseConfig,
+      config: {},
+      secrets: { SLACK_APP_TOKEN: 'app-token', SLACK_BOT_TOKEN: 'bot-token' },
+    });
+
+    const result = await adapter.sendMessage({
+      channel: 'slack',
+      conversationId: 'C123',
+      content: {
+        text: 'Here is a file',
+        attachments: [
+          {
+            type: 'file',
+            data: Buffer.from('hello').toString('base64'),
+            name: 'hello.txt',
+          },
+        ],
+      },
+    });
+
+    expect(result.success).toBe(true);
+    expect(appInstances[0]?.client.files.upload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channels: 'C123',
+        filename: 'hello.txt',
+      })
     );
   });
 

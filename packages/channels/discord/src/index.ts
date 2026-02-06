@@ -94,11 +94,13 @@ export class DiscordChannelAdapter implements ChannelAdapter {
         };
       }
 
+      const files = this.buildDiscordFiles(message.content.attachments ?? []);
       const response = await (channel as { send: (options: unknown) => Promise<{ id: string }> }).send({
         content: message.content.text,
         reply: message.replyToMessageId
           ? { messageReference: message.replyToMessageId }
           : undefined,
+        files: files.length > 0 ? files : undefined,
       });
 
       return {
@@ -170,7 +172,9 @@ export class DiscordChannelAdapter implements ChannelAdapter {
       if (!serverConfig) return;
       const groupPolicy = resolveGroupPolicy(serverConfig);
 
-      const mentionPatterns = this.botUserId ? [`<@${this.botUserId}>`] : [];
+      const mentionPatterns = this.botUserId
+        ? [`<@${this.botUserId}>`, `<@!${this.botUserId}>`]
+        : [];
       const allowed = shouldAllowGroupMessage({
         channelId: message.channelId,
         userId,
@@ -183,6 +187,17 @@ export class DiscordChannelAdapter implements ChannelAdapter {
 
       if (!allowed) return;
     }
+
+    const attachmentCollection = message.attachments;
+    const attachments = attachmentCollection && attachmentCollection.size > 0
+      ? attachmentCollection.map((attachment) => ({
+          type: 'file',
+          url: attachment.url,
+          name: attachment.name ?? undefined,
+          mimeType: attachment.contentType ?? undefined,
+          size: attachment.size ?? undefined,
+        }))
+      : undefined;
 
     const inbound = {
       channel: this.channelId,
@@ -197,6 +212,7 @@ export class DiscordChannelAdapter implements ChannelAdapter {
       },
       content: {
         text: message.content ?? '',
+        attachments: attachments && attachments.length > 0 ? attachments : undefined,
       },
       metadata: {
         guildId: message.guildId ?? null,
@@ -204,5 +220,64 @@ export class DiscordChannelAdapter implements ChannelAdapter {
     };
 
     await this.config.bus.publish(TOPICS.channel.inbound(this.channelId), inbound);
+  }
+
+  private buildDiscordFiles(
+    attachments: Array<{ data: unknown; name?: string }>
+  ): Array<{ attachment: Buffer | string; name?: string }> {
+    const files: Array<{ attachment: Buffer | string; name?: string }> = [];
+
+    for (let i = 0; i < attachments.length; i += 1) {
+      const attachment = attachments[i];
+      if (!attachment) continue;
+
+      const data = attachment.data;
+      if (typeof data === 'string') {
+        const buffer = this.decodeAttachmentData(data);
+        if (buffer) {
+          files.push({ attachment: buffer, name: attachment.name ?? `attachment-${i + 1}` });
+          continue;
+        }
+
+        if (this.isUrl(data)) {
+          files.push({ attachment: data, name: attachment.name ?? undefined });
+        }
+      }
+    }
+
+    return files;
+  }
+
+  private decodeAttachmentData(data: string): Buffer | null {
+    if (data.startsWith('data:')) {
+      const base64Index = data.indexOf('base64,');
+      if (base64Index !== -1) {
+        const base64 = data.slice(base64Index + 7);
+        try {
+          return Buffer.from(base64, 'base64');
+        } catch {
+          return null;
+        }
+      }
+      return null;
+    }
+
+    if (this.looksLikeBase64(data)) {
+      try {
+        return Buffer.from(data, 'base64');
+      } catch {
+        return null;
+      }
+    }
+
+    return null;
+  }
+
+  private looksLikeBase64(data: string): boolean {
+    return /^[A-Za-z0-9+/=]+$/.test(data) && data.length % 4 === 0;
+  }
+
+  private isUrl(value: string): boolean {
+    return value.startsWith('http://') || value.startsWith('https://');
   }
 }

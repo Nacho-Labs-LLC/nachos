@@ -57,6 +57,15 @@ export interface DLPConfig {
   customPatternFiles?: string[]
   /** Scanner configuration options */
   scannerConfig?: Omit<ScannerConfig, 'customPatternFiles'>
+  /** Optional fast-path prefilter to skip full scans when no keywords match */
+  fastPath?: {
+    /** Enable fast-path prefilter */
+    enabled?: boolean
+    /** Keyword substrings that trigger full scan */
+    keywords?: string[]
+    /** Regex patterns (as strings) that trigger full scan */
+    patterns?: string[]
+  }
 }
 
 /**
@@ -84,11 +93,23 @@ export class DLPSecurityLayer {
   private config: DLPConfig
   private channelConfigs: Map<string, ChannelDLPConfig>
   private auditLogger?: AuditLogger
+  private fastPathEnabled: boolean
+  private fastPathKeywords: string[]
+  private fastPathPatterns: RegExp[]
 
   constructor(config: DLPConfig, auditLogger?: AuditLogger) {
     this.config = config
     this.auditLogger = auditLogger
     this.channelConfigs = new Map()
+    this.fastPathEnabled = config.fastPath?.enabled ?? false
+    this.fastPathKeywords = (config.fastPath?.keywords ?? []).map((keyword) => keyword.toLowerCase())
+    this.fastPathPatterns = (config.fastPath?.patterns ?? []).map((pattern) => {
+      try {
+        return new RegExp(pattern, 'i')
+      } catch {
+        return /$^/
+      }
+    })
 
     // Build channel configuration map
     if (config.channels) {
@@ -130,6 +151,15 @@ export class DLPSecurityLayer {
         allowed: true,
         action: 'allow',
         findings: [],
+      }
+    }
+
+    if (!this.shouldRunFullScan(message)) {
+      return {
+        allowed: true,
+        action: 'allow',
+        findings: [],
+        reason: 'Fast-path DLP prefilter skipped full scan',
       }
     }
 
@@ -216,6 +246,31 @@ export class DLPSecurityLayer {
           reason: 'Unknown DLP action',
         }
     }
+  }
+
+  private shouldRunFullScan(message: string): boolean {
+    if (!this.fastPathEnabled) {
+      return true
+    }
+
+    if (this.fastPathKeywords.length === 0 && this.fastPathPatterns.length === 0) {
+      return true
+    }
+
+    const lowerMessage = message.toLowerCase()
+    for (const keyword of this.fastPathKeywords) {
+      if (keyword && lowerMessage.includes(keyword)) {
+        return true
+      }
+    }
+
+    for (const pattern of this.fastPathPatterns) {
+      if (pattern.test(message)) {
+        return true
+      }
+    }
+
+    return false
   }
 
   /**

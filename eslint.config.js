@@ -12,7 +12,7 @@ export default tseslint.config(
     },
     rules: {
       // Prettier integration
-      'prettier/prettier': 'error',
+      'prettier/prettier': ['error', { endOfLine: 'auto' }],
 
       // TypeScript specific
       '@typescript-eslint/explicit-function-return-type': 'off',

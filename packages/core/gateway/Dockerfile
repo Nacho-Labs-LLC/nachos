@@ -39,4 +39,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 
 # Start in development mode with tsx watch for hot-reload
 WORKDIR /app/packages/core/gateway
-CMD ["npx", "tsx", "watch", "src/index.ts"]
+CMD ["npx", "tsx", "watch", "src/main.ts"]

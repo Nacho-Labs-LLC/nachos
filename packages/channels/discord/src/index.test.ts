@@ -96,6 +96,79 @@ describe('DiscordChannelAdapter', () => {
     );
   });
 
+  it('publishes inbound channel messages when mention-gated and allowlisted', async () => {
+    const adapter = new DiscordChannelAdapter();
+    const publish = vi.fn();
+
+    await adapter.initialize({
+      config: {
+        servers: [
+          {
+            id: 'guild-1',
+            channel_ids: ['chan-1'],
+            user_allowlist: ['user-1'],
+            mention_gating: true,
+          },
+        ],
+      },
+      secrets: {},
+      bus: {
+        publish,
+        subscribe: async () => {},
+      },
+      securityMode: 'standard',
+    } as ChannelAdapterConfig);
+
+    (adapter as unknown as { botUserId?: string }).botUserId = 'bot-1';
+
+    await (adapter as unknown as { handleMessage: Function }).handleMessage({
+      id: 'msg-10',
+      channelId: 'chan-1',
+      content: 'Hello <@!bot-1>',
+      guildId: 'guild-1',
+      author: { id: 'user-1', bot: false },
+    });
+
+    expect(publish).toHaveBeenCalledWith(
+      'nachos.channel.discord.inbound',
+      expect.objectContaining({
+        conversation: expect.objectContaining({ id: 'chan-1', type: 'channel' }),
+      })
+    );
+  });
+
+  it('sends outbound attachments to Discord channel', async () => {
+    const adapter = new DiscordChannelAdapter();
+    const send = vi.fn().mockResolvedValue({ id: 'msg-3' });
+    const fetch = vi.fn().mockResolvedValue({ send });
+
+    (adapter as unknown as { client?: unknown }).client = {
+      channels: { fetch },
+    } as unknown;
+
+    const result = await adapter.sendMessage({
+      channel: 'discord',
+      conversationId: 'channel-1',
+      content: {
+        text: 'File',
+        attachments: [
+          {
+            type: 'file',
+            data: Buffer.from('hello').toString('base64'),
+            name: 'hello.txt',
+          },
+        ],
+      },
+    });
+
+    expect(result.success).toBe(true);
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        files: expect.any(Array),
+      })
+    );
+  });
+
   it('requires pairing token before allowing DMs when pairing enabled', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nachos-pairing-'));
     process.env.RUNTIME_STATE_DIR = tempDir;
