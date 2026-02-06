@@ -227,12 +227,17 @@ export class SlidingWindowManager implements ISlidingWindowManager {
       };
     }
 
-    // Check that we actually removed tokens
+    // Check that we actually removed tokens (unless keepRecent constraints prevent it)
     if (action.targetTokenReduction && result.tokensRemoved < action.targetTokenReduction * 0.5) {
-      return {
-        valid: false,
-        reason: `Insufficient token reduction (${result.tokensRemoved} < ${action.targetTokenReduction * 0.5})`,
-      };
+      const totalTokens = tokensKept + result.tokensRemoved;
+      const maxPossibleReduction = totalTokens - config.keepRecent.tokenBudget;
+      // Only fail if there was meaningful room to compact beyond keepRecent constraints
+      if (maxPossibleReduction > action.targetTokenReduction * 0.5) {
+        return {
+          valid: false,
+          reason: `Insufficient token reduction (${result.tokensRemoved} < ${action.targetTokenReduction * 0.5})`,
+        };
+      }
     }
 
     return { valid: true };
@@ -277,8 +282,37 @@ export class SlidingWindowManager implements ISlidingWindowManager {
     // Split into turns
     const turns = this.splitIntoTurns(messages);
 
-    // Calculate how many turns to keep
-    const turnsToKeep = Math.max(config.keepRecent.turns, this.getMinTurnsToKeep(action));
+    // Calculate minimum turns to keep based on action severity
+    let turnsToKeep = Math.max(config.keepRecent.turns, this.getMinTurnsToKeep(action));
+
+    // Also ensure we keep enough turns to meet the token budget
+    if (config.keepRecent.tokenBudget > 0) {
+      let tokensAccumulated = 0;
+      for (let i = turns.length - 1; i >= 0; i--) {
+        tokensAccumulated += tokenEstimator.estimateMessages(turns[i]);
+        const turnsFromEnd = turns.length - i;
+        if (tokensAccumulated >= config.keepRecent.tokenBudget) {
+          turnsToKeep = Math.max(turnsToKeep, turnsFromEnd);
+          break;
+        }
+      }
+      // If all turns together don't meet the budget, keep them all
+      if (tokensAccumulated < config.keepRecent.tokenBudget) {
+        turnsToKeep = turns.length;
+      }
+    }
+
+    // Also respect minimum message count
+    if (config.keepRecent.messages > 0) {
+      let msgCount = 0;
+      for (let i = turns.length - 1; i >= 0; i--) {
+        msgCount += turns[i].length;
+        if (msgCount >= config.keepRecent.messages) {
+          turnsToKeep = Math.max(turnsToKeep, turns.length - i);
+          break;
+        }
+      }
+    }
 
     const keptTurns = turns.slice(-turnsToKeep);
     const droppedTurns = turns.slice(0, -turnsToKeep);

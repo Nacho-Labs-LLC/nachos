@@ -6,6 +6,13 @@
   "description": "Nachos Gateway - Session management and routing",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
   "scripts": {
     "build": "tsc --build",
     "dev": "tsx watch src/index.ts",
@@ -17,6 +24,7 @@
     "@nacho-labs/nachos-dlp": "^1.0.0",
     "@nachos/bus": "workspace:*",
     "@nachos/config": "workspace:*",
+    "@nachos/context-manager": "workspace:*",
     "@nachos/types": "workspace:*",
     "better-sqlite3": "^12.6.2",
     "redis": "^4.7.0",

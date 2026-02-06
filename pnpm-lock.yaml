@@ -232,6 +232,9 @@ importers:
       '@nachos/config':
         specifier: workspace:*
         version: link:../../shared/config
+      '@nachos/context-manager':
+        specifier: workspace:*
+        version: link:../../shared/context-manager
       '@nachos/types':
         specifier: workspace:*
         version: link:../../shared/types
@@ -319,6 +322,28 @@ importers:
       typescript:
         specifier: ^5.7.3
         version: 5.9.3
+
+  packages/shared/context-manager:
+    dependencies:
+      '@nacho-labs/nachos-dlp':
+        specifier: ^1.1.1
+        version: 1.1.1
+      '@nachos/config':
+        specifier: workspace:*
+        version: link:../config
+      '@nachos/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.7
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@22.19.7)
 
   packages/shared/types:
     dependencies:
@@ -808,6 +833,9 @@ packages:
 
   '@nacho-labs/nachos-dlp@1.0.0':
     resolution: {integrity: sha512-2xklxw/lpOU0VUR2RMhdJloOKDHS4x5058VrMDdolNcktvJ+RQ5gn/FTFxMg7owny49mjIRvdItxM145B351Qg==}
+
+  '@nacho-labs/nachos-dlp@1.1.1':
+    resolution: {integrity: sha512-opjmhsEKxzAXQ1kJbNYcRNb5+fKXymZ4iqm9v/hm9nVXULIqueiElWZn9YteFHZj09B8XlkyzhcOx3nXVe4ZlA==}
 
   '@nodelib/fs.scandir@2.1.5':
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==}
@@ -2570,6 +2598,10 @@ packages:
     resolution: {integrity: sha512-oMA2dcrw6u0YfxJQXm342bFKX/E4sG9rbTzO9ptUcR/e8A33cHuvStiYOwH7fszkZlZ1z/ta9AAoPk2F4qIOHA==}
     engines: {node: '>=18'}
 
+  ret@0.2.2:
+    resolution: {integrity: sha512-M0b3YWQs7R3Z917WRQy1HHA7Ba7D8hvZg6UE5mLykJxQVE2ju0IXbGlaHPPlkY+WN7wFP+wUMXmBFA0aV6vYGQ==}
+    engines: {node: '>=4'}
+
   retry@0.13.1:
     resolution: {integrity: sha512-XQBQ3I8W1Cge0Seh+6gjj03LbmRFWuoszgK9ooCpwYIrhhoO80pfq4cUkU5DkknwfOfFteRwlZ56PYOGYyFWdg==}
     engines: {node: '>= 4'}
@@ -2603,6 +2635,9 @@ packages:
   safe-regex-test@1.1.0:
     resolution: {integrity: sha512-x/+Cz4YrimQxQccJf5mKEbIa1NzeCRNI5Ecl/ekmlYaampdNLPalVyIcCZNNH3MvmqBugV5TMYZXv0ljslUlaw==}
     engines: {node: '>= 0.4'}
+
+  safe-regex2@2.0.0:
+    resolution: {integrity: sha512-PaUSFsUaNNuKwkBijoAPHAK6/eM6VirvyPWlZ7BAQy4D+hCvh4B6lIG+nPdhbFfIbP+gTGBcrdsOaUs0F+ZBOQ==}
 
   safer-buffer@2.1.2:
     resolution: {integrity: sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==}
@@ -3492,6 +3527,11 @@ snapshots:
 
   '@nacho-labs/nachos-dlp@1.0.0':
     dependencies:
+      yaml: 2.8.2
+
+  '@nacho-labs/nachos-dlp@1.1.1':
+    dependencies:
+      safe-regex2: 2.0.0
       yaml: 2.8.2
 
   '@nodelib/fs.scandir@2.1.5':
@@ -5420,6 +5460,8 @@ snapshots:
       onetime: 7.0.0
       signal-exit: 4.1.0
 
+  ret@0.2.2: {}
+
   retry@0.13.1: {}
 
   reusify@1.1.0: {}
@@ -5483,6 +5525,10 @@ snapshots:
       call-bound: 1.0.4
       es-errors: 1.3.0
       is-regex: 1.2.1
+
+  safe-regex2@2.0.0:
+    dependencies:
+      ret: 0.2.2
 
   safer-buffer@2.1.2: {}
 

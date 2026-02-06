@@ -30,7 +30,7 @@ describe('ContextManager', () => {
       keepRecent: {
         turns: 10,
         messages: 20,
-        tokenBudget: 10000,
+        tokenBudget: 2000,
       },
       slide_strategy: 'turn',
     },
