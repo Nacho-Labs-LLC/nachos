@@ -219,10 +219,22 @@ export class PlaywrightWrapper {
     // Extract links
     if (options.extractLinks) {
       result.links = await page.evaluate(() => {
-        const links = Array.from(document.querySelectorAll('a'));
+        const doc = (globalThis as unknown as {
+          document?: { querySelectorAll: (selector: string) => ArrayLike<unknown> };
+        }).document;
+
+        if (!doc) {
+          return [];
+        }
+
+        const links = Array.from(doc.querySelectorAll('a')) as Array<{
+          textContent?: string | null;
+          href?: string;
+        }>;
+
         return links.map((link) => ({
           text: link.textContent?.trim() ?? '',
-          href: link.href,
+          href: link.href ?? '',
         }));
       });
     }
@@ -230,10 +242,22 @@ export class PlaywrightWrapper {
     // Extract images
     if (options.extractImages) {
       result.images = await page.evaluate(() => {
-        const images = Array.from(document.querySelectorAll('img'));
+        const doc = (globalThis as unknown as {
+          document?: { querySelectorAll: (selector: string) => ArrayLike<unknown> };
+        }).document;
+
+        if (!doc) {
+          return [];
+        }
+
+        const images = Array.from(doc.querySelectorAll('img')) as Array<{
+          alt?: string | null;
+          src?: string;
+        }>;
+
         return images.map((img) => ({
           alt: img.alt ?? '',
-          src: img.src,
+          src: img.src ?? '',
         }));
       });
     }

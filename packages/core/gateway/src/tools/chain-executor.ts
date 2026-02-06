@@ -32,6 +32,13 @@ export class ToolChainExecutor {
 
     for (let i = 0; i < chain.length; i++) {
       const call = chain[i];
+      if (!call) {
+        return {
+          success: false,
+          results,
+          failedAt: i,
+        };
+      }
 
       // Enrich call with context from previous steps
       const enrichedCall = this.enrichWithContext(call, currentContext);
@@ -176,8 +183,9 @@ export class ToolChainExecutor {
    */
   private extractResultData(result: ToolResult): unknown {
     // If there's only one text content block, try to parse it as JSON
-    if (result.content.length === 1 && result.content[0].type === 'text') {
-      const text = result.content[0].text;
+    const firstBlock = result.content[0];
+    if (result.content.length === 1 && firstBlock && firstBlock.type === 'text') {
+      const text = firstBlock.text;
       try {
         return JSON.parse(text);
       } catch {
@@ -202,6 +210,10 @@ export class ToolChainExecutor {
 
     for (let i = 0; i < chain.length; i++) {
       const call = chain[i];
+      if (!call) {
+        errors.push(`Step ${i} is undefined`);
+        continue;
+      }
 
       // Check for invalid forward references
       const variables = this.extractVariables(call.parameters);
@@ -209,7 +221,12 @@ export class ToolChainExecutor {
         // Check if variable references a future step
         const stepMatch = variable.match(/^step\.(\d+)\./);
         if (stepMatch) {
-          const refIndex = parseInt(stepMatch[1], 10);
+          const stepIndexValue = stepMatch[1];
+          if (!stepIndexValue) {
+            continue;
+          }
+
+          const refIndex = parseInt(stepIndexValue, 10);
           if (refIndex >= i) {
             errors.push(
               `Step ${i} references future step ${refIndex} in variable ${variable}`
@@ -236,7 +253,10 @@ export class ToolChainExecutor {
       if (typeof value === 'string') {
         const matches = value.matchAll(/\$\{([^}]+)\}/g);
         for (const match of matches) {
-          variables.push(match[1]);
+          const variable = match[1];
+          if (variable) {
+            variables.push(variable);
+          }
         }
       } else if (Array.isArray(value)) {
         for (const item of value) {
@@ -245,7 +265,10 @@ export class ToolChainExecutor {
           } else if (typeof item === 'string') {
             const matches = item.matchAll(/\$\{([^}]+)\}/g);
             for (const match of matches) {
-              variables.push(match[1]);
+              const variable = match[1];
+              if (variable) {
+                variables.push(variable);
+              }
             }
           }
         }
@@ -263,18 +286,20 @@ export class ToolChainExecutor {
    */
   createChainPreview(
     chain: ToolCall[],
-    context: ChainContext = {}
+    _context: ChainContext = {}
   ): Array<{
     step: number;
     tool: string;
     parameters: Record<string, unknown>;
     variables: string[];
   }> {
-    return chain.map((call, i) => ({
-      step: i,
-      tool: call.tool,
-      parameters: call.parameters,
-      variables: this.extractVariables(call.parameters),
-    }));
+    return chain
+      .filter((call): call is ToolCall => call !== undefined)
+      .map((call, i) => ({
+        step: i,
+        tool: call.tool,
+        parameters: call.parameters,
+        variables: this.extractVariables(call.parameters),
+      }));
   }
 }

@@ -9,17 +9,14 @@
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import {
-  ToolService,
-  type ToolServiceConfig,
-} from '@nachos/tool-base';
+import { ToolService } from '@nachos/tool-base';
 import {
   SecurityTier,
   type ToolConfig,
   type ToolParameters,
   type ToolResult,
-  type ValidationResult,
-  type HealthStatus,
+  type ToolValidationResult,
+  type ToolHealthStatus,
   type ParameterSchema,
 } from '@nachos/types';
 import { PathValidator } from './path-validator.js';
@@ -84,7 +81,7 @@ export class FilesystemPatchTool extends ToolService {
     );
   }
 
-  validate(params: ToolParameters): ValidationResult {
+  validate(params: ToolParameters): ToolValidationResult {
     // Validate required fields
     const requiredValidation = this.combineValidations(
       this.validateRequired(params, 'path'),
@@ -211,10 +208,16 @@ export class FilesystemPatchTool extends ToolService {
           hunks.push(currentHunk);
         }
 
+        const oldStartValue = hunkMatch[1];
+        const newStartValue = hunkMatch[3];
+        if (!oldStartValue || !newStartValue) {
+          continue;
+        }
+
         currentHunk = {
-          oldStart: parseInt(hunkMatch[1], 10),
+          oldStart: parseInt(oldStartValue, 10),
           oldCount: hunkMatch[2] ? parseInt(hunkMatch[2], 10) : 1,
-          newStart: parseInt(hunkMatch[3], 10),
+          newStart: parseInt(newStartValue, 10),
           newCount: hunkMatch[4] ? parseInt(hunkMatch[4], 10) : 1,
           lines: [],
         };
@@ -349,7 +352,7 @@ export class FilesystemPatchTool extends ToolService {
     return { valid: true };
   }
 
-  async healthCheck(): Promise<HealthStatus> {
+  override async healthCheck(): Promise<ToolHealthStatus> {
     try {
       const allowedPaths = this.pathValidator.getAllowedPaths();
 

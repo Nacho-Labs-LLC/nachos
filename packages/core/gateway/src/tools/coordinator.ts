@@ -8,12 +8,12 @@
  * - NATS communication
  */
 
-import type {
-  ToolCall,
-  ToolResult,
-  ExecutionOptions,
+import {
   SecurityTier,
-  MessageEnvelope,
+  type ToolCall,
+  type ToolResult,
+  type ExecutionOptions,
+  type MessageEnvelope,
 } from '@nachos/types';
 import type { Salsa, SecurityRequest } from '../salsa/index.js';
 import type { ToolCache } from './cache.js';
@@ -325,6 +325,10 @@ export class ToolCoordinator {
     for (let i = 0; i < toolCalls.length - 1; i++) {
       const current = toolCalls[i];
       const next = toolCalls[i + 1];
+
+      if (!current || !next) {
+        continue;
+      }
 
       // If current is a write tool and next is a read tool for the same resource
       if (this.isWriteTool(current.tool) && this.isReadTool(next.tool)) {

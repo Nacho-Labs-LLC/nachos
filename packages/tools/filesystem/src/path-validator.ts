@@ -8,7 +8,7 @@
  */
 
 import path from 'node:path';
-import type { ValidationResult } from '@nachos/types';
+import type { ToolValidationResult } from '@nachos/types';
 
 /**
  * Path validator configuration
@@ -70,7 +70,7 @@ export class PathValidator {
   /**
    * Validate a path for read or write access
    */
-  validate(requestedPath: string): ValidationResult {
+  validate(requestedPath: string): ToolValidationResult {
     // Resolve to absolute path
     const resolved = path.resolve(requestedPath);
 

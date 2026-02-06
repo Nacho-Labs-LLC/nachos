@@ -14,8 +14,8 @@ import type {
   ToolConfig,
   ToolParameters,
   ToolResult,
-  ValidationResult,
-  HealthStatus,
+  ToolValidationResult,
+  ToolHealthStatus,
   SecurityTier,
   ParameterSchema,
   MessageEnvelope,
@@ -94,13 +94,13 @@ export abstract class ToolService implements Tool {
    * Validate parameters before execution
    * Override this method to implement tool-specific validation
    */
-  abstract validate(params: ToolParameters): ValidationResult;
+  abstract validate(params: ToolParameters): ToolValidationResult;
 
   /**
    * Perform health check
    * Override this method to implement tool-specific health checks
    */
-  abstract healthCheck(): Promise<HealthStatus>;
+  abstract healthCheck(): Promise<ToolHealthStatus>;
 
   /**
    * Start the tool service
@@ -303,7 +303,7 @@ export abstract class ToolService implements Tool {
   protected validateRequired(
     params: ToolParameters,
     field: string
-  ): ValidationResult {
+  ): ToolValidationResult {
     if (!(field in params) || params[field] === undefined || params[field] === null) {
       return {
         valid: false,
@@ -320,7 +320,7 @@ export abstract class ToolService implements Tool {
     params: ToolParameters,
     field: string,
     expectedType: string
-  ): ValidationResult {
+  ): ToolValidationResult {
     const value = params[field];
     const actualType = typeof value;
 
@@ -340,7 +340,7 @@ export abstract class ToolService implements Tool {
     params: ToolParameters,
     field: string,
     allowedValues: unknown[]
-  ): ValidationResult {
+  ): ToolValidationResult {
     const value = params[field];
 
     if (!allowedValues.includes(value)) {
@@ -357,7 +357,7 @@ export abstract class ToolService implements Tool {
   /**
    * Combine multiple validation results
    */
-  protected combineValidations(...validations: ValidationResult[]): ValidationResult {
+  protected combineValidations(...validations: ToolValidationResult[]): ToolValidationResult {
     const errors: string[] = [];
 
     for (const validation of validations) {

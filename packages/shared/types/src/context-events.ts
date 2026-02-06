@@ -46,8 +46,9 @@ export const CompactionEventSchema = Type.Object(
         messagesKept: Type.Number({ description: 'Number of messages kept' }),
         compressionRatio: Type.Number({ description: 'Compression ratio (0.0-1.0)' }),
         tier: Type.Optional(
-          Type.Union([Type.Literal('archival'), Type.Literal('compressed'), Type.Literal('condensed')]),
-          { description: 'Summarization tier applied' },
+          Type.Union([Type.Literal('archival'), Type.Literal('compressed'), Type.Literal('condensed')], {
+            description: 'Summarization tier applied',
+          }),
         ),
       },
       { description: 'Compaction results' },

@@ -11,17 +11,14 @@
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import {
-  ToolService,
-  type ToolServiceConfig,
-} from '@nachos/tool-base';
+import { ToolService } from '@nachos/tool-base';
 import {
   SecurityTier,
   type ToolConfig,
   type ToolParameters,
   type ToolResult,
-  type ValidationResult,
-  type HealthStatus,
+  type ToolValidationResult,
+  type ToolHealthStatus,
   type ParameterSchema,
 } from '@nachos/types';
 import { PathValidator } from './path-validator.js';
@@ -84,7 +81,7 @@ export class FilesystemEditTool extends ToolService {
     );
   }
 
-  validate(params: ToolParameters): ValidationResult {
+  validate(params: ToolParameters): ToolValidationResult {
     // Validate required fields
     const requiredValidation = this.combineValidations(
       this.validateRequired(params, 'action'),
@@ -277,7 +274,7 @@ export class FilesystemEditTool extends ToolService {
     return newLines;
   }
 
-  async healthCheck(): Promise<HealthStatus> {
+  override async healthCheck(): Promise<ToolHealthStatus> {
     try {
       const allowedPaths = this.pathValidator.getAllowedPaths();
 

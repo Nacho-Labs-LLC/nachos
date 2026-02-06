@@ -7,13 +7,9 @@ import {
   type ChannelInboundMessage,
   type ChannelOutboundMessage,
   type Message,
-  type CompactionEventSchema,
-  type ExtractionEventSchema,
-  type ZoneChangeEventSchema,
 } from '@nachos/types';
 import {
   TOPICS,
-  CONTEXT_TOPICS,
   type NachosBusClient,
   type MessageEnvelope as BusMessageEnvelope,
   type BusSubscription,
@@ -24,7 +20,6 @@ import { getRateLimitUserId } from './router-utils.js';
 import type { ContextManager, ContextCheckResult, EnhancedCompactionResult } from '@nachos/context-manager';
 import { messageAdapter } from '@nachos/context-manager';
 import type { SessionManager } from './session.js';
-import type { Value } from '@sinclair/typebox/value';
 
 /**
  * Route handler function type
@@ -358,7 +353,7 @@ export class Router {
       needsCompaction: check.needsCompaction,
     };
     await this.bus.publish(
-      CONTEXT_TOPICS.budgetUpdate,
+      TOPICS.context.budgetUpdate,
       createEnvelope(this.componentName, 'context.budget_update', budgetEvent)
     );
 
@@ -378,7 +373,7 @@ export class Router {
         historyBudget: check.budget.historyBudget,
       };
       await this.bus.publish(
-        CONTEXT_TOPICS.zoneChange,
+        TOPICS.context.zoneChange,
         createEnvelope(this.componentName, 'context.zone_change', zoneEvent)
       );
     }
@@ -400,8 +395,18 @@ export class Router {
     });
 
     // Convert compacted messages back to NACHOS format
+    if (!compactionResult.messagesKept) {
+      console.warn('[Router] Compaction completed without messagesKept. Skipping message replacement.');
+      return;
+    }
+
+    if (!compactionResult.budget || !compactionResult.messagesDropped || !compactionResult.slidingResult) {
+      console.warn('[Router] Compaction result missing details. Skipping metadata update.');
+      return;
+    }
+
     const compactedNachosMessages: Message[] = compactionResult.messagesKept.map((msg) =>
-      messageAdapter.toNachosMessage(msg)
+      messageAdapter.toNachosMessage(msg, sessionId)
     );
 
     // Replace messages in StateStorage (atomic operation)
@@ -414,12 +419,16 @@ export class Router {
     this.sessionManager.replaceMessages(sessionId, compactedNachosMessages);
 
     // Update session metadata with context state
+    const metadata = sessionWithMessages.metadata as {
+      contextManagement?: { compactionHistory?: Array<Record<string, unknown>> };
+    } | null;
+
     this.sessionManager.updateMetadata(sessionId, {
       contextManagement: {
         lastCompaction: new Date().toISOString(),
         budget: check.budget,
         compactionHistory: [
-          ...(sessionWithMessages.metadata?.contextManagement?.compactionHistory || []),
+          ...(metadata?.contextManagement?.compactionHistory ?? []),
           {
             timestamp: new Date().toISOString(),
             trigger: check.action.type,
@@ -448,7 +457,7 @@ export class Router {
       },
     };
     await this.bus.publish(
-      CONTEXT_TOPICS.compaction,
+      TOPICS.context.compaction,
       createEnvelope(this.componentName, 'context.compaction', compactionEvent)
     );
 
@@ -467,7 +476,7 @@ export class Router {
         },
       };
       await this.bus.publish(
-        CONTEXT_TOPICS.extraction,
+        TOPICS.context.extraction,
         createEnvelope(this.componentName, 'context.extraction', extractionEvent)
       );
     }

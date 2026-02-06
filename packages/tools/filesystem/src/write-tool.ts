@@ -11,20 +11,17 @@
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import {
-  ToolService,
-  type ToolServiceConfig,
-} from '@nachos/tool-base';
+import { ToolService } from '@nachos/tool-base';
 import {
   SecurityTier,
   type ToolConfig,
   type ToolParameters,
   type ToolResult,
-  type ValidationResult,
-  type HealthStatus,
+  type ToolValidationResult,
+  type ToolHealthStatus,
   type ParameterSchema,
 } from '@nachos/types';
-import { PathValidator, type PathValidatorConfig } from './path-validator.js';
+import { PathValidator } from './path-validator.js';
 
 /**
  * Write tool actions
@@ -96,7 +93,7 @@ export class FilesystemWriteTool extends ToolService {
     this.logger.info(`Max file size: ${this.maxFileSize} bytes`);
   }
 
-  validate(params: ToolParameters): ValidationResult {
+  validate(params: ToolParameters): ToolValidationResult {
     // Validate required fields
     const requiredValidation = this.combineValidations(
       this.validateRequired(params, 'action'),
@@ -374,8 +371,16 @@ export class FilesystemWriteTool extends ToolService {
       return 10 * 1024 * 1024; // 10MB default
     }
 
-    const value = parseFloat(match[1]);
-    const unit = match[2].toUpperCase();
+    const sizeValue = match?.[1];
+    const unitValue = match?.[2];
+
+    if (!sizeValue || !unitValue) {
+      this.logger.warn(`Invalid file size format: ${sizeStr}, using default`);
+      return 10 * 1024 * 1024; // 10MB default
+    }
+
+    const value = parseFloat(sizeValue);
+    const unit = unitValue.toUpperCase();
 
     const multipliers: Record<string, number> = {
       'B': 1,
@@ -388,7 +393,7 @@ export class FilesystemWriteTool extends ToolService {
     return Math.floor(value * (multipliers[unit] ?? 1));
   }
 
-  async healthCheck(): Promise<HealthStatus> {
+  override async healthCheck(): Promise<ToolHealthStatus> {
     try {
       // Check if allowed paths are accessible and writable
       const allowedPaths = this.pathValidator.getAllowedPaths();

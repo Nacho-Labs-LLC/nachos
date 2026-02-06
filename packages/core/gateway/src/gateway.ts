@@ -25,7 +25,7 @@ import {
 import { ToolCoordinator } from './tools/coordinator.js';
 import { ToolCache } from './tools/cache.js';
 import { ApprovalManager } from './tools/approval-manager.js';
-import type { ToolCall, ToolResult } from '@nachos/types';
+import type { ToolCall } from '@nachos/types';
 
 /**
  * Gateway configuration options
@@ -179,6 +179,10 @@ export class Gateway {
 
       if (approveMatch) {
         const requestId = approveMatch[1];
+        if (!requestId) {
+          return;
+        }
+
         const approved = this.approvalManager.approve(requestId, message.sender.id);
         const outbound: ChannelOutboundMessage = {
           channel: message.channel,
@@ -197,6 +201,10 @@ export class Gateway {
 
       if (denyMatch) {
         const requestId = denyMatch[1];
+        if (!requestId) {
+          return;
+        }
+
         const reason = denyMatch[2] ?? 'Denied by user';
         const denied = this.approvalManager.deny(requestId, reason, message.sender.id);
         const outbound: ChannelOutboundMessage = {
@@ -328,16 +336,30 @@ export class Gateway {
     // Convert ToolResult[] to LLM message format
     const toolMessages: LLMRequestType['messages'] = results.map((result, i) => {
       const toolCall = calls[i];
+      if (!toolCall) {
+        return {
+          role: 'tool',
+          tool_call_id: `missing-${i}`,
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: `missing-${i}`,
+              tool_result: result,
+            },
+          ],
+        };
+      }
 
       // Extract result data from content blocks
       let resultData: unknown = {};
       if (result.success && result.content.length > 0) {
         // If single text block, try to parse as JSON
-        if (result.content.length === 1 && result.content[0].type === 'text') {
+        const firstBlock = result.content[0];
+        if (result.content.length === 1 && firstBlock && firstBlock.type === 'text') {
           try {
-            resultData = JSON.parse(result.content[0].text);
+            resultData = JSON.parse(firstBlock.text);
           } catch {
-            resultData = result.content[0].text;
+            resultData = firstBlock.text;
           }
         } else {
           // Multiple content blocks, return structured

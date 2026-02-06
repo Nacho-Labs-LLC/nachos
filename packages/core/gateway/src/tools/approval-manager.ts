@@ -203,7 +203,7 @@ export class ApprovalManager extends EventEmitter {
    * Wait for approval response
    */
   private async waitForApproval(requestId: string): Promise<ApprovalResult> {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       // Set timeout
       const timeout = setTimeout(() => {
         this.removeAllListeners(`approval-${requestId}`);

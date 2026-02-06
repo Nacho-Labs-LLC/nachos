@@ -8,7 +8,7 @@
  */
 
 import dns from 'node:dns/promises';
-import type { ValidationResult } from '@nachos/types';
+import type { ToolValidationResult } from '@nachos/types';
 
 /**
  * SSRF protection configuration
@@ -62,7 +62,7 @@ export class SSRFProtection {
   /**
    * Validate a URL for SSRF safety
    */
-  async validateURL(url: string): Promise<ValidationResult> {
+  async validateURL(url: string): Promise<ToolValidationResult> {
     try {
       const parsed = new URL(url);
 
@@ -106,7 +106,7 @@ export class SSRFProtection {
   /**
    * Check if domain is in allowlist
    */
-  private checkDomainAllowlist(hostname: string): ValidationResult {
+  private checkDomainAllowlist(hostname: string): ToolValidationResult {
     // If allowlist contains '*', allow all domains
     if (this.allowedDomains.includes('*')) {
       return { valid: true };
@@ -139,7 +139,7 @@ export class SSRFProtection {
   /**
    * Check if IP address is blocked
    */
-  private checkIPAddress(ip: string): ValidationResult {
+  private checkIPAddress(ip: string): ToolValidationResult {
     // Check if localhost
     if (this.blockLocalhost && this.isLocalhost(ip)) {
       return {
@@ -179,7 +179,7 @@ export class SSRFProtection {
   /**
    * Resolve DNS and check resolved IPs
    */
-  private async checkDNSResolution(hostname: string): Promise<ValidationResult> {
+  private async checkDNSResolution(hostname: string): Promise<ToolValidationResult> {
     try {
       // Resolve both IPv4 and IPv6
       const results = await Promise.allSettled([

@@ -7,7 +7,7 @@
  * - User-friendly error reporting
  */
 
-import type { ToolCall, ToolResult, RecoveryResult, RecoveryAction } from '@nachos/types';
+import type { ToolCall, ToolResult, RecoveryResult } from '@nachos/types';
 
 /**
  * Error categories for classification
@@ -219,7 +219,7 @@ export class ToolErrorHandler {
   /**
    * Handle transient errors (retry)
    */
-  private handleTransientError(call: ToolCall, error: ToolResult): RecoveryResult {
+  private handleTransientError(_call: ToolCall, _error: ToolResult): RecoveryResult {
     return {
       action: 'retry',
       maxRetries: this.retryConfig.maxRetries,

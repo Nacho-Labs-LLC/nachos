@@ -136,7 +136,7 @@ export class ContextManager {
 
       // Step 3: Execute sliding operation
       const slidingResult =
-        slidingConfig.slide_strategy === 'turn'
+        slidingConfig.slideStrategy === 'turn'
           ? this.slidingManager.slideByTurns({ messages, action, config: slidingConfig })
           : this.slidingManager.slide({ messages, action, config: slidingConfig });
 
@@ -175,7 +175,7 @@ export class ContextManager {
       if (config.proactive_history?.enabled) {
         // Check if we should extract
         const shouldExtract =
-          config.proactive_history.triggers?.on_compaction ||
+          config.proactive_history.triggers?.onCompaction ||
           this.extractionAdapter.shouldExtract({
             messageCount: slidingResult.messagesDropped.length,
             utilizationRatio: action.zone === 'critical' ? 1.0 : 0.75,

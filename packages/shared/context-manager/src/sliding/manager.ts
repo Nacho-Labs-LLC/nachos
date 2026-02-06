@@ -22,7 +22,7 @@ export class SlidingWindowManager implements ISlidingWindowManager {
   shouldSlide(budget: ContextBudget, config: SlidingWindowConfig): SlidingAction | null {
     if (!config.enabled) return null;
 
-    const { zone, utilizationRatio } = budget;
+    const { utilizationRatio } = budget;
     const { thresholds } = config;
 
     // Determine action based on zone
@@ -141,7 +141,12 @@ export class SlidingWindowManager implements ISlidingWindowManager {
 
     // Walk backward from most recent
     for (let i = messages.length - 1; i >= 0; i--) {
-      const msgTokens = tokenEstimator.estimateMessage(messages[i]);
+      const message = messages[i];
+      if (!message) {
+        continue;
+      }
+
+      const msgTokens = tokenEstimator.estimateMessage(message);
 
       if (tokensAccumulated + msgTokens <= tokenBudget) {
         tokensAccumulated += msgTokens;
@@ -289,7 +294,12 @@ export class SlidingWindowManager implements ISlidingWindowManager {
     if (config.keepRecent.tokenBudget > 0) {
       let tokensAccumulated = 0;
       for (let i = turns.length - 1; i >= 0; i--) {
-        tokensAccumulated += tokenEstimator.estimateMessages(turns[i]);
+        const turn = turns[i];
+        if (!turn) {
+          continue;
+        }
+
+        tokensAccumulated += tokenEstimator.estimateMessages(turn);
         const turnsFromEnd = turns.length - i;
         if (tokensAccumulated >= config.keepRecent.tokenBudget) {
           turnsToKeep = Math.max(turnsToKeep, turnsFromEnd);
@@ -306,7 +316,12 @@ export class SlidingWindowManager implements ISlidingWindowManager {
     if (config.keepRecent.messages > 0) {
       let msgCount = 0;
       for (let i = turns.length - 1; i >= 0; i--) {
-        msgCount += turns[i].length;
+        const turn = turns[i];
+        if (!turn) {
+          continue;
+        }
+
+        msgCount += turn.length;
         if (msgCount >= config.keepRecent.messages) {
           turnsToKeep = Math.max(turnsToKeep, turns.length - i);
           break;
@@ -367,7 +382,8 @@ export function findTurnBoundaries(messages: ContextMessage[]): number[] {
   const boundaries: number[] = [];
 
   for (let i = 0; i < messages.length; i++) {
-    if (messages[i].role === 'user') {
+    const message = messages[i];
+    if (message?.role === 'user') {
       boundaries.push(i);
     }
   }

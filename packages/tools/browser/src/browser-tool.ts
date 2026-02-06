@@ -11,20 +11,17 @@
  * SecurityTier: STANDARD (1) - Read-only browser operations
  */
 
-import {
-  ToolService,
-  type ToolServiceConfig,
-} from '@nachos/tool-base';
+import { ToolService } from '@nachos/tool-base';
 import {
   SecurityTier,
   type ToolConfig,
   type ToolParameters,
   type ToolResult,
-  type ValidationResult,
-  type HealthStatus,
+  type ToolValidationResult,
+  type ToolHealthStatus,
   type ParameterSchema,
 } from '@nachos/types';
-import { SSRFProtection, type SSRFProtectionConfig } from './ssrf-protection.js';
+import { SSRFProtection } from './ssrf-protection.js';
 import { PlaywrightWrapper } from './playwright-wrapper.js';
 
 /**
@@ -108,7 +105,7 @@ export class BrowserTool extends ToolService {
     this.logger.info(`Headless mode: ${this.headless}`);
   }
 
-  validate(params: ToolParameters): ValidationResult {
+  validate(params: ToolParameters): ToolValidationResult {
     // Validate required fields
     const requiredValidation = this.validateRequired(params, 'action');
     if (!requiredValidation.valid) {
@@ -320,12 +317,12 @@ export class BrowserTool extends ToolService {
   /**
    * Stop the tool and cleanup
    */
-  async stop(): Promise<void> {
+  override async stop(): Promise<void> {
     await this.playwright.close();
     await super.stop();
   }
 
-  async healthCheck(): Promise<HealthStatus> {
+  override async healthCheck(): Promise<ToolHealthStatus> {
     try {
       // Check if playwright is initialized
       if (!this.playwright) {

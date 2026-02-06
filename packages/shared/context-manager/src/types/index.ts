@@ -37,8 +37,12 @@ export interface ContentBlock {
 
 export interface ToolCall {
   id: string;
-  name: string;
-  input: Record<string, unknown>;
+  name?: string;
+  input?: Record<string, unknown>;
+  function?: {
+    name: string;
+    arguments: Record<string, unknown> | string;
+  };
 }
 
 // ============================================================================
@@ -119,32 +123,43 @@ export interface SlidingWindowConfig {
 // ============================================================================
 
 export interface SummarizationConfig {
-  enabled: boolean;
-  mode: 'single' | 'multi-tier';
+  enabled?: boolean;
+  mode?: 'single' | 'multi-tier';
 
-  tiers: {
+  tiers?: {
     /** Ultra-compressed (oldest history) */
-    archival: SummarizationTier;
+    archival?: SummarizationTierConfig;
 
     /** Compressed (mid-range history) */
-    compressed: SummarizationTier;
+    compressed?: SummarizationTierConfig;
 
     /** Lightly summarized (recent history) */
-    condensed: SummarizationTier;
+    condensed?: SummarizationTierConfig;
   };
 
-  contentClassification: {
-    enabled: boolean;
-    preserveCritical: boolean;
-    preserveCode: boolean;
-    preserveErrors: boolean;
+  contentClassification?: {
+    enabled?: boolean;
+    preserveCritical?: boolean;
+    preserveCode?: boolean;
+    preserveErrors?: boolean;
+  };
+
+  /** Optional preservation rules for system prompts */
+  preserveRules?: {
+    decisions?: boolean;
+    tasks?: boolean;
+    errors?: boolean;
+    code?: boolean;
+    context?: boolean;
   };
 
   /** User-provided instructions for summarization */
   customInstructions?: string;
 }
 
-export interface SummarizationTier {
+export type SummarizationTier = 'archival' | 'compressed' | 'condensed';
+
+export interface SummarizationTierConfig {
   /** Target compression ratio (0.0 - 1.0) */
   compressionRatio: number;
 
@@ -153,6 +168,26 @@ export interface SummarizationTier {
 
   /** What to preserve */
   preserves?: string[];
+}
+
+export interface SummarizationResult {
+  /** The generated summary */
+  summary: string;
+
+  /** Compression tier used */
+  tier: SummarizationTier;
+
+  /** Original token count (before summarization) */
+  originalTokens: number;
+
+  /** Summary token count (after summarization) */
+  summaryTokens: number;
+
+  /** Compression ratio (0-1, where 1 = no compression) */
+  compressionRatio: number;
+
+  /** Messages that were summarized */
+  messagesCount: number;
 }
 
 // ============================================================================
@@ -249,39 +284,13 @@ export interface ExtractedItem {
 // ============================================================================
 
 export interface ContextSnapshot {
-  timestamp: number;
+  id: string;
+  timestamp: string;
   sessionId: string;
-  compactionCount: number;
-
-  preCompaction: {
-    messageCount: number;
-    tokenCount: number;
-    userMessages: number;
-    assistantMessages: number;
-    toolCalls: number;
-  };
-
-  preserved: {
-    /** Recent messages kept verbatim */
-    recentMessages: ContextMessage[];
-
-    /** Extracted important items */
-    importantExtracts: {
-      decisions: string[];
-      facts: string[];
-      tasks: string[];
-    };
-  };
-
-  summary: {
-    text: string;
-    compressionRatio: number;
-    messagesDropped: number;
-    tokensSaved: number;
-  };
-
-  /** File path where snapshot is saved */
-  snapshotPath: string;
+  trigger: 'manual' | 'auto-compaction' | 'auto-threshold' | 'periodic';
+  messageCount: number;
+  messages: ContextMessage[];
+  metadata?: Record<string, unknown>;
 }
 
 // ============================================================================
@@ -301,11 +310,12 @@ export interface EnhancedCompactionResult {
     messagesDropped: number;
     messagesKept: number;
     firstKeptEntryId?: string;
-    tier?: 'archival' | 'compressed' | 'condensed';
+    tier?: SummarizationTier;
   };
 
   /** Context snapshot created */
   snapshot?: ContextSnapshot;
+  snapshotId?: string;
 
   /** Extracted history items */
   extracted?: {
@@ -317,7 +327,11 @@ export interface EnhancedCompactionResult {
   };
 
   /** Messages kept after compaction (NACHOS format) */
-  messagesKept?: unknown[];  // Will be typed as NACHOS Message[] by MessageAdapter
+  messagesKept?: ContextMessage[];
+  messagesDropped?: ContextMessage[];
+  slidingResult?: SlidingResult;
+  budget?: ContextBudget;
+  summary?: string;
 
   /** Error reason if not ok */
   reason?: string;
@@ -361,9 +375,9 @@ export interface CompactionEvent {
 // ============================================================================
 
 export interface ContextManagementConfig {
-  slidingWindow: SlidingWindowConfig;
-  summarization: SummarizationConfig;
-  proactiveHistory: ProactiveHistoryConfig;
+  sliding_window?: SlidingWindowConfig;
+  summarization?: SummarizationConfig;
+  proactive_history?: ProactiveHistoryConfig;
 
   /** Enhanced memory flush */
   memoryFlush?: {
@@ -426,15 +440,7 @@ export interface SlidingResult {
 
 export interface ISummarizationService {
   /** Summarize messages with given tier */
-  summarize(params: {
-    messages: ContextMessage[];
-    tier: SummarizationTier;
-    config: SummarizationConfig;
-    previousSummary?: string;
-  }): Promise<string>;
-
-  /** Classify message importance */
-  classify(message: ContextMessage): MessageClassification;
+  summarize(messages: ContextMessage[], tier: SummarizationTier): Promise<SummarizationResult>;
 }
 
 export interface IHistoryExtractorService {
@@ -459,20 +465,33 @@ export interface IHistoryExtractorService {
 
 export interface IContextSnapshotService {
   /** Create context snapshot before compaction */
-  create(params: {
+  createSnapshot(params: {
     sessionId: string;
     messages: ContextMessage[];
-    extracted: Record<string, ExtractedItem[]>;
+    trigger: 'manual' | 'auto-compaction' | 'auto-threshold' | 'periodic';
+    metadata?: Record<string, unknown>;
   }): Promise<ContextSnapshot>;
 
-  /** Load snapshot by path */
-  load(snapshotPath: string): Promise<ContextSnapshot>;
+  /** Get snapshot by ID */
+  getSnapshot(sessionId: string, snapshotId: string): Promise<ContextSnapshot | null>;
 
   /** List all snapshots for session */
-  list(sessionId: string): Promise<ContextSnapshot[]>;
+  listSnapshots(
+    sessionId: string,
+    options?: { limit?: number; offset?: number }
+  ): Promise<ContextSnapshot[]>;
 
-  /** Rotate old snapshots (keep only maxSnapshots) */
-  rotate(sessionId: string, maxSnapshots: number): Promise<void>;
+  /** Get latest snapshot for session */
+  getLatestSnapshot(sessionId: string): Promise<ContextSnapshot | null>;
+
+  /** Delete snapshot */
+  deleteSnapshot(sessionId: string, snapshotId: string): Promise<boolean>;
+
+  /** Delete all snapshots for session */
+  deleteAllSnapshots(sessionId: string): Promise<number>;
+
+  /** Get snapshot count */
+  getSnapshotCount(sessionId: string): Promise<number>;
 }
 
 // ============================================================================

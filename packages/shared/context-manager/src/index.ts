@@ -93,7 +93,6 @@ export {
   createSummarizationService,
   MockLLMProvider,
   type LLMProvider,
-  type SummarizationResult,
 } from './summarization/service.js';
 
 // ============================================================================
@@ -116,6 +115,7 @@ export type {
   SlidingWindowConfig,
   SummarizationConfig,
   SummarizationTier,
+  SummarizationResult,
   ProactiveHistoryConfig,
 
   // Classification types

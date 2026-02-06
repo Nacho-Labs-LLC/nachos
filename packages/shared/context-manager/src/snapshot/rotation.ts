@@ -257,7 +257,8 @@ export class SnapshotRotation {
    */
   private extractTimestamp(filename: string): number {
     const match = filename.match(/snapshot-(\d+)/);
-    return match ? parseInt(match[1], 10) : 0;
+    const timestamp = match?.[1];
+    return timestamp ? parseInt(timestamp, 10) : 0;
   }
 }
 

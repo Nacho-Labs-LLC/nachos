@@ -10,6 +10,7 @@ import type {
   SummarizationTier,
   ISummarizationService,
   SummarizationConfig,
+  SummarizationResult,
 } from '../types/index.js';
 import { tokenEstimator } from '../utils/token-counter.js';
 
@@ -28,41 +29,6 @@ export interface LLMProvider {
     temperature?: number;
     maxTokens?: number;
   }): Promise<string>;
-}
-
-/**
- * Summarization result
- */
-export interface SummarizationResult {
-  /**
-   * The generated summary
-   */
-  summary: string;
-
-  /**
-   * Compression tier used
-   */
-  tier: SummarizationTier;
-
-  /**
-   * Original token count (before summarization)
-   */
-  originalTokens: number;
-
-  /**
-   * Summary token count (after summarization)
-   */
-  summaryTokens: number;
-
-  /**
-   * Compression ratio (0-1, where 1 = no compression)
-   */
-  compressionRatio: number;
-
-  /**
-   * Messages that were summarized
-   */
-  messagesCount: number;
 }
 
 /**
@@ -223,7 +189,9 @@ Generate a ${tier.toUpperCase()} summary that preserves critical information:`;
 
       if (msg.toolCalls && msg.toolCalls.length > 0) {
         for (const toolCall of msg.toolCalls) {
-          lines.push(`  → Tool: ${toolCall.function.name}(${JSON.stringify(toolCall.function.arguments)})`);
+          const toolName = toolCall.function?.name ?? toolCall.name ?? 'unknown-tool';
+          const toolArgs = toolCall.function?.arguments ?? toolCall.input ?? {};
+          lines.push(`  → Tool: ${toolName}(${JSON.stringify(toolArgs)})`);
         }
       }
     }

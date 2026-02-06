@@ -94,8 +94,8 @@ export class SnapshotRestorer {
       }
 
       // Convert context messages back to NACHOS Message format
-      const messages: Message[] = snapshot.messages.map((contextMsg) =>
-        messageAdapter.toNachosMessage(contextMsg)
+      const messages: Message[] = snapshot.messages.map((contextMsg: ContextMessage) =>
+        messageAdapter.toNachosMessage(contextMsg, sessionId)
       );
 
       // Validate if requested
@@ -135,7 +135,7 @@ export class SnapshotRestorer {
   ): Promise<Array<{ id: string; timestamp: string; messageCount: number; trigger: string }>> {
     const snapshots = await this.snapshotService.listSnapshots(sessionId);
 
-    return snapshots.map((s) => ({
+    return snapshots.map((s: ContextSnapshot) => ({
       id: s.id,
       timestamp: s.timestamp,
       messageCount: s.messageCount,
