@@ -19,6 +19,43 @@ interface DebugOptions {
   json?: boolean;
 }
 
+type DebugConfigInfo =
+  | {
+      error: string;
+    }
+  | {
+      path: string;
+      project_root: string;
+      search_paths: string[];
+      loaded: boolean;
+      security_mode?: string;
+      llm_provider?: string;
+      compose_generated: boolean;
+      compose_path?: string;
+    };
+
+type DebugDockerInfo =
+  | {
+      error: string;
+    }
+  | {
+      available: boolean;
+      compose_available: boolean;
+      version?: string;
+      compose_version?: string;
+    };
+
+interface DebugInfo {
+  cli_version: string;
+  node_version: string;
+  platform: string;
+  arch: string;
+  cwd: string;
+  config?: DebugConfigInfo;
+  docker?: DebugDockerInfo;
+  env?: Record<string, string>;
+}
+
 export async function debugCommand(options: DebugOptions): Promise<void> {
   const output = new OutputFormatter(options.json ?? false, 'debug', getVersion());
 
@@ -26,7 +63,7 @@ export async function debugCommand(options: DebugOptions): Promise<void> {
     const docker = new DockerClient();
 
     // Gather debug information
-    const debugInfo: any = {
+    const debugInfo: DebugInfo = {
       cli_version: getVersion(),
       node_version: process.version,
       platform: process.platform,
@@ -42,19 +79,25 @@ export async function debugCommand(options: DebugOptions): Promise<void> {
         path: configPath,
         project_root: projectRoot,
         search_paths: getConfigSearchPaths(),
+        loaded: false,
+        compose_generated: false,
       };
 
       // Load config
       const config = await loadAndValidateConfig({ configPath });
-      debugInfo.config.loaded = true;
-      debugInfo.config.security_mode = config.security?.mode;
-      debugInfo.config.llm_provider = config.llm?.provider;
+      if (!('error' in debugInfo.config)) {
+        debugInfo.config.loaded = true;
+        debugInfo.config.security_mode = config.security?.mode;
+        debugInfo.config.llm_provider = config.llm?.provider;
+      }
 
       // Check for generated compose file
       const composePath = join(projectRoot, 'docker-compose.generated.yml');
-      debugInfo.config.compose_generated = existsSync(composePath);
-      if (existsSync(composePath)) {
-        debugInfo.config.compose_path = composePath;
+      if (!('error' in debugInfo.config)) {
+        debugInfo.config.compose_generated = existsSync(composePath);
+        if (existsSync(composePath)) {
+          debugInfo.config.compose_path = composePath;
+        }
       }
     } catch (error) {
       debugInfo.config = {
@@ -69,11 +112,11 @@ export async function debugCommand(options: DebugOptions): Promise<void> {
         compose_available: await docker.isComposeAvailable(),
       };
 
-      if (debugInfo.docker.available) {
+      if ('available' in debugInfo.docker && debugInfo.docker.available) {
         debugInfo.docker.version = await docker.getDockerVersion();
       }
 
-      if (debugInfo.docker.compose_available) {
+      if ('compose_available' in debugInfo.docker && debugInfo.docker.compose_available) {
         debugInfo.docker.compose_version = await docker.getComposeVersion();
       }
     } catch (error) {
@@ -87,7 +130,7 @@ export async function debugCommand(options: DebugOptions): Promise<void> {
     debugInfo.env = {};
     for (const key of envVars) {
       if (process.env[key]) {
-        debugInfo.env[key] = process.env[key];
+        debugInfo.env[key] = process.env[key] ?? '';
       }
     }
 
@@ -108,9 +151,9 @@ export async function debugCommand(options: DebugOptions): Promise<void> {
 
       // Config info
       prettyOutput.header('Configuration:');
-      if (debugInfo.config.error) {
+      if (debugInfo.config && 'error' in debugInfo.config) {
         prettyOutput.warn(`Error: ${debugInfo.config.error}`);
-      } else {
+      } else if (debugInfo.config) {
         prettyOutput.keyValue('Config Path', debugInfo.config.path);
         prettyOutput.keyValue('Project Root', debugInfo.config.project_root);
         prettyOutput.keyValue('Security Mode', debugInfo.config.security_mode || 'N/A');
@@ -124,22 +167,23 @@ export async function debugCommand(options: DebugOptions): Promise<void> {
 
       // Docker info
       prettyOutput.header('Docker:');
-      if (debugInfo.docker.error) {
+      if (debugInfo.docker && 'error' in debugInfo.docker) {
         prettyOutput.warn(`Error: ${debugInfo.docker.error}`);
-      } else {
-        prettyOutput.keyValue(
-          'Docker',
-          debugInfo.docker.available ? debugInfo.docker.version : 'Not available'
-        );
-        prettyOutput.keyValue(
-          'Compose',
-          debugInfo.docker.compose_available ? debugInfo.docker.compose_version : 'Not available'
-        );
+      } else if (debugInfo.docker) {
+        const dockerVersion = debugInfo.docker.available
+          ? (debugInfo.docker.version ?? 'Unknown')
+          : 'Not available';
+        const composeVersion = debugInfo.docker.compose_available
+          ? (debugInfo.docker.compose_version ?? 'Unknown')
+          : 'Not available';
+
+        prettyOutput.keyValue('Docker', dockerVersion);
+        prettyOutput.keyValue('Compose', composeVersion);
       }
       prettyOutput.blank();
 
       // Environment
-      if (Object.keys(debugInfo.env).length > 0) {
+      if (debugInfo.env && Object.keys(debugInfo.env).length > 0) {
         prettyOutput.header('Environment:');
         for (const [key, value] of Object.entries(debugInfo.env)) {
           prettyOutput.keyValue(key, value as string);

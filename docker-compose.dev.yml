@@ -221,9 +221,200 @@ services:
         max-file: "3"
         labels: "service=llm-proxy"
 
-  # NOTE: Salsa (Policy Engine) is now embedded in Gateway
+  # NOTE: Salsa (Policy Engine) is embedded in Gateway
   # See ADR-004: Embedded Salsa & Shardable Gateway Architecture
-  # The packages/core/salsa directory contains the library code used by Gateway
+  # Policy engine code lives under packages/core/gateway/src/salsa
+
+  # ==================== Channels (Phase 4/7) ====================
+
+  # -------------------- Slack Channel --------------------
+  slack:
+    container_name: nachos-channel-slack
+    build:
+      context: .
+      dockerfile: packages/channels/slack/Dockerfile
+    image: nachos-channel-slack:dev
+    restart: unless-stopped
+
+    depends_on:
+      bus:
+        condition: service_healthy
+
+    networks:
+      - nachos-internal
+      - nachos-egress
+
+    ports:
+      - "3005:3005"
+
+    environment:
+      - NODE_ENV=development
+      - NATS_URL=nats://bus:4222
+      - LOG_LEVEL=debug
+      - NACHOS_STATE_DIR=/app/state
+      - NACHOS_PAIRING_TOKEN=${NACHOS_PAIRING_TOKEN:-}
+      - SLACK_HTTP_PORT=3005
+      - SLACK_APP_TOKEN=${SLACK_APP_TOKEN:-}
+      - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN:-}
+      - SLACK_SIGNING_SECRET=${SLACK_SIGNING_SECRET:-}
+
+    volumes:
+      - ./packages/channels/slack/src:/app/packages/channels/slack/src:ro
+      - ./packages/channels/base:/app/packages/channels/base:ro
+      - ./packages/shared:/app/packages/shared:ro
+      - ./packages/core/bus:/app/packages/core/bus:ro
+      - ./tsconfig.base.json:/app/tsconfig.base.json:ro
+      - ./tsconfig.json:/app/tsconfig.json:ro
+      - ./data/channels:/app/state
+      - /app/node_modules
+      - /app/packages/channels/slack/node_modules
+      - nachos-logs:/var/log/nachos
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=slack"
+
+  # -------------------- Discord Channel --------------------
+  discord:
+    container_name: nachos-channel-discord
+    build:
+      context: .
+      dockerfile: packages/channels/discord/Dockerfile
+    image: nachos-channel-discord:dev
+    restart: unless-stopped
+
+    depends_on:
+      bus:
+        condition: service_healthy
+
+    networks:
+      - nachos-internal
+      - nachos-egress
+
+    environment:
+      - NODE_ENV=development
+      - NATS_URL=nats://bus:4222
+      - LOG_LEVEL=debug
+      - NACHOS_STATE_DIR=/app/state
+      - NACHOS_PAIRING_TOKEN=${NACHOS_PAIRING_TOKEN:-}
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN:-}
+
+    volumes:
+      - ./packages/channels/discord/src:/app/packages/channels/discord/src:ro
+      - ./packages/channels/base:/app/packages/channels/base:ro
+      - ./packages/shared:/app/packages/shared:ro
+      - ./packages/core/bus:/app/packages/core/bus:ro
+      - ./tsconfig.base.json:/app/tsconfig.base.json:ro
+      - ./tsconfig.json:/app/tsconfig.json:ro
+      - ./data/channels:/app/state
+      - /app/node_modules
+      - /app/packages/channels/discord/node_modules
+      - nachos-logs:/var/log/nachos
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=discord"
+
+  # -------------------- Telegram Channel --------------------
+  telegram:
+    container_name: nachos-channel-telegram
+    build:
+      context: .
+      dockerfile: packages/channels/telegram/Dockerfile
+    image: nachos-channel-telegram:dev
+    restart: unless-stopped
+
+    depends_on:
+      bus:
+        condition: service_healthy
+
+    networks:
+      - nachos-internal
+      - nachos-egress
+
+    environment:
+      - NODE_ENV=development
+      - NATS_URL=nats://bus:4222
+      - LOG_LEVEL=debug
+      - NACHOS_STATE_DIR=/app/state
+      - NACHOS_PAIRING_TOKEN=${NACHOS_PAIRING_TOKEN:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+
+    volumes:
+      - ./packages/channels/telegram/src:/app/packages/channels/telegram/src:ro
+      - ./packages/channels/base:/app/packages/channels/base:ro
+      - ./packages/shared:/app/packages/shared:ro
+      - ./packages/core/bus:/app/packages/core/bus:ro
+      - ./tsconfig.base.json:/app/tsconfig.base.json:ro
+      - ./tsconfig.json:/app/tsconfig.json:ro
+      - ./data/channels:/app/state
+      - /app/node_modules
+      - /app/packages/channels/telegram/node_modules
+      - nachos-logs:/var/log/nachos
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=telegram"
+
+  # -------------------- WhatsApp Channel --------------------
+  whatsapp:
+    container_name: nachos-channel-whatsapp
+    build:
+      context: .
+      dockerfile: packages/channels/whatsapp/Dockerfile
+    image: nachos-channel-whatsapp:dev
+    restart: unless-stopped
+
+    depends_on:
+      bus:
+        condition: service_healthy
+
+    networks:
+      - nachos-internal
+      - nachos-egress
+
+    ports:
+      - "3002:3002"
+
+    environment:
+      - NODE_ENV=development
+      - NATS_URL=nats://bus:4222
+      - LOG_LEVEL=debug
+      - NACHOS_STATE_DIR=/app/state
+      - NACHOS_PAIRING_TOKEN=${NACHOS_PAIRING_TOKEN:-}
+      - WHATSAPP_HTTP_PORT=3002
+      - WHATSAPP_TOKEN=${WHATSAPP_TOKEN:-}
+      - WHATSAPP_PHONE_NUMBER_ID=${WHATSAPP_PHONE_NUMBER_ID:-}
+      - WHATSAPP_VERIFY_TOKEN=${WHATSAPP_VERIFY_TOKEN:-}
+      - WHATSAPP_APP_SECRET=${WHATSAPP_APP_SECRET:-}
+
+    volumes:
+      - ./packages/channels/whatsapp/src:/app/packages/channels/whatsapp/src:ro
+      - ./packages/channels/base:/app/packages/channels/base:ro
+      - ./packages/shared:/app/packages/shared:ro
+      - ./packages/core/bus:/app/packages/core/bus:ro
+      - ./tsconfig.base.json:/app/tsconfig.base.json:ro
+      - ./tsconfig.json:/app/tsconfig.json:ro
+      - ./data/channels:/app/state
+      - /app/node_modules
+      - /app/packages/channels/whatsapp/node_modules
+      - nachos-logs:/var/log/nachos
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=whatsapp"
 
   # ==================== Tools (Phase 6) ====================
 

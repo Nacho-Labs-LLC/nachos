@@ -291,7 +291,7 @@ describe('WhatsappChannelAdapter', () => {
     vi.spyOn(adapter, 'sendMessage').mockResolvedValue({ success: true });
 
     const handleWebhookPayload = (
-      adapter as unknown as { handleWebhookPayload: Function }
+      adapter as unknown as { handleWebhookPayload: (payload: unknown) => Promise<void> }
     ).handleWebhookPayload.bind(adapter);
 
     await handleWebhookPayload({

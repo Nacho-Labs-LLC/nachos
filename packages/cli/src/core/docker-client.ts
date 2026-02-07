@@ -185,7 +185,7 @@ export class DockerClient {
       if (line.trim()) {
         try {
           containers.push(JSON.parse(line));
-        } catch (error) {
+        } catch {
           // Skip invalid JSON lines
         }
       }

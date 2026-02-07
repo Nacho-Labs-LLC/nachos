@@ -226,11 +226,17 @@ export interface ToolCall {
   /** Session ID */
   sessionId: string;
 
+  /** User ID for policy checks */
+  userId?: string;
+
   /** Tool parameters */
   parameters: Record<string, unknown>;
 
   /** Security tier (for policy checks) */
   securityTier?: SecurityTier;
+
+  /** Security mode for policy checks */
+  securityMode?: 'strict' | 'standard' | 'permissive';
 
   /** Execution timeout in milliseconds */
   timeout?: number;

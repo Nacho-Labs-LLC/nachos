@@ -3,6 +3,8 @@
  */
 
 export class CLIError extends Error {
+  public details?: unknown;
+
   constructor(
     message: string,
     public readonly code: string,
@@ -58,7 +60,7 @@ export class ConfigValidationError extends CLIError {
       'Check your nachos.toml file for errors. Run: nachos config validate'
     );
     if (details) {
-      (this as any).details = details;
+      this.details = details;
     }
   }
 }

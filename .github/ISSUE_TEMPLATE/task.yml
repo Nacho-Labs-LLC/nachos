@@ -26,7 +26,6 @@ body:
       options:
         - core/gateway
         - core/bus
-        - core/salsa
         - core/llm-proxy
         - channels/webchat
         - channels/slack

@@ -9,6 +9,7 @@ import type {
   MessageEnvelope,
   Session,
 } from '@nachos/types';
+import { validateChannelInboundMessage } from '@nachos/types';
 import type { AuditConfig } from '@nachos/config';
 import { StateStorage } from './state.js';
 import { SessionManager } from './session.js';
@@ -136,7 +137,13 @@ export class Gateway {
    * Handle an inbound message from a channel
    */
   private async handleInboundMessage(envelope: MessageEnvelope): Promise<void> {
-    const message = envelope.payload as ChannelInboundMessage;
+    const validated = validateChannelInboundMessage(envelope.payload);
+    if (!validated.success || !validated.data) {
+      console.warn('[Gateway] Invalid inbound channel message', validated.errors);
+      return;
+    }
+
+    const message = validated.data as ChannelInboundMessage;
     let messageText = message.content.text ?? '';
     const securityMode = this.options.policyConfig?.securityMode ?? 'standard';
 
@@ -170,6 +177,7 @@ export class Gateway {
           channel: message.channel,
           conversationId: message.conversation.id,
           replyToMessageId: this.getReplyToMessageId(message),
+          sessionId: message.sessionId,
           content: {
             text: `Rate limit exceeded. Retry after ${limitResult.retryAfterSeconds ?? 60}s.`,
             format: 'markdown',
@@ -237,6 +245,7 @@ export class Gateway {
           channel: message.channel,
           conversationId: message.conversation.id,
           replyToMessageId: this.getReplyToMessageId(message),
+          sessionId: session.id,
           content: {
             text: policyResult.reason ?? 'Message denied by policy.',
             format: 'markdown',
@@ -295,6 +304,7 @@ export class Gateway {
           channel: message.channel,
           conversationId: message.conversation.id,
           replyToMessageId: this.getReplyToMessageId(message),
+          sessionId: session.id,
           content: {
             text: scanResult.reason ?? 'Message blocked by DLP policy.',
             format: 'markdown',
@@ -350,11 +360,43 @@ export class Gateway {
           return;
         }
 
+        const pending = this.approvalManager.getPendingRequest(requestId);
+        if (!pending) {
+          const outbound: ChannelOutboundMessage = {
+            channel: message.channel,
+            conversationId: message.conversation.id,
+            replyToMessageId: message.channelMessageId,
+            sessionId: session.id,
+            content: {
+              text: `⚠️ No pending approval found for ${requestId}.`,
+              format: 'markdown',
+            },
+          };
+          await this.router.sendToChannel(outbound);
+          return;
+        }
+
+        if (pending.requesterUserId && pending.requesterUserId !== message.sender.id) {
+          const outbound: ChannelOutboundMessage = {
+            channel: message.channel,
+            conversationId: message.conversation.id,
+            replyToMessageId: message.channelMessageId,
+            sessionId: session.id,
+            content: {
+              text: `⛔ You are not allowed to approve request ${requestId}.`,
+              format: 'markdown',
+            },
+          };
+          await this.router.sendToChannel(outbound);
+          return;
+        }
+
         const approved = this.approvalManager.approve(requestId, message.sender.id);
         const outbound: ChannelOutboundMessage = {
           channel: message.channel,
           conversationId: message.conversation.id,
           replyToMessageId: message.channelMessageId,
+          sessionId: session.id,
           content: {
             text: approved
               ? `✅ Approved request ${requestId}.`
@@ -372,12 +414,44 @@ export class Gateway {
           return;
         }
 
+        const pending = this.approvalManager.getPendingRequest(requestId);
+        if (!pending) {
+          const outbound: ChannelOutboundMessage = {
+            channel: message.channel,
+            conversationId: message.conversation.id,
+            replyToMessageId: message.channelMessageId,
+            sessionId: session.id,
+            content: {
+              text: `⚠️ No pending approval found for ${requestId}.`,
+              format: 'markdown',
+            },
+          };
+          await this.router.sendToChannel(outbound);
+          return;
+        }
+
+        if (pending.requesterUserId && pending.requesterUserId !== message.sender.id) {
+          const outbound: ChannelOutboundMessage = {
+            channel: message.channel,
+            conversationId: message.conversation.id,
+            replyToMessageId: message.channelMessageId,
+            sessionId: session.id,
+            content: {
+              text: `⛔ You are not allowed to deny request ${requestId}.`,
+              format: 'markdown',
+            },
+          };
+          await this.router.sendToChannel(outbound);
+          return;
+        }
+
         const reason = denyMatch[2] ?? 'Denied by user';
         const denied = this.approvalManager.deny(requestId, reason, message.sender.id);
         const outbound: ChannelOutboundMessage = {
           channel: message.channel,
           conversationId: message.conversation.id,
           replyToMessageId: message.channelMessageId,
+          sessionId: session.id,
           content: {
             text: denied
               ? `⛔ Denied request ${requestId}.`
@@ -480,6 +554,8 @@ export class Gateway {
       throw new Error('Tool coordinator not initialized');
     }
 
+    const session = this.sessionManager.getSession(sessionId);
+
     // Convert LLM tool calls to our ToolCall format
     const calls: ToolCall[] = toolCalls.map((tc) => {
       let parameters: Record<string, unknown> = {};
@@ -493,12 +569,13 @@ export class Gateway {
         id: tc.id,
         tool: tc.name,
         sessionId,
+        userId: session?.userId,
         parameters,
+        securityMode: this.options.policyConfig?.securityMode ?? 'standard',
       };
     });
 
     const securityMode = this.options.policyConfig?.securityMode ?? 'standard';
-    const session = this.sessionManager.getSession(sessionId);
 
     const blockedResults: Array<{ index: number; result: ToolResult }> = [];
     const allowedCalls: Array<{ index: number; call: ToolCall }> = [];
@@ -745,6 +822,7 @@ export class Gateway {
       channel: inbound.channel,
       conversationId: inbound.conversation.id,
       replyToMessageId: this.getReplyToMessageId(inbound),
+      sessionId,
       content: {
         text: responseText,
         format: 'markdown',
@@ -877,6 +955,7 @@ export class Gateway {
       salsa: this.salsa ?? undefined,
       cache: this.toolCache,
       approvalManager: this.approvalManager,
+      securityMode: this.options.policyConfig?.securityMode ?? 'standard',
     });
     console.log('[Gateway] Tool coordinator initialized');
 
@@ -890,6 +969,7 @@ export class Gateway {
       const outbound: ChannelOutboundMessage = {
         channel: session.channel,
         conversationId: session.conversationId,
+        sessionId: request.sessionId,
         content: {
           text: this.approvalManager?.formatApprovalMessage(request) ?? 'Approval required.',
           format: 'markdown',
@@ -927,6 +1007,7 @@ export class Gateway {
               channel: state.inbound.channel,
               conversationId: state.inbound.conversation.id,
               replyToMessageId: state.inbound.channelMessageId,
+              sessionId: chunk.sessionId,
               content: {
                 text: state.buffer,
                 format: 'markdown',

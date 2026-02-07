@@ -206,7 +206,7 @@ export class PolicyEvaluator {
   /**
    * Get field value from request using dot notation
    */
-  private getFieldValue(request: SecurityRequest, field: string): any {
+  private getFieldValue(request: SecurityRequest, field: string): unknown {
     // Handle common fields
     switch (field) {
       case 'security_mode':
@@ -231,10 +231,10 @@ export class PolicyEvaluator {
 
     // Handle nested fields with dot notation
     const parts = field.split('.');
-    let value: any = request;
+    let value: unknown = request;
     for (const part of parts) {
-      if (value && typeof value === 'object') {
-        value = value[part];
+      if (value && typeof value === 'object' && part in value) {
+        value = (value as Record<string, unknown>)[part];
       } else {
         return undefined;
       }

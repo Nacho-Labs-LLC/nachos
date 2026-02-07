@@ -236,7 +236,6 @@ nachos/
 │   │   ├── gateway/      # Session management
 │   │   ├── bus/          # NATS message bus
 │   │   ├── llm-proxy/    # LLM provider abstraction
-│   │   └── salsa/        # Policy engine
 │   ├── channels/         # Channel adapters (coming soon)
 │   ├── tools/            # Tool containers (coming soon)
 │   └── shared/           # Shared utilities
@@ -266,8 +265,6 @@ Current Phase**: Phase 7 - Additional Channels (🚧 In Progress)
 - Phase 9: Registry & Addons
 
 See [../../PROJECT_ROADMAP.md](../../PROJECT_ROADMAP.md) for full details and [docs/adr/](docs/adr/) for architectural decisions.
-- [ ] Policy engine (Salsa)
-
 **Phase 2+**: Coming soon...
 
 ## Documentation

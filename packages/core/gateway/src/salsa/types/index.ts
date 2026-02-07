@@ -124,7 +124,7 @@ export interface SecurityRequest {
   /** Action being performed */
   action: ActionType;
   /** Request metadata for condition evaluation */
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   /** Timestamp */
   timestamp: Date;
 }

@@ -11,7 +11,6 @@
     { "path": "./packages/core/gateway" },
     { "path": "./packages/core/bus" },
     { "path": "./packages/core/llm-proxy" },
-    { "path": "./packages/core/salsa" },
     { "path": "./packages/shared/types" },
     { "path": "./packages/shared/utils" }
   ]

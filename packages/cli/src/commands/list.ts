@@ -14,6 +14,14 @@ interface ListOptions {
   json?: boolean;
 }
 
+function isEnabled(value: unknown): boolean {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+  const enabled = (value as { enabled?: unknown }).enabled;
+  return enabled === true;
+}
+
 export async function listCommand(options: ListOptions): Promise<void> {
   const output = new OutputFormatter(options.json ?? false, 'list', getVersion());
 
@@ -32,7 +40,7 @@ export async function listCommand(options: ListOptions): Promise<void> {
           modules.push({
             name,
             type: 'channel',
-            enabled: (channelConfig as any).enabled ?? false,
+            enabled: isEnabled(channelConfig),
             configured: true,
           });
         }
@@ -46,7 +54,7 @@ export async function listCommand(options: ListOptions): Promise<void> {
           modules.push({
             name,
             type: 'tool',
-            enabled: (toolConfig as any).enabled ?? false,
+            enabled: isEnabled(toolConfig),
             configured: true,
           });
         }
@@ -60,7 +68,7 @@ export async function listCommand(options: ListOptions): Promise<void> {
           modules.push({
             name,
             type: 'skill',
-            enabled: (skillConfig as any).enabled ?? false,
+            enabled: isEnabled(skillConfig),
             configured: true,
           });
         }

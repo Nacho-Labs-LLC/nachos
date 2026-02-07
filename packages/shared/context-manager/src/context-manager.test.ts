@@ -140,7 +140,10 @@ describe('ContextManager', () => {
       expect(result.compacted).toBe(true);
       expect(result.messagesKept).toBeDefined();
       expect(result.messagesKept!.length).toBeLessThan(messages.length);
-      expect(result.result?.tokensBefore).toBeGreaterThan(result.result?.tokensAfter!);
+      expect(result.result).toBeDefined();
+      if (result.result) {
+        expect(result.result.tokensBefore).toBeGreaterThan(result.result.tokensAfter);
+      }
     });
 
     it('should keep minimum messages', async () => {

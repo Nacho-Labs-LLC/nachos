@@ -10,6 +10,7 @@ import type {
   PolicyEngineStats,
   SecurityRequest,
   SecurityResult,
+  PolicyDocument,
   PolicyValidationError,
 } from './types/index.js';
 import { PolicyLoader } from './policy/loader.js';
@@ -88,7 +89,7 @@ export class Salsa {
   /**
    * Handle policy reload from file watcher
    */
-  private handleReload(policies: any[], errors: PolicyValidationError[]): void {
+  private handleReload(policies: PolicyDocument[], errors: PolicyValidationError[]): void {
     console.log('[Salsa] Policies reloaded from disk');
     this.validationErrors = errors;
     this.lastReload = new Date();

@@ -14,10 +14,19 @@ interface AddChannelOptions {
   json?: boolean;
 }
 
-const VALID_CHANNELS = ['webchat', 'slack', 'discord', 'telegram', 'whatsapp'];
+const VALID_CHANNELS = ['webchat', 'slack', 'discord', 'telegram', 'whatsapp'] as const;
+
+type ChannelName = (typeof VALID_CHANNELS)[number];
+
+const isValidChannel = (value: string): value is ChannelName =>
+  (VALID_CHANNELS as readonly string[]).includes(value);
 
 // Channel configuration stubs (as objects)
-const CHANNEL_STUBS: Record<string, any> = {
+type TomlConfig = TOML.JsonMap & {
+  channels?: TOML.JsonMap;
+};
+
+const CHANNEL_STUBS: Record<ChannelName, TOML.JsonMap> = {
   webchat: {
     enabled: false,
     port: 8080,
@@ -51,7 +60,7 @@ export async function addChannelCommand(name: string, options: AddChannelOptions
 
   try {
     // Validate channel name
-    if (!VALID_CHANNELS.includes(name)) {
+    if (!isValidChannel(name)) {
       throw new CLIError(
         `Unknown channel: ${name}`,
         'UNKNOWN_CHANNEL',
@@ -62,10 +71,15 @@ export async function addChannelCommand(name: string, options: AddChannelOptions
     const configContent = readFileSync(configPath, 'utf-8');
 
     // Parse TOML
-    const config = TOML.parse(configContent) as any;
+    const config = TOML.parse(configContent) as TomlConfig;
 
     // Check if channel already exists
-    if (config.channels && config.channels[name]) {
+    const channels: TOML.JsonMap = {};
+    if (config.channels && typeof config.channels === 'object') {
+      Object.assign(channels, config.channels as TOML.JsonMap);
+    }
+
+    if (channels[name]) {
       throw new CLIError(
         `Channel ${name} is already configured`,
         'CHANNEL_EXISTS',
@@ -75,13 +89,13 @@ export async function addChannelCommand(name: string, options: AddChannelOptions
     }
 
     // Add channel stub
-    if (!config.channels) {
-      config.channels = {};
-    }
-    config.channels[name] = CHANNEL_STUBS[name];
+    const channelName = name;
+    const stub = CHANNEL_STUBS[channelName];
+    channels[channelName] = stub;
+    config.channels = channels as TOML.JsonMap;
 
     // Write back to file
-    const newContent = TOML.stringify(config);
+    const newContent = TOML.stringify(config as TOML.JsonMap);
     writeFileSync(configPath, newContent, 'utf-8');
 
     // Display results

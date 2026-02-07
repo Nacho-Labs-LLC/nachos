@@ -92,7 +92,7 @@ export async function checkPnpmVersion(): Promise<DoctorCheck> {
       status: 'pass',
       message: `v${version} (OK)`,
     };
-  } catch (error) {
+  } catch {
     return {
       id: 'pnpm-version',
       name: 'pnpm',

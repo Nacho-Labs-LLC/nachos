@@ -203,6 +203,7 @@ export const ChannelOutboundMessageSchema = Type.Object(
   {
     channel: Type.String({ description: 'Target channel identifier' }),
     conversationId: Type.String({ description: 'Conversation to send message to' }),
+    sessionId: Type.Optional(Type.String({ description: 'Session identifier for this message' })),
     replyToMessageId: Type.Optional(
       Type.String({ description: 'Message ID to reply to (for threading)' })
     ),

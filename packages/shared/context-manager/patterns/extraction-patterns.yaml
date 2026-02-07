@@ -17,7 +17,7 @@ patterns:
 
   - id: decision-explicit
     name: Explicit Decision Statement
-    severity: info
+    severity: low
     category: decision
     pattern: "(?:decided to|chose to|will use|agreed on|opted for|selected|going with)\\s+([^.!?\\n]{10,200}[.!?])"
     flags: gi
@@ -30,7 +30,7 @@ patterns:
 
   - id: decision-approach
     name: Approach Decision
-    severity: info
+    severity: low
     category: decision
     pattern: "(?:approach is to|strategy is|plan is to|method will be)\\s+([^.!?\\n]{10,200}[.!?])"
     flags: gi
@@ -42,7 +42,7 @@ patterns:
 
   - id: decision-implementation
     name: Implementation Decision
-    severity: info
+    severity: low
     category: decision
     pattern: "(?:implement|build|create|design)(?:ing)?\\s+(?:this|it|the)\\s+(?:using|with|by|via)\\s+([^.!?\\n]{10,200}[.!?])"
     flags: gi
@@ -58,7 +58,7 @@ patterns:
 
   - id: task-todo
     name: TODO Task
-    severity: info
+    severity: low
     category: task
     pattern: "TODO:\\s*([^.!?\\n]+)"
     flags: gi
@@ -68,7 +68,7 @@ patterns:
 
   - id: task-fixme
     name: FIXME Task
-    severity: info
+    severity: low
     category: task
     pattern: "FIXME:\\s*([^.!?\\n]+)"
     flags: gi
@@ -78,7 +78,7 @@ patterns:
 
   - id: task-action-item
     name: Action Item
-    severity: info
+    severity: low
     category: task
     pattern: "(?:need to|should|must|have to|will need to|plan to)\\s+([^.!?\\n]{10,200}[.!?])"
     flags: gi
@@ -91,7 +91,7 @@ patterns:
 
   - id: task-checkbox
     name: Checkbox Task
-    severity: info
+    severity: low
     category: task
     pattern: "[-*]\\s*\\[[ x]\\]\\s+([^\\n]+)"
     flags: gi
@@ -102,9 +102,9 @@ patterns:
 
   - id: task-next-step
     name: Next Step
-    severity: info
+    severity: low
     category: task
-    pattern: "(?:next step|next task|following step)(?:\\s+is)?(?:\\s+to)?:\\s+([^.!?\\n]{10,200}[.!?])"
+    pattern: "(?:next step|next task|following step)\\s+(?:is to|is|to)\\s+([^.!?\\n]{10,200}[.!?])"
     flags: gi
     keywords:
       - next step
@@ -117,7 +117,7 @@ patterns:
 
   - id: fact-preference
     name: User Preference
-    severity: info
+    severity: low
     category: fact
     pattern: "(?:I|user|we|my|our)\\s+(?:prefer|prefers|like|likes|want|wants|need|needs)\\s+([^.!?\\n]{10,200}[.!?])"
     flags: gi
@@ -130,7 +130,7 @@ patterns:
 
   - id: fact-usage
     name: Usage Pattern
-    severity: info
+    severity: low
     category: fact
     pattern: "(?:I|we|my|our)\\s+(?:use|uses|work with|rely on)\\s+([^.!?\\n]{10,200}[.!?])"
     flags: gi
@@ -142,7 +142,7 @@ patterns:
 
   - id: fact-important
     name: Important Detail
-    severity: info
+    severity: low
     category: fact
     pattern: "(?:important|critical|essential|key|crucial)(?:\\s+that|\\s+to)?:\\s+([^.!?\\n]{10,200}[.!?])"
     flags: gi
@@ -154,9 +154,9 @@ patterns:
 
   - id: fact-requirement
     name: Requirement
-    severity: info
+    severity: low
     category: fact
-    pattern: "(?:requirement|constraint|limitation|must have)(?:\\s+is)?:\\s+([^.!?\\n]{10,200}[.!?])"
+    pattern: "(?:requirement|constraint|limitation|must have):\\s+([^.!?\\n]{10,200}[.!?])"
     flags: gi
     keywords:
       - requirement
@@ -170,7 +170,7 @@ patterns:
 
   - id: issue-error
     name: Error Message
-    severity: warning
+    severity: medium
     category: issue
     pattern: "(?:error|Error|ERROR):\\s*([^\\n]{10,300})"
     flags: g
@@ -181,7 +181,7 @@ patterns:
 
   - id: issue-failed
     name: Failure Report
-    severity: warning
+    severity: medium
     category: issue
     pattern: "(?:failed to|failure|failing|unsuccessful)\\s+([^.!?\\n]{10,200}[.!?])"
     flags: gi
@@ -193,7 +193,7 @@ patterns:
 
   - id: issue-bug
     name: Bug Report
-    severity: warning
+    severity: medium
     category: issue
     pattern: "(?:bug|Bug|BUG):\\s*([^\\n]{10,300})"
     flags: g
@@ -204,9 +204,9 @@ patterns:
 
   - id: issue-problem
     name: Problem Statement
-    severity: warning
+    severity: medium
     category: issue
-    pattern: "(?:problem|issue|trouble)(?:\\s+is)?:\\s+([^.!?\\n]{10,200}[.!?])"
+    pattern: "(?:problem|issue|trouble):\\s+([^.!?\\n]{10,200}[.!?])"
     flags: gi
     keywords:
       - problem
@@ -216,7 +216,7 @@ patterns:
 
   - id: issue-exception
     name: Exception
-    severity: warning
+    severity: medium
     category: issue
     pattern: "(?:Exception|exception):\\s*([^\\n]{10,300})"
     flags: g
@@ -231,7 +231,7 @@ patterns:
 
   - id: file-created
     name: File Created
-    severity: info
+    severity: low
     category: file
     pattern: "(?:created|wrote|generated)\\s+(?:file|the file|new file)?\\s*[`']?([\\w/.\\-]+\\.\\w{1,10})[`']?"
     flags: gi
@@ -243,7 +243,7 @@ patterns:
 
   - id: file-modified
     name: File Modified
-    severity: info
+    severity: low
     category: file
     pattern: "(?:modified|updated|changed|edited)\\s+(?:file|the file)?\\s*[`']?([\\w/.\\-]+\\.\\w{1,10})[`']?"
     flags: gi
@@ -255,7 +255,7 @@ patterns:
 
   - id: file-deleted
     name: File Deleted
-    severity: info
+    severity: low
     category: file
     pattern: "(?:deleted|removed)\\s+(?:file|the file)?\\s*[`']?([\\w/.\\-]+\\.\\w{1,10})[`']?"
     flags: gi
@@ -266,7 +266,7 @@ patterns:
 
   - id: file-backtick-reference
     name: File Reference (Backticks)
-    severity: info
+    severity: low
     category: file
     pattern: "`([\\w/.\\-]+\\.\\w{1,10})`"
     flags: g
@@ -276,7 +276,7 @@ patterns:
 
   - id: file-path-mention
     name: File Path Mention
-    severity: info
+    severity: low
     category: file
     pattern: "(?:in|at|from|to)\\s+(?:file|path)?\\s*[`']?([\\w/.\\-]+/[\\w/.\\-]+\\.\\w{1,10})[`']?"
     flags: gi

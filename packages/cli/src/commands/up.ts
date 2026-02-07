@@ -151,7 +151,20 @@ async function waitForHealthy(
 /**
  * Build service URLs from configuration
  */
-function buildServiceUrls(config: any): {
+interface WebchatConfig {
+  enabled?: boolean;
+  port?: number;
+}
+
+interface ChannelsConfig {
+  webchat?: WebchatConfig;
+}
+
+interface ServiceConfig {
+  channels?: ChannelsConfig;
+}
+
+function buildServiceUrls(config: ServiceConfig): {
   gateway?: string;
   webchat?: string;
   nats_monitoring?: string;

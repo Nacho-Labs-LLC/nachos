@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* global console, process */
 /**
  * Example: Loading and Using Nachos Configuration
  * 
@@ -51,8 +52,8 @@ async function main() {
     console.log('📡 Channels:');
     if (config.channels) {
       const enabledChannels = Object.entries(config.channels)
-        .filter(([_, cfg]) => cfg && cfg.enabled !== false)
-        .map(([name, _]) => name);
+        .filter(([, cfg]) => cfg && cfg.enabled !== false)
+        .map(([name]) => name);
       
       if (enabledChannels.length > 0) {
         enabledChannels.forEach((name) => console.log(`  ✓ ${name}`));
@@ -68,8 +69,8 @@ async function main() {
     console.log('🛠️  Tools:');
     if (config.tools) {
       const enabledTools = Object.entries(config.tools)
-        .filter(([_, cfg]) => cfg?.enabled)
-        .map(([name, _]) => name);
+        .filter(([, cfg]) => cfg?.enabled)
+        .map(([name]) => name);
       
       if (enabledTools.length > 0) {
         enabledTools.forEach((name) => console.log(`  ✓ ${name}`));

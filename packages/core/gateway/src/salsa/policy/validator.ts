@@ -40,11 +40,21 @@ const VALID_EFFECTS: PolicyEffect[] = ['allow', 'deny'];
  * @param filename - Filename for error messages
  * @returns Array of validation errors (empty if valid)
  */
-export function validatePolicyDocument(doc: any, filename: string): PolicyValidationError[] {
+export function validatePolicyDocument(doc: unknown, filename: string): PolicyValidationError[] {
   const errors: PolicyValidationError[] = [];
 
+  if (!doc || typeof doc !== 'object') {
+    errors.push({
+      file: filename,
+      message: 'Policy document must be an object',
+    });
+    return errors;
+  }
+
+  const policyDoc = doc as { version?: unknown; rules?: unknown[] };
+
   // Check required fields
-  if (!doc.version) {
+  if (!policyDoc.version) {
     errors.push({
       file: filename,
       message: 'Missing required field: version',
@@ -52,7 +62,7 @@ export function validatePolicyDocument(doc: any, filename: string): PolicyValida
     });
   }
 
-  if (!doc.rules || !Array.isArray(doc.rules)) {
+  if (!policyDoc.rules || !Array.isArray(policyDoc.rules)) {
     errors.push({
       file: filename,
       message: 'Missing or invalid rules array',
@@ -63,22 +73,24 @@ export function validatePolicyDocument(doc: any, filename: string): PolicyValida
 
   // Validate each rule
   const ruleIds = new Set<string>();
-  for (let i = 0; i < doc.rules.length; i++) {
-    const rule = doc.rules[i];
+  for (let i = 0; i < policyDoc.rules.length; i++) {
+    const rule = policyDoc.rules[i];
     const ruleErrors = validatePolicyRule(rule, filename, i);
     errors.push(...ruleErrors);
 
     // Check for duplicate rule IDs
-    if (rule.id) {
-      if (ruleIds.has(rule.id)) {
+    const ruleIdValue = (rule as { id?: unknown }).id;
+    const ruleId = typeof ruleIdValue === 'string' ? ruleIdValue : undefined;
+    if (ruleId) {
+      if (ruleIds.has(ruleId)) {
         errors.push({
           file: filename,
-          ruleId: rule.id,
-          message: `Duplicate rule ID: ${rule.id}`,
+          ruleId,
+          message: `Duplicate rule ID: ${ruleId}`,
           field: 'id',
         });
       }
-      ruleIds.add(rule.id);
+      ruleIds.add(ruleId);
     }
   }
 
@@ -88,12 +100,18 @@ export function validatePolicyDocument(doc: any, filename: string): PolicyValida
 /**
  * Validate a single policy rule
  */
-function validatePolicyRule(rule: any, filename: string, index: number): PolicyValidationError[] {
+function validatePolicyRule(
+  rule: unknown,
+  filename: string,
+  index: number
+): PolicyValidationError[] {
   const errors: PolicyValidationError[] = [];
-  const ruleId = rule.id || `rule-${index}`;
+  const ruleObject: Record<string, unknown> =
+    typeof rule === 'object' && rule !== null ? (rule as Record<string, unknown>) : {};
+  const ruleId = typeof ruleObject.id === 'string' ? ruleObject.id : `rule-${index}`;
 
   // Required fields
-  if (!rule.id || typeof rule.id !== 'string') {
+  if (!ruleObject.id || typeof ruleObject.id !== 'string') {
     errors.push({
       file: filename,
       ruleId,
@@ -102,7 +120,7 @@ function validatePolicyRule(rule: any, filename: string, index: number): PolicyV
     });
   }
 
-  if (typeof rule.priority !== 'number') {
+  if (typeof ruleObject.priority !== 'number') {
     errors.push({
       file: filename,
       ruleId,
@@ -111,7 +129,7 @@ function validatePolicyRule(rule: any, filename: string, index: number): PolicyV
     });
   }
 
-  if (!rule.match || typeof rule.match !== 'object') {
+  if (!ruleObject.match || typeof ruleObject.match !== 'object') {
     errors.push({
       file: filename,
       ruleId,
@@ -119,10 +137,10 @@ function validatePolicyRule(rule: any, filename: string, index: number): PolicyV
       field: 'match',
     });
   } else {
-    errors.push(...validatePolicyMatch(rule.match, filename, ruleId));
+    errors.push(...validatePolicyMatch(ruleObject.match, filename, ruleId));
   }
 
-  if (!rule.effect || !VALID_EFFECTS.includes(rule.effect)) {
+  if (!ruleObject.effect || !VALID_EFFECTS.includes(ruleObject.effect as PolicyEffect)) {
     errors.push({
       file: filename,
       ruleId,
@@ -132,8 +150,8 @@ function validatePolicyRule(rule: any, filename: string, index: number): PolicyV
   }
 
   // Optional fields
-  if (rule.conditions) {
-    if (!Array.isArray(rule.conditions)) {
+  if (ruleObject.conditions) {
+    if (!Array.isArray(ruleObject.conditions)) {
       errors.push({
         file: filename,
         ruleId,
@@ -141,8 +159,8 @@ function validatePolicyRule(rule: any, filename: string, index: number): PolicyV
         field: 'conditions',
       });
     } else {
-      for (let i = 0; i < rule.conditions.length; i++) {
-        errors.push(...validatePolicyCondition(rule.conditions[i], filename, ruleId, i));
+      for (let i = 0; i < ruleObject.conditions.length; i++) {
+        errors.push(...validatePolicyCondition(ruleObject.conditions[i], filename, ruleId, i));
       }
     }
   }
@@ -154,16 +172,23 @@ function validatePolicyRule(rule: any, filename: string, index: number): PolicyV
  * Validate policy match criteria
  */
 function validatePolicyMatch(
-  match: any,
+  match: unknown,
   filename: string,
   ruleId: string
 ): PolicyValidationError[] {
   const errors: PolicyValidationError[] = [];
+  const matchObject =
+    typeof match === 'object' && match !== null ? (match as Record<string, unknown>) : {};
 
-  if (match.resource) {
-    const resources = Array.isArray(match.resource) ? match.resource : [match.resource];
+  if (matchObject.resource) {
+    const resources = Array.isArray(matchObject.resource)
+      ? matchObject.resource
+      : [matchObject.resource];
     for (const resource of resources) {
-      if (!VALID_RESOURCE_TYPES.includes(resource)) {
+      if (
+        typeof resource !== 'string' ||
+        !VALID_RESOURCE_TYPES.includes(resource as ResourceType)
+      ) {
         errors.push({
           file: filename,
           ruleId,
@@ -174,10 +199,10 @@ function validatePolicyMatch(
     }
   }
 
-  if (match.action) {
-    const actions = Array.isArray(match.action) ? match.action : [match.action];
+  if (matchObject.action) {
+    const actions = Array.isArray(matchObject.action) ? matchObject.action : [matchObject.action];
     for (const action of actions) {
-      if (!VALID_ACTION_TYPES.includes(action)) {
+      if (typeof action !== 'string' || !VALID_ACTION_TYPES.includes(action as ActionType)) {
         errors.push({
           file: filename,
           ruleId,
@@ -188,12 +213,12 @@ function validatePolicyMatch(
     }
   }
 
-  if (match.resourceId !== undefined) {
+  if (matchObject.resourceId !== undefined) {
     if (
-      typeof match.resourceId !== 'string' &&
+      typeof matchObject.resourceId !== 'string' &&
       !(
-        Array.isArray(match.resourceId) &&
-        match.resourceId.every((id: any) => typeof id === 'string')
+        Array.isArray(matchObject.resourceId) &&
+        matchObject.resourceId.every((id) => typeof id === 'string')
       )
     ) {
       errors.push({
@@ -212,14 +237,18 @@ function validatePolicyMatch(
  * Validate a policy condition
  */
 function validatePolicyCondition(
-  condition: any,
+  condition: unknown,
   filename: string,
   ruleId: string,
   index: number
 ): PolicyValidationError[] {
   const errors: PolicyValidationError[] = [];
+  const conditionObject =
+    typeof condition === 'object' && condition !== null
+      ? (condition as Record<string, unknown>)
+      : {};
 
-  if (!condition.field || typeof condition.field !== 'string') {
+  if (!conditionObject.field || typeof conditionObject.field !== 'string') {
     errors.push({
       file: filename,
       ruleId,
@@ -228,7 +257,10 @@ function validatePolicyCondition(
     });
   }
 
-  if (!condition.operator || !VALID_OPERATORS.includes(condition.operator)) {
+  if (
+    !conditionObject.operator ||
+    !VALID_OPERATORS.includes(conditionObject.operator as ConditionOperator)
+  ) {
     errors.push({
       file: filename,
       ruleId,
@@ -237,7 +269,7 @@ function validatePolicyCondition(
     });
   }
 
-  if (condition.value === undefined) {
+  if (conditionObject.value === undefined) {
     errors.push({
       file: filename,
       ruleId,
@@ -252,7 +284,7 @@ function validatePolicyCondition(
 /**
  * Check if a policy document is valid
  */
-export function isPolicyDocumentValid(doc: any, filename: string): boolean {
+export function isPolicyDocumentValid(doc: unknown, filename: string): boolean {
   const errors = validatePolicyDocument(doc, filename);
   return errors.length === 0;
 }

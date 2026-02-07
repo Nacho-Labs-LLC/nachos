@@ -29,6 +29,7 @@ export interface ToolCoordinatorConfig {
   cache?: ToolCache;
   approvalManager?: ApprovalManager | null;
   defaultTimeout?: number;
+  securityMode?: 'strict' | 'standard' | 'permissive';
 }
 
 /**
@@ -40,6 +41,7 @@ export class ToolCoordinator {
   private cache?: ToolCache;
   private approvalManager?: ApprovalManager | null;
   private defaultTimeout: number;
+  private securityMode?: 'strict' | 'standard' | 'permissive';
 
   constructor(config: ToolCoordinatorConfig) {
     this.bus = config.bus;
@@ -47,6 +49,7 @@ export class ToolCoordinator {
     this.cache = config.cache;
     this.approvalManager = config.approvalManager;
     this.defaultTimeout = config.defaultTimeout ?? 30000; // 30 seconds
+    this.securityMode = config.securityMode;
   }
 
   /**
@@ -93,6 +96,10 @@ export class ToolCoordinator {
       call.securityTier = resolvedSecurityTier;
     }
 
+    if (!call.securityMode) {
+      call.securityMode = this.securityMode ?? 'standard';
+    }
+
     try {
       // 1. Check policy (if Salsa is configured)
       if (this.salsa) {
@@ -119,7 +126,8 @@ export class ToolCoordinator {
           const approval = await this.approvalManager.requestApproval(
             call.sessionId,
             call,
-            resolvedSecurityTier
+            resolvedSecurityTier,
+            call.userId
           );
 
           if (!approval.approved) {
@@ -388,9 +396,9 @@ export class ToolCoordinator {
 
     const request: SecurityRequest = {
       requestId: this.generateId(),
-      userId: call.sessionId, // Use session ID as user ID for now
+      userId: call.userId ?? call.sessionId,
       sessionId: call.sessionId,
-      securityMode: 'standard', // TODO: Get from config
+      securityMode: call.securityMode ?? this.securityMode ?? 'standard',
       resource: {
         type: 'tool',
         id: call.tool,

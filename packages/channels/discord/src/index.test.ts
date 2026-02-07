@@ -62,7 +62,9 @@ describe('DiscordChannelAdapter', () => {
       author: { id: 'user-1', bot: false },
     } as unknown;
 
-    await (adapter as unknown as { handleMessage: Function }).handleMessage(message);
+    await (
+      adapter as unknown as { handleMessage: (input: unknown) => Promise<void> }
+    ).handleMessage(message);
 
     expect(publish).toHaveBeenCalledWith(
       'nachos.channel.discord.inbound',
@@ -119,7 +121,9 @@ describe('DiscordChannelAdapter', () => {
 
     (adapter as unknown as { botUserId?: string }).botUserId = 'bot-1';
 
-    await (adapter as unknown as { handleMessage: Function }).handleMessage({
+    await (
+      adapter as unknown as { handleMessage: (input: unknown) => Promise<void> }
+    ).handleMessage({
       id: 'msg-10',
       channelId: 'chan-1',
       content: 'Hello <@!bot-1>',
@@ -187,9 +191,9 @@ describe('DiscordChannelAdapter', () => {
 
     vi.spyOn(adapter, 'sendMessage').mockResolvedValue({ success: true });
 
-    const handleMessage = (adapter as unknown as { handleMessage: Function }).handleMessage.bind(
-      adapter
-    );
+    const handleMessage = (
+      adapter as unknown as { handleMessage: (input: unknown) => Promise<void> }
+    ).handleMessage.bind(adapter);
 
     await handleMessage({
       id: 'm1',

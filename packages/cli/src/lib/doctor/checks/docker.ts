@@ -31,7 +31,7 @@ export async function checkDocker(): Promise<DoctorCheck> {
       status: 'pass',
       message: `v${version} (OK)`,
     };
-  } catch (error) {
+  } catch {
     return {
       id: 'docker',
       name: 'Docker',
@@ -66,7 +66,7 @@ export async function checkDockerCompose(): Promise<DoctorCheck> {
       status: 'pass',
       message: `${version} (OK)`,
     };
-  } catch (error) {
+  } catch {
     return {
       id: 'docker-compose',
       name: 'Docker Compose',

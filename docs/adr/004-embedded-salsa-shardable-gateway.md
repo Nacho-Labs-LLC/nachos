@@ -223,6 +223,8 @@ packages/core/gateway/
     health.ts
 ```
 
+  **Note**: There is no standalone `@nachos/salsa` service package. Salsa exists only as an embedded Gateway module.
+
 ### Configuration
 
 ```toml

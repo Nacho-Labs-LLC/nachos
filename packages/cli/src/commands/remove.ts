@@ -39,13 +39,14 @@ export async function removeCommand(
     const configContent = readFileSync(configPath, 'utf-8');
 
     // Parse TOML
-    const config = TOML.parse(configContent) as any;
+    const config = TOML.parse(configContent) as Record<string, unknown>;
 
     // Determine section name
     const section = `${type}s`; // channels, tools, skills
 
     // Check if module exists
-    if (!config[section] || !config[section][name]) {
+    const sectionValue = config[section];
+    if (!sectionValue || typeof sectionValue !== 'object' || !(name in sectionValue)) {
       throw new CLIError(
         `${type} "${name}" not found in configuration`,
         'MODULE_NOT_FOUND',
@@ -70,10 +71,12 @@ export async function removeCommand(
     }
 
     // Remove module
-    delete config[section][name];
+    const moduleSection = sectionValue as Record<string, unknown>;
+    delete moduleSection[name];
+    config[section] = moduleSection;
 
     // Write back to file
-    const newContent = TOML.stringify(config);
+    const newContent = TOML.stringify(config as TOML.JsonMap);
     writeFileSync(configPath, newContent, 'utf-8');
 
     // Display results

@@ -367,6 +367,7 @@ export interface ChannelInboundMessage {
 export interface ChannelOutboundMessage {
   channel: string;
   conversationId: string;
+  sessionId?: string;
   replyToMessageId?: string;
   content: {
     text: string;

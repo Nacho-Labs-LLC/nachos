@@ -52,7 +52,7 @@ export class OutputFormatter {
         error: {
           code: error instanceof CLIError ? error.code : 'UNKNOWN_ERROR',
           message: error.message,
-          details: (error as any).details,
+          details: error instanceof CLIError ? error.details : undefined,
         },
         meta: this.buildMeta(),
       };

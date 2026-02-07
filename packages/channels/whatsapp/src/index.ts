@@ -14,6 +14,7 @@ import type {
   SendResult,
   HealthStatusType,
 } from '@nachos/types';
+import { validateChannelInboundMessage } from '@nachos/types';
 import { shouldAllowDm } from '@nachos/utils';
 
 interface WhatsAppWebhookMessageText {
@@ -231,7 +232,7 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
     let rawBody = '';
     try {
       rawBody = await this.readRequestBody(req);
-    } catch (error) {
+    } catch {
       res.writeHead(413, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Request body too large' }));
       return;
@@ -376,6 +377,12 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
               displayPhoneNumber: metadata?.display_phone_number,
             },
           };
+
+          const validation = validateChannelInboundMessage(inbound);
+          if (!validation.success) {
+            console.warn('[WhatsApp] Dropping invalid inbound message', validation.errors);
+            continue;
+          }
 
           await this.config.bus.publish(TOPICS.channel.inbound(this.channelId), inbound);
         }

@@ -62,7 +62,9 @@ describe('TelegramChannelAdapter', () => {
       },
     };
 
-    await (adapter as unknown as { handleMessage: Function }).handleMessage(ctx);
+    await (adapter as unknown as { handleMessage: (ctx: unknown) => Promise<void> }).handleMessage(
+      ctx
+    );
 
     expect(publish).toHaveBeenCalledWith(
       'nachos.channel.telegram.inbound',
@@ -113,9 +115,9 @@ describe('TelegramChannelAdapter', () => {
     vi.spyOn(adapter, 'sendMessage').mockResolvedValue({ success: true });
     (adapter as unknown as { bot?: unknown }).bot = {} as unknown;
 
-    const handleMessage = (adapter as unknown as { handleMessage: Function }).handleMessage.bind(
-      adapter
-    );
+    const handleMessage = (
+      adapter as unknown as { handleMessage: (ctx: unknown) => Promise<void> }
+    ).handleMessage.bind(adapter);
 
     await handleMessage({
       message: {

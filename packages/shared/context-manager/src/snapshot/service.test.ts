@@ -24,7 +24,7 @@ describe('ContextSnapshotService', () => {
     // Clean up test directory before each test
     try {
       await fs.rm(testStateDir, { recursive: true, force: true });
-    } catch (error) {
+    } catch {
       // Ignore if directory doesn't exist
     }
   });
@@ -33,7 +33,7 @@ describe('ContextSnapshotService', () => {
     // Clean up after tests
     try {
       await fs.rm(testStateDir, { recursive: true, force: true });
-    } catch (error) {
+    } catch {
       // Ignore cleanup errors
     }
   });

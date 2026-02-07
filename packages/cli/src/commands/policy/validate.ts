@@ -33,7 +33,7 @@ export async function validateCommand(options: ValidateOptions): Promise<void> {
           policyFiles.push(filePath);
         }
       }
-    } catch (error) {
+    } catch {
       throw new CLIError(
         'Policies directory not found',
         'POLICIES_DIR_NOT_FOUND',

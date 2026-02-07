@@ -15,6 +15,7 @@ import type {
   SendResult,
   HealthStatusType,
 } from '@nachos/types';
+import { validateChannelInboundMessage } from '@nachos/types';
 import { shouldAllowDm, shouldAllowGroupMessage } from '@nachos/utils';
 
 type SlackEventMessage = {
@@ -295,6 +296,12 @@ export class SlackChannelAdapter implements ChannelAdapter {
         event_ts: (event as { event_ts?: string }).event_ts,
       },
     };
+
+    const validation = validateChannelInboundMessage(inbound);
+    if (!validation.success) {
+      console.warn('[Slack] Dropping invalid inbound message', validation.errors);
+      return;
+    }
 
     await this.config.bus.publish(TOPICS.channel.inbound(this.channelId), inbound);
   }

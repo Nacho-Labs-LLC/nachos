@@ -26,9 +26,7 @@ interface Network {
   };
 }
 
-interface Volume {
-  // Empty object for named volumes
-}
+type Volume = Record<string, never>;
 
 interface Service {
   container_name: string;
@@ -433,6 +431,27 @@ function buildWebchatService(config: NachosConfig, projectRoot: string): Service
 // These will be expanded as those components are built
 
 function buildSlackService(_config: NachosConfig, projectRoot: string): Service {
+  const environment: Record<string, string> = {
+    NODE_ENV: 'development',
+    NATS_URL: 'nats://bus:4222',
+    LOG_LEVEL: 'debug',
+    NACHOS_STATE_DIR: '/app/state',
+    SLACK_HTTP_PORT: '3005',
+  };
+
+  if (process.env.NACHOS_PAIRING_TOKEN) {
+    environment.NACHOS_PAIRING_TOKEN = process.env.NACHOS_PAIRING_TOKEN;
+  }
+  if (process.env.SLACK_APP_TOKEN) {
+    environment.SLACK_APP_TOKEN = process.env.SLACK_APP_TOKEN;
+  }
+  if (process.env.SLACK_BOT_TOKEN) {
+    environment.SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;
+  }
+  if (process.env.SLACK_SIGNING_SECRET) {
+    environment.SLACK_SIGNING_SECRET = process.env.SLACK_SIGNING_SECRET;
+  }
+
   return {
     container_name: 'nachos-slack',
     build: {
@@ -445,13 +464,18 @@ function buildSlackService(_config: NachosConfig, projectRoot: string): Service 
       bus: { condition: 'service_healthy' },
     },
     networks: ['nachos-internal', 'nachos-egress'],
-    environment: {
-      NODE_ENV: 'development',
-      NATS_URL: 'nats://bus:4222',
-      LOG_LEVEL: 'debug',
-    },
+    ports: ['3005:3005'],
+    environment,
     volumes: [
       `${projectRoot}/packages/channels/slack/src:/app/packages/channels/slack/src:ro`,
+      `${projectRoot}/packages/channels/base:/app/packages/channels/base:ro`,
+      `${projectRoot}/packages/shared:/app/packages/shared:ro`,
+      `${projectRoot}/packages/core/bus:/app/packages/core/bus:ro`,
+      `${projectRoot}/tsconfig.base.json:/app/tsconfig.base.json:ro`,
+      `${projectRoot}/tsconfig.json:/app/tsconfig.json:ro`,
+      `${projectRoot}/data/channels:/app/state`,
+      '/app/node_modules',
+      '/app/packages/channels/slack/node_modules',
       'nachos-logs:/var/log/nachos',
     ],
     logging: {
@@ -466,6 +490,20 @@ function buildSlackService(_config: NachosConfig, projectRoot: string): Service 
 }
 
 function buildDiscordService(_config: NachosConfig, projectRoot: string): Service {
+  const environment: Record<string, string> = {
+    NODE_ENV: 'development',
+    NATS_URL: 'nats://bus:4222',
+    LOG_LEVEL: 'debug',
+    NACHOS_STATE_DIR: '/app/state',
+  };
+
+  if (process.env.NACHOS_PAIRING_TOKEN) {
+    environment.NACHOS_PAIRING_TOKEN = process.env.NACHOS_PAIRING_TOKEN;
+  }
+  if (process.env.DISCORD_BOT_TOKEN) {
+    environment.DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
+  }
+
   return {
     container_name: 'nachos-discord',
     build: {
@@ -478,13 +516,17 @@ function buildDiscordService(_config: NachosConfig, projectRoot: string): Servic
       bus: { condition: 'service_healthy' },
     },
     networks: ['nachos-internal', 'nachos-egress'],
-    environment: {
-      NODE_ENV: 'development',
-      NATS_URL: 'nats://bus:4222',
-      LOG_LEVEL: 'debug',
-    },
+    environment,
     volumes: [
       `${projectRoot}/packages/channels/discord/src:/app/packages/channels/discord/src:ro`,
+      `${projectRoot}/packages/channels/base:/app/packages/channels/base:ro`,
+      `${projectRoot}/packages/shared:/app/packages/shared:ro`,
+      `${projectRoot}/packages/core/bus:/app/packages/core/bus:ro`,
+      `${projectRoot}/tsconfig.base.json:/app/tsconfig.base.json:ro`,
+      `${projectRoot}/tsconfig.json:/app/tsconfig.json:ro`,
+      `${projectRoot}/data/channels:/app/state`,
+      '/app/node_modules',
+      '/app/packages/channels/discord/node_modules',
       'nachos-logs:/var/log/nachos',
     ],
     logging: {
@@ -499,6 +541,20 @@ function buildDiscordService(_config: NachosConfig, projectRoot: string): Servic
 }
 
 function buildTelegramService(_config: NachosConfig, projectRoot: string): Service {
+  const environment: Record<string, string> = {
+    NODE_ENV: 'development',
+    NATS_URL: 'nats://bus:4222',
+    LOG_LEVEL: 'debug',
+    NACHOS_STATE_DIR: '/app/state',
+  };
+
+  if (process.env.NACHOS_PAIRING_TOKEN) {
+    environment.NACHOS_PAIRING_TOKEN = process.env.NACHOS_PAIRING_TOKEN;
+  }
+  if (process.env.TELEGRAM_BOT_TOKEN) {
+    environment.TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+  }
+
   return {
     container_name: 'nachos-telegram',
     build: {
@@ -511,13 +567,17 @@ function buildTelegramService(_config: NachosConfig, projectRoot: string): Servi
       bus: { condition: 'service_healthy' },
     },
     networks: ['nachos-internal', 'nachos-egress'],
-    environment: {
-      NODE_ENV: 'development',
-      NATS_URL: 'nats://bus:4222',
-      LOG_LEVEL: 'debug',
-    },
+    environment,
     volumes: [
       `${projectRoot}/packages/channels/telegram/src:/app/packages/channels/telegram/src:ro`,
+      `${projectRoot}/packages/channels/base:/app/packages/channels/base:ro`,
+      `${projectRoot}/packages/shared:/app/packages/shared:ro`,
+      `${projectRoot}/packages/core/bus:/app/packages/core/bus:ro`,
+      `${projectRoot}/tsconfig.base.json:/app/tsconfig.base.json:ro`,
+      `${projectRoot}/tsconfig.json:/app/tsconfig.json:ro`,
+      `${projectRoot}/data/channels:/app/state`,
+      '/app/node_modules',
+      '/app/packages/channels/telegram/node_modules',
       'nachos-logs:/var/log/nachos',
     ],
     logging: {
@@ -532,6 +592,30 @@ function buildTelegramService(_config: NachosConfig, projectRoot: string): Servi
 }
 
 function buildWhatsappService(_config: NachosConfig, projectRoot: string): Service {
+  const environment: Record<string, string> = {
+    NODE_ENV: 'development',
+    NATS_URL: 'nats://bus:4222',
+    LOG_LEVEL: 'debug',
+    NACHOS_STATE_DIR: '/app/state',
+    WHATSAPP_HTTP_PORT: '3002',
+  };
+
+  if (process.env.NACHOS_PAIRING_TOKEN) {
+    environment.NACHOS_PAIRING_TOKEN = process.env.NACHOS_PAIRING_TOKEN;
+  }
+  if (process.env.WHATSAPP_TOKEN) {
+    environment.WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
+  }
+  if (process.env.WHATSAPP_PHONE_NUMBER_ID) {
+    environment.WHATSAPP_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  }
+  if (process.env.WHATSAPP_VERIFY_TOKEN) {
+    environment.WHATSAPP_VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
+  }
+  if (process.env.WHATSAPP_APP_SECRET) {
+    environment.WHATSAPP_APP_SECRET = process.env.WHATSAPP_APP_SECRET;
+  }
+
   return {
     container_name: 'nachos-whatsapp',
     build: {
@@ -544,13 +628,18 @@ function buildWhatsappService(_config: NachosConfig, projectRoot: string): Servi
       bus: { condition: 'service_healthy' },
     },
     networks: ['nachos-internal', 'nachos-egress'],
-    environment: {
-      NODE_ENV: 'development',
-      NATS_URL: 'nats://bus:4222',
-      LOG_LEVEL: 'debug',
-    },
+    ports: ['3002:3002'],
+    environment,
     volumes: [
       `${projectRoot}/packages/channels/whatsapp/src:/app/packages/channels/whatsapp/src:ro`,
+      `${projectRoot}/packages/channels/base:/app/packages/channels/base:ro`,
+      `${projectRoot}/packages/shared:/app/packages/shared:ro`,
+      `${projectRoot}/packages/core/bus:/app/packages/core/bus:ro`,
+      `${projectRoot}/tsconfig.base.json:/app/tsconfig.base.json:ro`,
+      `${projectRoot}/tsconfig.json:/app/tsconfig.json:ro`,
+      `${projectRoot}/data/channels:/app/state`,
+      '/app/node_modules',
+      '/app/packages/channels/whatsapp/node_modules',
       'nachos-logs:/var/log/nachos',
     ],
     logging: {

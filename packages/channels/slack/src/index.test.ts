@@ -111,7 +111,9 @@ describe('SlackChannelAdapter', () => {
       },
     });
 
-    await (adapter as unknown as { handleMessage: Function }).handleMessage(
+    await (
+      adapter as unknown as { handleMessage: (event: unknown, cfg: unknown) => Promise<void> }
+    ).handleMessage(
       {
         type: 'message',
         user: 'U111',
@@ -179,7 +181,9 @@ describe('SlackChannelAdapter', () => {
       },
     });
 
-    await (adapter as unknown as { handleMessage: Function }).handleMessage(
+    await (
+      adapter as unknown as { handleMessage: (event: unknown, cfg: unknown) => Promise<void> }
+    ).handleMessage(
       {
         type: 'message',
         user: 'U777',
@@ -252,7 +256,9 @@ describe('SlackChannelAdapter', () => {
       },
     });
 
-    await (adapter as unknown as { handleMessage: Function }).handleMessage(
+    await (
+      adapter as unknown as { handleMessage: (event: unknown, cfg: unknown) => Promise<void> }
+    ).handleMessage(
       {
         type: 'message',
         user: 'U999',
@@ -266,7 +272,9 @@ describe('SlackChannelAdapter', () => {
 
     expect(publish).not.toHaveBeenCalled();
 
-    await (adapter as unknown as { handleMessage: Function }).handleMessage(
+    await (
+      adapter as unknown as { handleMessage: (event: unknown, cfg: unknown) => Promise<void> }
+    ).handleMessage(
       {
         type: 'message',
         user: 'U999',
@@ -278,7 +286,9 @@ describe('SlackChannelAdapter', () => {
       { dm: { user_allowlist: [], pairing: true } }
     );
 
-    await (adapter as unknown as { handleMessage: Function }).handleMessage(
+    await (
+      adapter as unknown as { handleMessage: (event: unknown, cfg: unknown) => Promise<void> }
+    ).handleMessage(
       {
         type: 'message',
         user: 'U999',

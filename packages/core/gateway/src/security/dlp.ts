@@ -20,7 +20,7 @@ export interface DLPPolicy {
   /** Minimum confidence threshold (0-1) to trigger policy */
   minConfidence?: number;
   /** Severity levels that trigger this policy */
-  severities?: Array<'critical' | 'high' | 'medium' | 'low'>;
+  severities?: Array<'critical' | 'high' | 'medium' | 'low' | 'info'>;
   /** Pattern categories to check (e.g., 'api-keys', 'pii') */
   categories?: string[];
   /** Specific pattern IDs to check */
@@ -185,7 +185,7 @@ export class DLPSecurityLayer {
 
     // Filter findings by severity if specified in policy
     const relevantFindings = policy.severities
-      ? findings.filter((f) => policy.severities!.includes(f.severity as any))
+      ? findings.filter((f) => policy.severities?.includes(f.severity))
       : findings;
 
     // No findings - allow message

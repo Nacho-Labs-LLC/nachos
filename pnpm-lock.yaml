@@ -73,6 +73,9 @@ importers:
 
   packages/channels/discord:
     dependencies:
+      '@nachos/bus':
+        specifier: workspace:*
+        version: link:../../core/bus
       '@nachos/channel-base':
         specifier: workspace:*
         version: link:../base
@@ -92,12 +95,18 @@ importers:
       '@types/node':
         specifier: ^22.10.5
         version: 22.19.7
+      tsx:
+        specifier: ^4.19.2
+        version: 4.21.0
       typescript:
         specifier: ^5.7.3
         version: 5.9.3
 
   packages/channels/slack:
     dependencies:
+      '@nachos/bus':
+        specifier: workspace:*
+        version: link:../../core/bus
       '@nachos/channel-base':
         specifier: workspace:*
         version: link:../base
@@ -117,12 +126,18 @@ importers:
       '@types/node':
         specifier: ^22.10.5
         version: 22.19.7
+      tsx:
+        specifier: ^4.19.2
+        version: 4.21.0
       typescript:
         specifier: ^5.7.3
         version: 5.9.3
 
   packages/channels/telegram:
     dependencies:
+      '@nachos/bus':
+        specifier: workspace:*
+        version: link:../../core/bus
       '@nachos/channel-base':
         specifier: workspace:*
         version: link:../base
@@ -142,12 +157,18 @@ importers:
       '@types/node':
         specifier: ^22.10.5
         version: 22.19.7
+      tsx:
+        specifier: ^4.19.2
+        version: 4.21.0
       typescript:
         specifier: ^5.7.3
         version: 5.9.3
 
   packages/channels/whatsapp:
     dependencies:
+      '@nachos/bus':
+        specifier: workspace:*
+        version: link:../../core/bus
       '@nachos/channel-base':
         specifier: workspace:*
         version: link:../base
@@ -164,6 +185,9 @@ importers:
       '@types/node':
         specifier: ^22.10.5
         version: 22.19.7
+      tsx:
+        specifier: ^4.19.2
+        version: 4.21.0
       typescript:
         specifier: ^5.7.3
         version: 5.9.3
@@ -284,18 +308,6 @@ importers:
       openai:
         specifier: ^4.83.0
         version: 4.104.0(ws@8.19.0)
-    devDependencies:
-      '@types/node':
-        specifier: ^22.10.5
-        version: 22.19.7
-      tsx:
-        specifier: ^4.19.2
-        version: 4.21.0
-      typescript:
-        specifier: ^5.7.3
-        version: 5.9.3
-
-  packages/core/salsa:
     devDependencies:
       '@types/node':
         specifier: ^22.10.5

@@ -15,6 +15,7 @@ import type {
   SendResult,
   HealthStatusType,
 } from '@nachos/types';
+import { validateChannelInboundMessage } from '@nachos/types';
 import { shouldAllowDm, shouldAllowGroupMessage } from '@nachos/utils';
 
 export class DiscordChannelAdapter implements ChannelAdapter {
@@ -218,6 +219,12 @@ export class DiscordChannelAdapter implements ChannelAdapter {
         guildId: message.guildId ?? null,
       },
     };
+
+    const validation = validateChannelInboundMessage(inbound);
+    if (!validation.success) {
+      console.warn('[Discord] Dropping invalid inbound message', validation.errors);
+      return;
+    }
 
     await this.config.bus.publish(TOPICS.channel.inbound(this.channelId), inbound);
   }

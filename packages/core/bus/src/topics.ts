@@ -101,19 +101,22 @@ export const TOOL_TOPICS = {
 } as const;
 
 /**
- * Policy (Salsa) related topics
+ * Policy-related topics (reserved)
+ *
+ * Salsa is embedded in the Gateway, so these topics are not used
+ * unless a future external policy service is introduced.
  */
 export const POLICY_TOPICS = {
   /**
    * Policy check requests
    * Publisher: Any component
-   * Subscriber: Salsa
+   * Subscriber: External policy service (if enabled)
    */
   check: `${TOPIC_PREFIX}.policy.check`,
 
   /**
    * Policy check results
-   * Publisher: Salsa
+   * Publisher: External policy service (if enabled)
    * Subscriber: Requester
    */
   result: `${TOPIC_PREFIX}.policy.result`,
@@ -126,7 +129,7 @@ export const AUDIT_TOPICS = {
   /**
    * Audit event log
    * Publisher: Any component
-   * Subscriber: Salsa
+   * Subscriber: Audit processors
    */
   log: `${TOPIC_PREFIX}.audit.log`,
 } as const;

@@ -14,10 +14,19 @@ interface AddToolOptions {
   json?: boolean;
 }
 
-const VALID_TOOLS = ['filesystem', 'browser', 'code_runner', 'shell', 'web_search'];
+const VALID_TOOLS = ['filesystem', 'browser', 'code_runner', 'shell', 'web_search'] as const;
+
+type ToolName = (typeof VALID_TOOLS)[number];
+
+const isValidTool = (value: string): value is ToolName =>
+  (VALID_TOOLS as readonly string[]).includes(value);
 
 // Tool configuration stubs (as objects)
-const TOOL_STUBS: Record<string, any> = {
+type TomlConfig = TOML.JsonMap & {
+  tools?: TOML.JsonMap;
+};
+
+const TOOL_STUBS: Record<ToolName, TOML.JsonMap> = {
   filesystem: {
     enabled: false,
     paths: ['./workspace'],
@@ -53,7 +62,7 @@ export async function addToolCommand(name: string, options: AddToolOptions): Pro
 
   try {
     // Validate tool name
-    if (!VALID_TOOLS.includes(name)) {
+    if (!isValidTool(name)) {
       throw new CLIError(
         `Unknown tool: ${name}`,
         'UNKNOWN_TOOL',
@@ -64,10 +73,15 @@ export async function addToolCommand(name: string, options: AddToolOptions): Pro
     const configContent = readFileSync(configPath, 'utf-8');
 
     // Parse TOML
-    const config = TOML.parse(configContent) as any;
+    const config = TOML.parse(configContent) as TomlConfig;
 
     // Check if tool already exists
-    if (config.tools && config.tools[name]) {
+    const tools: TOML.JsonMap = {};
+    if (config.tools && typeof config.tools === 'object') {
+      Object.assign(tools, config.tools as TOML.JsonMap);
+    }
+
+    if (tools[name]) {
       throw new CLIError(
         `Tool ${name} is already configured`,
         'TOOL_EXISTS',
@@ -77,13 +91,13 @@ export async function addToolCommand(name: string, options: AddToolOptions): Pro
     }
 
     // Add tool stub
-    if (!config.tools) {
-      config.tools = {};
-    }
-    config.tools[name] = TOOL_STUBS[name];
+    const toolName = name;
+    const stub = TOOL_STUBS[toolName];
+    tools[toolName] = stub;
+    config.tools = tools as TOML.JsonMap;
 
     // Write back to file
-    const newContent = TOML.stringify(config);
+    const newContent = TOML.stringify(config as TOML.JsonMap);
     writeFileSync(configPath, newContent, 'utf-8');
 
     // Display results

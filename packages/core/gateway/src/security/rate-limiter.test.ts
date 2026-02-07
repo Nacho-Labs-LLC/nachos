@@ -3,6 +3,7 @@ import {
   MemoryRateLimitStore,
   RateLimiter,
   createDefaultRateLimiterConfig,
+  type RateLimitStore,
 } from './rate-limiter.js';
 
 describe('RateLimiter', () => {
@@ -73,8 +74,12 @@ describe('RateLimiter', () => {
       disconnect: vi.fn().mockResolvedValue(undefined),
       getSource: () => 'redis',
     };
-    (limiter as any).store = store;
-    (limiter as any).fallbackStore = fallbackStore;
+    const limiterInternals = limiter as unknown as {
+      store: RateLimitStore;
+      fallbackStore: RateLimitStore;
+    };
+    limiterInternals.store = store;
+    limiterInternals.fallbackStore = fallbackStore;
 
     const result = await limiter.recordWithFallback('rate:key', Date.now(), 60_000);
 

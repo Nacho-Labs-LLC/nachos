@@ -13,11 +13,11 @@ RUN corepack enable && corepack prepare pnpm@10.28.2 --activate
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY tsconfig.base.json tsconfig.json ./
 
-# Copy shared packages
+# Copy shared packages and dependencies
 COPY packages/shared ./packages/shared
-
-# Copy salsa package
-COPY packages/core/salsa ./packages/core/salsa
+COPY packages/core/bus ./packages/core/bus
+COPY packages/channels/base ./packages/channels/base
+COPY packages/channels/discord ./packages/channels/discord
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
@@ -30,13 +30,6 @@ RUN chown -R nachos:nachos /app
 
 USER nachos
 
-# Expose port
-EXPOSE 3002
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD node -e "process.exit(0)" || exit 1
-
 # Start in development mode with tsx watch for hot-reload
-WORKDIR /app/packages/core/salsa
-CMD ["npx", "tsx", "watch", "src/index.ts"]
+WORKDIR /app/packages/channels/discord
+CMD ["npx", "tsx", "watch", "src/main.ts"]

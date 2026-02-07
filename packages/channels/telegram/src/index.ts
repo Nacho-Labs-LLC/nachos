@@ -15,6 +15,7 @@ import type {
   SendResult,
   HealthStatusType,
 } from '@nachos/types';
+import { validateChannelInboundMessage } from '@nachos/types';
 import { shouldAllowDm, shouldAllowGroupMessage } from '@nachos/utils';
 
 export class TelegramChannelAdapter implements ChannelAdapter {
@@ -102,15 +103,25 @@ export class TelegramChannelAdapter implements ChannelAdapter {
     return 'healthy';
   }
 
-  private async handleMessage(ctx: any): Promise<void> {
+  private async handleMessage(ctx: unknown): Promise<void> {
     if (!this.config || !this.bot) return;
-    if (!('message' in ctx) || !ctx.message || !('text' in ctx.message)) return;
+    if (!ctx || typeof ctx !== 'object' || !('message' in ctx)) return;
+
+    const message = (ctx as { message?: Record<string, unknown> }).message;
+    if (!message || typeof message !== 'object' || !('text' in message)) return;
+
+    const chat = message.chat as { id?: number; type?: string } | undefined;
+    const from = message.from as { id?: number } | undefined;
+    const text = typeof message.text === 'string' ? message.text : '';
+    const messageId =
+      typeof message.message_id === 'number' || typeof message.message_id === 'string'
+        ? String(message.message_id)
+        : undefined;
+    if (!chat || typeof chat.type !== 'string' || typeof chat.id !== 'number') return;
+    if (!from || typeof from.id !== 'number') return;
+    if (!messageId) return;
 
     const channelConfig = this.config.config as TelegramChannelConfig;
-    const chat = ctx.message.chat;
-    const from = ctx.message.from;
-    if (!from) return;
-
     const isDm = chat.type === 'private';
     const conversationId = String(chat.id);
     const userId = String(from.id);
@@ -120,7 +131,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
       if (!dmPolicy) return;
 
       if (dmPolicy.pairing) {
-        const command = parsePairingCommand(ctx.message.text ?? '');
+        const command = parsePairingCommand(text);
         if (command) {
           if (this.pairingToken && command.token !== this.pairingToken) {
             await this.sendMessage({
@@ -154,7 +165,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
       const allowed = shouldAllowGroupMessage({
         channelId: conversationId,
         userId,
-        text: ctx.message.text ?? '',
+        text,
         channelAllowlist: groupPolicy.channelIds,
         userAllowlist: groupPolicy.userAllowlist,
         mentionGating: groupPolicy.mentionGating,
@@ -165,7 +176,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
 
     const inbound = {
       channel: this.channelId,
-      channelMessageId: String(ctx.message.message_id),
+      channelMessageId: messageId,
       sender: {
         id: userId,
         isAllowed: true,
@@ -175,12 +186,18 @@ export class TelegramChannelAdapter implements ChannelAdapter {
         type: isDm ? 'dm' : 'channel',
       },
       content: {
-        text: ctx.message.text ?? '',
+        text,
       },
       metadata: {
         chatType: chat.type,
       },
     };
+
+    const validation = validateChannelInboundMessage(inbound);
+    if (!validation.success) {
+      console.warn('[Telegram] Dropping invalid inbound message', validation.errors);
+      return;
+    }
 
     await this.config.bus.publish(TOPICS.channel.inbound(this.channelId), inbound);
   }

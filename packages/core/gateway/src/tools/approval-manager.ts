@@ -32,6 +32,9 @@ export interface ApprovalRequest {
 
   /** Session ID */
   sessionId: string;
+
+  /** User ID that initiated the tool call */
+  requesterUserId?: string;
 }
 
 /**
@@ -75,7 +78,8 @@ export class ApprovalManager extends EventEmitter {
   async requestApproval(
     sessionId: string,
     toolCall: ToolCall,
-    securityTier: SecurityTier
+    securityTier: SecurityTier,
+    requesterUserId?: string
   ): Promise<ApprovalResult> {
     // Generate unique request ID
     const requestId = this.generateRequestId();
@@ -87,6 +91,7 @@ export class ApprovalManager extends EventEmitter {
       securityTier,
       createdAt: new Date(),
       sessionId,
+      requesterUserId,
     };
 
     // Store pending request
@@ -204,7 +209,7 @@ export class ApprovalManager extends EventEmitter {
     return new Promise((resolve) => {
       // Set timeout
       const timeout = setTimeout(() => {
-        this.removeAllListeners(`approval-${requestId}`);
+        this.removeListener('approval-response', responseHandler);
         resolve({
           approved: false,
           reason: 'Approval request timed out',
@@ -215,7 +220,7 @@ export class ApprovalManager extends EventEmitter {
       const responseHandler = (response: ApprovalResult & { requestId: string }) => {
         if (response.requestId === requestId) {
           clearTimeout(timeout);
-          this.removeAllListeners(`approval-${requestId}`);
+          this.removeListener('approval-response', responseHandler);
           resolve({
             approved: response.approved,
             reason: response.reason,

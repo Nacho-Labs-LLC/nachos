@@ -160,7 +160,7 @@ rules:
         enableHotReload: false,
       });
 
-      const [policies, errors] = loader.load();
+      const [, errors] = loader.load();
 
       expect(errors.length).toBeGreaterThan(0);
       expect(errors[0].message).toContain('Failed to load');
@@ -212,7 +212,7 @@ rules:
       const loader = new PolicyLoader({
         policiesPath: testPoliciesDir,
         enableHotReload: true,
-        onReload: (policies, errors) => {
+        onReload: (policies, _errors) => {
           reloadCount++;
           if (reloadCount === 2) {
             // First reload is from initial load, second is from file change

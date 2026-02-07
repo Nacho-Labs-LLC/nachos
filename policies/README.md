@@ -1,6 +1,6 @@
 # Nachos Policy System
 
-The Salsa policy engine provides security controls for the Nachos AI assistant framework. This document explains how to write and use policies.
+The Salsa policy engine (embedded in the Gateway) provides security controls for the Nachos AI assistant framework. This document explains how to write and use policies.
 
 ## Overview
 
@@ -246,10 +246,10 @@ The policy engine is designed for <1ms evaluation time:
 
 ## Validation
 
-Policy files are validated on load. Validation errors are logged but don't prevent startup. Use the health endpoint to check for validation errors:
+Policy files are validated on load. Validation errors are logged but don't prevent startup. Use the Gateway health endpoint to check for overall status:
 
 ```bash
-curl http://localhost:8081/health
+curl http://localhost:3000/health
 ```
 
 Response includes policy status:
@@ -257,10 +257,12 @@ Response includes policy status:
 ```json
 {
   "status": "healthy",
-  "salsa": {
-    "policiesLoaded": 3,
-    "rulesActive": 25,
-    "hasErrors": false
+  "component": "gateway",
+  "version": "0.0.0",
+  "uptime": 123,
+  "checks": {
+    "database": "ok",
+    "bus": "ok"
   }
 }
 ```
