@@ -136,6 +136,13 @@ pair <token>
 - `NACHOS_PAIRING_TOKEN` (optional) - required token for pairing
 - `RUNTIME_STATE_DIR` (optional) - directory used to persist pairing state (defaults to `./state`)
 
+### Native Configuration Commands (Planned)
+
+We plan to add native configuration commands for Slack and Discord (slash commands) to help admins
+update allowlists, pairing, and status without editing `nachos.toml`. See
+[Discord & Slack Native Configuration Commands Plan](./channel-configuration-commands.md) for the
+current audit and implementation plan.
+
 ## Tool Configuration
 
 _Coming soon - tool configuration options_
