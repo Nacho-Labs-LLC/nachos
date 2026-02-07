@@ -81,6 +81,7 @@ Messages to users, to be formatted for platform.
 const ChannelOutboundMessage = Type.Object({
   channel: Type.String(),
   conversationId: Type.String(),
+  sessionId: Type.Optional(Type.String()),
   replyToMessageId: Type.Optional(Type.String()),
 
   content: Type.Object({

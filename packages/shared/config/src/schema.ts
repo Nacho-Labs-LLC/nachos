@@ -208,8 +208,15 @@ export interface ToolsConfig {
  */
 export interface DLPConfig {
   enabled: boolean;
-  action?: 'block' | 'warn' | 'audit';
+  action?: 'block' | 'warn' | 'audit' | 'allow' | 'redact';
   patterns?: string[];
+}
+
+/**
+ * Approval configuration for restricted operations
+ */
+export interface ApprovalConfig {
+  approver_allowlist?: string[];
 }
 
 /**
@@ -252,6 +259,7 @@ export interface SecurityConfig {
   dlp?: DLPConfig;
   rate_limits?: RateLimitsConfig;
   audit?: AuditConfig;
+  approval?: ApprovalConfig;
 }
 
 /**

@@ -116,6 +116,29 @@ _Coming soon - security best practices_
 6. Limit filesystem access
 7. Review security policies
 
+## DLP Actions
+
+Nachos DLP supports several actions when sensitive data is detected:
+
+- `block`: reject the message or tool result
+- `warn`/`audit`: allow the message, emit an alert audit event
+- `redact`: allow the message with redaction applied
+- `allow`: explicitly allow without alerting
+
+Configure this in `security.dlp.action` in `nachos.toml`.
+
+## Approval Allowlist
+
+Restricted tools require user approval. By default, only the requester can approve/deny.
+To allow designated approvers (e.g., admins), set:
+
+```toml
+[security.approval]
+approver_allowlist = ["U123", "U456"]
+```
+
+Approvers in the allowlist can approve or deny any pending restricted request.
+
 ---
 
 **Note**: Security is actively being implemented. Check back for updates or see [TECHNICAL_SPEC.md](./TECHNICAL_SPEC.md) for technical details.

@@ -116,6 +116,9 @@ const CONFIG_SHAPE: SchemaNode = {
       tool_calls_per_minute: true,
       llm_requests_per_minute: true,
     },
+    approval: {
+      approver_allowlist: true,
+    },
     audit: {
       enabled: true,
       retention_days: true,
@@ -314,11 +317,23 @@ function validateSecurityConfig(config: NachosConfig, errors: string[], _warning
 
   // Validate DLP configuration
   if (config.security.dlp) {
-    const validActions = ['block', 'warn', 'audit'];
+    const validActions = ['block', 'warn', 'audit', 'allow', 'redact'];
     if (config.security.dlp.action && !validActions.includes(config.security.dlp.action)) {
       errors.push(
         `Invalid security.dlp.action: "${config.security.dlp.action}". Must be one of: ${validActions.join(', ')}`
       );
+    }
+  }
+
+  if (config.security.approval?.approver_allowlist !== undefined) {
+    if (!Array.isArray(config.security.approval.approver_allowlist)) {
+      errors.push('security.approval.approver_allowlist must be an array');
+    } else if (
+      config.security.approval.approver_allowlist.some(
+        (item) => typeof item !== 'string' || item.trim() === ''
+      )
+    ) {
+      errors.push('security.approval.approver_allowlist must be an array of non-empty strings');
     }
   }
 

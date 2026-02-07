@@ -8,6 +8,7 @@ import {
   type ChannelOutboundMessage,
   type Message,
 } from '@nachos/types';
+import { validateMessageEnvelope } from '@nachos/types';
 import {
   TOPICS,
   type NachosBusClient,
@@ -118,6 +119,11 @@ export class NatsBusAdapter implements MessageBus {
 
   async subscribe(topic: string, handler: (data: unknown) => Promise<void>): Promise<void> {
     const subscription = await this.client.subscribe(topic, async (msg: BusMessageEnvelope) => {
+      const validation = validateMessageEnvelope(msg);
+      if (!validation.success) {
+        console.warn('[Router] Dropping invalid bus envelope', validation.errors);
+        return;
+      }
       // Convert the bus envelope to the gateway envelope format
       const envelope: MessageEnvelope = {
         id: msg.id,

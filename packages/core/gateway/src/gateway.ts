@@ -49,6 +49,8 @@ export interface GatewayOptions {
   auditConfig?: AuditConfig;
   /** DLP configuration */
   dlpConfig?: DLPConfig;
+  /** Allowlisted approvers for restricted actions */
+  approvalAllowlist?: string[];
   /** Gateway instance ID */
   instanceId?: string;
   /** Rate limiting configuration */
@@ -90,11 +92,13 @@ export class Gateway {
       lastSentLength: number;
     }
   > = new Map();
+  private approvalAllowlist: Set<string>;
 
   constructor(options: GatewayOptions = {}) {
     this.options = options;
     this.instanceId = options.instanceId ?? 'gateway';
     this.dlpConfig = options.dlpConfig;
+    this.approvalAllowlist = new Set(options.approvalAllowlist ?? []);
 
     // Initialize storage
     this.storage = new StateStorage(options.dbPath ?? ':memory:');
@@ -377,6 +381,24 @@ export class Gateway {
         }
 
         if (pending.requesterUserId && pending.requesterUserId !== message.sender.id) {
+          if (this.approvalAllowlist.has(message.sender.id ?? '')) {
+            const approved = this.approvalManager.approve(requestId, message.sender.id);
+            const outbound: ChannelOutboundMessage = {
+              channel: message.channel,
+              conversationId: message.conversation.id,
+              replyToMessageId: message.channelMessageId,
+              sessionId: session.id,
+              content: {
+                text: approved
+                  ? `✅ Approved request ${requestId}.`
+                  : `⚠️ No pending approval found for ${requestId}.`,
+                format: 'markdown',
+              },
+            };
+            await this.router.sendToChannel(outbound);
+            return;
+          }
+
           const outbound: ChannelOutboundMessage = {
             channel: message.channel,
             conversationId: message.conversation.id,
@@ -431,6 +453,25 @@ export class Gateway {
         }
 
         if (pending.requesterUserId && pending.requesterUserId !== message.sender.id) {
+          if (this.approvalAllowlist.has(message.sender.id ?? '')) {
+            const reason = denyMatch[2] ?? 'Denied by approver';
+            const denied = this.approvalManager.deny(requestId, reason, message.sender.id);
+            const outbound: ChannelOutboundMessage = {
+              channel: message.channel,
+              conversationId: message.conversation.id,
+              replyToMessageId: message.channelMessageId,
+              sessionId: session.id,
+              content: {
+                text: denied
+                  ? `⛔ Denied request ${requestId}.`
+                  : `⚠️ No pending approval found for ${requestId}.`,
+                format: 'markdown',
+              },
+            };
+            await this.router.sendToChannel(outbound);
+            return;
+          }
+
           const outbound: ChannelOutboundMessage = {
             channel: message.channel,
             conversationId: message.conversation.id,

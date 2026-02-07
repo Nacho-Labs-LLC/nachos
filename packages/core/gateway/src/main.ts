@@ -20,7 +20,14 @@ async function buildDlpConfig(configPath?: string): Promise<DLPConfig | undefine
 
   const base = createDefaultDLPConfig();
   const action = dlp.action ?? 'audit';
-  const mappedAction = action === 'block' ? 'block' : 'alert';
+  const mappedAction =
+    action === 'block'
+      ? 'block'
+      : action === 'redact'
+        ? 'redact'
+        : action === 'allow'
+          ? 'allow'
+          : 'alert';
 
   return {
     ...base,
@@ -63,6 +70,7 @@ async function start(): Promise<void> {
       defaultEffect: gatewayConfig.policy?.defaultEffect ?? 'deny',
     },
     auditConfig: nachosConfig.security?.audit,
+    approvalAllowlist: nachosConfig.security?.approval?.approver_allowlist,
     rateLimiterConfig: gatewayConfig.rateLimiter,
     streamingPassthrough: gatewayConfig.streamingPassthrough,
     streamingChunkSize: gatewayConfig.streamingChunkSize,

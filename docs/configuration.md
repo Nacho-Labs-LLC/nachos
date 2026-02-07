@@ -149,6 +149,8 @@ Security configuration is critical. See [Security Guide](./security.md) for deta
 Key settings:
 
 - `security.mode`: "strict", "standard", or "permissive"
+- `security.dlp.action`: "block", "warn", "audit", "allow", or "redact"
+- `security.approval.approver_allowlist`: optional list of users who can approve restricted actions
 - Tool-specific permissions
 - Network policies
 - Audit logging

@@ -136,13 +136,16 @@ mode = "standard"                         # "strict" | "standard" | "permissive"
 
 [security.dlp]
 enabled = true
-action = "warn"                           # "block" | "warn" | "audit"
+action = "warn"                           # "block" | "warn" | "audit" | "allow" | "redact"
 patterns = [
     "credit_card",
     "ssn", 
     "api_key",
     "password"
 ]
+
+[security.approval]
+approver_allowlist = ["U123", "U456"]   # Optional: allowlisted approvers for restricted tools
 
 [security.rate_limits]
 messages_per_minute = 30
