@@ -170,6 +170,19 @@ describe('Configuration Validation', () => {
       expect(result.valid).toBe(true);
     });
 
+    it('should accept claude_code_mcp tool config', () => {
+      const config: NachosConfig = {
+        nachos: { name: 'test', version: '1.0' },
+        llm: { provider: 'anthropic', model: 'claude' },
+        security: { mode: 'standard' },
+        tools: { claude_code_mcp: { enabled: true, max_prompt_length: 4000 } },
+      };
+
+      const result = validateConfig(config);
+
+      expect(result.valid).toBe(true);
+    });
+
     it('should reject invalid DLP action', () => {
       const config: NachosConfig = {
         nachos: { name: 'test', version: '1.0' },

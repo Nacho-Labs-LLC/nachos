@@ -214,6 +214,14 @@ export interface CopilotToolConfig {
 }
 
 /**
+ * Claude Code MCP tool configuration
+ */
+export interface ClaudeCodeMcpToolConfig {
+  enabled: boolean;
+  max_prompt_length?: number;
+}
+
+/**
  * All tool configurations
  */
 export interface ToolsConfig {
@@ -223,6 +231,7 @@ export interface ToolsConfig {
   shell?: ShellToolConfig;
   web_search?: WebSearchToolConfig;
   copilot?: CopilotToolConfig;
+  claude_code_mcp?: ClaudeCodeMcpToolConfig;
 }
 
 /**

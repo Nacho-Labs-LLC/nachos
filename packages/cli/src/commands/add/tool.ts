@@ -21,6 +21,7 @@ const VALID_TOOLS = [
   'shell',
   'web_search',
   'copilot',
+  'claude_code_mcp',
 ] as const;
 
 type ToolName = (typeof VALID_TOOLS)[number];
@@ -65,6 +66,10 @@ const TOOL_STUBS: Record<ToolName, TOML.JsonMap> = {
     max_output_size: 50000,
     default_timeout: 30,
     max_timeout: 60,
+  },
+  claude_code_mcp: {
+    enabled: false,
+    max_prompt_length: 4000,
   },
 };
 

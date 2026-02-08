@@ -110,6 +110,7 @@ export CHANNEL_WHATSAPP_APP_SECRET="..."
 # Tool Configuration
 export TOOL_FILESYSTEM_ENABLED="true"
 export TOOL_BROWSER_ENABLED="true"
+export TOOL_CLAUDE_CODE_MCP_ENABLED="true"
 ```
 
 See [env.ts](./src/env.ts) for the complete list of supported environment variables.
@@ -217,6 +218,22 @@ The validator checks:
 - `security.mode = "permissive"` requires `i_understand_the_risks = true`
 - `tools.shell.enabled = true` requires `security.mode = "permissive"`
 - `tools.code_runner.runtime = "native"` requires `security.mode = "permissive"`
+
+## Tool Reference
+
+### Claude Code MCP
+
+```toml
+[tools.claude_code_mcp]
+enabled = true
+max_prompt_length = 4000
+```
+
+Environment override:
+
+```bash
+export TOOL_CLAUDE_CODE_MCP_ENABLED="true"
+```
 
 ## Error Handling
 

@@ -127,6 +127,10 @@ enabled = false                           # Disabled by default - high risk
 enabled = false
 # Requires: SERP_API_KEY or similar in .env
 
+[tools.claude_code_mcp]
+enabled = true
+max_prompt_length = 4000
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 🌶️ THE SALSA - Security Configuration
 # ═══════════════════════════════════════════════════════════════════════════════

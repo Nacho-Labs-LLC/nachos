@@ -5,6 +5,13 @@
     "outDir": "./dist",
     "composite": true
   },
+  "references": [
+    { "path": "../../core/bus" },
+    { "path": "../base" },
+    { "path": "../../shared/config" },
+    { "path": "../../shared/types" },
+    { "path": "../../shared/utils" }
+  ],
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"]
 }
