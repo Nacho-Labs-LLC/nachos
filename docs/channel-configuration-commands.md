@@ -80,6 +80,8 @@ Public OpenClaw documentation and guides describe native configuration and opera
 - Ensure config updates are validated via existing config schemas and logged to audit providers.
 - When an elevated command persists configuration, **patch `nachos.toml` in the mounted config volume** (via the gateway),
   but only after Salsa policy approval and audit logging (and optional approval workflow, if enabled).
+- Implement a **config patch tool** that applies unified diffs to `nachos.toml` only when explicitly invoked by the LLM,
+  providing a single audited/policy-gated pathway for write-through changes.
 - Provide CLI fallback: `nachos config apply --from-state` to persist overlay to `nachos.toml`.
 - Capture the persistence + policy model in a dedicated ADR (TBD) so operators understand the safeguards.
 
@@ -108,6 +110,6 @@ Public OpenClaw documentation and guides describe native configuration and opera
 
 ## Open questions
 
-- Should elevated commands always write through to `nachos.toml`, or only when explicitly requested?
+- Should elevated commands only write through to `nachos.toml` when the LLM explicitly invokes the config patch tool?
 - Should config commands be available in DMs or only in server/channel contexts?
 - How should we handle multi-tenant deployments (multiple Discord guilds/Slack workspaces)?

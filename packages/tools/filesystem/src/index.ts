@@ -7,12 +7,14 @@ import { FilesystemReadTool } from './read-tool.js';
 import { FilesystemWriteTool } from './write-tool.js';
 import { FilesystemEditTool } from './edit-tool.js';
 import { FilesystemPatchTool } from './patch-tool.js';
+import { ConfigPatchTool } from './config-tool.js';
 
 // Export tools for testing
 export { FilesystemReadTool } from './read-tool.js';
 export { FilesystemWriteTool } from './write-tool.js';
 export { FilesystemEditTool } from './edit-tool.js';
 export { FilesystemPatchTool } from './patch-tool.js';
+export { ConfigPatchTool } from './config-tool.js';
 export { PathValidator } from './path-validator.js';
 
 /**
@@ -42,6 +44,10 @@ async function main() {
     case 'patch':
       tool = new FilesystemPatchTool();
       break;
+    case 'config':
+    case 'config_patch':
+      tool = new ConfigPatchTool();
+      break;
     default:
       console.error(`Unknown tool mode: ${toolMode}`);
       process.exit(1);
@@ -57,6 +63,7 @@ async function main() {
     nats,
     config: {
       paths: process.env.ALLOWED_PATHS?.split(',') ?? ['./workspace'],
+      config_path: process.env.NACHOS_CONFIG_PATH ?? process.env.CONFIG_PATH,
     },
     secrets: {},
     securityMode: (process.env.SECURITY_MODE as 'strict' | 'standard' | 'permissive') ?? 'standard',
