@@ -55,6 +55,7 @@ ADRs follow this lifecycle:
 | [006 - DLP Library as Separate Repository](./006-dlp-library-separate-repo.md) | Accepted | 2026-02-01 | 2026-02-06 |
 | [007 - Direct LLM API Provider Adapters](./007-direct-llm-api-provider-adapters.md) | Proposed | 2026-02-02 | - |
 | [008 - Channel Registry and Channel Policy Defaults](./008-channel-registry-and-channel-policy-defaults.md) | Accepted | 2026-02-04 | 2026-02-06 |
+| [009 - Tool-Gated Config Patching for nachos.toml](./009-tool-gated-config-patching.md) | Proposed | 2026-02-08 | - |
 
 ## Creating a New ADR
 
