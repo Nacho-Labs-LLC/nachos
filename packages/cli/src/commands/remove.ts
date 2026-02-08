@@ -3,17 +3,18 @@
  * Remove a module from configuration
  */
 
-import prompts from 'prompts';
 import { readFileSync, writeFileSync } from 'node:fs';
 import * as TOML from '@iarna/toml';
 import { findConfigFileOrThrow } from '../core/config-discovery.js';
 import { OutputFormatter, prettyOutput } from '../core/output.js';
 import { getVersion } from '../cli.js';
 import { CLIError } from '../core/errors.js';
+import { confirmPrompt } from '../core/prompt.js';
 
 interface RemoveOptions {
   json?: boolean;
   force?: boolean;
+  dryRun?: boolean;
 }
 
 export async function removeCommand(
@@ -55,19 +56,34 @@ export async function removeCommand(
       );
     }
 
-    // Confirm removal (unless --force)
-    if (!options.force && !options.json) {
-      const response = await prompts({
-        type: 'confirm',
-        name: 'confirmed',
-        message: `Remove ${type} "${name}" from configuration?`,
-        initial: false,
-      });
-
-      if (!response.confirmed) {
-        prettyOutput.info('Cancelled');
-        return;
+    // Dry run: show what would be removed without changing anything
+    if (options.dryRun) {
+      const moduleSection = sectionValue as Record<string, unknown>;
+      if (options.json) {
+        output.success({
+          dry_run: true,
+          type,
+          name,
+          config_path: configPath,
+          section: `[${section}.${name}]`,
+          would_remove: moduleSection[name],
+        });
+      } else {
+        prettyOutput.info(`Would remove [${section}.${name}] from ${configPath}`);
+        prettyOutput.blank();
       }
+      return;
+    }
+
+    // Confirm removal
+    const confirmed = await confirmPrompt({
+      message: `Remove ${type} "${name}" from configuration?`,
+      force: options.force,
+      json: options.json,
+    });
+    if (!confirmed) {
+      prettyOutput.info('Cancelled');
+      return;
     }
 
     // Remove module

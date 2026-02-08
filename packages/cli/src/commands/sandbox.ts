@@ -7,9 +7,11 @@ import { OutputFormatter, prettyOutput } from '../core/output.js';
 import { CLIError } from '../core/errors.js';
 import { createCliBusClient } from '../core/nats-client.js';
 import { getVersion } from '../cli.js';
+import { confirmPrompt } from '../core/prompt.js';
 
 interface SandboxOptions {
   json?: boolean;
+  force?: boolean;
 }
 
 type GatewayResponse<T> = { ok: boolean; data?: T; error?: { code: string; message: string } };
@@ -136,26 +138,39 @@ export async function sandboxListCommand(options: SandboxOptions): Promise<void>
 
 export async function sandboxRecreateCommand(options: SandboxOptions): Promise<void> {
   const output = new OutputFormatter(options.json ?? false, 'sandbox recreate', getVersion());
-  const client = await createCliBusClient();
 
   try {
-    const data = await requestGateway<{ message?: string }>(
-      client,
-      TOPICS.gateway.sandbox.recreate,
-      {}
-    );
-
-    if (options.json) {
-      output.success(data);
+    // Confirm before recreating (destructive operation)
+    const confirmed = await confirmPrompt({
+      message: 'Recreate sandbox? This will destroy the current sandbox and create a new one.',
+      force: options.force,
+      json: options.json,
+    });
+    if (!confirmed) {
+      prettyOutput.info('Cancelled');
       return;
     }
 
-    prettyOutput.success(data.message ?? 'Sandbox recreated');
-    prettyOutput.blank();
+    const client = await createCliBusClient();
+    try {
+      const data = await requestGateway<{ message?: string }>(
+        client,
+        TOPICS.gateway.sandbox.recreate,
+        {}
+      );
+
+      if (options.json) {
+        output.success(data);
+        return;
+      }
+
+      prettyOutput.success(data.message ?? 'Sandbox recreated');
+      prettyOutput.blank();
+    } finally {
+      await client.disconnect();
+    }
   } catch (error) {
     output.error(error as Error);
-  } finally {
-    await client.disconnect();
   }
 }
 

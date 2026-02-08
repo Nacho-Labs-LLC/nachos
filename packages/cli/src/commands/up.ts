@@ -16,6 +16,8 @@ interface UpOptions {
   json?: boolean;
   build?: boolean;
   wait?: boolean;
+  only?: string;
+  timeout?: string;
 }
 
 export async function upCommand(options: UpOptions): Promise<void> {
@@ -62,14 +64,16 @@ export async function upCommand(options: UpOptions): Promise<void> {
     }
 
     // Start stack
+    const services = options.only ? options.only.split(',').map((s) => s.trim()) : undefined;
     spinner?.start('Starting services...');
-    await docker.up(composePath, { detach: true, build: options.build });
+    await docker.up(composePath, { detach: true, build: options.build, services });
     spinner?.succeed('Services started');
 
     // Wait for health checks if requested
     if (options.wait) {
+      const timeout = options.timeout ? parseInt(options.timeout, 10) : 60;
       spinner?.start('Waiting for services to be healthy...');
-      await waitForHealthy(docker, composePath, 60);
+      await waitForHealthy(docker, composePath, isNaN(timeout) ? 60 : timeout);
       spinner?.succeed('All services healthy');
     }
 

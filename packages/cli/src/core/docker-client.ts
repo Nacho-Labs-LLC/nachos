@@ -83,7 +83,7 @@ export class DockerClient {
    */
   async up(
     composeFile: string,
-    options: { detach?: boolean; build?: boolean } = {}
+    options: { detach?: boolean; build?: boolean; services?: string[] } = {}
   ): Promise<void> {
     const args = ['compose', '-f', composeFile, 'up'];
 
@@ -93,6 +93,11 @@ export class DockerClient {
 
     if (options.build) {
       args.push('--build');
+    }
+
+    // Service names must come last in docker compose up
+    if (options.services?.length) {
+      args.push(...options.services);
     }
 
     await this.exec('docker', args);

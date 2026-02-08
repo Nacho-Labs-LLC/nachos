@@ -15,10 +15,12 @@ import {
   DockerComposeNotAvailableError,
   CLIError,
 } from '../core/errors.js';
+import { confirmPrompt } from '../core/prompt.js';
 
 interface DownOptions {
   json?: boolean;
   volumes?: boolean;
+  force?: boolean;
 }
 
 export async function downCommand(options: DownOptions): Promise<void> {
@@ -53,6 +55,19 @@ export async function downCommand(options: DownOptions): Promise<void> {
     if (!options.json) {
       prettyOutput.brandedHeader('Stopping Nachos');
       prettyOutput.blank();
+    }
+
+    // Confirm volume removal (destructive)
+    if (options.volumes) {
+      const confirmed = await confirmPrompt({
+        message: 'Remove all volumes? This will delete persistent data.',
+        force: options.force,
+        json: options.json,
+      });
+      if (!confirmed) {
+        prettyOutput.info('Cancelled');
+        return;
+      }
     }
 
     // Stop stack

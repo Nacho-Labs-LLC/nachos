@@ -10,6 +10,7 @@ import ora from 'ora';
 import { OutputFormatter, prettyOutput } from '../core/output.js';
 import { getVersion } from '../cli.js';
 import { CLIError } from '../core/errors.js';
+import { isInteractive } from '../core/prompt.js';
 import type { InitOptions } from '../core/types.js';
 
 interface InitCommandOptions {
@@ -31,7 +32,7 @@ export async function initCommand(options: InitCommandOptions): Promise<void> {
         'nachos.toml already exists',
         'CONFIG_EXISTS',
         1,
-        'Use --force to overwrite existing configuration'
+        'Use --force to overwrite, or use "nachos add" to add modules to the existing config'
       );
     }
 
@@ -43,7 +44,8 @@ export async function initCommand(options: InitCommandOptions): Promise<void> {
     let initOptions: InitOptions;
 
     // Get configuration options
-    if (options.defaults) {
+    // Non-interactive mode (--defaults, --no-input, or no TTY): use defaults
+    if (options.defaults || !isInteractive()) {
       initOptions = getDefaultOptions();
     } else {
       initOptions = await promptForOptions();
@@ -62,9 +64,12 @@ export async function initCommand(options: InitCommandOptions): Promise<void> {
     const configContent = generateConfig(initOptions);
     writeFileSync(configPath, configContent, 'utf-8');
 
-    // Create .env
-    const envContent = generateEnv(initOptions);
-    writeFileSync(join(cwd, '.env'), envContent, 'utf-8');
+    // Create .env (only if it doesn't exist — don't overwrite user's API keys)
+    const envPath = join(cwd, '.env');
+    if (!existsSync(envPath)) {
+      const envContent = generateEnv(initOptions);
+      writeFileSync(envPath, envContent, 'utf-8');
+    }
 
     // Create policy files
     const policyContent = generatePolicy(initOptions.securityMode);

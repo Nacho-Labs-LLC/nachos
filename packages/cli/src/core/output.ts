@@ -116,66 +116,79 @@ export class OutputFormatter {
 }
 
 /**
+ * Check if quiet mode is enabled (--quiet flag)
+ */
+export function isQuiet(): boolean {
+  return process.env.NACHOS_QUIET === '1';
+}
+
+/**
  * Helper functions for pretty output
  */
 export const prettyOutput = {
   /**
-   * Print success message with checkmark
+   * Print success message with checkmark (always visible)
    */
   success(message: string): void {
     console.log(chalk.green('✓'), message);
   },
 
   /**
-   * Print info message
+   * Print info message (suppressed in quiet mode)
    */
   info(message: string): void {
+    if (isQuiet()) return;
     console.log(chalk.blue('ℹ'), message);
   },
 
   /**
-   * Print warning message
+   * Print warning message (always visible)
    */
   warn(message: string): void {
     console.log(chalk.yellow('⚠'), message);
   },
 
   /**
-   * Print section header
+   * Print section header (suppressed in quiet mode)
    */
   header(message: string): void {
+    if (isQuiet()) return;
     console.log();
     console.log(chalk.bold(message));
   },
 
   /**
-   * Print branded header with emoji
+   * Print branded header with emoji (suppressed in quiet mode)
    */
   brandedHeader(message: string): void {
+    if (isQuiet()) return;
     console.log();
     console.log(chalk.bold('🧀', message));
   },
 
   /**
-   * Print indented text
+   * Print indented text (suppressed in quiet mode)
    */
   indent(text: string, spaces: number = 2): void {
+    if (isQuiet()) return;
     const prefix = ' '.repeat(spaces);
     console.log(prefix + text);
   },
 
   /**
-   * Print key-value pair
+   * Print key-value pair (suppressed in quiet mode)
    */
   keyValue(key: string, value: string, spaces: number = 2): void {
+    if (isQuiet()) return;
     const prefix = ' '.repeat(spaces);
     console.log(`${prefix}${chalk.cyan(key)}: ${value}`);
   },
 
   /**
-   * Print a blank line
+   * Print a blank line (suppressed in quiet mode)
    */
   blank(): void {
+    if (isQuiet()) return;
     console.log();
   },
 };

@@ -36,7 +36,7 @@ describe('addToolCommand', () => {
     expect(config.tools).toBeDefined();
     const tools = config.tools as Record<string, unknown>;
     expect(tools.claude_code_mcp).toEqual({
-      enabled: false,
+      enabled: true,
       max_prompt_length: 4000,
     });
   });

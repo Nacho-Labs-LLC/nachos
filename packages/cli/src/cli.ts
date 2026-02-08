@@ -3,9 +3,9 @@
  */
 
 import { Command } from 'commander';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 // Get CLI version from package.json
 const __filename = fileURLToPath(import.meta.url);
@@ -21,11 +21,38 @@ export function createProgram(): Command {
     .version(packageJson.version)
     .option('--json', 'Output results as JSON')
     .option('--verbose', 'Enable verbose output')
+    .option('-q, --quiet', 'Suppress non-essential output')
+    .option('-c, --config <path>', 'Path to nachos.toml configuration file')
+    .option('--no-input', 'Disable interactive prompts')
+    .option('--no-color', 'Disable colored output')
     .hook('preAction', (thisCommand) => {
-      // Set global flags
       const opts = thisCommand.opts();
+
+      // Mutual exclusion: --quiet and --verbose
+      if (opts.quiet && opts.verbose) {
+        console.error('Error: --quiet and --verbose cannot be used together');
+        process.exit(2);
+      }
+
       if (opts.verbose) {
         process.env.VERBOSE = '1';
+      }
+      if (opts.quiet) {
+        process.env.NACHOS_QUIET = '1';
+      }
+      if (opts.noInput) {
+        process.env.NACHOS_NO_INPUT = '1';
+      }
+      if (opts.noColor) {
+        process.env.NO_COLOR = '1';
+      }
+      if (opts.config) {
+        const resolved = resolve(opts.config);
+        if (!existsSync(resolved)) {
+          console.error(`Error: Config file not found: ${resolved}`);
+          process.exit(2);
+        }
+        process.env.NACHOS_CONFIG_PATH = resolved;
       }
     });
 
@@ -56,18 +83,29 @@ export function createProgram(): Command {
 
   addCmd
     .command('channel <name>')
-    .description('Add a channel configuration stub')
-    .action(async (name: string) => {
+    .description('Add and configure a channel')
+    .option('--enabled', 'Enable the channel (default: true)')
+    .option('--no-enabled', 'Add channel but leave it disabled')
+    .option('--mode <mode>', 'Connection mode (slack: socket|http)')
+    .option('--port <port>', 'Port number (webchat)')
+    .action(async (name: string, options) => {
       const { addChannelCommand } = await import('./commands/add/channel.js');
-      await addChannelCommand(name, program.opts());
+      await addChannelCommand(name, { ...program.opts(), ...options });
     });
 
   addCmd
     .command('tool <name>')
-    .description('Add a tool configuration stub')
-    .action(async (name: string) => {
+    .description('Add and configure a tool')
+    .option('--enabled', 'Enable the tool (default: true)')
+    .option('--no-enabled', 'Add tool but leave it disabled')
+    .option('--paths <paths>', 'Allowed paths, comma-separated (filesystem)')
+    .option('--domains <domains>', 'Allowed domains, comma-separated (browser)')
+    .option('--languages <langs>', 'Enabled languages, comma-separated (code_runner)')
+    .option('--timeout <seconds>', 'Timeout in seconds (browser, code_runner)')
+    .option('--memory <size>', 'Max memory (code_runner)')
+    .action(async (name: string, options) => {
       const { addToolCommand } = await import('./commands/add/tool.js');
-      await addToolCommand(name, program.opts());
+      await addToolCommand(name, { ...program.opts(), ...options });
     });
 
   // Subagent commands
@@ -159,9 +197,10 @@ export function createProgram(): Command {
   sandboxCmd
     .command('recreate')
     .description('Recreate sandbox configuration')
-    .action(async () => {
+    .option('--force', 'Skip confirmation prompt')
+    .action(async (options) => {
       const { sandboxRecreateCommand } = await import('./commands/sandbox.js');
-      await sandboxRecreateCommand(program.opts());
+      await sandboxRecreateCommand({ ...program.opts(), ...options });
     });
 
   // Top-level commands
@@ -180,6 +219,8 @@ export function createProgram(): Command {
     .description('Start the Nachos stack')
     .option('--build', 'Build images before starting')
     .option('--wait', 'Wait for services to be healthy')
+    .option('--only <services>', 'Start only specified services (comma-separated)')
+    .option('--timeout <seconds>', 'Health-check wait timeout in seconds', '60')
     .action(async (options) => {
       const { upCommand } = await import('./commands/up.js');
       await upCommand({ ...program.opts(), ...options });
@@ -189,6 +230,7 @@ export function createProgram(): Command {
     .command('down')
     .description('Stop the Nachos stack')
     .option('--volumes', 'Remove volumes')
+    .option('--force', 'Skip confirmation when removing volumes')
     .action(async (options) => {
       const { downCommand } = await import('./commands/down.js');
       await downCommand({ ...program.opts(), ...options });
@@ -197,9 +239,11 @@ export function createProgram(): Command {
   program
     .command('restart')
     .description('Restart the Nachos stack')
-    .action(async () => {
+    .option('--build', 'Build images before starting')
+    .option('--wait', 'Wait for services to be healthy')
+    .action(async (options) => {
       const { restartCommand } = await import('./commands/restart.js');
-      await restartCommand(program.opts());
+      await restartCommand({ ...program.opts(), ...options });
     });
 
   program
@@ -250,9 +294,18 @@ export function createProgram(): Command {
     .command('remove <type> <name>')
     .description('Remove a module from configuration')
     .option('--force', 'Skip confirmation prompt')
+    .option('--dry-run', 'Show what would be removed without changing anything')
     .action(async (type: string, name: string, options) => {
       const { removeCommand } = await import('./commands/remove.js');
       await removeCommand(type, name, { ...program.opts(), ...options });
+    });
+
+  program
+    .command('completion <shell>')
+    .description('Generate shell completion script (bash, zsh, fish, powershell)')
+    .action(async (shell: string) => {
+      const { completionCommand } = await import('./commands/completion.js');
+      await completionCommand(shell, program, program.opts());
     });
 
   return program;

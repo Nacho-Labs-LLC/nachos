@@ -16,6 +16,8 @@ import { DockerNotAvailableError, DockerComposeNotAvailableError } from '../core
 
 interface RestartOptions {
   json?: boolean;
+  build?: boolean;
+  wait?: boolean;
 }
 
 export async function restartCommand(options: RestartOptions): Promise<void> {
@@ -62,10 +64,35 @@ export async function restartCommand(options: RestartOptions): Promise<void> {
     generateAndWriteComposeFile(config, projectRoot);
     spinner?.succeed(`Generated: ${composePath}`);
 
+    // Build images if requested
+    if (options.build) {
+      spinner?.start('Building images...');
+      await docker.build(composePath);
+      spinner?.succeed('Images built');
+    }
+
     // Start stack
     spinner?.start('Starting services...');
-    await docker.up(composePath, { detach: true });
+    await docker.up(composePath, { detach: true, build: options.build });
     spinner?.succeed('Services started');
+
+    // Wait for health checks if requested
+    if (options.wait) {
+      spinner?.start('Waiting for services to be healthy...');
+      const startTime = Date.now();
+      const timeoutMs = 60 * 1000;
+      while (true) {
+        const checks = await docker.ps(composePath);
+        const running = checks.filter((c) => c.State === 'running');
+        const allHealthy = running.every((c) => !c.Health || c.Health === 'healthy');
+        if (allHealthy && running.length > 0) break;
+        if (Date.now() - startTime > timeoutMs) {
+          throw new Error('Timeout waiting for services to become healthy after 60s');
+        }
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+      spinner?.succeed('All services healthy');
+    }
 
     // Get service status
     const containers = await docker.ps(composePath);
