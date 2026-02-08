@@ -45,6 +45,15 @@ export interface MemoryFact {
   createdAt: string;
 }
 
+export interface UserProfile {
+  userId: string;
+  agentId: string;
+  profile: string;
+  updatedAt: string;
+  version: number;
+  source?: IdentitySource;
+}
+
 export interface MemoryQuery {
   agentId: string;
   kinds?: MemoryKind[];
@@ -70,6 +79,12 @@ export interface MemoryStore {
   appendFacts(facts: MemoryFact[]): Promise<MemoryFact[]>;
   query(query: MemoryQuery): Promise<MemoryQueryResult>;
   deleteEntry(id: string): Promise<void>;
+}
+
+export interface UserProfileStore {
+  get(agentId: string, userId: string): Promise<UserProfile | null>;
+  put(profile: UserProfile): Promise<UserProfile>;
+  delete(agentId: string, userId: string): Promise<void>;
 }
 
 export interface SessionStateRecord {

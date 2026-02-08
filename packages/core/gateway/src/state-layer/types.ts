@@ -40,6 +40,7 @@ export interface PromptAssemblyConfig {
 export interface StateLayerConfig {
   identity: StateStoreConfig;
   memory: StateStoreConfig;
+  userProfile: StateStoreConfig;
   session: SessionStateConfig;
   prompt?: PromptAssemblyConfig;
 }

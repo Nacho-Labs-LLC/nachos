@@ -6,11 +6,16 @@
     "composite": true,
     "baseUrl": ".",
     "paths": {
-      "@nachos/bus": ["../core/bus/src/index.ts"]
+      "@nachos/bus": ["../core/bus/src/index.ts"],
+      "@nachos/gateway": ["../core/gateway/src/index.ts"],
+      "@nachos/types": ["../shared/types/src/index.ts"]
     }
   },
   "references": [
-    { "path": "../core/bus" }
+    { "path": "../core/bus" },
+    { "path": "../core/gateway" },
+    { "path": "../shared/types" },
+    { "path": "../shared/config" }
   ],
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"]

@@ -199,6 +199,104 @@ Example:
 nachos add tool browser
 ```
 
+### Memory and Profiles
+
+These commands operate directly on the state layer. They bypass policy checks and are intended for internal/admin use.
+
+#### `nachos memory query`
+
+Query memory entries and facts for an agent.
+
+```bash
+nachos memory query --agent-id <id> [options]
+
+Options:
+  --kinds <kinds>         Comma-separated memory kinds
+  --tags <tags>           Comma-separated tags
+  --text <text>           Text search
+  --limit <limit>         Limit results
+  --offset <offset>       Offset results
+  --user-id <id>          Optional user ID for audit context
+  --session-id <id>       Optional session ID for audit context
+```
+
+#### `nachos memory append-entry`
+
+Append a memory entry.
+
+```bash
+nachos memory append-entry --agent-id <id> --kind <kind> --content <text> [options]
+
+Options:
+  --tags <tags>           Comma-separated tags
+  --confidence <score>    Confidence score (0-1)
+  --expires-at <ts>       Expiration timestamp (ISO 8601)
+  --source <source>       Provenance source label
+  --provenance-file <path>  Path to provenance JSON
+  --user-id <id>          Optional user ID for audit context
+  --session-id <id>       Optional session ID for audit context
+```
+
+#### `nachos memory append-fact`
+
+Append a structured memory fact.
+
+```bash
+nachos memory append-fact --agent-id <id> --subject <text> --predicate <text> --object <text> [options]
+
+Options:
+  --confidence <score>    Confidence score (0-1)
+  --source-entry-id <id>  Source entry ID
+  --user-id <id>          Optional user ID for audit context
+  --session-id <id>       Optional session ID for audit context
+```
+
+#### `nachos memory delete`
+
+Delete a memory entry by ID.
+
+```bash
+nachos memory delete --agent-id <id> --id <entryId> [options]
+
+Options:
+  --user-id <id>          Optional user ID for audit context
+  --session-id <id>       Optional session ID for audit context
+```
+
+#### `nachos user-profile get`
+
+Fetch a user profile.
+
+```bash
+nachos user-profile get --agent-id <id> --user-id <id> [options]
+
+Options:
+  --session-id <id>       Optional session ID for audit context
+```
+
+#### `nachos user-profile set`
+
+Set a user profile.
+
+```bash
+nachos user-profile set --agent-id <id> --user-id <id> (--profile <text> | --file <path>) [options]
+
+Options:
+  --source <source>       Profile source label
+  --session-id <id>       Optional session ID for audit context
+```
+
+#### `nachos user-profile delete`
+
+Delete a user profile.
+
+```bash
+nachos user-profile delete --agent-id <id> --user-id <id> [options]
+
+Options:
+  --session-id <id>       Optional session ID for audit context
+```
+
 #### `nachos remove <type> <name>`
 
 Remove a module from configuration.

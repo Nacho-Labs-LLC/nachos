@@ -1,8 +1,12 @@
+import path from 'node:path';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   resolve: {
     conditions: ['source'],
+    alias: {
+      '@nachos/gateway': path.resolve(__dirname, 'packages/core/gateway/src/index.ts'),
+    },
   },
   test: {
     globals: true,

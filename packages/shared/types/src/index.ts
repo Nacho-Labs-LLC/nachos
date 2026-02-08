@@ -57,6 +57,8 @@ export {
   type MemoryQueryResult,
   type IdentityStore,
   type MemoryStore,
+  type UserProfile,
+  type UserProfileStore,
   type SessionStateRecord,
   type SessionStateStore,
   type PromptSectionReport,
@@ -168,6 +170,10 @@ export {
   ToolErrorSchema,
   SessionsSpawnToolSchema,
   type SessionsSpawnToolType,
+  MemoryToolSchema,
+  type MemoryToolType,
+  UserProfileToolSchema,
+  type UserProfileToolType,
 
   // Health schemas
   HealthStatusSchema,

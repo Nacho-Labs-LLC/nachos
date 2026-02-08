@@ -12,7 +12,12 @@ import type {
   PromptReport,
 } from '@nachos/types';
 import { TOPICS } from '@nachos/bus';
-import { SessionsSpawnToolSchema, validateChannelInboundMessage } from '@nachos/types';
+import {
+  MemoryToolSchema,
+  SessionsSpawnToolSchema,
+  UserProfileToolSchema,
+  validateChannelInboundMessage,
+} from '@nachos/types';
 import type {
   AuditConfig,
   RuntimeToolSandboxConfig,
@@ -735,12 +740,16 @@ export class Gateway {
 
       try {
         const identity = await this.stateLayer.getIdentity(agentId, context);
+        const userProfile = session.userId
+          ? await this.stateLayer.getUserProfile(agentId, session.userId, context)
+          : null;
         const memory = await this.stateLayer.queryMemory({ agentId, limit: 200 }, context);
         const sessionState = await this.stateLayer.getSessionState(sessionId, context);
 
         const assembled = this.stateLayer.assemblePrompt({
           basePrompt,
           identity,
+          userProfile,
           memoryEntries: memory.entries,
           memoryFacts: memory.facts,
           sessionState,
@@ -810,21 +819,36 @@ export class Gateway {
   }
 
   private buildToolDefinitions(session: Session): LLMRequestType['tools'] {
-    if (!this.subagentManager) {
-      return undefined;
-    }
-
     if (this.isSubagentSession(session)) {
       return undefined;
     }
 
-    return [
-      {
+    const tools: NonNullable<LLMRequestType['tools']> = [];
+
+    if (this.subagentManager) {
+      tools.push({
         name: 'sessions_spawn',
         description: 'Spawn a subagent to run a task and announce results back to the requester.',
         parameters: this.sanitizeToolSchema(SessionsSpawnToolSchema),
-      },
-    ];
+      });
+    }
+
+    if (this.stateLayer) {
+      tools.push({
+        name: 'memory',
+        description:
+          'Internal state tool: query and curate durable memory entries and facts for the current user and agent.',
+        parameters: this.sanitizeToolSchema(MemoryToolSchema),
+      });
+      tools.push({
+        name: 'user_profile',
+        description:
+          'Internal state tool: read or update the curated profile for the current user (for personalization).',
+        parameters: this.sanitizeToolSchema(UserProfileToolSchema),
+      });
+    }
+
+    return tools.length > 0 ? tools : undefined;
   }
 
   private sanitizeToolSchema(schema: Record<string, unknown>): Record<string, unknown> {
@@ -1136,62 +1160,305 @@ export class Gateway {
     call: ToolCall,
     session: Session | null
   ): Promise<ToolResult | null> {
-    if (call.tool !== 'sessions_spawn') {
-      return null;
+    if (call.tool === 'sessions_spawn') {
+      if (!this.subagentOrchestrator) {
+        return this.formatToolError('SUBAGENT_DISABLED', 'Subagent execution is not configured');
+      }
+
+      if (!session) {
+        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found for subagent spawn');
+      }
+
+      const taskRaw = call.parameters.task;
+      const task = typeof taskRaw === 'string' ? taskRaw.trim() : '';
+      if (!task) {
+        return this.formatToolError('INVALID_PARAMETERS', 'task is required');
+      }
+
+      const label = this.readOptionalString(call.parameters.label);
+      const profile = this.readOptionalString(call.parameters.profile);
+      const agentId = this.readOptionalString(call.parameters.agentId);
+      const model = this.readOptionalString(call.parameters.model);
+      const thinking = this.readOptionalString(call.parameters.thinking);
+      const cleanup = this.readCleanup(call.parameters.cleanup);
+      const timeoutMs = this.readTimeoutMs(call.parameters.runTimeoutSeconds);
+
+      const runRequest: SubagentRunRequest = {
+        task,
+        label,
+        profile,
+        agentId,
+        model,
+        thinking,
+        cleanup,
+        timeoutMs,
+        sessionConfig: session.config,
+        requester: {
+          sessionId: session.id,
+          channel: session.channel,
+          conversationId: session.conversationId,
+          userId: session.userId,
+        },
+      };
+
+      const run = await this.subagentOrchestrator.enqueue(runRequest);
+
+      const payload = {
+        status: 'accepted',
+        runId: run.runId,
+        childSessionId: run.childSessionId,
+      };
+
+      return {
+        success: true,
+        content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
+      };
     }
 
-    if (!this.subagentOrchestrator) {
-      return this.formatToolError('SUBAGENT_DISABLED', 'Subagent execution is not configured');
+    if (call.tool === 'memory') {
+      return this.executeMemoryToolCall(call, session);
+    }
+
+    if (call.tool === 'user_profile') {
+      return this.executeUserProfileToolCall(call, session);
+    }
+
+    return null;
+  }
+
+  private async executeMemoryToolCall(
+    call: ToolCall,
+    session: Session | null
+  ): Promise<ToolResult> {
+    if (!this.stateLayer) {
+      return this.formatToolError('STATE_LAYER_DISABLED', 'State layer is not configured');
     }
 
     if (!session) {
-      return this.formatToolError('SESSION_NOT_FOUND', 'Session not found for subagent spawn');
+      return this.formatToolError('SESSION_NOT_FOUND', 'Session not found for memory tool');
     }
 
-    const taskRaw = call.parameters.task;
-    const task = typeof taskRaw === 'string' ? taskRaw.trim() : '';
-    if (!task) {
-      return this.formatToolError('INVALID_PARAMETERS', 'task is required');
+    const action = this.readOptionalString(call.parameters.action);
+    if (!action) {
+      return this.formatToolError('INVALID_PARAMETERS', 'action is required');
     }
 
-    const label = this.readOptionalString(call.parameters.label);
-    const profile = this.readOptionalString(call.parameters.profile);
-    const agentId = this.readOptionalString(call.parameters.agentId);
-    const model = this.readOptionalString(call.parameters.model);
-    const thinking = this.readOptionalString(call.parameters.thinking);
-    const cleanup = this.readCleanup(call.parameters.cleanup);
-    const timeoutMs = this.readTimeoutMs(call.parameters.runTimeoutSeconds);
+    const agentId = this.resolveAgentId(session);
+    const context = { ...this.buildStateContext(session), internalTool: true };
+    const allowedKinds = new Set(['summary', 'preference', 'fact', 'decision', 'task', 'issue']);
 
-    const runRequest: SubagentRunRequest = {
-      task,
-      label,
-      profile,
-      agentId,
-      model,
-      thinking,
-      cleanup,
-      timeoutMs,
-      sessionConfig: session.config,
-      requester: {
-        sessionId: session.id,
-        channel: session.channel,
-        conversationId: session.conversationId,
-        userId: session.userId,
-      },
-    };
+    if (action === 'query') {
+      const kinds = this.readOptionalStringArray(call.parameters.kinds);
+      const tags = this.readOptionalStringArray(call.parameters.tags);
+      const text = this.readOptionalString(call.parameters.text);
+      const limit = this.readOptionalNumber(call.parameters.limit, { min: 1 });
+      const offset = this.readOptionalNumber(call.parameters.offset, { min: 0 });
 
-    const run = await this.subagentOrchestrator.enqueue(runRequest);
+      if (kinds) {
+        const invalid = kinds.filter((kind) => !allowedKinds.has(kind));
+        if (invalid.length > 0) {
+          return this.formatToolError(
+            'INVALID_PARAMETERS',
+            `unsupported memory kinds: ${invalid.join(', ')}`
+          );
+        }
+      }
+      const normalizedKinds = kinds as
+        | Array<'summary' | 'preference' | 'fact' | 'decision' | 'task' | 'issue'>
+        | undefined;
 
-    const payload = {
-      status: 'accepted',
-      runId: run.runId,
-      childSessionId: run.childSessionId,
-    };
+      const result = await this.stateLayer.queryMemory(
+        {
+          agentId,
+          kinds: normalizedKinds ?? undefined,
+          tags: tags ?? undefined,
+          text,
+          limit,
+          offset,
+        },
+        context
+      );
 
-    return {
-      success: true,
-      content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
-    };
+      return {
+        success: true,
+        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+      };
+    }
+
+    if (action === 'append_entry') {
+      const kind = this.readOptionalString(call.parameters.kind);
+      const content = this.readOptionalString(call.parameters.content);
+      if (!kind || !content) {
+        return this.formatToolError('INVALID_PARAMETERS', 'kind and content are required');
+      }
+
+      if (!allowedKinds.has(kind)) {
+        return this.formatToolError('INVALID_PARAMETERS', `unsupported memory kind: ${kind}`);
+      }
+
+      const tags = this.readOptionalStringArray(call.parameters.tags) ?? undefined;
+      const confidence = this.readOptionalNumber(call.parameters.confidence, { min: 0, max: 1 });
+      const expiresAt = this.readOptionalString(call.parameters.expiresAt);
+
+      const entry = await this.stateLayer.appendMemoryEntry(
+        {
+          id: randomUUID(),
+          agentId,
+          kind: kind as 'summary' | 'preference' | 'fact' | 'decision' | 'task' | 'issue',
+          content,
+          tags,
+          confidence,
+          provenance: {
+            source: 'tool.memory',
+            sessionId: session.id,
+          },
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          expiresAt: expiresAt ?? undefined,
+        },
+        context
+      );
+
+      return {
+        success: true,
+        content: [{ type: 'text', text: JSON.stringify({ entry }, null, 2) }],
+      };
+    }
+
+    if (action === 'append_facts') {
+      const factsInput = call.parameters.facts;
+      if (!Array.isArray(factsInput) || factsInput.length === 0) {
+        return this.formatToolError('INVALID_PARAMETERS', 'facts must be a non-empty array');
+      }
+
+      const now = new Date().toISOString();
+      const facts = factsInput
+        .map((fact) => {
+          if (!fact || typeof fact !== 'object') {
+            return null;
+          }
+          const subject = this.readOptionalString((fact as { subject?: unknown }).subject);
+          const predicate = this.readOptionalString((fact as { predicate?: unknown }).predicate);
+          const object = this.readOptionalString((fact as { object?: unknown }).object);
+          if (!subject || !predicate || !object) {
+            return null;
+          }
+          const confidence = this.readOptionalNumber(
+            (fact as { confidence?: unknown }).confidence,
+            { min: 0, max: 1 }
+          );
+          const sourceEntryId = this.readOptionalString(
+            (fact as { sourceEntryId?: unknown }).sourceEntryId
+          );
+          return {
+            id: randomUUID(),
+            agentId,
+            subject,
+            predicate,
+            object,
+            confidence,
+            sourceEntryId: sourceEntryId ?? undefined,
+            createdAt: now,
+          };
+        })
+        .filter((fact): fact is NonNullable<typeof fact> => Boolean(fact));
+
+      if (facts.length === 0) {
+        return this.formatToolError(
+          'INVALID_PARAMETERS',
+          'facts must include subject/predicate/object'
+        );
+      }
+
+      const stored = await this.stateLayer.appendMemoryFacts(facts, context);
+      return {
+        success: true,
+        content: [{ type: 'text', text: JSON.stringify({ facts: stored }, null, 2) }],
+      };
+    }
+
+    if (action === 'delete_entry') {
+      const id = this.readOptionalString(call.parameters.id);
+      if (!id) {
+        return this.formatToolError('INVALID_PARAMETERS', 'id is required');
+      }
+
+      await this.stateLayer.deleteMemoryEntry(id, agentId, context);
+      return {
+        success: true,
+        content: [{ type: 'text', text: JSON.stringify({ deleted: true, id }, null, 2) }],
+      };
+    }
+
+    return this.formatToolError('INVALID_PARAMETERS', `unknown memory action: ${action}`);
+  }
+
+  private async executeUserProfileToolCall(
+    call: ToolCall,
+    session: Session | null
+  ): Promise<ToolResult> {
+    if (!this.stateLayer) {
+      return this.formatToolError('STATE_LAYER_DISABLED', 'State layer is not configured');
+    }
+
+    if (!session) {
+      return this.formatToolError('SESSION_NOT_FOUND', 'Session not found for user profile tool');
+    }
+
+    const userId = session.userId;
+    if (!userId) {
+      return this.formatToolError('INVALID_PARAMETERS', 'userId is not available for this session');
+    }
+
+    const action = this.readOptionalString(call.parameters.action);
+    if (!action) {
+      return this.formatToolError('INVALID_PARAMETERS', 'action is required');
+    }
+
+    const agentId = this.resolveAgentId(session);
+    const context = { ...this.buildStateContext(session), internalTool: true };
+
+    if (action === 'get') {
+      const profile = await this.stateLayer.getUserProfile(agentId, userId, context);
+      return {
+        success: true,
+        content: [{ type: 'text', text: JSON.stringify({ profile }, null, 2) }],
+      };
+    }
+
+    if (action === 'set') {
+      const profileText = this.readOptionalString(call.parameters.profile);
+      if (!profileText) {
+        return this.formatToolError('INVALID_PARAMETERS', 'profile is required');
+      }
+
+      const current = await this.stateLayer.getUserProfile(agentId, userId, context);
+      const stored = await this.stateLayer.putUserProfile(
+        {
+          userId,
+          agentId,
+          profile: profileText,
+          updatedAt: new Date().toISOString(),
+          version: current?.version ? current.version + 1 : 1,
+        },
+        context
+      );
+
+      return {
+        success: true,
+        content: [{ type: 'text', text: JSON.stringify({ profile: stored }, null, 2) }],
+      };
+    }
+
+    if (action === 'delete') {
+      await this.stateLayer.deleteUserProfile(agentId, userId, context);
+      return {
+        success: true,
+        content: [{ type: 'text', text: JSON.stringify({ deleted: true }, null, 2) }],
+      };
+    }
+
+    return this.formatToolError('INVALID_PARAMETERS', `unknown user_profile action: ${action}`);
   }
 
   private formatToolError(code: string, message: string, details?: unknown): ToolResult {
@@ -1321,6 +1588,32 @@ export class Gateway {
     }
     const trimmed = value.trim();
     return trimmed.length > 0 ? trimmed : undefined;
+  }
+
+  private readOptionalStringArray(value: unknown): string[] | null {
+    if (!Array.isArray(value)) {
+      return null;
+    }
+    const items = value
+      .map((item) => (typeof item === 'string' ? item.trim() : ''))
+      .filter((item) => item.length > 0);
+    return items.length > 0 ? items : null;
+  }
+
+  private readOptionalNumber(
+    value: unknown,
+    limits?: { min?: number; max?: number }
+  ): number | undefined {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      return undefined;
+    }
+    if (limits?.min !== undefined && value < limits.min) {
+      return undefined;
+    }
+    if (limits?.max !== undefined && value > limits.max) {
+      return undefined;
+    }
+    return value;
   }
 
   private readTimeoutMs(value: unknown): number | undefined {

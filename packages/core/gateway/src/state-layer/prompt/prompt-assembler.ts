@@ -12,12 +12,14 @@ import type {
   PromptReport,
   PromptSectionReport,
   SessionStateRecord,
+  UserProfile,
 } from '@nachos/types';
 import type { PromptAssemblyConfig } from '../types.js';
 
 export interface PromptAssemblyParams {
   basePrompt: string;
   identity?: IdentityProfile | null;
+  userProfile?: UserProfile | null;
   memoryEntries?: MemoryEntry[];
   memoryFacts?: MemoryFact[];
   sessionState?: SessionStateRecord | null;
@@ -54,6 +56,14 @@ export class PromptAssembler {
         name: 'identity',
         content: this.formatIdentity(params.identity),
         source: params.identity.source ?? 'identity-store',
+      });
+    }
+
+    if (params.userProfile) {
+      sections.push({
+        name: 'user_profile',
+        content: this.formatUserProfile(params.userProfile),
+        source: params.userProfile.source ?? 'user-profile-store',
       });
     }
 
@@ -122,6 +132,10 @@ export class PromptAssembler {
       lines.push(`- ${fact.subject} ${fact.predicate} ${fact.object}`);
     }
     return lines.join('\n');
+  }
+
+  private formatUserProfile(profile: UserProfile): string {
+    return ['User Profile:', profile.profile.trim()].join('\n');
   }
 
   private formatSessionState(record: SessionStateRecord): string {

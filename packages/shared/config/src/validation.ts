@@ -237,6 +237,16 @@ const CONFIG_SHAPE: SchemaNode = {
           max_connections: true,
         },
       },
+      user_profile: {
+        provider: true,
+        filesystem: { dir: true },
+        postgres: {
+          connection_string: true,
+          schema: true,
+          ssl: true,
+          max_connections: true,
+        },
+      },
       session: { provider: true, redis_url: true, ttl_seconds: true },
       prompt_report: {
         hash: true,
@@ -587,6 +597,7 @@ function validateRuntimeConfig(config: NachosConfig, errors: string[], _warnings
 
     validateStore(config.runtime.state.identity, 'identity');
     validateStore(config.runtime.state.memory, 'memory');
+    validateStore(config.runtime.state.user_profile, 'user_profile');
 
     if (config.runtime.state.session?.provider) {
       const provider = config.runtime.state.session.provider;

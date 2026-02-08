@@ -210,6 +210,14 @@ dir = "./state/memory"
 # connection_string = "postgres://user:pass@localhost:5432/nachos"
 # schema = "public"
 
+[runtime.state.user_profile]
+provider = "filesystem"
+[runtime.state.user_profile.filesystem]
+dir = "./state/user-profiles"
+# [runtime.state.user_profile.postgres]
+# connection_string = "postgres://user:pass@localhost:5432/nachos"
+# schema = "public"
+
 [runtime.state.session]
 provider = "redis"                        # "redis" | "memory"
 redis_url = "redis://localhost:6379"

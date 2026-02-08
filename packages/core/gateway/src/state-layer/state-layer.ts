@@ -15,12 +15,16 @@ import type {
   PromptAssemblyResult,
   SessionStateRecord,
   SessionStateStore,
+  UserProfile,
+  UserProfileStore,
 } from '@nachos/types';
 import type { StateLayerConfig, StateLayerDependencies, StatePolicyRequest } from './types.js';
 import { FilesystemIdentityStore } from './identity/filesystem-identity-store.js';
 import { PostgresIdentityStore } from './identity/postgres-identity-store.js';
 import { FilesystemMemoryStore } from './memory/filesystem-memory-store.js';
 import { PostgresMemoryStore } from './memory/postgres-memory-store.js';
+import { FilesystemUserProfileStore } from './user-profile/filesystem-user-profile-store.js';
+import { PostgresUserProfileStore } from './user-profile/postgres-user-profile-store.js';
 import {
   InMemorySessionStateStore,
   RedisSessionStateStore,
@@ -33,11 +37,13 @@ export interface StateOperationContext {
   userId?: string;
   securityMode: 'strict' | 'standard' | 'permissive';
   channel?: string;
+  internalTool?: boolean;
 }
 
 export class StateLayer {
   private identityStore: IdentityStore;
   private memoryStore: MemoryStore;
+  private userProfileStore: UserProfileStore;
   private sessionStateStore: SessionStateStore;
   private promptAssembler: PromptAssembler;
   private dependencies: StateLayerDependencies;
@@ -45,12 +51,14 @@ export class StateLayer {
   constructor(params: {
     identityStore: IdentityStore;
     memoryStore: MemoryStore;
+    userProfileStore: UserProfileStore;
     sessionStateStore: SessionStateStore;
     promptAssembler: PromptAssembler;
     dependencies?: StateLayerDependencies;
   }) {
     this.identityStore = params.identityStore;
     this.memoryStore = params.memoryStore;
+    this.userProfileStore = params.userProfileStore;
     this.sessionStateStore = params.sessionStateStore;
     this.promptAssembler = params.promptAssembler;
     this.dependencies = params.dependencies ?? {};
@@ -124,6 +132,42 @@ export class StateLayer {
     await this.auditAllowed('state.memory.delete', context, agentId);
   }
 
+  async getUserProfile(
+    agentId: string,
+    userId: string,
+    context: StateOperationContext
+  ): Promise<UserProfile | null> {
+    await this.ensureAllowed('state.user-profile.read', context, `${agentId}:${userId}`);
+    const profile = await this.userProfileStore.get(agentId, userId);
+    await this.auditAllowed('state.user-profile.read', context, `${agentId}:${userId}`);
+    return profile;
+  }
+
+  async putUserProfile(profile: UserProfile, context: StateOperationContext): Promise<UserProfile> {
+    await this.ensureAllowed(
+      'state.user-profile.write',
+      context,
+      `${profile.agentId}:${profile.userId}`
+    );
+    const stored = await this.userProfileStore.put(profile);
+    await this.auditAllowed(
+      'state.user-profile.write',
+      context,
+      `${profile.agentId}:${profile.userId}`
+    );
+    return stored;
+  }
+
+  async deleteUserProfile(
+    agentId: string,
+    userId: string,
+    context: StateOperationContext
+  ): Promise<void> {
+    await this.ensureAllowed('state.user-profile.delete', context, `${agentId}:${userId}`);
+    await this.userProfileStore.delete(agentId, userId);
+    await this.auditAllowed('state.user-profile.delete', context, `${agentId}:${userId}`);
+  }
+
   async getSessionState(
     sessionId: string,
     context: StateOperationContext
@@ -165,7 +209,12 @@ export class StateLayer {
   }
 
   async close(): Promise<void> {
-    const closers = [this.identityStore, this.memoryStore, this.sessionStateStore] as Array<{
+    const closers = [
+      this.identityStore,
+      this.memoryStore,
+      this.userProfileStore,
+      this.sessionStateStore,
+    ] as Array<{
       close?: () => Promise<void>;
     }>;
     for (const store of closers) {
@@ -180,6 +229,9 @@ export class StateLayer {
     context: StateOperationContext,
     resource?: string
   ): Promise<void> {
+    if (context.internalTool) {
+      return;
+    }
     if (!this.dependencies.policyCheck) return;
 
     const request: StatePolicyRequest = {
@@ -255,12 +307,14 @@ export function createStateLayer(
 ): StateLayer {
   const identityStore = createIdentityStore(config);
   const memoryStore = createMemoryStore(config);
+  const userProfileStore = createUserProfileStore(config);
   const sessionStore = createSessionStateStore(config);
   const promptAssembler = new PromptAssembler(config.prompt);
 
   return new StateLayer({
     identityStore,
     memoryStore,
+    userProfileStore,
     sessionStateStore: sessionStore,
     promptAssembler,
     dependencies: deps,
@@ -299,6 +353,23 @@ function createMemoryStore(config: StateLayerConfig): MemoryStore {
     throw new Error('Filesystem memory store requires dir');
   }
   return new FilesystemMemoryStore(dir);
+}
+
+function createUserProfileStore(config: StateLayerConfig): UserProfileStore {
+  if (config.userProfile.provider === 'postgres') {
+    const settings = config.userProfile.postgres;
+    if (!settings?.connectionString) {
+      throw new Error('Postgres user profile store requires connectionString');
+    }
+    const pool = createPgPool(settings);
+    return new PostgresUserProfileStore(pool, settings.schema);
+  }
+
+  const dir = config.userProfile.filesystem?.dir;
+  if (!dir) {
+    throw new Error('Filesystem user profile store requires dir');
+  }
+  return new FilesystemUserProfileStore(dir);
 }
 
 function createSessionStateStore(config: StateLayerConfig): SessionStateStore {

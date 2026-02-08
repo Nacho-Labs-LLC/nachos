@@ -448,6 +448,7 @@ export interface PromptReportConfig {
 export interface StateLayerConfig {
   identity?: StateStoreConfig;
   memory?: StateStoreConfig;
+  user_profile?: StateStoreConfig;
   session?: SessionStateConfig;
   prompt_report?: PromptReportConfig;
 }

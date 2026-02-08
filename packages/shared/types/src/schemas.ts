@@ -611,6 +611,77 @@ export const SessionsSpawnToolSchema = Type.Object(
 
 export type SessionsSpawnToolType = Static<typeof SessionsSpawnToolSchema>;
 
+/**
+ * memory tool parameters
+ */
+export const MemoryToolSchema = Type.Object(
+  {
+    action: Type.Union(
+      [
+        Type.Literal('query'),
+        Type.Literal('append_entry'),
+        Type.Literal('append_facts'),
+        Type.Literal('delete_entry'),
+      ],
+      { description: 'Memory action to perform' }
+    ),
+    kinds: Type.Optional(
+      Type.Array(Type.String({ minLength: 1 }), {
+        description: 'Filter by memory kinds (query action)',
+      })
+    ),
+    tags: Type.Optional(
+      Type.Array(Type.String({ minLength: 1 }), {
+        description: 'Filter by tags (query action)',
+      })
+    ),
+    text: Type.Optional(Type.String({ description: 'Text filter (query action)' })),
+    limit: Type.Optional(Type.Number({ description: 'Max results (query action)', minimum: 1 })),
+    offset: Type.Optional(Type.Number({ description: 'Result offset (query action)', minimum: 0 })),
+    kind: Type.Optional(Type.String({ description: 'Memory kind (append_entry action)' })),
+    content: Type.Optional(Type.String({ description: 'Memory content (append_entry action)' })),
+    confidence: Type.Optional(
+      Type.Number({ description: 'Confidence score (append_entry action)', minimum: 0, maximum: 1 })
+    ),
+    expiresAt: Type.Optional(
+      Type.String({ description: 'Expiration timestamp (append_entry action)' })
+    ),
+    facts: Type.Optional(
+      Type.Array(
+        Type.Object({
+          subject: Type.String({ description: 'Fact subject' }),
+          predicate: Type.String({ description: 'Fact predicate' }),
+          object: Type.String({ description: 'Fact object' }),
+          confidence: Type.Optional(
+            Type.Number({ description: 'Confidence score', minimum: 0, maximum: 1 })
+          ),
+          sourceEntryId: Type.Optional(Type.String({ description: 'Source entry ID' })),
+        }),
+        { description: 'Facts to append (append_facts action)' }
+      )
+    ),
+    id: Type.Optional(Type.String({ description: 'Memory entry ID (delete_entry action)' })),
+  },
+  { $id: 'MemoryTool', description: 'Memory tool parameters' }
+);
+
+export type MemoryToolType = Static<typeof MemoryToolSchema>;
+
+/**
+ * user_profile tool parameters
+ */
+export const UserProfileToolSchema = Type.Object(
+  {
+    action: Type.Union([Type.Literal('get'), Type.Literal('set'), Type.Literal('delete')], {
+      description: 'User profile action to perform',
+    }),
+    profile: Type.Optional(Type.String({ description: 'Profile content (set action)' })),
+  },
+  { $id: 'UserProfileTool', description: 'User profile tool parameters' }
+);
+
+export type UserProfileToolType = Static<typeof UserProfileToolSchema>;
+
 // ============================================================================
 // Health Check Schemas
 // ============================================================================

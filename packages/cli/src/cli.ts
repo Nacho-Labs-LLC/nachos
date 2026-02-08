@@ -203,6 +203,110 @@ export function createProgram(): Command {
       await sandboxRecreateCommand({ ...program.opts(), ...options });
     });
 
+  // Memory commands
+  const memoryCmd = program.command('memory').description('Memory store operations');
+
+  memoryCmd
+    .command('query')
+    .description('Query memory entries and facts')
+    .requiredOption('--agent-id <id>', 'Agent ID')
+    .option('--kinds <kinds>', 'Comma-separated memory kinds')
+    .option('--tags <tags>', 'Comma-separated tags')
+    .option('--text <text>', 'Text search')
+    .option('--limit <limit>', 'Limit results')
+    .option('--offset <offset>', 'Offset results')
+    .option('--user-id <id>', 'Optional user ID for audit context')
+    .option('--session-id <id>', 'Optional session ID for audit context')
+    .action(async (options) => {
+      const { memoryQueryCommand } = await import('./commands/memory.js');
+      await memoryQueryCommand({ ...program.opts(), ...options });
+    });
+
+  memoryCmd
+    .command('append-entry')
+    .description('Append a memory entry')
+    .requiredOption('--agent-id <id>', 'Agent ID')
+    .requiredOption('--kind <kind>', 'Memory kind')
+    .requiredOption('--content <text>', 'Memory content')
+    .option('--tags <tags>', 'Comma-separated tags')
+    .option('--confidence <score>', 'Confidence score (0-1)')
+    .option('--expires-at <timestamp>', 'Expiration timestamp (ISO 8601)')
+    .option('--source <source>', 'Provenance source label')
+    .option('--provenance-file <path>', 'Path to provenance JSON')
+    .option('--user-id <id>', 'Optional user ID for audit context')
+    .option('--session-id <id>', 'Optional session ID for audit context')
+    .action(async (options) => {
+      const { memoryAppendEntryCommand } = await import('./commands/memory.js');
+      await memoryAppendEntryCommand({ ...program.opts(), ...options });
+    });
+
+  memoryCmd
+    .command('append-fact')
+    .description('Append a memory fact')
+    .requiredOption('--agent-id <id>', 'Agent ID')
+    .requiredOption('--subject <text>', 'Fact subject')
+    .requiredOption('--predicate <text>', 'Fact predicate')
+    .requiredOption('--object <text>', 'Fact object')
+    .option('--confidence <score>', 'Confidence score (0-1)')
+    .option('--source-entry-id <id>', 'Source entry ID')
+    .option('--user-id <id>', 'Optional user ID for audit context')
+    .option('--session-id <id>', 'Optional session ID for audit context')
+    .action(async (options) => {
+      const { memoryAppendFactCommand } = await import('./commands/memory.js');
+      await memoryAppendFactCommand({ ...program.opts(), ...options });
+    });
+
+  memoryCmd
+    .command('delete')
+    .description('Delete a memory entry')
+    .requiredOption('--agent-id <id>', 'Agent ID')
+    .requiredOption('--id <entryId>', 'Memory entry ID')
+    .option('--user-id <id>', 'Optional user ID for audit context')
+    .option('--session-id <id>', 'Optional session ID for audit context')
+    .action(async (options) => {
+      const { memoryDeleteCommand } = await import('./commands/memory.js');
+      await memoryDeleteCommand({ ...program.opts(), ...options });
+    });
+
+  // User profile commands
+  const userProfileCmd = program.command('user-profile').description('User profile operations');
+
+  userProfileCmd
+    .command('get')
+    .description('Fetch a user profile')
+    .requiredOption('--agent-id <id>', 'Agent ID')
+    .requiredOption('--user-id <id>', 'User ID')
+    .option('--session-id <id>', 'Optional session ID for audit context')
+    .action(async (options) => {
+      const { userProfileGetCommand } = await import('./commands/user-profile.js');
+      await userProfileGetCommand({ ...program.opts(), ...options });
+    });
+
+  userProfileCmd
+    .command('set')
+    .description('Set a user profile')
+    .requiredOption('--agent-id <id>', 'Agent ID')
+    .requiredOption('--user-id <id>', 'User ID')
+    .option('--profile <text>', 'Profile text')
+    .option('--file <path>', 'Read profile text from file')
+    .option('--source <source>', 'Profile source label')
+    .option('--session-id <id>', 'Optional session ID for audit context')
+    .action(async (options) => {
+      const { userProfileSetCommand } = await import('./commands/user-profile.js');
+      await userProfileSetCommand({ ...program.opts(), ...options });
+    });
+
+  userProfileCmd
+    .command('delete')
+    .description('Delete a user profile')
+    .requiredOption('--agent-id <id>', 'Agent ID')
+    .requiredOption('--user-id <id>', 'User ID')
+    .option('--session-id <id>', 'Optional session ID for audit context')
+    .action(async (options) => {
+      const { userProfileDeleteCommand } = await import('./commands/user-profile.js');
+      await userProfileDeleteCommand({ ...program.opts(), ...options });
+    });
+
   // Top-level commands
   program
     .command('init')

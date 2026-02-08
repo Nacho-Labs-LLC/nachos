@@ -261,11 +261,14 @@ function buildStateLayerConfig(runtime?: RuntimeConfig): StateLayerConfig {
   const stateDir = runtime?.state_dir ?? './state';
   const identityProvider = runtime?.state?.identity?.provider ?? 'filesystem';
   const memoryProvider = runtime?.state?.memory?.provider ?? 'filesystem';
+  const userProfileProvider = runtime?.state?.user_profile?.provider ?? 'filesystem';
   const sessionProvider =
     runtime?.state?.session?.provider ?? (runtime?.redis_url ? 'redis' : 'memory');
 
   const identityDir = runtime?.state?.identity?.filesystem?.dir ?? path.join(stateDir, 'identity');
   const memoryDir = runtime?.state?.memory?.filesystem?.dir ?? path.join(stateDir, 'memory');
+  const userProfileDir =
+    runtime?.state?.user_profile?.filesystem?.dir ?? path.join(stateDir, 'user-profiles');
 
   return {
     identity: {
@@ -289,6 +292,18 @@ function buildStateLayerConfig(runtime?: RuntimeConfig): StateLayerConfig {
             schema: runtime.state.memory.postgres.schema,
             ssl: runtime.state.memory.postgres.ssl,
             maxConnections: runtime.state.memory.postgres.max_connections,
+          }
+        : undefined,
+    },
+    userProfile: {
+      provider: userProfileProvider,
+      filesystem: { dir: userProfileDir },
+      postgres: runtime?.state?.user_profile?.postgres
+        ? {
+            connectionString: runtime.state.user_profile.postgres.connection_string ?? '',
+            schema: runtime.state.user_profile.postgres.schema,
+            ssl: runtime.state.user_profile.postgres.ssl,
+            maxConnections: runtime.state.user_profile.postgres.max_connections,
           }
         : undefined,
     },
