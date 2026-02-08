@@ -30,9 +30,12 @@ export {
   type ParameterSchema,
   type JSONSchemaProperty,
   type ToolConfig,
+  type ToolSandboxConfig,
   type Tool,
   type ToolCall,
   type ToolManifest,
+  type SessionsSpawnToolParameters,
+  type SessionsSpawnToolResult,
   type ExecutionOptions,
   type ChainResult,
   type ChainContext,
@@ -155,6 +158,8 @@ export {
   ToolResponseSchema,
   type ToolResponseType,
   ToolErrorSchema,
+  SessionsSpawnToolSchema,
+  type SessionsSpawnToolType,
 
   // Health schemas
   HealthStatusSchema,

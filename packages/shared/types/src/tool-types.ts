@@ -175,6 +175,18 @@ export interface ToolSandboxConfig {
   /** Workspace directory inside sandbox */
   workspaceDir?: string;
 
+  /** Workspace access mode */
+  workspaceAccess?: 'none' | 'ro' | 'rw';
+
+  /** Extra bind mounts (host:container:mode) */
+  extraBinds?: string[];
+
+  /** Environment variables injected into sandbox */
+  env?: Record<string, string>;
+
+  /** Setup command to run before tool execution */
+  setupCommand?: string;
+
   /** Network access policy */
   network?: 'none' | 'egress' | 'full';
 }
@@ -243,6 +255,9 @@ export interface ToolCall {
 
   /** Cache TTL in seconds */
   cacheTTL?: number;
+
+  /** Sandbox configuration for tool execution */
+  sandbox?: ToolSandboxConfig;
 }
 
 /**
@@ -266,6 +281,29 @@ export interface ToolManifest {
     tool: string;
     securityTier: SecurityTier;
   };
+}
+
+/**
+ * Sessions spawn tool parameters
+ */
+export interface SessionsSpawnToolParameters {
+  task: string;
+  label?: string;
+  profile?: string;
+  agentId?: string;
+  model?: string;
+  thinking?: string;
+  runTimeoutSeconds?: number;
+  cleanup?: 'delete' | 'keep';
+}
+
+/**
+ * Sessions spawn tool result
+ */
+export interface SessionsSpawnToolResult {
+  status: 'accepted';
+  runId: string;
+  childSessionId: string;
 }
 
 /**

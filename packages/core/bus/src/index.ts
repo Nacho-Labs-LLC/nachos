@@ -47,6 +47,7 @@ export {
   POLICY_TOPICS,
   AUDIT_TOPICS,
   HEALTH_TOPICS,
+  GATEWAY_TOPICS,
   extractChannelFromTopic,
   extractToolFromTopic,
   extractSessionFromStreamTopic,

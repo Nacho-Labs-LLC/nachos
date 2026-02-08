@@ -147,6 +147,24 @@ export const HEALTH_TOPICS = {
 } as const;
 
 /**
+ * Gateway management topics
+ */
+export const GATEWAY_TOPICS = {
+  subagents: {
+    spawn: `${TOPIC_PREFIX}.gateway.subagents.spawn`,
+    list: `${TOPIC_PREFIX}.gateway.subagents.list`,
+    info: `${TOPIC_PREFIX}.gateway.subagents.info`,
+    stop: `${TOPIC_PREFIX}.gateway.subagents.stop`,
+    log: `${TOPIC_PREFIX}.gateway.subagents.log`,
+  },
+  sandbox: {
+    explain: `${TOPIC_PREFIX}.gateway.sandbox.explain`,
+    list: `${TOPIC_PREFIX}.gateway.sandbox.list`,
+    recreate: `${TOPIC_PREFIX}.gateway.sandbox.recreate`,
+  },
+} as const;
+
+/**
  * Context management topics
  */
 export const CONTEXT_TOPICS = {
@@ -201,6 +219,7 @@ export const TOPICS = {
   policy: POLICY_TOPICS,
   audit: AUDIT_TOPICS,
   health: HEALTH_TOPICS,
+  gateway: GATEWAY_TOPICS,
   context: CONTEXT_TOPICS,
 } as const;
 

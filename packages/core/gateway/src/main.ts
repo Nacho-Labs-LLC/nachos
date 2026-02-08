@@ -82,6 +82,16 @@ async function start(): Promise<void> {
       }
     : undefined;
 
+  const subagentOrchestratorConfig = runtime?.subagents?.enabled
+    ? {
+        maxConcurrent: runtime.subagents.max_concurrent,
+        announce: runtime.subagents.announce,
+      }
+    : undefined;
+
+  const subagentToolPolicy = runtime?.subagents?.tools;
+  const toolSandboxConfig = runtime?.sandbox;
+
   const busClient = createBusClient({
     servers: gatewayConfig.natsServers,
     name: 'gateway',
@@ -114,6 +124,10 @@ async function start(): Promise<void> {
     stateLayerConfig,
     memoryPipelineConfig,
     subagentConfig,
+    subagentOrchestratorConfig,
+    subagentToolPolicy,
+    toolSandboxConfig,
+    workspaceDir: runtime?.workspace_dir,
   });
 
   const shutdown = async (signal: string) => {

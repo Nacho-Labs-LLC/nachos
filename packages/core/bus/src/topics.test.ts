@@ -8,6 +8,7 @@ import {
   POLICY_TOPICS,
   AUDIT_TOPICS,
   HEALTH_TOPICS,
+  GATEWAY_TOPICS,
   extractChannelFromTopic,
   extractToolFromTopic,
   extractSessionFromStreamTopic,
@@ -97,6 +98,22 @@ describe('Topics', () => {
     });
   });
 
+  describe('GATEWAY_TOPICS', () => {
+    it('should have correct subagent topics', () => {
+      expect(GATEWAY_TOPICS.subagents.spawn).toBe('nachos.gateway.subagents.spawn');
+      expect(GATEWAY_TOPICS.subagents.list).toBe('nachos.gateway.subagents.list');
+      expect(GATEWAY_TOPICS.subagents.info).toBe('nachos.gateway.subagents.info');
+      expect(GATEWAY_TOPICS.subagents.stop).toBe('nachos.gateway.subagents.stop');
+      expect(GATEWAY_TOPICS.subagents.log).toBe('nachos.gateway.subagents.log');
+    });
+
+    it('should have correct sandbox topics', () => {
+      expect(GATEWAY_TOPICS.sandbox.explain).toBe('nachos.gateway.sandbox.explain');
+      expect(GATEWAY_TOPICS.sandbox.list).toBe('nachos.gateway.sandbox.list');
+      expect(GATEWAY_TOPICS.sandbox.recreate).toBe('nachos.gateway.sandbox.recreate');
+    });
+  });
+
   describe('TOPICS namespace', () => {
     it('should contain all topic groups', () => {
       expect(TOPICS.channel).toBe(CHANNEL_TOPICS);
@@ -105,6 +122,7 @@ describe('Topics', () => {
       expect(TOPICS.policy).toBe(POLICY_TOPICS);
       expect(TOPICS.audit).toBe(AUDIT_TOPICS);
       expect(TOPICS.health).toBe(HEALTH_TOPICS);
+      expect(TOPICS.gateway).toBe(GATEWAY_TOPICS);
     });
   });
 

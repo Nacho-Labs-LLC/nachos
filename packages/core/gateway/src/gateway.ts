@@ -6,15 +6,28 @@ import type {
   ChannelOutboundMessage,
   LLMRequestType,
   LLMResponseType,
+  Message,
   MessageEnvelope,
   Session,
   PromptReport,
 } from '@nachos/types';
-import { validateChannelInboundMessage } from '@nachos/types';
-import type { AuditConfig } from '@nachos/config';
+import { TOPICS } from '@nachos/bus';
+import { SessionsSpawnToolSchema, validateChannelInboundMessage } from '@nachos/types';
+import type {
+  AuditConfig,
+  RuntimeToolSandboxConfig,
+  SubagentToolProfileConfig,
+  SubagentToolPolicyConfig,
+} from '@nachos/config';
 import { StateStorage } from './state.js';
 import { SessionManager } from './session.js';
-import { Router, InMemoryMessageBus, createEnvelope, type MessageBus } from './router.js';
+import {
+  Router,
+  InMemoryMessageBus,
+  createEnvelope,
+  type MessageBus,
+  NatsBusAdapter,
+} from './router.js';
 import { createHealthServer, performHealthCheck, type HealthCheckDeps } from './health.js';
 import { Salsa, type PolicyEngineConfig, type SecurityRequest } from './salsa/index.js';
 import { AuditLogger, loadAuditProvider } from './audit/index.js';
@@ -43,7 +56,23 @@ import type {
   StatePolicyRequest,
 } from './state-layer/types.js';
 import { SubagentManager } from './subagents/subagent-manager.js';
-import type { SubagentManagerConfig, SubagentResult, SubagentTask } from './subagents/types.js';
+import { SubagentOrchestrator } from './subagents/subagent-orchestrator.js';
+import type {
+  SubagentManagerConfig,
+  SubagentOrchestratorConfig,
+  SubagentResult,
+  SubagentRunRecord,
+  SubagentRunRequest,
+  SubagentTask,
+} from './subagents/types.js';
+import { SandboxManager } from './sandbox/sandbox-manager.js';
+
+const DEFAULT_SUBAGENT_DENY_TOOLS = new Set([
+  'sessions_list',
+  'sessions_history',
+  'sessions_send',
+  'sessions_spawn',
+]);
 
 /**
  * Gateway configuration options
@@ -89,6 +118,14 @@ export interface GatewayOptions {
   memoryPipelineConfig?: MemoryPipelineConfig;
   /** Subagent configuration */
   subagentConfig?: SubagentManagerConfig;
+  /** Subagent orchestration configuration */
+  subagentOrchestratorConfig?: SubagentOrchestratorConfig;
+  /** Subagent tool policy overrides */
+  subagentToolPolicy?: SubagentToolPolicyConfig;
+  /** Tool sandbox configuration */
+  toolSandboxConfig?: RuntimeToolSandboxConfig;
+  /** Runtime workspace directory */
+  workspaceDir?: string;
 }
 
 /**
@@ -116,6 +153,9 @@ export class Gateway {
   private memoryPipelineInterval?: NodeJS.Timeout;
   private securityMode: 'strict' | 'standard' | 'permissive';
   private subagentManager?: SubagentManager;
+  private subagentOrchestrator?: SubagentOrchestrator;
+  private subagentToolPolicy?: SubagentToolPolicyConfig;
+  private sandboxManager?: SandboxManager;
   private streamingSessions: Map<
     string,
     {
@@ -133,6 +173,12 @@ export class Gateway {
     this.dlpConfig = options.dlpConfig;
     this.approvalAllowlist = new Set(options.approvalAllowlist ?? []);
     this.securityMode = options.policyConfig?.securityMode ?? 'standard';
+    this.subagentToolPolicy = options.subagentToolPolicy;
+    if (options.toolSandboxConfig) {
+      this.sandboxManager = new SandboxManager(options.toolSandboxConfig, {
+        workspaceDir: options.workspaceDir,
+      });
+    }
 
     // Initialize storage
     this.storage = new StateStorage(options.dbPath ?? ':memory:');
@@ -184,6 +230,14 @@ export class Gateway {
     if (options.subagentConfig) {
       this.subagentManager = new SubagentManager(options.subagentConfig, async (request) => {
         return (await this.router.sendLLMRequest(request)) as LLMResponseType;
+      });
+      this.subagentOrchestrator = new SubagentOrchestrator({
+        subagentManager: this.subagentManager,
+        sessionManager: this.sessionManager,
+        router: this.router,
+        buildLLMRequest: this.buildLLMRequest.bind(this),
+        defaultSystemPrompt: this.options.defaultSystemPrompt,
+        config: options.subagentOrchestratorConfig,
       });
     }
 
@@ -662,9 +716,12 @@ export class Gateway {
       messages.push(...extraMessages);
     }
 
+    const tools = this.buildToolDefinitions(session);
+
     return {
       sessionId,
       messages,
+      tools,
       options: {
         model: session.config?.model,
         maxTokens: session.config?.maxTokens,
@@ -693,6 +750,30 @@ export class Gateway {
 
   private resolveAgentId(session: Session): string {
     return session.userId ?? session.id;
+  }
+
+  private buildToolDefinitions(session: Session): LLMRequestType['tools'] {
+    if (!this.subagentManager) {
+      return undefined;
+    }
+
+    if (this.isSubagentSession(session)) {
+      return undefined;
+    }
+
+    return [
+      {
+        name: 'sessions_spawn',
+        description: 'Spawn a subagent to run a task and announce results back to the requester.',
+        parameters: this.sanitizeToolSchema(SessionsSpawnToolSchema),
+      },
+    ];
+  }
+
+  private sanitizeToolSchema(schema: Record<string, unknown>): Record<string, unknown> {
+    const cloned = JSON.parse(JSON.stringify(schema)) as Record<string, unknown>;
+    delete cloned.$id;
+    return cloned;
   }
 
   private buildStateContext(session: Session): StateOperationContext {
@@ -781,10 +862,40 @@ export class Gateway {
 
     const blockedResults: Array<{ index: number; result: ToolResult }> = [];
     const allowedCalls: Array<{ index: number; call: ToolCall }> = [];
+    const localResults: Array<{ index: number; result: ToolResult }> = [];
 
     for (let i = 0; i < calls.length; i += 1) {
       const call = calls[i];
       if (!call) continue;
+
+      if (this.isSubagentSession(session)) {
+        const policy = this.evaluateSubagentToolPolicy(call.tool, session);
+        if (!policy.allowed) {
+          void this.logAuditEvent({
+            id: `subagent-tool-policy-${call.id}`,
+            timestamp: new Date().toISOString(),
+            instanceId: this.instanceId,
+            userId: session?.userId ?? 'unknown',
+            sessionId,
+            channel: session?.channel ?? 'unknown',
+            eventType: 'policy_check',
+            action: 'policy.subagent.tool',
+            resource: call.tool,
+            outcome: 'denied',
+            reason: policy.reason,
+            securityMode,
+          });
+
+          blockedResults.push({
+            index: i,
+            result: this.formatToolError(
+              'POLICY_DENIED',
+              policy.reason ?? 'Tool blocked for subagent session'
+            ),
+          });
+          continue;
+        }
+      }
 
       if (this.dlp) {
         const paramText = this.stringifyToolParameters(call.parameters);
@@ -847,6 +958,19 @@ export class Gateway {
         }
       }
 
+      const localResult = await this.executeLocalToolCall(call, session);
+      if (localResult) {
+        localResults.push({ index: i, result: localResult });
+        continue;
+      }
+
+      if (this.sandboxManager) {
+        const sandboxDecision = this.sandboxManager.resolveToolSandbox(session);
+        if (sandboxDecision.enabled && sandboxDecision.config) {
+          call.sandbox = sandboxDecision.config;
+        }
+      }
+
       allowedCalls.push({ index: i, call });
     }
 
@@ -854,6 +978,10 @@ export class Gateway {
 
     for (const blocked of blockedResults) {
       results[blocked.index] = blocked.result;
+    }
+
+    for (const local of localResults) {
+      results[local.index] = local.result;
     }
 
     const executedResults = allowedCalls.length
@@ -945,6 +1073,215 @@ export class Gateway {
     });
 
     return toolMessages;
+  }
+
+  private async executeLocalToolCall(
+    call: ToolCall,
+    session: Session | null
+  ): Promise<ToolResult | null> {
+    if (call.tool !== 'sessions_spawn') {
+      return null;
+    }
+
+    if (!this.subagentOrchestrator) {
+      return this.formatToolError('SUBAGENT_DISABLED', 'Subagent execution is not configured');
+    }
+
+    if (!session) {
+      return this.formatToolError('SESSION_NOT_FOUND', 'Session not found for subagent spawn');
+    }
+
+    const taskRaw = call.parameters.task;
+    const task = typeof taskRaw === 'string' ? taskRaw.trim() : '';
+    if (!task) {
+      return this.formatToolError('INVALID_PARAMETERS', 'task is required');
+    }
+
+    const label = this.readOptionalString(call.parameters.label);
+    const profile = this.readOptionalString(call.parameters.profile);
+    const agentId = this.readOptionalString(call.parameters.agentId);
+    const model = this.readOptionalString(call.parameters.model);
+    const thinking = this.readOptionalString(call.parameters.thinking);
+    const cleanup = this.readCleanup(call.parameters.cleanup);
+    const timeoutMs = this.readTimeoutMs(call.parameters.runTimeoutSeconds);
+
+    const runRequest: SubagentRunRequest = {
+      task,
+      label,
+      profile,
+      agentId,
+      model,
+      thinking,
+      cleanup,
+      timeoutMs,
+      sessionConfig: session.config,
+      requester: {
+        sessionId: session.id,
+        channel: session.channel,
+        conversationId: session.conversationId,
+        userId: session.userId,
+      },
+    };
+
+    const run = await this.subagentOrchestrator.enqueue(runRequest);
+
+    const payload = {
+      status: 'accepted',
+      runId: run.runId,
+      childSessionId: run.childSessionId,
+    };
+
+    return {
+      success: true,
+      content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
+    };
+  }
+
+  private formatToolError(code: string, message: string, details?: unknown): ToolResult {
+    return {
+      success: false,
+      content: [],
+      error: {
+        code,
+        message,
+        details,
+      },
+    };
+  }
+
+  private isSubagentSession(session: Session | null): boolean {
+    if (!session?.metadata) {
+      return false;
+    }
+    return 'subagent' in session.metadata;
+  }
+
+  private normalizeToolName(tool: string): string {
+    return tool.trim().toLowerCase();
+  }
+
+  private resolveSubagentProfile(session: Session | null): string | undefined {
+    const defaultProfile = this.readOptionalString(this.subagentToolPolicy?.default_profile);
+    if (!session?.metadata || typeof session.metadata !== 'object') {
+      return defaultProfile;
+    }
+
+    const metadata = session.metadata as { subagent?: { profile?: string } };
+    const profile = this.readOptionalString(metadata.subagent?.profile);
+    return profile ?? defaultProfile;
+  }
+
+  private resolveSubagentProfilePolicy(profile?: string): SubagentToolProfileConfig | undefined {
+    const profiles = this.subagentToolPolicy?.profiles;
+    if (!profile || !profiles) {
+      return undefined;
+    }
+
+    if (profiles[profile]) {
+      return profiles[profile];
+    }
+
+    const normalized = this.normalizeToolName(profile);
+    const match = Object.entries(profiles).find(
+      ([name]) => this.normalizeToolName(name) === normalized
+    );
+    return match?.[1];
+  }
+
+  private evaluateSubagentToolPolicy(
+    tool: string,
+    session?: Session | null
+  ): { allowed: boolean; reason?: string } {
+    const normalized = this.normalizeToolName(tool);
+    const policy = this.subagentToolPolicy;
+    const profileName = this.resolveSubagentProfile(session ?? null);
+    const profilePolicy = this.resolveSubagentProfilePolicy(profileName);
+    const denyList = new Set(
+      [
+        ...DEFAULT_SUBAGENT_DENY_TOOLS,
+        ...(policy?.deny ?? []).map((entry) => this.normalizeToolName(entry)),
+        ...(profilePolicy?.deny ?? []).map((entry) => this.normalizeToolName(entry)),
+      ].filter((entry) => entry.length > 0)
+    );
+
+    if (denyList.has(normalized)) {
+      return { allowed: false, reason: `Tool blocked for subagents: ${tool}` };
+    }
+
+    const allowListSource =
+      profilePolicy?.allow && profilePolicy.allow.length > 0
+        ? profilePolicy.allow
+        : (policy?.allow ?? []);
+    const allow = allowListSource.map((entry) => this.normalizeToolName(entry));
+    if (allow.length > 0 && !allow.includes(normalized)) {
+      const profileSuffix = profileName ? ` (profile: ${profileName})` : '';
+      return {
+        allowed: false,
+        reason: `Tool not allowlisted for subagents${profileSuffix}: ${tool}`,
+      };
+    }
+
+    return { allowed: true };
+  }
+
+  private buildSandboxDecisionSamples(): {
+    main: { enabled: boolean; config?: unknown };
+    subagent: { enabled: boolean; config?: unknown };
+  } | null {
+    if (!this.sandboxManager) {
+      return null;
+    }
+
+    const now = new Date().toISOString();
+    const mainSession: Session = {
+      id: 'sandbox-main',
+      channel: 'internal',
+      conversationId: 'sandbox-main',
+      userId: 'system',
+      status: 'active',
+      config: {},
+      metadata: {},
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const subagentSession: Session = {
+      ...mainSession,
+      id: 'sandbox-subagent',
+      conversationId: 'sandbox-subagent',
+      metadata: { subagent: { runId: 'sandbox' } },
+    };
+
+    return {
+      main: this.sandboxManager.resolveToolSandbox(mainSession),
+      subagent: this.sandboxManager.resolveToolSandbox(subagentSession),
+    };
+  }
+
+  private readOptionalString(value: unknown): string | undefined {
+    if (typeof value !== 'string') {
+      return undefined;
+    }
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+
+  private readTimeoutMs(value: unknown): number | undefined {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      return undefined;
+    }
+    const rounded = Math.floor(value);
+    if (rounded <= 0) {
+      return undefined;
+    }
+    return rounded * 1000;
+  }
+
+  private readCleanup(value: unknown): 'delete' | 'keep' | undefined {
+    if (value === 'delete' || value === 'keep') {
+      return value;
+    }
+    return undefined;
   }
 
   private async sendLLMResponse(
@@ -1134,6 +1471,178 @@ export class Gateway {
     return redactedContent.length > 0 ? { allowed: true, redactedContent } : { allowed: true };
   }
 
+  private async registerManagementHandlers(): Promise<void> {
+    const bus = this.router.getBus();
+    if (!(bus instanceof NatsBusAdapter)) {
+      return;
+    }
+
+    const client = bus.getClient();
+    const respondError = (respond: (data: unknown) => boolean, error: Error) => {
+      respond({
+        ok: false,
+        error: {
+          code: 'GATEWAY_REQUEST_ERROR',
+          message: error.message,
+        },
+      });
+    };
+
+    await client.subscribe(TOPICS.gateway.subagents.list, async (msg, raw) => {
+      try {
+        const payload = msg.payload as { limit?: number };
+        const runs = this.listSubagents();
+        const limit = payload?.limit && payload.limit > 0 ? Math.floor(payload.limit) : undefined;
+        const items = limit ? runs.slice(0, limit) : runs;
+        raw.respond({ ok: true, data: { runs: items, total: runs.length } });
+      } catch (error) {
+        respondError(raw.respond, error as Error);
+      }
+    });
+
+    await client.subscribe(TOPICS.gateway.subagents.spawn, async (msg, raw) => {
+      try {
+        if (!this.subagentOrchestrator) {
+          throw new Error('Subagent execution is not configured');
+        }
+
+        const payload = msg.payload as {
+          task?: string;
+          label?: string;
+          profile?: string;
+          agentId?: string;
+          model?: string;
+          thinking?: string;
+          cleanup?: string;
+          runTimeoutSeconds?: number;
+          sessionId?: string;
+          channel?: string;
+          conversationId?: string;
+          replyToMessageId?: string;
+          userId?: string;
+        };
+
+        const task = typeof payload.task === 'string' ? payload.task.trim() : '';
+        if (!task) {
+          throw new Error('task is required');
+        }
+
+        const runRequest: SubagentRunRequest = {
+          task,
+          label: this.readOptionalString(payload.label),
+          profile: this.readOptionalString(payload.profile),
+          agentId: this.readOptionalString(payload.agentId),
+          model: this.readOptionalString(payload.model),
+          thinking: this.readOptionalString(payload.thinking),
+          cleanup: this.readCleanup(payload.cleanup),
+          timeoutMs: this.readTimeoutMs(payload.runTimeoutSeconds),
+          requester: {
+            sessionId: this.readOptionalString(payload.sessionId) ?? 'cli',
+            channel: this.readOptionalString(payload.channel) ?? 'cli',
+            conversationId: this.readOptionalString(payload.conversationId) ?? 'cli',
+            replyToMessageId: this.readOptionalString(payload.replyToMessageId),
+            userId: this.readOptionalString(payload.userId),
+          },
+        };
+
+        const run = await this.subagentOrchestrator.enqueue(runRequest);
+        raw.respond({
+          ok: true,
+          data: {
+            runId: run.runId,
+            childSessionId: run.childSessionId,
+          },
+        });
+      } catch (error) {
+        respondError(raw.respond, error as Error);
+      }
+    });
+
+    await client.subscribe(TOPICS.gateway.subagents.info, async (msg, raw) => {
+      try {
+        const payload = msg.payload as { runId?: string };
+        const runId = typeof payload?.runId === 'string' ? payload.runId : '';
+        const run = runId ? this.getSubagentInfo(runId) : null;
+        raw.respond({ ok: true, data: { run } });
+      } catch (error) {
+        respondError(raw.respond, error as Error);
+      }
+    });
+
+    await client.subscribe(TOPICS.gateway.subagents.stop, async (msg, raw) => {
+      try {
+        const payload = msg.payload as { runId?: string };
+        const runId = typeof payload?.runId === 'string' ? payload.runId : '';
+        const ok = runId ? this.stopSubagent(runId) : false;
+        raw.respond({ ok: true, data: { stopped: ok } });
+      } catch (error) {
+        respondError(raw.respond, error as Error);
+      }
+    });
+
+    await client.subscribe(TOPICS.gateway.subagents.log, async (msg, raw) => {
+      try {
+        const payload = msg.payload as { runId?: string; limit?: number };
+        const runId = typeof payload?.runId === 'string' ? payload.runId : '';
+        const limit = payload?.limit && payload.limit > 0 ? Math.floor(payload.limit) : 50;
+        const log = runId ? this.getSubagentLog(runId) : null;
+        const messages = log?.messages ?? [];
+        raw.respond({
+          ok: true,
+          data: {
+            runId,
+            messages: messages.slice(-limit),
+          },
+        });
+      } catch (error) {
+        respondError(raw.respond, error as Error);
+      }
+    });
+
+    await client.subscribe(TOPICS.gateway.sandbox.explain, async (_msg, raw) => {
+      try {
+        raw.respond({
+          ok: true,
+          data: {
+            config: this.options.toolSandboxConfig ?? null,
+            decisions: this.buildSandboxDecisionSamples(),
+          },
+        });
+      } catch (error) {
+        respondError(raw.respond, error as Error);
+      }
+    });
+
+    await client.subscribe(TOPICS.gateway.sandbox.list, async (_msg, raw) => {
+      try {
+        const runs = this.listSubagents();
+        raw.respond({
+          ok: true,
+          data: {
+            config: this.options.toolSandboxConfig ?? null,
+            decisions: this.buildSandboxDecisionSamples(),
+            subagentRuns: runs,
+          },
+        });
+      } catch (error) {
+        respondError(raw.respond, error as Error);
+      }
+    });
+
+    await client.subscribe(TOPICS.gateway.sandbox.recreate, async (_msg, raw) => {
+      try {
+        raw.respond({
+          ok: true,
+          data: {
+            message: 'Sandbox configuration is stateless; nothing to recreate.',
+          },
+        });
+      } catch (error) {
+        respondError(raw.respond, error as Error);
+      }
+    });
+  }
+
   /**
    * Start the gateway
    */
@@ -1224,6 +1733,8 @@ export class Gateway {
       });
     }
 
+    await this.registerManagementHandlers();
+
     this.startMemoryPipelineScheduler();
 
     // Create health server
@@ -1291,6 +1802,10 @@ export class Gateway {
 
     if (this.stateLayer) {
       await this.stateLayer.close();
+    }
+
+    if (this.subagentOrchestrator) {
+      await this.subagentOrchestrator.shutdown();
     }
 
     this.storage.close();
@@ -1443,6 +1958,37 @@ export class Gateway {
     }
 
     return this.subagentManager.run(task);
+  }
+
+  async spawnSubagent(request: SubagentRunRequest): Promise<SubagentRunRecord> {
+    if (!this.subagentOrchestrator) {
+      throw new Error('Subagent orchestration is not configured');
+    }
+
+    return this.subagentOrchestrator.enqueue(request);
+  }
+
+  listSubagents(): SubagentRunRecord[] {
+    return this.subagentOrchestrator?.listRuns() ?? [];
+  }
+
+  stopSubagent(runId: string): boolean {
+    return this.subagentOrchestrator?.stopRun(runId) ?? false;
+  }
+
+  getSubagentInfo(runId: string): SubagentRunRecord | null {
+    return this.subagentOrchestrator?.getRun(runId) ?? null;
+  }
+
+  getSubagentLog(runId: string): { runId: string; messages: Message[] } | null {
+    const run = this.subagentOrchestrator?.getRun(runId);
+    if (!run) {
+      return null;
+    }
+    return {
+      runId: run.runId,
+      messages: this.sessionManager.getMessages(run.childSessionId),
+    };
   }
 
   /**

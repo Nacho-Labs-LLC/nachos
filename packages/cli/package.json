@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@iarna/toml": "^2.2.5",
+    "@nachos/bus": "workspace:*",
     "@nachos/config": "workspace:*",
     "chalk": "^5.4.1",
     "commander": "^12.1.0",

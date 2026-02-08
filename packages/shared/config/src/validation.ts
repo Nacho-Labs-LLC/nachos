@@ -240,6 +240,9 @@ const CONFIG_SHAPE: SchemaNode = {
     },
     subagents: {
       enabled: true,
+      max_concurrent: true,
+      announce: { enabled: true, prompt: true },
+      tools: { allow: true, deny: true, default_profile: true, profiles: true },
       sandbox: {
         mode: true,
         docker: {
@@ -251,6 +254,15 @@ const CONFIG_SHAPE: SchemaNode = {
           timeout_ms: true,
         },
       },
+    },
+    sandbox: {
+      mode: true,
+      scope: true,
+      workspace_access: true,
+      extra_binds: true,
+      env: true,
+      setup_command: true,
+      network: true,
     },
   },
   assistant: { name: true, system_prompt: true, context_files: true },
@@ -613,6 +625,16 @@ function validateRuntimeConfig(config: NachosConfig, errors: string[], _warnings
       if (!image) {
         errors.push('runtime.subagents.sandbox.docker.image is required for full sandbox mode');
       }
+    }
+  }
+
+  if (config.runtime.subagents?.tools?.default_profile) {
+    const defaultProfile = config.runtime.subagents.tools.default_profile;
+    const profiles = config.runtime.subagents.tools.profiles ?? {};
+    if (!(defaultProfile in profiles)) {
+      errors.push(
+        `runtime.subagents.tools.default_profile references unknown profile: ${defaultProfile}`
+      );
     }
   }
 

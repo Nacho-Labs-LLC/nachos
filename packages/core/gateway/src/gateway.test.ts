@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Gateway } from './gateway.js';
-import type { ChannelInboundMessage } from '@nachos/types';
+import type { ChannelInboundMessage, Session } from '@nachos/types';
 import type { AuditConfig } from '@nachos/config';
 import type { AuditProvider } from './audit/provider.js';
 import * as auditLoader from './audit/loader.js';
@@ -277,6 +277,85 @@ describe('Gateway', () => {
       // Bus is not connected until start() is called
       expect(health.checks.bus).toBe('error');
       expect(health.status).toBe('unhealthy');
+    });
+  });
+
+  describe('subagent tool policy', () => {
+    it('denies session tools by default', () => {
+      const evaluator = gateway as unknown as {
+        evaluateSubagentToolPolicy: (
+          tool: string,
+          session?: Session | null
+        ) => {
+          allowed: boolean;
+        };
+      };
+      const policy = evaluator.evaluateSubagentToolPolicy('sessions_spawn');
+
+      expect(policy.allowed).toBe(false);
+    });
+
+    it('respects allowlist overrides', () => {
+      const customGateway = new Gateway({
+        dbPath: ':memory:',
+        subagentToolPolicy: { allow: ['filesystem_read'] },
+      });
+
+      const evaluator = customGateway as unknown as {
+        evaluateSubagentToolPolicy: (
+          tool: string,
+          session?: Session | null
+        ) => {
+          allowed: boolean;
+        };
+      };
+
+      const allowed = evaluator.evaluateSubagentToolPolicy('filesystem_read');
+      const denied = evaluator.evaluateSubagentToolPolicy('browser');
+
+      expect(allowed.allowed).toBe(true);
+      expect(denied.allowed).toBe(false);
+
+      customGateway.getStorage().close();
+    });
+
+    it('supports profile-specific allowlists', () => {
+      const customGateway = new Gateway({
+        dbPath: ':memory:',
+        subagentToolPolicy: {
+          default_profile: 'research',
+          profiles: {
+            research: {
+              allow: ['browser', 'web_search'],
+              deny: ['filesystem_write'],
+            },
+          },
+        },
+      });
+
+      const session = customGateway.getSessionManager().getOrCreateSession({
+        channel: 'subagent',
+        conversationId: 'conv-1',
+        userId: 'user-1',
+        metadata: { subagent: { runId: 'run-1', profile: 'research' } },
+      });
+
+      const evaluator = customGateway as unknown as {
+        evaluateSubagentToolPolicy: (
+          tool: string,
+          session?: Session | null
+        ) => {
+          allowed: boolean;
+        };
+      };
+
+      const allowed = evaluator.evaluateSubagentToolPolicy('browser', session);
+      const denied = evaluator.evaluateSubagentToolPolicy('filesystem_write', session);
+
+      expect(allowed.allowed).toBe(true);
+      expect(denied.allowed).toBe(false);
+
+      customGateway.getStorage().close();
     });
   });
 

@@ -61,7 +61,17 @@ export type {
 } from './state-layer/types.js';
 export { MemoryPipeline } from './state-layer/memory-pipeline.js';
 export { SubagentManager } from './subagents/subagent-manager.js';
-export type { SubagentTask, SubagentResult, SubagentManagerConfig } from './subagents/types.js';
+export { SubagentOrchestrator } from './subagents/subagent-orchestrator.js';
+export type {
+  SubagentTask,
+  SubagentResult,
+  SubagentManagerConfig,
+  SubagentOrchestratorConfig,
+  SubagentRunRecord,
+  SubagentRunRequest,
+  SubagentRunStatus,
+  SubagentAnnounceConfig,
+} from './subagents/types.js';
 
 // Router and message bus
 export {

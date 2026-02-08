@@ -221,6 +221,45 @@ validate_extraction = true
 # Subagent sandboxing
 [runtime.subagents]
 enabled = false
+max_concurrent = 1
+
+[runtime.subagents.announce]
+enabled = true
+# prompt = """
+# Status: <success|failed|cancelled>
+# Result: <short summary>
+# Notes: <optional>
+# Stats: durationMs=<number> sandboxed=<true|false>
+# """
+
+[runtime.subagents.tools]
+# deny wins; if allow is set, only allow those tools
+deny = ["sessions_list", "sessions_history", "sessions_send", "sessions_spawn"]
+# allow = ["filesystem_read", "browser"]
+default_profile = "engineering"
+
+# Tool profiles let you tailor access per subagent task type.
+[runtime.subagents.tools.profiles.research]
+allow = ["filesystem_read", "browser", "web_search"]
+deny = ["filesystem_write", "code_runner"]
+
+[runtime.subagents.tools.profiles.frontend]
+allow = ["filesystem_read", "filesystem_write", "browser", "code_runner"]
+
+[runtime.subagents.tools.profiles.qa]
+allow = ["filesystem_read", "code_runner"]
+deny = ["filesystem_write"]
+
+[runtime.subagents.tools.profiles.devops]
+allow = ["filesystem_read", "filesystem_write", "code_runner"]
+deny = ["shell"]
+
+[runtime.subagents.tools.profiles.security_audit]
+allow = ["filesystem_read", "web_search"]
+deny = ["filesystem_write", "code_runner"]
+
+[runtime.subagents.tools.profiles.engineering]
+allow = ["filesystem_read", "filesystem_write", "code_runner", "browser"]
 
 [runtime.subagents.sandbox]
 mode = "full"                              # "host" | "tool" | "full"
@@ -232,6 +271,16 @@ workspace_dir = "./workspace"
 config_dir = "./config"
 state_dir = "./state"
 timeout_ms = 300000
+
+# Tool sandboxing (optional)
+[runtime.sandbox]
+mode = "off"                               # "off" | "non-main" | "all"
+scope = "session"                          # "session" | "agent" | "shared"
+workspace_access = "rw"                    # "none" | "ro" | "rw"
+# extra_binds = ["/host/path:/container/path:ro"]
+# env = { KEY = "value" }
+# setup_command = "echo setup"
+# network = "egress"                       # "none" | "egress" | "full"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 🎨 PERSONALITY - Assistant Configuration

@@ -70,6 +70,100 @@ export function createProgram(): Command {
       await addToolCommand(name, program.opts());
     });
 
+  // Subagent commands
+  const subagentsCmd = program.command('subagents').description('Subagent management');
+
+  subagentsCmd
+    .command('spawn <task>')
+    .description('Spawn a subagent run')
+    .option('--label <label>', 'Optional run label')
+    .option('--profile <profile>', 'Subagent tool profile to apply')
+    .option('--agent-id <id>', 'Optional subagent ID override')
+    .option('--model <model>', 'Optional model override')
+    .option('--thinking <hint>', 'Optional thinking hint')
+    .option('--timeout <seconds>', 'Run timeout in seconds')
+    .option('--cleanup <mode>', 'Cleanup mode: delete or keep')
+    .action(async (task: string, options) => {
+      const { subagentsSpawnCommand } = await import('./commands/subagents.js');
+      const parsed = options.timeout ? Number.parseInt(options.timeout, 10) : undefined;
+      await subagentsSpawnCommand(task, {
+        ...program.opts(),
+        ...options,
+        timeout: Number.isNaN(parsed) ? undefined : parsed,
+      });
+    });
+
+  subagentsCmd
+    .command('list')
+    .description('List subagent runs')
+    .option('--limit <count>', 'Limit number of runs')
+    .action(async (options) => {
+      const { subagentsListCommand } = await import('./commands/subagents.js');
+      const parsed = options.limit ? Number.parseInt(options.limit, 10) : undefined;
+      await subagentsListCommand({
+        ...program.opts(),
+        ...options,
+        limit: Number.isNaN(parsed) ? undefined : parsed,
+      });
+    });
+
+  subagentsCmd
+    .command('info <runId>')
+    .description('Show subagent run details')
+    .action(async (runId: string) => {
+      const { subagentsInfoCommand } = await import('./commands/subagents.js');
+      await subagentsInfoCommand(runId, program.opts());
+    });
+
+  subagentsCmd
+    .command('stop <runId>')
+    .description('Stop a queued subagent run')
+    .action(async (runId: string) => {
+      const { subagentsStopCommand } = await import('./commands/subagents.js');
+      await subagentsStopCommand(runId, program.opts());
+    });
+
+  subagentsCmd
+    .command('log <runId>')
+    .description('Show subagent run log')
+    .option('--limit <count>', 'Limit number of messages')
+    .action(async (runId: string, options) => {
+      const { subagentsLogCommand } = await import('./commands/subagents.js');
+      const parsed = options.limit ? Number.parseInt(options.limit, 10) : undefined;
+      await subagentsLogCommand(runId, {
+        ...program.opts(),
+        ...options,
+        limit: Number.isNaN(parsed) ? undefined : parsed,
+      });
+    });
+
+  // Sandbox commands
+  const sandboxCmd = program.command('sandbox').description('Sandbox management');
+
+  sandboxCmd
+    .command('explain')
+    .description('Explain sandbox configuration')
+    .action(async () => {
+      const { sandboxExplainCommand } = await import('./commands/sandbox.js');
+      await sandboxExplainCommand(program.opts());
+    });
+
+  sandboxCmd
+    .command('list')
+    .description('List sandbox status')
+    .action(async () => {
+      const { sandboxListCommand } = await import('./commands/sandbox.js');
+      await sandboxListCommand(program.opts());
+    });
+
+  sandboxCmd
+    .command('recreate')
+    .description('Recreate sandbox configuration')
+    .action(async () => {
+      const { sandboxRecreateCommand } = await import('./commands/sandbox.js');
+      await sandboxRecreateCommand(program.opts());
+    });
+
   // Top-level commands
   program
     .command('init')

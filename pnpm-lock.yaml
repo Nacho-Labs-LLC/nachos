@@ -197,6 +197,9 @@ importers:
       '@iarna/toml':
         specifier: ^2.2.5
         version: 2.2.5
+      '@nachos/bus':
+        specifier: workspace:*
+        version: link:../core/bus
       '@nachos/config':
         specifier: workspace:*
         version: link:../shared/config

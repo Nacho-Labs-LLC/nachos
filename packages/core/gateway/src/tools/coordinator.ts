@@ -251,6 +251,7 @@ export class ToolCoordinator {
       payload: {
         sessionId: call.sessionId,
         callId: call.id,
+        sandbox: call.sandbox,
         ...call.parameters,
       },
     };

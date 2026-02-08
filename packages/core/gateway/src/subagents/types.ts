@@ -2,7 +2,7 @@
  * Subagent execution types.
  */
 
-import type { LLMRequestType, LLMResponseType } from '@nachos/types';
+import type { LLMRequestType, LLMResponseType, SessionConfig } from '@nachos/types';
 
 export interface SubagentTask {
   id: string;
@@ -32,4 +32,55 @@ export interface DockerSandboxConfig {
 export interface SubagentManagerConfig {
   mode: 'host' | 'tool' | 'full';
   docker?: DockerSandboxConfig;
+}
+
+export type SubagentRunStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+
+export interface SubagentRequesterInfo {
+  sessionId: string;
+  channel: string;
+  conversationId: string;
+  replyToMessageId?: string;
+  userId?: string;
+}
+
+export interface SubagentAnnounceConfig {
+  enabled?: boolean;
+  prompt?: string;
+}
+
+export interface SubagentOrchestratorConfig {
+  maxConcurrent?: number;
+  announce?: SubagentAnnounceConfig;
+}
+
+export interface SubagentRunRequest {
+  task: string;
+  label?: string;
+  profile?: string;
+  agentId?: string;
+  requester: SubagentRequesterInfo;
+  model?: string;
+  thinking?: string;
+  timeoutMs?: number;
+  cleanup?: 'delete' | 'keep';
+  sessionConfig?: SessionConfig;
+  sandboxMode?: SubagentTask['sandboxMode'];
+}
+
+export interface SubagentRunRecord {
+  runId: string;
+  status: SubagentRunStatus;
+  createdAt: string;
+  startedAt?: string;
+  completedAt?: string;
+  task: string;
+  label?: string;
+  profile?: string;
+  agentId?: string;
+  requester: SubagentRequesterInfo;
+  childSessionId: string;
+  sandboxed?: boolean;
+  durationMs?: number;
+  error?: { code: string; message: string };
 }

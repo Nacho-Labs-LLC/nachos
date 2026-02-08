@@ -246,9 +246,9 @@ export class ConfigPatchTool extends ToolService {
         }
 
         currentHunk = {
-          oldStart: parseInt(hunkMatch[1], 10),
+          oldStart: parseInt(hunkMatch[1] ?? '0', 10),
           oldCount: hunkMatch[2] ? parseInt(hunkMatch[2], 10) : 1,
-          newStart: parseInt(hunkMatch[3], 10),
+          newStart: parseInt(hunkMatch[3] ?? '0', 10),
           newCount: hunkMatch[4] ? parseInt(hunkMatch[4], 10) : 1,
           lines: [],
         };

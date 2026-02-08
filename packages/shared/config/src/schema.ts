@@ -438,9 +438,37 @@ export interface SubagentSandboxConfig {
   docker?: SubagentSandboxDockerConfig;
 }
 
+export interface SubagentAnnounceConfig {
+  enabled?: boolean;
+  prompt?: string;
+}
+
+export interface SubagentToolProfileConfig {
+  allow?: string[];
+  deny?: string[];
+}
+
+export interface SubagentToolPolicyConfig extends SubagentToolProfileConfig {
+  default_profile?: string;
+  profiles?: Record<string, SubagentToolProfileConfig>;
+}
+
 export interface SubagentConfig {
   enabled?: boolean;
+  max_concurrent?: number;
+  announce?: SubagentAnnounceConfig;
+  tools?: SubagentToolPolicyConfig;
   sandbox?: SubagentSandboxConfig;
+}
+
+export interface RuntimeToolSandboxConfig {
+  mode?: 'off' | 'non-main' | 'all';
+  scope?: 'session' | 'agent' | 'shared';
+  workspace_access?: 'none' | 'ro' | 'rw';
+  extra_binds?: string[];
+  env?: Record<string, string>;
+  setup_command?: string;
+  network?: 'none' | 'egress' | 'full';
 }
 
 /**
@@ -460,6 +488,7 @@ export interface RuntimeConfig {
   context_management?: ContextManagementConfig;
   state?: StateLayerConfig;
   subagents?: SubagentConfig;
+  sandbox?: RuntimeToolSandboxConfig;
 }
 
 /**

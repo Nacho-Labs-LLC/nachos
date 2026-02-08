@@ -494,6 +494,31 @@ export const ToolResponseSchema = Type.Object(
 
 export type ToolResponseType = Static<typeof ToolResponseSchema>;
 
+/**
+ * sessions_spawn tool parameters
+ */
+export const SessionsSpawnToolSchema = Type.Object(
+  {
+    task: Type.String({ description: 'Task instruction for the subagent', minLength: 1 }),
+    label: Type.Optional(Type.String({ description: 'Optional run label' })),
+    profile: Type.Optional(Type.String({ description: 'Optional subagent tool profile' })),
+    agentId: Type.Optional(Type.String({ description: 'Optional subagent ID override' })),
+    model: Type.Optional(Type.String({ description: 'Optional model override' })),
+    thinking: Type.Optional(Type.String({ description: 'Optional thinking hint' })),
+    runTimeoutSeconds: Type.Optional(
+      Type.Number({ description: 'Run timeout in seconds', minimum: 1 })
+    ),
+    cleanup: Type.Optional(
+      Type.Union([Type.Literal('delete'), Type.Literal('keep')], {
+        description: 'Whether to delete or keep the subagent session after completion',
+      })
+    ),
+  },
+  { $id: 'SessionsSpawnTool', description: 'Subagent spawn tool parameters' }
+);
+
+export type SessionsSpawnToolType = Static<typeof SessionsSpawnToolSchema>;
+
 // ============================================================================
 // Health Check Schemas
 // ============================================================================
@@ -704,6 +729,7 @@ export const Schemas = {
   // Tool
   ToolRequest: ToolRequestSchema,
   ToolResponse: ToolResponseSchema,
+  SessionsSpawnTool: SessionsSpawnToolSchema,
 
   // Health
   HealthStatus: HealthStatusSchema,
