@@ -1,0 +1,18 @@
+{
+  "name": "copilot",
+  "version": "0.1.0",
+  "type": "tool",
+  "capabilities": {
+    "network": {
+      "egress": ["api.github.com", "github.com", "*.github.com"]
+    },
+    "resources": {
+      "memory": "256Mi",
+      "cpus": 0.5
+    }
+  },
+  "provides": {
+    "tool": "copilot",
+    "securityTier": 3
+  }
+}

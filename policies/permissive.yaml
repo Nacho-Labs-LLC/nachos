@@ -199,6 +199,17 @@ rules:
     audit: true
     require_approval: true
 
+  # GitHub Copilot CLI - Allow (still requires user approval due to RESTRICTED tier)
+  - id: "permissive-tool-copilot"
+    description: "Allow GitHub Copilot CLI"
+    priority: 680
+    match:
+      resource: "tool"
+      resourceId: "copilot"
+    effect: "allow"
+    audit: true
+    require_approval: true
+
   # ============================================================================
   # Network Access - Broader access
   # ============================================================================

@@ -14,7 +14,14 @@ interface AddToolOptions {
   json?: boolean;
 }
 
-const VALID_TOOLS = ['filesystem', 'browser', 'code_runner', 'shell', 'web_search'] as const;
+const VALID_TOOLS = [
+  'filesystem',
+  'browser',
+  'code_runner',
+  'shell',
+  'web_search',
+  'copilot',
+] as const;
 
 type ToolName = (typeof VALID_TOOLS)[number];
 
@@ -51,6 +58,13 @@ const TOOL_STUBS: Record<ToolName, TOML.JsonMap> = {
   },
   web_search: {
     enabled: false,
+  },
+  copilot: {
+    enabled: false,
+    max_prompt_length: 4000,
+    max_output_size: 50000,
+    default_timeout: 30,
+    max_timeout: 60,
   },
 };
 

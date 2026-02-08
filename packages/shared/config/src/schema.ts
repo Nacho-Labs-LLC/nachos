@@ -193,6 +193,17 @@ export interface WebSearchToolConfig {
 }
 
 /**
+ * Copilot tool configuration
+ */
+export interface CopilotToolConfig {
+  enabled: boolean;
+  max_prompt_length?: number;
+  max_output_size?: number;
+  default_timeout?: number;
+  max_timeout?: number;
+}
+
+/**
  * All tool configurations
  */
 export interface ToolsConfig {
@@ -201,6 +212,7 @@ export interface ToolsConfig {
   code_runner?: CodeRunnerToolConfig;
   shell?: ShellToolConfig;
   web_search?: WebSearchToolConfig;
+  copilot?: CopilotToolConfig;
 }
 
 /**

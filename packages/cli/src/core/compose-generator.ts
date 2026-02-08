@@ -140,6 +140,15 @@ export function generateComposeFile(config: NachosConfig, projectRoot: string): 
       }
     }
 
+    if (config.tools?.copilot?.enabled) {
+      const dockerfilePath = join(projectRoot, 'packages/tools/copilot/Dockerfile');
+      if (existsSync(dockerfilePath)) {
+        compose.services.copilot = buildCopilotService(config, projectRoot);
+      } else {
+        console.warn('⚠️  Copilot tool is enabled but not yet implemented (Phase 6)');
+      }
+    }
+
     return compose;
   } catch (error) {
     throw new ComposeGenerationError(error instanceof Error ? error.message : String(error));
@@ -798,6 +807,46 @@ function buildWebSearchService(_config: NachosConfig, projectRoot: string): Serv
         'max-size': '10m',
         'max-file': '3',
         labels: 'service=web-search',
+      },
+    },
+  };
+}
+
+function buildCopilotService(config: NachosConfig, projectRoot: string): Service {
+  const environment: Record<string, string> = {
+    NODE_ENV: 'development',
+    NATS_URL: 'nats://bus:4222',
+    LOG_LEVEL: 'debug',
+    MAX_PROMPT_LENGTH: String(config.tools?.copilot?.max_prompt_length ?? 4000),
+    MAX_OUTPUT_SIZE: String(config.tools?.copilot?.max_output_size ?? 50000),
+    DEFAULT_TIMEOUT_SEC: String(config.tools?.copilot?.default_timeout ?? 30),
+    MAX_TIMEOUT_SEC: String(config.tools?.copilot?.max_timeout ?? 60),
+  };
+
+  if (process.env.GH_TOKEN) {
+    environment.GH_TOKEN = process.env.GH_TOKEN;
+  }
+
+  return {
+    container_name: 'nachos-copilot',
+    build: {
+      context: projectRoot,
+      dockerfile: 'packages/tools/copilot/Dockerfile',
+    },
+    image: 'nachos-copilot:dev',
+    restart: 'unless-stopped',
+    depends_on: {
+      bus: { condition: 'service_healthy' },
+    },
+    networks: ['nachos-internal', 'nachos-egress'],
+    environment,
+    volumes: ['nachos-logs:/var/log/nachos'],
+    logging: {
+      driver: 'json-file',
+      options: {
+        'max-size': '10m',
+        'max-file': '3',
+        labels: 'service=copilot',
       },
     },
   };

@@ -106,6 +106,13 @@ const CONFIG_SHAPE: SchemaNode = {
     code_runner: { enabled: true, runtime: true, languages: true, timeout: true, max_memory: true },
     shell: { enabled: true },
     web_search: { enabled: true },
+    copilot: {
+      enabled: true,
+      max_prompt_length: true,
+      max_output_size: true,
+      default_timeout: true,
+      max_timeout: true,
+    },
   },
   security: {
     mode: true,
