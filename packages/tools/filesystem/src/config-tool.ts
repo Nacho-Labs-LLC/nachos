@@ -30,6 +30,8 @@ interface PatchHunk {
   lines: string[];
 }
 
+const HUNK_HEADER_REGEX = /^@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@/;
+
 export class ConfigPatchTool extends ToolService {
   readonly toolId = 'config_patch';
   readonly name = 'Config Patch';
@@ -99,7 +101,8 @@ export class ConfigPatchTool extends ToolService {
 
     try {
       const fileContent = await fs.readFile(this.configPath, 'utf-8');
-      const fileLines = fileContent.split('\n');
+      const lineEnding = fileContent.includes('\r\n') ? '\r\n' : '\n';
+      const fileLines = fileContent.split(/\r?\n/);
 
       const hunks = this.parsePatch(patchContent);
       if (hunks.length === 0) {
@@ -112,7 +115,7 @@ export class ConfigPatchTool extends ToolService {
       }
 
       if (!dryRun) {
-        await fs.writeFile(this.configPath, result.lines!.join('\n'), 'utf-8');
+        await fs.writeFile(this.configPath, result.lines!.join(lineEnding), 'utf-8');
       }
 
       return this.formatTextResponse(
@@ -123,7 +126,7 @@ export class ConfigPatchTool extends ToolService {
             hunksApplied: hunks.length,
             linesChanged: result.linesChanged,
             dryRun,
-            preview: dryRun ? result.lines!.slice(0, 10).join('\n') : undefined,
+            preview: dryRun ? result.lines!.slice(0, 10).join(lineEnding) : undefined,
           },
           null,
           2
@@ -225,12 +228,12 @@ export class ConfigPatchTool extends ToolService {
    * Parse unified diff patch
    */
   private parsePatch(patchContent: string): PatchHunk[] {
-    const lines = patchContent.split('\n');
+    const lines = patchContent.split(/\r?\n/);
     const hunks: PatchHunk[] = [];
     let currentHunk: PatchHunk | null = null;
 
     for (const line of lines) {
-      const hunkMatch = line.match(/^@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@/);
+      const hunkMatch = line.match(HUNK_HEADER_REGEX);
       if (hunkMatch) {
         if (currentHunk) {
           hunks.push(currentHunk);
@@ -319,7 +322,8 @@ export class ConfigPatchTool extends ToolService {
         }
       }
 
-      result.splice(startLine - 1, currentLine - (startLine - 1), ...newLines);
+      const linesToReplace = currentLine - (startLine - 1);
+      result.splice(startLine - 1, linesToReplace, ...newLines);
     }
 
     return { success: true, lines: result, linesChanged };

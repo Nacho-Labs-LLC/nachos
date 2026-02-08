@@ -67,4 +67,39 @@ describe('ConfigPatchTool', () => {
     expect(unchanged).toContain('name = "test"');
     expect(unchanged).not.toContain('dry-run');
   });
+
+  it('applies patches in reverse', async () => {
+    const patch = ['@@ -1,2 +1,2 @@', ' [nachos]', '-name = "test"', '+name = "updated"', ''].join(
+      '\n'
+    );
+
+    await tool.execute({
+      sessionId: 'session',
+      callId: 'call',
+      patch,
+    });
+
+    const reverseResult = await tool.execute({
+      sessionId: 'session',
+      callId: 'call',
+      patch,
+      reverse: true,
+    });
+
+    expect(reverseResult.success).toBe(true);
+    const restored = await fs.readFile(configPath, 'utf-8');
+    expect(restored).toContain('name = "test"');
+    expect(restored).not.toContain('updated');
+  });
+
+  it('returns error for invalid patch content', async () => {
+    const result = await tool.execute({
+      sessionId: 'session',
+      callId: 'call',
+      patch: 'not-a-hunk',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.code).toBe('INVALID_PATCH');
+  });
 });
