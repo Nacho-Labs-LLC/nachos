@@ -68,6 +68,25 @@ describe('ConfigPatchTool', () => {
     expect(unchanged).not.toContain('dry-run');
   });
 
+  it('preserves CRLF line endings', async () => {
+    await fs.writeFile(configPath, '[nachos]\r\nname = "test"\r\n', 'utf-8');
+    const patch = ['@@ -1,2 +1,2 @@', ' [nachos]', '-name = "test"', '+name = "crlf"', ''].join(
+      '\n'
+    );
+
+    const result = await tool.execute({
+      sessionId: 'session',
+      callId: 'call',
+      patch,
+    });
+
+    expect(result.success).toBe(true);
+    const updated = await fs.readFile(configPath, 'utf-8');
+    expect(updated).toContain('\r\n');
+    expect(updated).toContain('name = "crlf"');
+    expect(updated.endsWith('\r\n')).toBe(true);
+  });
+
   it('applies patches in reverse', async () => {
     const patch = ['@@ -1,2 +1,2 @@', ' [nachos]', '-name = "test"', '+name = "updated"', ''].join(
       '\n'

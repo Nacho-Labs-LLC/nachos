@@ -101,7 +101,9 @@ export class ConfigPatchTool extends ToolService {
 
     try {
       const fileContent = await fs.readFile(this.configPath, 'utf-8');
-      const lineEnding = fileContent.includes('\r\n') ? '\r\n' : '\n';
+      const firstNewline = fileContent.indexOf('\n');
+      const lineEnding = firstNewline > 0 && fileContent[firstNewline - 1] === '\r' ? '\r\n' : '\n';
+      const hasTrailingNewline = fileContent.endsWith('\n');
       const fileLines = fileContent.split(/\r?\n/);
 
       const hunks = this.parsePatch(patchContent);
@@ -115,7 +117,9 @@ export class ConfigPatchTool extends ToolService {
       }
 
       if (!dryRun) {
-        await fs.writeFile(this.configPath, result.lines!.join(lineEnding), 'utf-8');
+        const joined = result.lines!.join(lineEnding);
+        const output = hasTrailingNewline ? `${joined}${lineEnding}` : joined;
+        await fs.writeFile(this.configPath, output, 'utf-8');
       }
 
       return this.formatTextResponse(
@@ -196,7 +200,9 @@ export class ConfigPatchTool extends ToolService {
     }
 
     if (!resolved) {
-      throw new Error('Config file not found. Set NACHOS_CONFIG_PATH or config_path.');
+      throw new Error(
+        'Config file not found. Set NACHOS_CONFIG_PATH, CONFIG_PATH, or config_path.'
+      );
     }
 
     await fs.access(resolved);
@@ -239,16 +245,10 @@ export class ConfigPatchTool extends ToolService {
           hunks.push(currentHunk);
         }
 
-        const oldStartValue = hunkMatch[1];
-        const newStartValue = hunkMatch[3];
-        if (!oldStartValue || !newStartValue) {
-          continue;
-        }
-
         currentHunk = {
-          oldStart: parseInt(oldStartValue, 10),
+          oldStart: parseInt(hunkMatch[1], 10),
           oldCount: hunkMatch[2] ? parseInt(hunkMatch[2], 10) : 1,
-          newStart: parseInt(newStartValue, 10),
+          newStart: parseInt(hunkMatch[3], 10),
           newCount: hunkMatch[4] ? parseInt(hunkMatch[4], 10) : 1,
           lines: [],
         };
