@@ -358,12 +358,89 @@ export interface ProactiveHistoryConfig {
 }
 
 /**
+ * Context Management - Memory Flush Configuration
+ */
+export interface MemoryFlushConfig {
+  enabled?: boolean;
+  soft_threshold_tokens?: number;
+  extract_structured?: boolean;
+  create_snapshot?: boolean;
+  validate_extraction?: boolean;
+  system_prompt?: string;
+  prompt?: string;
+}
+
+/**
  * Context Management Configuration
  */
 export interface ContextManagementConfig {
   sliding_window?: SlidingWindowConfig;
   summarization?: SummarizationConfig;
   proactive_history?: ProactiveHistoryConfig;
+  memory_flush?: MemoryFlushConfig;
+}
+
+/**
+ * State layer storage configuration
+ */
+export interface StateStoreFilesystemConfig {
+  dir?: string;
+}
+
+export interface StateStorePostgresConfig {
+  connection_string?: string;
+  schema?: string;
+  ssl?: boolean;
+  max_connections?: number;
+}
+
+export interface StateStoreConfig {
+  provider?: 'filesystem' | 'postgres';
+  filesystem?: StateStoreFilesystemConfig;
+  postgres?: StateStorePostgresConfig;
+}
+
+export interface SessionStateConfig {
+  provider?: 'redis' | 'memory';
+  redis_url?: string;
+  ttl_seconds?: number;
+}
+
+export interface PromptReportConfig {
+  hash?: 'sha256';
+  include_tokens?: boolean;
+  max_memory_entries?: number;
+  max_memory_facts?: number;
+  include_session_state?: boolean;
+}
+
+export interface StateLayerConfig {
+  identity?: StateStoreConfig;
+  memory?: StateStoreConfig;
+  session?: SessionStateConfig;
+  prompt_report?: PromptReportConfig;
+}
+
+/**
+ * Subagent sandbox configuration
+ */
+export interface SubagentSandboxDockerConfig {
+  image?: string;
+  network?: 'none' | 'egress' | 'full';
+  workspace_dir?: string;
+  config_dir?: string;
+  state_dir?: string;
+  timeout_ms?: number;
+}
+
+export interface SubagentSandboxConfig {
+  mode?: 'host' | 'tool' | 'full';
+  docker?: SubagentSandboxDockerConfig;
+}
+
+export interface SubagentConfig {
+  enabled?: boolean;
+  sandbox?: SubagentSandboxConfig;
 }
 
 /**
@@ -371,6 +448,8 @@ export interface ContextManagementConfig {
  */
 export interface RuntimeConfig {
   state_dir?: string;
+  config_dir?: string;
+  workspace_dir?: string;
   log_level?: 'debug' | 'info' | 'warn' | 'error';
   log_format?: 'pretty' | 'json';
   redis_url?: string;
@@ -379,6 +458,8 @@ export interface RuntimeConfig {
   gateway_streaming_chunk_size?: number;
   gateway_streaming_min_interval_ms?: number;
   context_management?: ContextManagementConfig;
+  state?: StateLayerConfig;
+  subagents?: SubagentConfig;
 }
 
 /**

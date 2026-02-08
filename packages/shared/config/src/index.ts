@@ -35,8 +35,18 @@ export type {
   AuditConfig,
   RuntimeConfig,
   ResourcesConfig,
+  StateStoreFilesystemConfig,
+  StateStorePostgresConfig,
+  StateStoreConfig,
+  SessionStateConfig,
+  PromptReportConfig,
+  StateLayerConfig,
+  SubagentSandboxDockerConfig,
+  SubagentSandboxConfig,
+  SubagentConfig,
   AssistantConfig,
   SkillsConfig,
+  MemoryFlushConfig,
 } from './schema.js';
 
 // Export loader functions

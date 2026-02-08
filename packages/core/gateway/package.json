@@ -27,13 +27,17 @@
     "@nachos/context-manager": "workspace:*",
     "@nachos/types": "workspace:*",
     "better-sqlite3": "^12.6.2",
+    "dockerode": "^4.0.2",
+    "pg": "^8.13.1",
     "redis": "^4.7.0",
     "uuid": "^13.0.0",
     "yaml": "^2.8.2"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
+    "@types/dockerode": "^3.3.27",
     "@types/node": "^22.10.5",
+    "@types/pg": "^8.11.11",
     "@types/uuid": "^11.0.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3"

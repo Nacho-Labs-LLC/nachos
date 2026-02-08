@@ -140,6 +140,8 @@ const CONFIG_SHAPE: SchemaNode = {
   },
   runtime: {
     state_dir: true,
+    config_dir: true,
+    workspace_dir: true,
     log_level: true,
     log_format: true,
     redis_url: true,
@@ -147,6 +149,109 @@ const CONFIG_SHAPE: SchemaNode = {
     gateway_streaming_passthrough: true,
     gateway_streaming_chunk_size: true,
     gateway_streaming_min_interval_ms: true,
+    context_management: {
+      sliding_window: {
+        enabled: true,
+        mode: true,
+        thresholds: {
+          proactive_prune: true,
+          light_compaction: true,
+          aggressive_compaction: true,
+          emergency: true,
+        },
+        keep_recent: { turns: true, messages: true, token_budget: true },
+        slide_strategy: true,
+        chunk_size: true,
+      },
+      summarization: {
+        enabled: true,
+        mode: true,
+        tiers: {
+          archival: { compression_ratio: true, format: true, preserves: true },
+          compressed: { compression_ratio: true, format: true, preserves: true },
+          condensed: { compression_ratio: true, format: true, preserves: true },
+        },
+        content_classification: {
+          enabled: true,
+          preserve_critical: true,
+          preserve_code: true,
+          preserve_errors: true,
+        },
+        custom_instructions: true,
+      },
+      proactive_history: {
+        enabled: true,
+        extractors: {
+          decisions: true,
+          facts: true,
+          tasks: true,
+          issues: true,
+          files: true,
+        },
+        triggers: {
+          on_compaction: true,
+          on_threshold: true,
+          on_memory_flush: true,
+          periodic: true,
+        },
+        snapshots: { enabled: true, dir: true, max_snapshots: true },
+        summary_archive: { enabled: true, dir: true, max_summaries: true },
+        custom_pattern_files: true,
+      },
+      memory_flush: {
+        enabled: true,
+        soft_threshold_tokens: true,
+        extract_structured: true,
+        create_snapshot: true,
+        validate_extraction: true,
+        system_prompt: true,
+        prompt: true,
+      },
+    },
+    state: {
+      identity: {
+        provider: true,
+        filesystem: { dir: true },
+        postgres: {
+          connection_string: true,
+          schema: true,
+          ssl: true,
+          max_connections: true,
+        },
+      },
+      memory: {
+        provider: true,
+        filesystem: { dir: true },
+        postgres: {
+          connection_string: true,
+          schema: true,
+          ssl: true,
+          max_connections: true,
+        },
+      },
+      session: { provider: true, redis_url: true, ttl_seconds: true },
+      prompt_report: {
+        hash: true,
+        include_tokens: true,
+        max_memory_entries: true,
+        max_memory_facts: true,
+        include_session_state: true,
+      },
+    },
+    subagents: {
+      enabled: true,
+      sandbox: {
+        mode: true,
+        docker: {
+          image: true,
+          network: true,
+          workspace_dir: true,
+          config_dir: true,
+          state_dir: true,
+          timeout_ms: true,
+        },
+      },
+    },
   },
   assistant: { name: true, system_prompt: true, context_files: true },
   skills: { enabled: true },
@@ -431,6 +536,59 @@ function validateRuntimeConfig(config: NachosConfig, errors: string[], _warnings
     }
   }
 
+  if (config.runtime.config_dir !== undefined && config.runtime.config_dir.trim() === '') {
+    errors.push('runtime.config_dir must be a non-empty string if provided');
+  }
+
+  if (config.runtime.workspace_dir !== undefined && config.runtime.workspace_dir.trim() === '') {
+    errors.push('runtime.workspace_dir must be a non-empty string if provided');
+  }
+
+  if (config.runtime.state) {
+    const stateDir = config.runtime.state_dir;
+    const validateStore = (
+      store: typeof config.runtime.state.identity | undefined,
+      label: string
+    ) => {
+      if (!store?.provider) return;
+      if (store.provider !== 'filesystem' && store.provider !== 'postgres') {
+        errors.push(`runtime.state.${label}.provider must be "filesystem" or "postgres"`);
+      }
+      if (store.provider === 'filesystem') {
+        const dir = store.filesystem?.dir ?? stateDir;
+        if (!dir) {
+          errors.push(`runtime.state.${label}.filesystem.dir or runtime.state_dir is required`);
+        }
+      }
+      if (store.provider === 'postgres' && !store.postgres?.connection_string) {
+        errors.push(`runtime.state.${label}.postgres.connection_string is required`);
+      }
+    };
+
+    validateStore(config.runtime.state.identity, 'identity');
+    validateStore(config.runtime.state.memory, 'memory');
+
+    if (config.runtime.state.session?.provider) {
+      const provider = config.runtime.state.session.provider;
+      if (provider !== 'redis' && provider !== 'memory') {
+        errors.push('runtime.state.session.provider must be "redis" or "memory"');
+      }
+      if (provider === 'redis') {
+        const redisUrl = config.runtime.state.session.redis_url ?? config.runtime.redis_url;
+        if (!redisUrl) {
+          errors.push('runtime.state.session.redis_url or runtime.redis_url is required for redis');
+        }
+        if (config.runtime.state.session.redis_url) {
+          try {
+            new URL(config.runtime.state.session.redis_url);
+          } catch {
+            errors.push('runtime.state.session.redis_url must be a valid URL');
+          }
+        }
+      }
+    }
+  }
+
   if (config.runtime.resources) {
     if (config.runtime.resources.cpus !== undefined && config.runtime.resources.cpus <= 0) {
       errors.push('runtime.resources.cpus must be greater than 0');
@@ -441,6 +599,20 @@ function validateRuntimeConfig(config: NachosConfig, errors: string[], _warnings
       config.runtime.resources.pids_limit < 1
     ) {
       errors.push('runtime.resources.pids_limit must be at least 1');
+    }
+  }
+
+  if (config.runtime.subagents?.sandbox?.mode) {
+    const validModes = ['host', 'tool', 'full'];
+    if (!validModes.includes(config.runtime.subagents.sandbox.mode)) {
+      errors.push('runtime.subagents.sandbox.mode must be "host", "tool", or "full"');
+    }
+
+    if (config.runtime.subagents.sandbox.mode === 'full') {
+      const image = config.runtime.subagents.sandbox.docker?.image;
+      if (!image) {
+        errors.push('runtime.subagents.sandbox.docker.image is required for full sandbox mode');
+      }
     }
   }
 

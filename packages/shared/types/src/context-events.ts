@@ -100,6 +100,7 @@ export const ExtractionEventSchema = Type.Object(
         Type.Literal('compaction'),
         Type.Literal('threshold'),
         Type.Literal('periodic'),
+        Type.Literal('memory_flush'),
         Type.Literal('manual'),
       ],
       { description: 'What triggered the extraction' }

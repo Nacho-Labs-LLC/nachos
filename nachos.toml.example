@@ -165,6 +165,8 @@ log_tool_calls = true                     # Log all tool invocations
 
 [runtime]
 state_dir = "./state"                     # Persistent state storage
+config_dir = "./config"                   # Optional: config directory mounted into sandboxes
+workspace_dir = "./workspace"             # Optional: workspace directory mounted into sandboxes
 log_level = "info"                        # "debug" | "info" | "warn" | "error"
 log_format = "pretty"                     # "pretty" | "json"
 redis_url = "redis://localhost:6379"
@@ -176,6 +178,60 @@ redis_url = "redis://localhost:6379"
 memory = "512MB"
 cpus = 0.5
 pids_limit = 100
+
+# State Layer storage (identity, memory, session state)
+[runtime.state]
+
+[runtime.state.identity]
+provider = "filesystem"                   # "filesystem" | "postgres"
+[runtime.state.identity.filesystem]
+dir = "./state/identity"
+# [runtime.state.identity.postgres]
+# connection_string = "postgres://user:pass@localhost:5432/nachos"
+# schema = "public"
+
+[runtime.state.memory]
+provider = "filesystem"
+[runtime.state.memory.filesystem]
+dir = "./state/memory"
+# [runtime.state.memory.postgres]
+# connection_string = "postgres://user:pass@localhost:5432/nachos"
+# schema = "public"
+
+[runtime.state.session]
+provider = "redis"                        # "redis" | "memory"
+redis_url = "redis://localhost:6379"
+ttl_seconds = 86400
+
+[runtime.state.prompt_report]
+hash = "sha256"
+include_tokens = true
+max_memory_entries = 50
+max_memory_facts = 50
+include_session_state = false
+
+# Context management (memory flush example)
+[runtime.context_management.memory_flush]
+enabled = true
+soft_threshold_tokens = 4000
+extract_structured = true
+create_snapshot = true
+validate_extraction = true
+
+# Subagent sandboxing
+[runtime.subagents]
+enabled = false
+
+[runtime.subagents.sandbox]
+mode = "full"                              # "host" | "tool" | "full"
+
+[runtime.subagents.sandbox.docker]
+image = "nachos/subagent:latest"
+network = "egress"                         # "none" | "egress" | "full"
+workspace_dir = "./workspace"
+config_dir = "./config"
+state_dir = "./state"
+timeout_ms = 300000
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 🎨 PERSONALITY - Assistant Configuration

@@ -8,6 +8,7 @@ import type {
   LLMResponseType,
   MessageEnvelope,
   Session,
+  PromptReport,
 } from '@nachos/types';
 import { validateChannelInboundMessage } from '@nachos/types';
 import type { AuditConfig } from '@nachos/config';
@@ -28,6 +29,21 @@ import { ToolCoordinator } from './tools/coordinator.js';
 import { ToolCache } from './tools/cache.js';
 import { ApprovalManager } from './tools/approval-manager.js';
 import type { ToolCall, ToolResult } from '@nachos/types';
+import {
+  StateLayer,
+  createStateLayer,
+  type StateOperationContext,
+} from './state-layer/state-layer.js';
+import { MemoryPipeline, type MemoryPipelineConfig } from './state-layer/memory-pipeline.js';
+import { tokenEstimator } from '@nachos/context-manager';
+import type { ContextManager } from '@nachos/context-manager';
+import type {
+  StateLayerConfig,
+  StateLayerDependencies,
+  StatePolicyRequest,
+} from './state-layer/types.js';
+import { SubagentManager } from './subagents/subagent-manager.js';
+import type { SubagentManagerConfig, SubagentResult, SubagentTask } from './subagents/types.js';
 
 /**
  * Gateway configuration options
@@ -61,6 +77,18 @@ export interface GatewayOptions {
   streamingChunkSize?: number;
   /** Minimum interval between streaming updates (ms) */
   streamingMinIntervalMs?: number;
+  /** Context manager instance */
+  contextManager?: ContextManager;
+  /** State layer instance */
+  stateLayer?: StateLayer;
+  /** State layer configuration (used if stateLayer not provided) */
+  stateLayerConfig?: StateLayerConfig;
+  /** Memory pipeline instance */
+  memoryPipeline?: MemoryPipeline;
+  /** Memory pipeline configuration (used if memoryPipeline not provided) */
+  memoryPipelineConfig?: MemoryPipelineConfig;
+  /** Subagent configuration */
+  subagentConfig?: SubagentManagerConfig;
 }
 
 /**
@@ -83,6 +111,11 @@ export class Gateway {
   private options: GatewayOptions;
   private isConnected: boolean = false;
   private shutdownHandlers: (() => void)[] = [];
+  private stateLayer?: StateLayer;
+  private memoryPipeline?: MemoryPipeline;
+  private memoryPipelineInterval?: NodeJS.Timeout;
+  private securityMode: 'strict' | 'standard' | 'permissive';
+  private subagentManager?: SubagentManager;
   private streamingSessions: Map<
     string,
     {
@@ -99,6 +132,7 @@ export class Gateway {
     this.instanceId = options.instanceId ?? 'gateway';
     this.dlpConfig = options.dlpConfig;
     this.approvalAllowlist = new Set(options.approvalAllowlist ?? []);
+    this.securityMode = options.policyConfig?.securityMode ?? 'standard';
 
     // Initialize storage
     this.storage = new StateStorage(options.dbPath ?? ':memory:');
@@ -113,14 +147,44 @@ export class Gateway {
       );
     }
 
-    // Initialize router
     const bus = options.bus ?? new InMemoryMessageBus();
-    this.router = new Router({ bus, componentName: 'gateway', rateLimiter: this.rateLimiter });
 
     // Initialize Salsa policy engine if configured
     if (options.policyConfig) {
       this.salsa = new Salsa(options.policyConfig);
       console.log('[Gateway] Policy engine (Salsa) initialized');
+    }
+
+    if (options.stateLayer) {
+      this.stateLayer = options.stateLayer;
+    } else if (options.stateLayerConfig) {
+      this.stateLayer = createStateLayer(
+        options.stateLayerConfig,
+        this.buildStateLayerDependencies()
+      );
+    }
+
+    if (options.memoryPipeline) {
+      this.memoryPipeline = options.memoryPipeline;
+    } else if (options.memoryPipelineConfig && this.stateLayer) {
+      this.memoryPipeline = new MemoryPipeline(this.stateLayer, options.memoryPipelineConfig);
+    }
+
+    // Initialize router
+    this.router = new Router({
+      bus,
+      componentName: 'gateway',
+      rateLimiter: this.rateLimiter,
+      contextManager: options.contextManager,
+      sessionManager: this.sessionManager,
+      memoryPipeline: this.memoryPipeline,
+      securityMode: this.securityMode,
+    });
+
+    if (options.subagentConfig) {
+      this.subagentManager = new SubagentManager(options.subagentConfig, async (request) => {
+        return (await this.router.sendLLMRequest(request)) as LLMResponseType;
+      });
     }
 
     // Register default handlers
@@ -537,19 +601,57 @@ export class Gateway {
     await this.sendLLMResponse(message, session.id, response);
   }
 
-  private buildLLMRequest(
+  private async buildLLMRequest(
     sessionId: string,
     extraMessages: LLMRequestType['messages'] = [],
     stream: boolean = false
-  ): LLMRequestType {
+  ): Promise<LLMRequestType & { systemPromptTokens?: number; promptReport?: PromptReport }> {
     const session = this.sessionManager.getSessionWithMessages(sessionId);
     if (!session) {
       throw new Error('Session not found');
     }
 
     const messages: LLMRequestType['messages'] = [];
-    if (session.systemPrompt) {
-      messages.push({ role: 'system', content: session.systemPrompt });
+    const basePrompt = session.systemPrompt ?? this.options.defaultSystemPrompt ?? '';
+
+    let prompt = basePrompt;
+    let promptReport: PromptReport | undefined;
+    let systemPromptTokens = 0;
+
+    if (this.stateLayer) {
+      const context = this.buildStateContext(session);
+      const agentId = this.resolveAgentId(session);
+
+      try {
+        const identity = await this.stateLayer.getIdentity(agentId, context);
+        const memory = await this.stateLayer.queryMemory({ agentId, limit: 200 }, context);
+        const sessionState = await this.stateLayer.getSessionState(sessionId, context);
+
+        const assembled = this.stateLayer.assemblePrompt({
+          basePrompt,
+          identity,
+          memoryEntries: memory.entries,
+          memoryFacts: memory.facts,
+          sessionState,
+        });
+
+        prompt = assembled.prompt;
+        promptReport = assembled.report;
+        systemPromptTokens = assembled.report.totalTokens ?? 0;
+
+        this.sessionManager.updateMetadata(sessionId, {
+          promptReport: assembled.report,
+          promptReportUpdatedAt: assembled.report.generatedAt,
+        });
+      } catch (error) {
+        console.warn('[Gateway] Failed to assemble prompt with state layer:', error);
+      }
+    } else if (basePrompt) {
+      systemPromptTokens = tokenEstimator.estimate(basePrompt);
+    }
+
+    if (prompt) {
+      messages.push({ role: 'system', content: prompt });
     }
 
     for (const message of session.messages) {
@@ -568,6 +670,8 @@ export class Gateway {
         maxTokens: session.config?.maxTokens,
         stream,
       },
+      systemPromptTokens,
+      promptReport,
     };
   }
 
@@ -576,7 +680,7 @@ export class Gateway {
     extraMessages: LLMRequestType['messages'] = [],
     stream: boolean = false
   ): Promise<LLMResponseType> {
-    const request = this.buildLLMRequest(sessionId, extraMessages, stream);
+    const request = await this.buildLLMRequest(sessionId, extraMessages, stream);
     const responseEnvelope = await this.router.sendLLMRequest(request);
 
     const envelope = responseEnvelope as MessageEnvelope;
@@ -585,6 +689,63 @@ export class Gateway {
     }
 
     return responseEnvelope as LLMResponseType;
+  }
+
+  private resolveAgentId(session: Session): string {
+    return session.userId ?? session.id;
+  }
+
+  private buildStateContext(session: Session): StateOperationContext {
+    return {
+      sessionId: session.id,
+      userId: session.userId,
+      securityMode: this.securityMode,
+      channel: session.channel,
+    };
+  }
+
+  private buildStateLayerDependencies(): StateLayerDependencies {
+    return {
+      instanceId: this.instanceId,
+      policyCheck: async (request: StatePolicyRequest) => {
+        const action = this.mapStateActionToPolicyAction(request.action);
+        const result = this.evaluatePolicy({
+          requestId: `state-${Date.now()}`,
+          userId: request.userId ?? 'unknown',
+          sessionId: request.sessionId,
+          securityMode: request.securityMode,
+          resource: {
+            type: 'tool',
+            id: request.resource ?? 'state',
+          },
+          action,
+          metadata: {
+            stateAction: request.action,
+            ...request.metadata,
+          },
+          timestamp: new Date(),
+        });
+
+        return {
+          allowed: result.allowed,
+          reason: result.reason,
+          ruleId: result.ruleId,
+        };
+      },
+      auditLogger: async (event) => {
+        await this.logAuditEvent(event);
+      },
+    };
+  }
+
+  private mapStateActionToPolicyAction(action: string): 'read' | 'write' | 'call' {
+    if (action.includes('read') || action.includes('query')) {
+      return 'read';
+    }
+    if (action.includes('write') || action.includes('append') || action.includes('delete')) {
+      return 'write';
+    }
+    return 'call';
   }
 
   private async executeToolCalls(
@@ -1063,6 +1224,8 @@ export class Gateway {
       });
     }
 
+    this.startMemoryPipelineScheduler();
+
     // Create health server
     const healthDeps: HealthCheckDeps = {
       checkDatabase: () => {
@@ -1119,6 +1282,15 @@ export class Gateway {
     }
     if (this.rateLimiter) {
       await this.rateLimiter.shutdown();
+    }
+
+    if (this.memoryPipelineInterval) {
+      clearInterval(this.memoryPipelineInterval);
+      this.memoryPipelineInterval = undefined;
+    }
+
+    if (this.stateLayer) {
+      await this.stateLayer.close();
     }
 
     this.storage.close();
@@ -1185,6 +1357,36 @@ export class Gateway {
     await this.auditLogger.log(event);
   }
 
+  private startMemoryPipelineScheduler(): void {
+    const memoryPipeline = this.memoryPipeline;
+    if (!memoryPipeline) return;
+    const intervalMs = memoryPipeline.getPeriodicIntervalMs();
+    if (!intervalMs) return;
+
+    this.memoryPipelineInterval = setInterval(async () => {
+      try {
+        const sessions = this.sessionManager.listSessions({ status: 'active' });
+        for (const session of sessions) {
+          const context = this.buildStateContext(session);
+          const shouldRun = await memoryPipeline.shouldRunPeriodic(session, context);
+          if (!shouldRun) continue;
+
+          const withMessages = this.sessionManager.getSessionWithMessages(session.id);
+          if (!withMessages) continue;
+
+          await memoryPipeline.handleExtraction({
+            session,
+            messages: withMessages.messages,
+            context,
+            trigger: 'periodic',
+          });
+        }
+      } catch (error) {
+        console.warn('[Gateway] Periodic memory extraction failed:', error);
+      }
+    }, intervalMs);
+  }
+
   /**
    * Get the state storage
    */
@@ -1222,6 +1424,25 @@ export class Gateway {
     }
 
     return health;
+  }
+
+  /**
+   * Execute a subagent task (host or sandboxed).
+   */
+  async runSubagent(task: SubagentTask): Promise<SubagentResult> {
+    if (!this.subagentManager) {
+      return {
+        success: false,
+        error: {
+          code: 'SUBAGENT_DISABLED',
+          message: 'Subagent execution is not configured',
+        },
+        durationMs: 0,
+        sandboxed: false,
+      };
+    }
+
+    return this.subagentManager.run(task);
   }
 
   /**

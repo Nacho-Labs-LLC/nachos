@@ -40,6 +40,27 @@ export {
   type RecoveryResult,
 } from './tool-types.js';
 
+// ============================================================================
+// State Layer Types
+// ============================================================================
+
+export {
+  type IdentitySource,
+  type IdentityProfile,
+  type MemoryKind,
+  type MemoryEntry,
+  type MemoryFact,
+  type MemoryQuery,
+  type MemoryQueryResult,
+  type IdentityStore,
+  type MemoryStore,
+  type SessionStateRecord,
+  type SessionStateStore,
+  type PromptSectionReport,
+  type PromptReport,
+  type PromptAssemblyResult,
+} from './state-types.js';
+
 /**
  * @nachos/types - Shared TypeScript types and schemas for Nachos
  *

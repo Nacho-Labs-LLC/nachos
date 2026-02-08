@@ -44,6 +44,25 @@ export {
   type CreateMessageData,
 } from './state.js';
 
+// State layer
+export {
+  StateLayer,
+  createStateLayer,
+  type StateOperationContext,
+} from './state-layer/state-layer.js';
+export type {
+  StateLayerConfig,
+  StateLayerDependencies,
+  StatePolicyRequest,
+  StatePolicyDecision,
+  StatePolicyCheck,
+  StateAuditLogger,
+  PromptAssemblyConfig,
+} from './state-layer/types.js';
+export { MemoryPipeline } from './state-layer/memory-pipeline.js';
+export { SubagentManager } from './subagents/subagent-manager.js';
+export type { SubagentTask, SubagentResult, SubagentManagerConfig } from './subagents/types.js';
+
 // Router and message bus
 export {
   Router,

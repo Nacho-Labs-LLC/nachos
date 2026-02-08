@@ -29,6 +29,8 @@ import type {
 } from '@nachos/context-manager';
 import { messageAdapter } from '@nachos/context-manager';
 import type { SessionManager } from './session.js';
+import type { MemoryPipeline } from './state-layer/memory-pipeline.js';
+import type { StateOperationContext } from './state-layer/state-layer.js';
 
 /**
  * Route handler function type
@@ -222,6 +224,8 @@ export interface RouterOptions {
   rateLimiter?: RateLimiter;
   contextManager?: ContextManager;
   sessionManager?: SessionManager;
+  memoryPipeline?: MemoryPipeline;
+  securityMode?: 'strict' | 'standard' | 'permissive';
 }
 
 /**
@@ -233,6 +237,8 @@ export class Router {
   private rateLimiter?: RateLimiter;
   private contextManager?: ContextManager;
   private sessionManager?: SessionManager;
+  private memoryPipeline?: MemoryPipeline;
+  private securityMode: 'strict' | 'standard' | 'permissive';
   private handlers: Map<string, RouteHandler> = new Map();
 
   constructor(options: RouterOptions) {
@@ -241,6 +247,8 @@ export class Router {
     this.rateLimiter = options.rateLimiter;
     this.contextManager = options.contextManager;
     this.sessionManager = options.sessionManager;
+    this.memoryPipeline = options.memoryPipeline;
+    this.securityMode = options.securityMode ?? 'standard';
   }
 
   /**
@@ -338,12 +346,21 @@ export class Router {
 
     const { sessionId, contextWindow = 200000, systemPromptTokens = 0 } = params;
 
+    const managerConfig = this.contextManager.getConfig();
+
     // Get session with messages
     const sessionWithMessages = this.sessionManager.getSessionWithMessages(sessionId);
     if (!sessionWithMessages) {
       console.warn(`[Router] Cannot check context: session ${sessionId} not found`);
       return;
     }
+
+    const stateContext: StateOperationContext = {
+      sessionId,
+      userId: sessionWithMessages.userId,
+      securityMode: this.securityMode,
+      channel: sessionWithMessages.channel,
+    };
 
     // Convert NACHOS messages to ContextMessages
     const contextMessages = sessionWithMessages.messages.map((msg) =>
@@ -358,6 +375,82 @@ export class Router {
       contextWindow,
       reserveTokens: 20000, // Reserve 20k tokens for response
     });
+
+    if (this.memoryPipeline && managerConfig.proactive_history?.enabled) {
+      const memoryFlush = managerConfig.memoryFlush;
+      const threshold = managerConfig.proactive_history.triggers?.onThreshold;
+      const allowMemoryFlush = managerConfig.proactive_history.triggers?.onMemoryFlush ?? false;
+
+      if (
+        memoryFlush?.enabled &&
+        allowMemoryFlush &&
+        check.budget.currentUsage >= memoryFlush.softThresholdTokens
+      ) {
+        try {
+          const flushResult = await this.memoryPipeline.handleExtraction({
+            session: sessionWithMessages,
+            messages: sessionWithMessages.messages,
+            context: stateContext,
+            trigger: 'memory_flush',
+          });
+
+          const flushExtracted = flushResult.extracted;
+
+          await this.bus.publish(
+            TOPICS.context.extraction,
+            createEnvelope(this.componentName, 'context.extraction', {
+              sessionId,
+              timestamp: new Date().toISOString(),
+              trigger: 'memory_flush',
+              extracted: {
+                decisions: flushExtracted.decisions?.length ?? 0,
+                facts: flushExtracted.facts?.length ?? 0,
+                tasks: flushExtracted.tasks?.length ?? 0,
+                issues: flushExtracted.issues?.length ?? 0,
+                files: flushExtracted.files?.length ?? 0,
+              },
+            })
+          );
+        } catch (error) {
+          console.warn('[Router] Memory flush extraction failed:', error);
+        }
+      }
+
+      if (
+        threshold !== undefined &&
+        check.budget.utilizationRatio >= threshold &&
+        !check.needsCompaction
+      ) {
+        try {
+          const thresholdResult = await this.memoryPipeline.handleExtraction({
+            session: sessionWithMessages,
+            messages: sessionWithMessages.messages,
+            context: stateContext,
+            trigger: 'threshold',
+          });
+
+          const thresholdExtracted = thresholdResult.extracted;
+
+          await this.bus.publish(
+            TOPICS.context.extraction,
+            createEnvelope(this.componentName, 'context.extraction', {
+              sessionId,
+              timestamp: new Date().toISOString(),
+              trigger: 'threshold',
+              extracted: {
+                decisions: thresholdExtracted.decisions?.length ?? 0,
+                facts: thresholdExtracted.facts?.length ?? 0,
+                tasks: thresholdExtracted.tasks?.length ?? 0,
+                issues: thresholdExtracted.issues?.length ?? 0,
+                files: thresholdExtracted.files?.length ?? 0,
+              },
+            })
+          );
+        } catch (error) {
+          console.warn('[Router] Threshold extraction failed:', error);
+        }
+      }
+    }
 
     // Publish budget update event
     const budgetEvent = {
@@ -483,11 +576,24 @@ export class Router {
 
     // Publish extraction event if history was extracted
     if (compactionResult.extracted) {
+      if (this.memoryPipeline && managerConfig.proactive_history?.enabled) {
+        try {
+          await this.memoryPipeline.storeExtracted({
+            session: sessionWithMessages,
+            extracted: compactionResult.extracted,
+            context: stateContext,
+            trigger: 'compaction',
+          });
+        } catch (error) {
+          console.warn('[Router] Failed to store compaction extraction:', error);
+        }
+      }
+
       const extractionEvent = {
         sessionId,
         timestamp: new Date().toISOString(),
         trigger: 'compaction',
-        counts: {
+        extracted: {
           decisions: compactionResult.extracted.decisions.length,
           facts: compactionResult.extracted.facts.length,
           tasks: compactionResult.extracted.tasks.length,
