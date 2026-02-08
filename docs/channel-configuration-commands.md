@@ -64,17 +64,24 @@ Public OpenClaw documentation and guides describe native configuration and opera
 
 - Define a **shared command schema** in `@nachos/shared-types` (e.g., `ChannelCommandRequest`, `ChannelCommandResponse`) with strict validation.
 - Add a **channel command policy** in Salsa (`tool.channel.command.*`) to gate config changes.
+- Split commands into **read-only** (status/help/config show) vs **elevated** (allowlist edits, pairing approvals, config writes).
+  - Register each command with an explicit policy action, e.g. `tool.channel.command.read` vs `tool.channel.command.write`.
 - Define a **permissions contract** for each platform:
   - Discord: require `Administrator` or `ManageGuild` permissions.
   - Slack: require `admin`/`owner` or allowlist of user IDs.
 - Establish a **command allowlist** in config (`channels.discord.commands.enabled`, `channels.slack.commands.enabled`).
+- Add per-channel **admin allowlists** for elevated commands (e.g., `channels.discord.commands.admin_allowlist`,
+  `channels.slack.commands.admin_allowlist`) so only whitelisted users can run write operations.
 
 ### Phase 2 — Configuration storage + reload strategy
 
 - Introduce a **runtime config overlay store** (e.g., `${RUNTIME_STATE_DIR}/channel-config-overrides.json`) that merges on top of `nachos.toml`.
 - Add a **config update bus topic** (`nachos.config.update`) so channel adapters can request updates via the gateway.
 - Ensure config updates are validated via existing config schemas and logged to audit providers.
+- When an elevated command persists configuration, **patch `nachos.toml` in the mounted config volume** (via the gateway),
+  but only after Salsa policy approval and audit logging (and optional approval workflow, if enabled).
 - Provide CLI fallback: `nachos config apply --from-state` to persist overlay to `nachos.toml`.
+- Capture the persistence + policy model in a dedicated ADR (TBD) so operators understand the safeguards.
 
 ### Phase 3 — Discord commands
 
@@ -101,6 +108,6 @@ Public OpenClaw documentation and guides describe native configuration and opera
 
 ## Open questions
 
-- Should commands write to the runtime overlay only, or also patch `nachos.toml` directly?
+- Should elevated commands always write through to `nachos.toml`, or only when explicitly requested?
 - Should config commands be available in DMs or only in server/channel contexts?
 - How should we handle multi-tenant deployments (multiple Discord guilds/Slack workspaces)?
