@@ -1,4 +1,12 @@
-import { Client, GatewayIntentBits, Partials, type Message } from 'discord.js';
+import {
+  Client,
+  GatewayIntentBits,
+  Partials,
+  PermissionFlagsBits,
+  type ChatInputCommandInteraction,
+  type Message,
+} from 'discord.js';
+import { loadAndValidateConfig } from '@nachos/config';
 import type { DiscordChannelConfig } from '@nachos/config';
 import {
   TOPICS,
@@ -15,8 +23,8 @@ import type {
   SendResult,
   HealthStatusType,
 } from '@nachos/types';
-import { validateChannelInboundMessage } from '@nachos/types';
 import { shouldAllowDm, shouldAllowGroupMessage } from '@nachos/utils';
+import { randomUUID } from 'node:crypto';
 
 export class DiscordChannelAdapter implements ChannelAdapter {
   readonly channelId = 'discord';
@@ -25,6 +33,7 @@ export class DiscordChannelAdapter implements ChannelAdapter {
   private config?: ChannelAdapterConfig;
   private client?: Client;
   private botUserId?: string;
+  private channelConfig?: DiscordChannelConfig;
   private pairingStore = createPairingStore('discord', {
     stateDir: process.env.RUNTIME_STATE_DIR ?? process.env.NACHOS_STATE_DIR,
   });
@@ -32,6 +41,7 @@ export class DiscordChannelAdapter implements ChannelAdapter {
 
   async initialize(config: ChannelAdapterConfig): Promise<void> {
     this.config = config;
+    this.channelConfig = (config.config ?? {}) as DiscordChannelConfig;
 
     this.client = new Client({
       intents: [
@@ -45,6 +55,12 @@ export class DiscordChannelAdapter implements ChannelAdapter {
 
     this.client.on('messageCreate', async (message) => {
       await this.handleMessage(message);
+    });
+
+    this.client.on('interactionCreate', async (interaction) => {
+      if (!interaction.isChatInputCommand()) return;
+      if (interaction.commandName !== 'nachos') return;
+      await this.handleCommandInteraction(interaction);
     });
   }
 
@@ -62,8 +78,14 @@ export class DiscordChannelAdapter implements ChannelAdapter {
     await this.client.login(token);
     this.botUserId = this.client.user?.id;
 
+    await this.registerSlashCommands();
+
     await this.config.bus.subscribe(TOPICS.channel.outbound(this.channelId), async (payload) => {
       await this.sendMessage(payload as OutboundMessage);
+    });
+
+    await this.config.bus.subscribe(TOPICS.config.updated, async () => {
+      await this.reloadConfigFromDisk();
     });
   }
 
@@ -92,15 +114,34 @@ export class DiscordChannelAdapter implements ChannelAdapter {
         };
       }
 
-      const files = this.buildDiscordFiles(message.content.attachments ?? []);
+      const files = (message.content.attachments ?? [])
+        .map((attachment) => {
+          if (!attachment) return null;
+
+          let data: Buffer;
+          if (typeof attachment.data === 'string') {
+            data = Buffer.from(attachment.data, 'base64');
+          } else if (attachment.data instanceof Uint8Array) {
+            data = Buffer.from(attachment.data);
+          } else {
+            data = Buffer.from(String(attachment.data ?? ''));
+          }
+
+          return {
+            attachment: data,
+            name: attachment.name ?? 'attachment',
+          };
+        })
+        .filter((file): file is { attachment: Buffer; name: string } => Boolean(file));
+
       const response = await (
         channel as { send: (options: unknown) => Promise<{ id: string }> }
       ).send({
         content: message.content.text,
+        files: files.length > 0 ? files : undefined,
         reply: message.replyToMessageId
           ? { messageReference: message.replyToMessageId }
           : undefined,
-        files: files.length > 0 ? files : undefined,
       });
 
       return {
@@ -129,7 +170,8 @@ export class DiscordChannelAdapter implements ChannelAdapter {
     if (!this.config) return;
     if (message.author?.bot) return;
 
-    const channelConfig = this.config.config as DiscordChannelConfig;
+    const channelConfig =
+      this.channelConfig ?? ((this.config.config ?? {}) as DiscordChannelConfig);
     const isDm = !message.guildId;
     const userId = message.author?.id;
     if (!userId) return;
@@ -188,18 +230,6 @@ export class DiscordChannelAdapter implements ChannelAdapter {
       if (!allowed) return;
     }
 
-    const attachmentCollection = message.attachments;
-    const attachments =
-      attachmentCollection && attachmentCollection.size > 0
-        ? attachmentCollection.map((attachment) => ({
-            type: 'file',
-            url: attachment.url,
-            name: attachment.name ?? undefined,
-            mimeType: attachment.contentType ?? undefined,
-            size: attachment.size ?? undefined,
-          }))
-        : undefined;
-
     const inbound = {
       channel: this.channelId,
       channelMessageId: message.id,
@@ -213,78 +243,247 @@ export class DiscordChannelAdapter implements ChannelAdapter {
       },
       content: {
         text: message.content ?? '',
-        attachments: attachments && attachments.length > 0 ? attachments : undefined,
       },
       metadata: {
         guildId: message.guildId ?? null,
       },
     };
 
-    const validation = validateChannelInboundMessage(inbound);
-    if (!validation.success) {
-      console.warn('[Discord] Dropping invalid inbound message', validation.errors);
-      return;
-    }
-
     await this.config.bus.publish(TOPICS.channel.inbound(this.channelId), inbound);
   }
 
-  private buildDiscordFiles(
-    attachments: Array<{ data: unknown; name?: string }>
-  ): Array<{ attachment: Buffer | string; name?: string }> {
-    const files: Array<{ attachment: Buffer | string; name?: string }> = [];
-
-    for (let i = 0; i < attachments.length; i += 1) {
-      const attachment = attachments[i];
-      if (!attachment) continue;
-
-      const data = attachment.data;
-      if (typeof data === 'string') {
-        const buffer = this.decodeAttachmentData(data);
-        if (buffer) {
-          files.push({ attachment: buffer, name: attachment.name ?? `attachment-${i + 1}` });
-          continue;
-        }
-
-        if (this.isUrl(data)) {
-          files.push({ attachment: data, name: attachment.name ?? undefined });
-        }
-      }
-    }
-
-    return files;
+  private getCommandConfig(): {
+    enabled: string[];
+    adminAllowlist: string[];
+  } {
+    const commands = this.channelConfig?.commands;
+    return {
+      enabled: commands?.enabled ?? [],
+      adminAllowlist: commands?.admin_allowlist ?? [],
+    };
   }
 
-  private decodeAttachmentData(data: string): Buffer | null {
-    if (data.startsWith('data:')) {
-      const base64Index = data.indexOf('base64,');
-      if (base64Index !== -1) {
-        const base64 = data.slice(base64Index + 7);
-        try {
-          return Buffer.from(base64, 'base64');
-        } catch {
-          return null;
-        }
-      }
-      return null;
-    }
+  private async registerSlashCommands(): Promise<void> {
+    if (!this.client || !this.channelConfig) return;
+    const { enabled } = this.getCommandConfig();
+    if (enabled.length === 0) return;
 
-    if (this.looksLikeBase64(data)) {
-      try {
-        return Buffer.from(data, 'base64');
-      } catch {
-        return null;
-      }
-    }
+    const commands = [
+      {
+        name: 'nachos',
+        description: 'Nachos channel commands',
+        options: [
+          {
+            type: 1,
+            name: 'status',
+            description: 'Show channel status',
+          },
+          {
+            type: 1,
+            name: 'help',
+            description: 'Show available commands',
+          },
+          {
+            type: 2,
+            name: 'config',
+            description: 'Show configuration info',
+            options: [
+              {
+                type: 1,
+                name: 'show',
+                description: 'Show current allowlists and gating',
+              },
+            ],
+          },
+        ],
+      },
+    ];
 
-    return null;
+    try {
+      if (this.client.application) {
+        await this.client.application.commands.set(commands);
+      }
+    } catch (error) {
+      console.warn('[Discord] Failed to register slash commands:', error);
+    }
   }
 
-  private looksLikeBase64(data: string): boolean {
-    return /^[A-Za-z0-9+/=]+$/.test(data) && data.length % 4 === 0;
+  private async handleCommandInteraction(interaction: ChatInputCommandInteraction): Promise<void> {
+    if (!this.config || !this.channelConfig) return;
+    const { enabled } = this.getCommandConfig();
+    if (enabled.length === 0) {
+      await this.logCommandAudit({
+        command: 'unknown',
+        userId: interaction.user.id,
+        scope: interaction.guildId ? 'channel' : 'dm',
+        serverId: interaction.guildId ?? undefined,
+        conversationId: interaction.channelId,
+        outcome: 'denied',
+        reason: 'Commands disabled',
+      });
+      await interaction.reply({
+        content: 'Commands are disabled for this channel.',
+        ephemeral: true,
+      });
+      return;
+    }
+
+    const commandName = this.resolveCommandName(interaction);
+    if (!enabled.includes(commandName)) {
+      await this.logCommandAudit({
+        command: commandName,
+        userId: interaction.user.id,
+        scope: interaction.guildId ? 'channel' : 'dm',
+        serverId: interaction.guildId ?? undefined,
+        conversationId: interaction.channelId,
+        outcome: 'denied',
+        reason: 'Command not enabled',
+      });
+      await interaction.reply({ content: 'Command is not enabled.', ephemeral: true });
+      return;
+    }
+
+    const isDm = !interaction.guildId;
+    const authorized = await this.isCommandAuthorized(interaction, isDm);
+    if (!authorized) {
+      await this.logCommandAudit({
+        command: commandName,
+        userId: interaction.user.id,
+        scope: isDm ? 'dm' : 'channel',
+        serverId: interaction.guildId ?? undefined,
+        conversationId: interaction.channelId,
+        outcome: 'denied',
+        reason: 'Permission denied',
+      });
+      await interaction.reply({ content: 'Permission denied for this command.', ephemeral: true });
+      return;
+    }
+
+    const responseText = this.buildCommandResponse(
+      commandName,
+      isDm,
+      interaction.guildId ?? undefined
+    );
+    await this.logCommandAudit({
+      command: commandName,
+      userId: interaction.user.id,
+      scope: isDm ? 'dm' : 'channel',
+      serverId: interaction.guildId ?? undefined,
+      conversationId: interaction.channelId,
+      outcome: 'allowed',
+    });
+    await interaction.reply({ content: responseText, ephemeral: true });
   }
 
-  private isUrl(value: string): boolean {
-    return value.startsWith('http://') || value.startsWith('https://');
+  private resolveCommandName(interaction: ChatInputCommandInteraction): string {
+    const sub = interaction.options.getSubcommand(false);
+    const group = interaction.options.getSubcommandGroup(false);
+
+    if (group === 'config' && sub === 'show') return 'config.show';
+    if (sub) return sub.toLowerCase();
+    return 'help';
+  }
+
+  private async isCommandAuthorized(
+    interaction: ChatInputCommandInteraction,
+    isDm: boolean
+  ): Promise<boolean> {
+    const { adminAllowlist } = this.getCommandConfig();
+    const userId = interaction.user?.id;
+    if (!userId) return false;
+    if (adminAllowlist.includes(userId)) return true;
+    if (isDm) return false;
+
+    const permissions = interaction.memberPermissions;
+    if (!permissions) return false;
+    return (
+      permissions.has(PermissionFlagsBits.Administrator) ||
+      permissions.has(PermissionFlagsBits.ManageGuild)
+    );
+  }
+
+  private buildCommandResponse(name: string, isDm: boolean, guildId?: string): string {
+    if (!this.channelConfig || !this.config) return 'Channel configuration unavailable.';
+    const { enabled } = this.getCommandConfig();
+
+    if (name === 'status') {
+      return [
+        'Nachos Discord channel is running.',
+        `Security mode: ${this.config.securityMode}.`,
+        `Commands enabled: ${enabled.join(', ') || 'none'}.`,
+      ].join('\n');
+    }
+
+    if (name === 'config.show') {
+      if (isDm) {
+        const dmPolicy = resolveDmPolicy(this.channelConfig.dm);
+        if (!dmPolicy) return 'DM policy is not configured.';
+        return [
+          'DM policy:',
+          `- Pairing enabled: ${dmPolicy.pairing ? 'yes' : 'no'}.`,
+          `- User allowlist: ${dmPolicy.userAllowlist.join(', ') || 'empty'}.`,
+        ].join('\n');
+      }
+
+      if (!guildId) return 'Guild context is missing.';
+      const serverConfig = findServerConfig(this.channelConfig.servers, guildId);
+      if (!serverConfig) return 'No server config found for this guild.';
+      const groupPolicy = resolveGroupPolicy(serverConfig);
+      return [
+        'Server policy:',
+        `- Mention gating: ${groupPolicy.mentionGating ? 'enabled' : 'disabled'}.`,
+        `- Channel allowlist: ${groupPolicy.channelIds.join(', ') || 'empty'}.`,
+        `- User allowlist: ${groupPolicy.userAllowlist.join(', ') || 'empty'}.`,
+      ].join('\n');
+    }
+
+    return ['Available commands:', '/nachos status', '/nachos help', '/nachos config show'].join(
+      '\n'
+    );
+  }
+
+  private async reloadConfigFromDisk(): Promise<void> {
+    if (!this.config) return;
+    try {
+      const config = loadAndValidateConfig({
+        configPath: process.env.NACHOS_CONFIG_PATH,
+      });
+      this.channelConfig = (config.channels?.discord ?? {}) as DiscordChannelConfig;
+      this.config.config = this.channelConfig as unknown as Record<string, unknown>;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[Discord] Failed to reload config: ${message}`);
+    }
+  }
+
+  private async logCommandAudit(params: {
+    command: string;
+    userId: string;
+    scope: 'dm' | 'channel';
+    serverId?: string;
+    conversationId?: string;
+    outcome: 'allowed' | 'denied';
+    reason?: string;
+  }): Promise<void> {
+    if (!this.config) return;
+    await this.config.bus.publish(TOPICS.audit.log, {
+      id: randomUUID(),
+      timestamp: new Date().toISOString(),
+      instanceId: `channel-${this.channelId}`,
+      userId: params.userId,
+      sessionId: params.conversationId ?? params.userId,
+      channel: this.channelId,
+      eventType: 'channel_command',
+      action: 'channel.command',
+      resource: params.command,
+      outcome: params.outcome,
+      reason: params.reason,
+      securityMode: this.config.securityMode,
+      details: {
+        scope: params.scope,
+        serverId: params.serverId,
+        conversationId: params.conversationId,
+      },
+    });
   }
 }

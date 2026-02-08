@@ -1,0 +1,18 @@
+{
+  "name": "config_patch",
+  "version": "0.1.0",
+  "type": "tool",
+  "capabilities": {
+    "network": {
+      "egress": []
+    },
+    "resources": {
+      "memory": "256Mi",
+      "cpus": 0.5
+    }
+  },
+  "provides": {
+    "tool": "config_patch",
+    "securityTier": 3
+  }
+}

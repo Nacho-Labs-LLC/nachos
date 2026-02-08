@@ -9,6 +9,7 @@ import {
   AUDIT_TOPICS,
   HEALTH_TOPICS,
   GATEWAY_TOPICS,
+  CONFIG_TOPICS,
   extractChannelFromTopic,
   extractToolFromTopic,
   extractSessionFromStreamTopic,
@@ -114,6 +115,13 @@ describe('Topics', () => {
     });
   });
 
+  describe('CONFIG_TOPICS', () => {
+    it('should have correct update topics', () => {
+      expect(CONFIG_TOPICS.update).toBe('nachos.config.update');
+      expect(CONFIG_TOPICS.updated).toBe('nachos.config.updated');
+    });
+  });
+
   describe('TOPICS namespace', () => {
     it('should contain all topic groups', () => {
       expect(TOPICS.channel).toBe(CHANNEL_TOPICS);
@@ -123,6 +131,7 @@ describe('Topics', () => {
       expect(TOPICS.audit).toBe(AUDIT_TOPICS);
       expect(TOPICS.health).toBe(HEALTH_TOPICS);
       expect(TOPICS.gateway).toBe(GATEWAY_TOPICS);
+      expect(TOPICS.config).toBe(CONFIG_TOPICS);
     });
   });
 

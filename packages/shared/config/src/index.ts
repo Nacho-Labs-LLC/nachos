@@ -21,6 +21,7 @@ export type {
   DiscordChannelConfig,
   TelegramChannelConfig,
   WhatsappChannelConfig,
+  ChannelCommandsConfig,
   ChannelDMConfig,
   ChannelServerConfig,
   ToolsConfig,
@@ -73,6 +74,15 @@ export {
 
 // Export environment overlay functions
 export { createEnvOverlay, applyEnvOverlay } from './env.js';
+
+// Export runtime overlay functions
+export {
+  applyRuntimeOverlay,
+  loadRuntimeOverlay,
+  saveRuntimeOverlay,
+  resolveRuntimeStateDir,
+  getRuntimeOverlayPath,
+} from './runtime-overlay.js';
 
 // Export validation functions
 export {

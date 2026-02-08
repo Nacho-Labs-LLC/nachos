@@ -48,6 +48,7 @@ export {
   AUDIT_TOPICS,
   HEALTH_TOPICS,
   GATEWAY_TOPICS,
+  CONFIG_TOPICS,
   extractChannelFromTopic,
   extractToolFromTopic,
   extractSessionFromStreamTopic,

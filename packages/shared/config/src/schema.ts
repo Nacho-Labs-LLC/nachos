@@ -85,6 +85,14 @@ export interface ChannelServerConfig {
 }
 
 /**
+ * Channel command configuration
+ */
+export interface ChannelCommandsConfig {
+  enabled?: string[];
+  admin_allowlist?: string[];
+}
+
+/**
  * Webchat channel configuration
  */
 export interface WebchatChannelConfig extends BaseChannelConfig {
@@ -100,6 +108,7 @@ export interface SlackChannelConfig extends BaseChannelConfig {
   bot_token?: string;
   signing_secret?: string;
   webhook_path?: string;
+  commands?: ChannelCommandsConfig;
   dm?: ChannelDMConfig;
   servers?: ChannelServerConfig[];
 }
@@ -109,6 +118,7 @@ export interface SlackChannelConfig extends BaseChannelConfig {
  */
 export interface DiscordChannelConfig extends BaseChannelConfig {
   token?: string;
+  commands?: ChannelCommandsConfig;
   dm?: ChannelDMConfig;
   servers?: ChannelServerConfig[];
 }

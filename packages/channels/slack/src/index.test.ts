@@ -25,6 +25,7 @@ describe('SlackChannelAdapter', () => {
       files: { upload: ReturnType<typeof vi.fn> };
     };
     event: ReturnType<typeof vi.fn>;
+    command: ReturnType<typeof vi.fn>;
     start: ReturnType<typeof vi.fn>;
     stop: ReturnType<typeof vi.fn>;
   }> = [];
@@ -39,6 +40,7 @@ describe('SlackChannelAdapter', () => {
           files: { upload: vi.fn().mockResolvedValue({ ok: true }) },
         },
         event: vi.fn(),
+        command: vi.fn(),
         start: vi.fn(),
         stop: vi.fn(),
       };
@@ -112,18 +114,15 @@ describe('SlackChannelAdapter', () => {
     });
 
     await (
-      adapter as unknown as { handleMessage: (event: unknown, cfg: unknown) => Promise<void> }
-    ).handleMessage(
-      {
-        type: 'message',
-        user: 'U111',
-        text: 'Hello',
-        ts: '123.456',
-        channel: 'D123',
-        channel_type: 'im',
-      },
-      { dm: { user_allowlist: ['U111'] } }
-    );
+      adapter as unknown as { handleMessage: (event: unknown) => Promise<void> }
+    ).handleMessage({
+      type: 'message',
+      user: 'U111',
+      text: 'Hello',
+      ts: '123.456',
+      channel: 'D123',
+      channel_type: 'im',
+    });
 
     expect(publish).toHaveBeenCalledWith(
       'nachos.channel.slack.inbound',
@@ -182,19 +181,16 @@ describe('SlackChannelAdapter', () => {
     });
 
     await (
-      adapter as unknown as { handleMessage: (event: unknown, cfg: unknown) => Promise<void> }
-    ).handleMessage(
-      {
-        type: 'message',
-        user: 'U777',
-        text: 'Hello <@U123>',
-        ts: '123.456',
-        channel: 'C999',
-        channel_type: 'channel',
-        team: 'T123',
-      },
-      channelConfig
-    );
+      adapter as unknown as { handleMessage: (event: unknown) => Promise<void> }
+    ).handleMessage({
+      type: 'message',
+      user: 'U777',
+      text: 'Hello <@U123>',
+      ts: '123.456',
+      channel: 'C999',
+      channel_type: 'channel',
+      team: 'T123',
+    });
 
     expect(publish).toHaveBeenCalledWith(
       'nachos.channel.slack.inbound',
@@ -257,48 +253,39 @@ describe('SlackChannelAdapter', () => {
     });
 
     await (
-      adapter as unknown as { handleMessage: (event: unknown, cfg: unknown) => Promise<void> }
-    ).handleMessage(
-      {
-        type: 'message',
-        user: 'U999',
-        text: 'pair wrong',
-        ts: '1',
-        channel: 'D1',
-        channel_type: 'im',
-      },
-      { dm: { user_allowlist: [], pairing: true } }
-    );
+      adapter as unknown as { handleMessage: (event: unknown) => Promise<void> }
+    ).handleMessage({
+      type: 'message',
+      user: 'U999',
+      text: 'pair wrong',
+      ts: '1',
+      channel: 'D1',
+      channel_type: 'im',
+    });
 
     expect(publish).not.toHaveBeenCalled();
 
     await (
-      adapter as unknown as { handleMessage: (event: unknown, cfg: unknown) => Promise<void> }
-    ).handleMessage(
-      {
-        type: 'message',
-        user: 'U999',
-        text: 'pair secret',
-        ts: '2',
-        channel: 'D1',
-        channel_type: 'im',
-      },
-      { dm: { user_allowlist: [], pairing: true } }
-    );
+      adapter as unknown as { handleMessage: (event: unknown) => Promise<void> }
+    ).handleMessage({
+      type: 'message',
+      user: 'U999',
+      text: 'pair secret',
+      ts: '2',
+      channel: 'D1',
+      channel_type: 'im',
+    });
 
     await (
-      adapter as unknown as { handleMessage: (event: unknown, cfg: unknown) => Promise<void> }
-    ).handleMessage(
-      {
-        type: 'message',
-        user: 'U999',
-        text: 'Hello after pairing',
-        ts: '3',
-        channel: 'D1',
-        channel_type: 'im',
-      },
-      { dm: { user_allowlist: [], pairing: true } }
-    );
+      adapter as unknown as { handleMessage: (event: unknown) => Promise<void> }
+    ).handleMessage({
+      type: 'message',
+      user: 'U999',
+      text: 'Hello after pairing',
+      ts: '3',
+      channel: 'D1',
+      channel_type: 'im',
+    });
 
     expect(publish).toHaveBeenCalledWith(
       'nachos.channel.slack.inbound',

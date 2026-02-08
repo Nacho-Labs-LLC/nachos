@@ -18,7 +18,18 @@ import type {
   RuntimeToolSandboxConfig,
   SubagentToolProfileConfig,
   SubagentToolPolicyConfig,
+  NachosConfig,
+  PartialNachosConfig,
 } from '@nachos/config';
+import {
+  applyRuntimeOverlay,
+  loadAndValidateConfig,
+  loadRuntimeOverlay,
+  resolveRuntimeStateDir,
+  saveRuntimeOverlay,
+  validateConfigOrThrow,
+} from '@nachos/config';
+import { randomUUID } from 'node:crypto';
 import { StateStorage } from './state.js';
 import { SessionManager } from './session.js';
 import {
@@ -193,7 +204,9 @@ export class Gateway {
       );
     }
 
+    // Initialize router
     const bus = options.bus ?? new InMemoryMessageBus();
+    this.router = new Router({ bus, componentName: 'gateway', rateLimiter: this.rateLimiter });
 
     // Initialize Salsa policy engine if configured
     if (options.policyConfig) {
@@ -243,6 +256,50 @@ export class Gateway {
 
     // Register default handlers
     this.registerDefaultHandlers();
+  }
+
+  private mergeConfigOverlay(
+    target: Record<string, unknown>,
+    source: Record<string, unknown>
+  ): Record<string, unknown> {
+    const result = { ...target };
+
+    for (const key in source) {
+      if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+        continue;
+      }
+      const sourceValue = source[key];
+      const targetValue = result[key];
+
+      if (
+        typeof sourceValue === 'object' &&
+        sourceValue !== null &&
+        !Array.isArray(sourceValue) &&
+        typeof targetValue === 'object' &&
+        targetValue !== null &&
+        !Array.isArray(targetValue)
+      ) {
+        result[key] = this.mergeConfigOverlay(
+          targetValue as Record<string, unknown>,
+          sourceValue as Record<string, unknown>
+        );
+      } else {
+        result[key] = sourceValue as unknown;
+      }
+    }
+
+    return result;
+  }
+
+  private extractEnvelopePayload(data: unknown): {
+    envelopeId?: string;
+    payload: unknown;
+  } {
+    if (data && typeof data === 'object' && 'payload' in (data as MessageEnvelope)) {
+      const envelope = data as MessageEnvelope;
+      return { envelopeId: envelope.id, payload: envelope.payload };
+    }
+    return { payload: data };
   }
 
   /**
@@ -391,7 +448,7 @@ export class Gateway {
         action: 'session.create',
         resource: session.id,
         outcome: 'allowed',
-        securityMode,
+        securityMode: this.options.policyConfig?.securityMode ?? 'standard',
         details: {
           conversationId: message.conversation.id,
           messageId: message.channelMessageId,
@@ -464,14 +521,14 @@ export class Gateway {
     }
 
     // Add user message to session
-    if (messageText) {
+    if (message.content.text) {
       this.sessionManager.addMessage(session.id, {
         role: 'user',
-        content: messageText,
+        content: message.content.text,
       });
     }
 
-    const approvalText = messageText.trim();
+    const approvalText = message.content.text?.trim();
     if (approvalText && this.approvalManager) {
       const approveMatch = approvalText.match(/^\/approve\s+(\S+)$/i);
       const denyMatch = approvalText.match(/^\/deny\s+(\S+)(?:\s+(.+))?$/i);
@@ -1291,7 +1348,7 @@ export class Gateway {
   ): Promise<void> {
     const content = response.success ? response.message?.content : response.error?.message;
     const securityMode = this.options.policyConfig?.securityMode ?? 'standard';
-    const responseText = typeof content === 'string' ? content : '';
+    const responseText = this.coerceLLMContentText(content);
     const toolCalls = response.success ? response.toolCalls : undefined;
 
     if (toolCalls && toolCalls.length > 0) {
@@ -1377,6 +1434,27 @@ export class Gateway {
     } catch {
       return '';
     }
+  }
+
+  private coerceLLMContentText(content: unknown): string {
+    if (typeof content === 'string') {
+      return content;
+    }
+
+    if (Array.isArray(content)) {
+      return content
+        .map((part) => {
+          if (!part || typeof part !== 'object' || !('text' in part)) {
+            return '';
+          }
+          const text = (part as { text?: unknown }).text;
+          return typeof text === 'string' ? text : '';
+        })
+        .filter((text) => text.length > 0)
+        .join('');
+    }
+
+    return '';
   }
 
   private getReplyToMessageId(message: ChannelInboundMessage): string | undefined {
@@ -1736,6 +1814,9 @@ export class Gateway {
     await this.registerManagementHandlers();
 
     this.startMemoryPipelineScheduler();
+    await this.router.getBus().subscribe(TOPICS.config.update, async (data) => {
+      await this.handleConfigUpdate(data);
+    });
 
     // Create health server
     const healthDeps: HealthCheckDeps = {
@@ -1767,6 +1848,134 @@ export class Gateway {
 
     this.isConnected = true;
     console.log('Gateway started');
+  }
+
+  private async handleConfigUpdate(data: unknown): Promise<void> {
+    const { envelopeId, payload } = this.extractEnvelopePayload(data);
+    const update = payload as {
+      requestId?: string;
+      actor?: {
+        userId?: string;
+        channel?: string;
+        serverId?: string;
+        conversationId?: string;
+      };
+      changes?: Record<string, unknown>;
+      reason?: string;
+      dryRun?: boolean;
+    };
+
+    const requestId = update?.requestId ?? envelopeId ?? randomUUID();
+    const actor = update?.actor;
+    const userId = actor?.userId ?? 'unknown';
+    const channel = actor?.channel ?? 'system';
+    const conversationId = actor?.conversationId ?? requestId;
+
+    const emitResult = async (response: {
+      requestId: string;
+      success: boolean;
+      message?: string;
+      errors?: string[];
+    }) => {
+      const envelope = createEnvelope(this.instanceId, 'config.updated', response, envelopeId);
+      await this.router.getBus().publish(TOPICS.config.updated, envelope);
+    };
+
+    if (!update || !update.changes || typeof update.changes !== 'object') {
+      await emitResult({
+        requestId,
+        success: false,
+        message: 'Invalid config update payload.',
+        errors: ['Missing changes payload'],
+      });
+      return;
+    }
+
+    let baseConfig: NachosConfig;
+    try {
+      baseConfig = loadAndValidateConfig({
+        configPath: process.env.NACHOS_CONFIG_PATH,
+        applyRuntime: false,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await emitResult({
+        requestId,
+        success: false,
+        message: 'Failed to load base configuration.',
+        errors: [message],
+      });
+      return;
+    }
+
+    const stateDir = resolveRuntimeStateDir(baseConfig);
+    const currentOverlay = loadRuntimeOverlay(stateDir) as PartialNachosConfig;
+    const mergedOverlay = this.mergeConfigOverlay(
+      currentOverlay as Record<string, unknown>,
+      update.changes
+    ) as PartialNachosConfig;
+
+    try {
+      const candidate = applyRuntimeOverlay(baseConfig, mergedOverlay);
+      validateConfigOrThrow(candidate);
+
+      if (!update.dryRun) {
+        saveRuntimeOverlay(stateDir, mergedOverlay);
+      }
+
+      await emitResult({
+        requestId,
+        success: true,
+        message: update.dryRun ? 'Config update validated.' : 'Config update applied.',
+      });
+
+      await this.logAuditEvent({
+        id: randomUUID(),
+        timestamp: new Date().toISOString(),
+        instanceId: this.instanceId,
+        userId,
+        sessionId: conversationId,
+        channel,
+        eventType: 'config_update',
+        action: 'config.update',
+        resource: requestId,
+        outcome: 'allowed',
+        securityMode: this.options.policyConfig?.securityMode ?? 'standard',
+        details: {
+          serverId: actor?.serverId,
+          reason: update.reason,
+          dryRun: update.dryRun ?? false,
+        },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await emitResult({
+        requestId,
+        success: false,
+        message: 'Config update rejected.',
+        errors: [message],
+      });
+
+      await this.logAuditEvent({
+        id: randomUUID(),
+        timestamp: new Date().toISOString(),
+        instanceId: this.instanceId,
+        userId,
+        sessionId: conversationId,
+        channel,
+        eventType: 'config_update',
+        action: 'config.update',
+        resource: requestId,
+        outcome: 'denied',
+        reason: message,
+        securityMode: this.options.policyConfig?.securityMode ?? 'standard',
+        details: {
+          serverId: actor?.serverId,
+          reason: update.reason,
+          dryRun: update.dryRun ?? false,
+        },
+      });
+    }
   }
 
   /**

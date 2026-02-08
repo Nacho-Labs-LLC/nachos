@@ -216,6 +216,98 @@ export const ChannelOutboundMessageSchema = Type.Object(
 export type ChannelOutboundMessageType = Static<typeof ChannelOutboundMessageSchema>;
 
 // ============================================================================
+// Channel Command Schemas
+// ============================================================================
+
+export const ChannelCommandScopeSchema = Type.Union([Type.Literal('dm'), Type.Literal('channel')], {
+  description: 'Command scope',
+});
+
+export const ChannelCommandRequestSchema = Type.Object(
+  {
+    channel: Type.String({ description: 'Channel identifier' }),
+    command: Type.String({ description: 'Command name (e.g. status, config.show)' }),
+    scope: ChannelCommandScopeSchema,
+    userId: Type.String({ description: 'User issuing the command' }),
+    conversationId: Type.Optional(
+      Type.String({ description: 'Conversation context (DM or channel ID)' })
+    ),
+    serverId: Type.Optional(Type.String({ description: 'Server/workspace identifier' })),
+    args: Type.Optional(Type.Array(Type.String(), { description: 'Command arguments' })),
+    metadata: Type.Optional(
+      Type.Record(Type.String(), Type.Unknown(), { description: 'Channel-specific metadata' })
+    ),
+  },
+  { $id: 'ChannelCommandRequest', description: 'Channel command request' }
+);
+
+export type ChannelCommandRequestType = Static<typeof ChannelCommandRequestSchema>;
+
+export const ChannelCommandResponseSchema = Type.Object(
+  {
+    channel: Type.String({ description: 'Channel identifier' }),
+    command: Type.String({ description: 'Command name' }),
+    success: Type.Boolean({ description: 'Whether the command succeeded' }),
+    message: Type.String({ description: 'Response message to show to the user' }),
+    error: Type.Optional(
+      Type.Object(
+        {
+          code: Type.String({ description: 'Error code' }),
+          message: Type.String({ description: 'Error message' }),
+        },
+        { description: 'Error details' }
+      )
+    ),
+  },
+  { $id: 'ChannelCommandResponse', description: 'Channel command response' }
+);
+
+export type ChannelCommandResponseType = Static<typeof ChannelCommandResponseSchema>;
+
+// ============================================================================
+// Config Update Schemas
+// ============================================================================
+
+export const ConfigUpdateRequestSchema = Type.Object(
+  {
+    requestId: Type.String({ description: 'Request identifier' }),
+    actor: Type.Object(
+      {
+        userId: Type.String({ description: 'User requesting the update' }),
+        channel: Type.String({ description: 'Origin channel' }),
+        serverId: Type.Optional(Type.String({ description: 'Server/workspace identifier' })),
+        conversationId: Type.Optional(
+          Type.String({ description: 'Conversation context (DM or channel ID)' })
+        ),
+      },
+      { description: 'Actor metadata' }
+    ),
+    changes: Type.Record(Type.String(), Type.Unknown(), {
+      description: 'Partial config overlay to apply',
+    }),
+    reason: Type.Optional(Type.String({ description: 'Reason for update' })),
+    dryRun: Type.Optional(Type.Boolean({ description: 'Validate only; do not persist' })),
+  },
+  { $id: 'ConfigUpdateRequest', description: 'Configuration update request' }
+);
+
+export type ConfigUpdateRequestType = Static<typeof ConfigUpdateRequestSchema>;
+
+export const ConfigUpdateResponseSchema = Type.Object(
+  {
+    requestId: Type.String({ description: 'Request identifier' }),
+    success: Type.Boolean({ description: 'Whether update was applied' }),
+    message: Type.Optional(Type.String({ description: 'Response message' })),
+    errors: Type.Optional(
+      Type.Array(Type.String(), { description: 'Validation or application errors' })
+    ),
+  },
+  { $id: 'ConfigUpdateResponse', description: 'Configuration update response' }
+);
+
+export type ConfigUpdateResponseType = Static<typeof ConfigUpdateResponseSchema>;
+
+// ============================================================================
 // Session Schemas
 // ============================================================================
 
@@ -660,6 +752,8 @@ export const AuditLogEntrySchema = Type.Object(
         Type.Literal('session_end'),
         Type.Literal('tool_execute'),
         Type.Literal('llm_request'),
+        Type.Literal('channel_command'),
+        Type.Literal('config_update'),
         Type.Literal('config_reload'),
         Type.Literal('error'),
       ],
@@ -711,6 +805,10 @@ export const Schemas = {
   MessageContent: MessageContentSchema,
   ChannelInboundMessage: ChannelInboundMessageSchema,
   ChannelOutboundMessage: ChannelOutboundMessageSchema,
+  ChannelCommandRequest: ChannelCommandRequestSchema,
+  ChannelCommandResponse: ChannelCommandResponseSchema,
+  ConfigUpdateRequest: ConfigUpdateRequestSchema,
+  ConfigUpdateResponse: ConfigUpdateResponseSchema,
 
   // Session
   SessionStatus: SessionStatusSchema,

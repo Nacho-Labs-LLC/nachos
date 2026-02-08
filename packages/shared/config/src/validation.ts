@@ -45,6 +45,7 @@ const CONFIG_SHAPE: SchemaNode = {
       bot_token: true,
       signing_secret: true,
       webhook_path: true,
+      commands: { enabled: true, admin_allowlist: true },
       dm: { user_allowlist: true, pairing: true },
       servers: {
         __array: {
@@ -58,6 +59,7 @@ const CONFIG_SHAPE: SchemaNode = {
     discord: {
       enabled: true,
       token: true,
+      commands: { enabled: true, admin_allowlist: true },
       dm: { user_allowlist: true, pairing: true },
       servers: {
         __array: {
@@ -123,9 +125,6 @@ const CONFIG_SHAPE: SchemaNode = {
       tool_calls_per_minute: true,
       llm_requests_per_minute: true,
     },
-    approval: {
-      approver_allowlist: true,
-    },
     audit: {
       enabled: true,
       retention_days: true,
@@ -147,8 +146,6 @@ const CONFIG_SHAPE: SchemaNode = {
   },
   runtime: {
     state_dir: true,
-    config_dir: true,
-    workspace_dir: true,
     log_level: true,
     log_format: true,
     redis_url: true,
@@ -441,7 +438,7 @@ function validateSecurityConfig(config: NachosConfig, errors: string[], _warning
 
   // Validate DLP configuration
   if (config.security.dlp) {
-    const validActions = ['block', 'warn', 'audit', 'allow', 'redact'];
+    const validActions = ['block', 'warn', 'audit'];
     if (config.security.dlp.action && !validActions.includes(config.security.dlp.action)) {
       errors.push(
         `Invalid security.dlp.action: "${config.security.dlp.action}". Must be one of: ${validActions.join(', ')}`

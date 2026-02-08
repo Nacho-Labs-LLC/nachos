@@ -7,6 +7,7 @@
 import type { NachosConfig } from './schema.js';
 import { loadConfig } from './loader.js';
 import { applyEnvOverlay } from './env.js';
+import { applyRuntimeOverlay } from './runtime-overlay.js';
 import { validateConfigOrThrow } from './validation.js';
 
 /**
@@ -17,6 +18,8 @@ export interface LoadConfigOptions {
   configPath?: string;
   /** Whether to apply environment variable overlays (default: true) */
   applyEnv?: boolean;
+  /** Whether to apply runtime state overlays (default: true) */
+  applyRuntime?: boolean;
   /** Whether to validate the configuration (default: true) */
   validate?: boolean;
 }
@@ -32,7 +35,7 @@ export interface LoadConfigOptions {
  * @throws ConfigValidationError if validation fails
  */
 export function loadAndValidateConfig(options: LoadConfigOptions = {}): NachosConfig {
-  const { configPath, applyEnv = true, validate = true } = options;
+  const { configPath, applyEnv = true, applyRuntime = true, validate = true } = options;
 
   // Load base configuration from TOML file
   let config = loadConfig(configPath);
@@ -40,6 +43,11 @@ export function loadAndValidateConfig(options: LoadConfigOptions = {}): NachosCo
   // Apply environment variable overlays
   if (applyEnv) {
     config = applyEnvOverlay(config);
+  }
+
+  // Apply runtime state overlays
+  if (applyRuntime) {
+    config = applyRuntimeOverlay(config);
   }
 
   // Validate configuration

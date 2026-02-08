@@ -1,4 +1,5 @@
 import { App } from '@slack/bolt';
+import { loadAndValidateConfig } from '@nachos/config';
 import type { SlackChannelConfig } from '@nachos/config';
 import {
   TOPICS,
@@ -17,6 +18,7 @@ import type {
 } from '@nachos/types';
 import { validateChannelInboundMessage } from '@nachos/types';
 import { shouldAllowDm, shouldAllowGroupMessage } from '@nachos/utils';
+import { randomUUID } from 'node:crypto';
 
 type SlackEventMessage = {
   type: string;
@@ -48,6 +50,7 @@ export class SlackChannelAdapter implements ChannelAdapter {
   private app?: App;
   private botUserId?: string;
   private mode: 'socket' | 'http' = 'socket';
+  private channelConfig?: SlackChannelConfig;
   private pairingStore = createPairingStore('slack', {
     stateDir: process.env.RUNTIME_STATE_DIR ?? process.env.NACHOS_STATE_DIR,
   });
@@ -56,6 +59,7 @@ export class SlackChannelAdapter implements ChannelAdapter {
   async initialize(config: ChannelAdapterConfig): Promise<void> {
     this.config = config;
     const channelConfig = (config.config ?? {}) as SlackChannelConfig;
+    this.channelConfig = channelConfig;
 
     this.mode = channelConfig.mode ?? 'socket';
 
@@ -89,7 +93,12 @@ export class SlackChannelAdapter implements ChannelAdapter {
     }
 
     this.app.event('message', async ({ event }) => {
-      await this.handleMessage(event as SlackEventMessage, channelConfig);
+      await this.handleMessage(event as SlackEventMessage);
+    });
+
+    this.app.command('/nachos', async ({ command, ack, respond }) => {
+      await ack();
+      await this.handleSlashCommand(command, respond);
     });
 
     const auth = await this.app.client.auth.test();
@@ -113,6 +122,10 @@ export class SlackChannelAdapter implements ChannelAdapter {
     if (this.config) {
       await this.config.bus.subscribe(TOPICS.channel.outbound(this.channelId), async (payload) => {
         await this.sendMessage(payload as OutboundMessage);
+      });
+
+      await this.config.bus.subscribe(TOPICS.config.updated, async () => {
+        await this.reloadConfigFromDisk();
       });
     }
   }
@@ -194,11 +207,9 @@ export class SlackChannelAdapter implements ChannelAdapter {
     }
   }
 
-  private async handleMessage(
-    event: SlackEventMessage,
-    channelConfig: SlackChannelConfig
-  ): Promise<void> {
+  private async handleMessage(event: SlackEventMessage): Promise<void> {
     if (!this.config || !this.app) return;
+    const channelConfig = this.channelConfig ?? ((this.config.config ?? {}) as SlackChannelConfig);
 
     if (event.subtype || event.bot_id) return;
     if (!event.user || !event.channel || !event.ts) return;
@@ -337,5 +348,205 @@ export class SlackChannelAdapter implements ChannelAdapter {
 
   private isUrl(value: string): boolean {
     return value.startsWith('http://') || value.startsWith('https://');
+  }
+
+  private getCommandConfig(): {
+    enabled: string[];
+    adminAllowlist: string[];
+  } {
+    const commands = this.channelConfig?.commands;
+    return {
+      enabled: commands?.enabled ?? [],
+      adminAllowlist: commands?.admin_allowlist ?? [],
+    };
+  }
+
+  private parseCommand(text?: string): { name: string; args: string[] } {
+    const tokens = (text ?? '').trim().split(/\s+/).filter(Boolean);
+    if (tokens.length === 0) {
+      return { name: 'help', args: [] };
+    }
+    const primary = tokens[0]?.toLowerCase() ?? '';
+    const secondary = tokens[1]?.toLowerCase();
+    if (primary === 'config' && secondary === 'show') {
+      return { name: 'config.show', args: tokens.slice(2) };
+    }
+    return { name: primary, args: tokens.slice(1) };
+  }
+
+  private async isCommandAuthorized(userId: string, isDm: boolean): Promise<boolean> {
+    if (!this.app) return false;
+    const { adminAllowlist } = this.getCommandConfig();
+    if (adminAllowlist.includes(userId)) return true;
+    if (isDm) return false;
+
+    try {
+      const response = await this.app.client.users.info({ user: userId });
+      const user = response.user as
+        | { is_admin?: boolean; is_owner?: boolean; is_primary_owner?: boolean }
+        | undefined;
+      return Boolean(user?.is_admin || user?.is_owner || user?.is_primary_owner);
+    } catch {
+      return false;
+    }
+  }
+
+  private async handleSlashCommand(
+    command: {
+      text?: string;
+      user_id: string;
+      channel_id: string;
+      team_id?: string;
+    },
+    respond: (message: {
+      text: string;
+      response_type?: 'ephemeral' | 'in_channel';
+    }) => Promise<void> | void
+  ): Promise<void> {
+    if (!this.channelConfig) return;
+    const { enabled } = this.getCommandConfig();
+    const isDm = command.channel_id.startsWith('D');
+    if (enabled.length === 0) {
+      await this.logCommandAudit({
+        command: 'unknown',
+        userId: command.user_id,
+        scope: isDm ? 'dm' : 'channel',
+        serverId: command.team_id,
+        conversationId: command.channel_id,
+        outcome: 'denied',
+        reason: 'Commands disabled',
+      });
+      await respond({ text: 'Commands are disabled for this channel.' });
+      return;
+    }
+
+    const parsed = this.parseCommand(command.text);
+    if (!enabled.includes(parsed.name)) {
+      await this.logCommandAudit({
+        command: parsed.name,
+        userId: command.user_id,
+        scope: isDm ? 'dm' : 'channel',
+        serverId: command.team_id,
+        conversationId: command.channel_id,
+        outcome: 'denied',
+        reason: 'Command not enabled',
+      });
+      await respond({ text: 'Command is not enabled.', response_type: 'ephemeral' });
+      return;
+    }
+
+    const authorized = await this.isCommandAuthorized(command.user_id, isDm);
+    if (!authorized) {
+      await this.logCommandAudit({
+        command: parsed.name,
+        userId: command.user_id,
+        scope: isDm ? 'dm' : 'channel',
+        serverId: command.team_id,
+        conversationId: command.channel_id,
+        outcome: 'denied',
+        reason: 'Permission denied',
+      });
+      await respond({ text: 'Permission denied for this command.', response_type: 'ephemeral' });
+      return;
+    }
+
+    const responseText = this.buildCommandResponse(parsed.name, isDm, command.team_id);
+    await this.logCommandAudit({
+      command: parsed.name,
+      userId: command.user_id,
+      scope: isDm ? 'dm' : 'channel',
+      serverId: command.team_id,
+      conversationId: command.channel_id,
+      outcome: 'allowed',
+    });
+    await respond({ text: responseText, response_type: 'ephemeral' });
+  }
+
+  private buildCommandResponse(name: string, isDm: boolean, teamId?: string): string {
+    if (!this.channelConfig || !this.config) return 'Channel configuration unavailable.';
+    const { enabled } = this.getCommandConfig();
+
+    if (name === 'status') {
+      return [
+        'Nachos Slack channel is running.',
+        `Security mode: ${this.config.securityMode}.`,
+        `Commands enabled: ${enabled.join(', ') || 'none'}.`,
+      ].join('\n');
+    }
+
+    if (name === 'config.show') {
+      if (isDm) {
+        const dmPolicy = resolveDmPolicy(this.channelConfig.dm);
+        if (!dmPolicy) return 'DM policy is not configured.';
+        return [
+          'DM policy:',
+          `- Pairing enabled: ${dmPolicy.pairing ? 'yes' : 'no'}.`,
+          `- User allowlist: ${dmPolicy.userAllowlist.join(', ') || 'empty'}.`,
+        ].join('\n');
+      }
+
+      if (!teamId) return 'Workspace context is missing.';
+      const serverConfig = findServerConfig(this.channelConfig.servers, teamId);
+      if (!serverConfig) return 'No server config found for this workspace.';
+      const groupPolicy = resolveGroupPolicy(serverConfig);
+      return [
+        'Server policy:',
+        `- Mention gating: ${groupPolicy.mentionGating ? 'enabled' : 'disabled'}.`,
+        `- Channel allowlist: ${groupPolicy.channelIds.join(', ') || 'empty'}.`,
+        `- User allowlist: ${groupPolicy.userAllowlist.join(', ') || 'empty'}.`,
+      ].join('\n');
+    }
+
+    return [
+      'Available commands:',
+      '- /nachos status',
+      '- /nachos help',
+      '- /nachos config show',
+    ].join('\n');
+  }
+
+  private async reloadConfigFromDisk(): Promise<void> {
+    if (!this.config) return;
+    try {
+      const config = loadAndValidateConfig({
+        configPath: process.env.NACHOS_CONFIG_PATH,
+      });
+      this.channelConfig = (config.channels?.slack ?? {}) as SlackChannelConfig;
+      this.config.config = this.channelConfig as unknown as Record<string, unknown>;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[Slack] Failed to reload config: ${message}`);
+    }
+  }
+
+  private async logCommandAudit(params: {
+    command: string;
+    userId: string;
+    scope: 'dm' | 'channel';
+    serverId?: string;
+    conversationId?: string;
+    outcome: 'allowed' | 'denied';
+    reason?: string;
+  }): Promise<void> {
+    if (!this.config) return;
+    await this.config.bus.publish(TOPICS.audit.log, {
+      id: randomUUID(),
+      timestamp: new Date().toISOString(),
+      instanceId: `channel-${this.channelId}`,
+      userId: params.userId,
+      sessionId: params.conversationId ?? params.userId,
+      channel: this.channelId,
+      eventType: 'channel_command',
+      action: 'channel.command',
+      resource: params.command,
+      outcome: params.outcome,
+      reason: params.reason,
+      securityMode: this.config.securityMode,
+      details: {
+        scope: params.scope,
+        serverId: params.serverId,
+        conversationId: params.conversationId,
+      },
+    });
   }
 }

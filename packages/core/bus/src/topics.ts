@@ -165,6 +165,25 @@ export const GATEWAY_TOPICS = {
 } as const;
 
 /**
+ * Configuration topics
+ */
+export const CONFIG_TOPICS = {
+  /**
+   * Request a config update
+   * Publisher: Channels or tools
+   * Subscriber: Gateway
+   */
+  update: `${TOPIC_PREFIX}.config.update`,
+
+  /**
+   * Broadcast config update results
+   * Publisher: Gateway
+   * Subscriber: Channels
+   */
+  updated: `${TOPIC_PREFIX}.config.updated`,
+} as const;
+
+/**
  * Context management topics
  */
 export const CONTEXT_TOPICS = {
@@ -221,6 +240,7 @@ export const TOPICS = {
   health: HEALTH_TOPICS,
   gateway: GATEWAY_TOPICS,
   context: CONTEXT_TOPICS,
+  config: CONFIG_TOPICS,
 } as const;
 
 /**

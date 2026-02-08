@@ -12,6 +12,10 @@ import {
   MessageEnvelopeSchema,
   ChannelInboundMessageSchema,
   ChannelOutboundMessageSchema,
+  ChannelCommandRequestSchema,
+  ChannelCommandResponseSchema,
+  ConfigUpdateRequestSchema,
+  ConfigUpdateResponseSchema,
   LLMRequestSchema,
   LLMResponseSchema,
   LLMStreamChunkSchema,
@@ -211,6 +215,42 @@ export function validateChannelOutboundMessage(
   data: unknown
 ): ValidationResult<Static<typeof ChannelOutboundMessageSchema>> {
   return validate(ChannelOutboundMessageSchema, data);
+}
+
+/**
+ * Validate a channel command request payload
+ */
+export function validateChannelCommandRequest(
+  data: unknown
+): ValidationResult<Static<typeof ChannelCommandRequestSchema>> {
+  return validate(ChannelCommandRequestSchema, data);
+}
+
+/**
+ * Validate a channel command response payload
+ */
+export function validateChannelCommandResponse(
+  data: unknown
+): ValidationResult<Static<typeof ChannelCommandResponseSchema>> {
+  return validate(ChannelCommandResponseSchema, data);
+}
+
+/**
+ * Validate a config update request payload
+ */
+export function validateConfigUpdateRequest(
+  data: unknown
+): ValidationResult<Static<typeof ConfigUpdateRequestSchema>> {
+  return validate(ConfigUpdateRequestSchema, data);
+}
+
+/**
+ * Validate a config update response payload
+ */
+export function validateConfigUpdateResponse(
+  data: unknown
+): ValidationResult<Static<typeof ConfigUpdateResponseSchema>> {
+  return validate(ConfigUpdateResponseSchema, data);
 }
 
 /**
