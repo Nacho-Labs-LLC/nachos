@@ -31,8 +31,9 @@ export class DockerSubagentSandbox {
     }
 
     const binds: string[] = [];
-    if (this.config.workspaceDir) {
-      binds.push(`${this.config.workspaceDir}:/workspace:rw`);
+    const workspaceDir = task.workspaceDir ?? this.config.workspaceDir;
+    if (workspaceDir) {
+      binds.push(`${workspaceDir}:/workspace:rw`);
     }
     if (this.config.configDir) {
       binds.push(`${this.config.configDir}:/config:ro`);

@@ -30,8 +30,11 @@ export class SandboxManager {
     }
 
     const workspaceAccess = this.config?.workspace_access ?? 'rw';
+    const subagentWorkspace = this.resolveSubagentWorkspaceDir(session);
     const workspaceDir =
-      workspaceAccess === 'none' ? undefined : (this.runtimePaths.workspaceDir ?? './workspace');
+      workspaceAccess === 'none'
+        ? undefined
+        : (subagentWorkspace ?? this.runtimePaths.workspaceDir ?? './workspace');
 
     return {
       enabled: true,
@@ -46,5 +49,17 @@ export class SandboxManager {
         network: this.config?.network ?? 'egress',
       },
     };
+  }
+
+  private resolveSubagentWorkspaceDir(session: Session | null): string | undefined {
+    if (!session?.metadata || typeof session.metadata !== 'object') {
+      return undefined;
+    }
+    const metadata = session.metadata as Record<string, unknown>;
+    const subagent = metadata.subagent as { workspaceDir?: unknown } | undefined;
+    if (!subagent || typeof subagent.workspaceDir !== 'string') {
+      return undefined;
+    }
+    return subagent.workspaceDir;
   }
 }

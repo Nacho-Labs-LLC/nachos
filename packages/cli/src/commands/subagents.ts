@@ -19,6 +19,19 @@ interface SubagentIdOptions {
   limit?: number;
 }
 
+interface SubagentFilesListOptions {
+  json?: boolean;
+  path?: string;
+  recursive?: boolean;
+  limit?: number;
+}
+
+interface SubagentFilesGetOptions {
+  json?: boolean;
+  path?: string;
+  maxBytes?: number;
+}
+
 interface SubagentSpawnOptions {
   json?: boolean;
   label?: string;
@@ -240,6 +253,99 @@ export async function subagentsLogCommand(
       console.log(`  ${chalk.dim(role.padEnd(9))} ${content}`);
     }
 
+    prettyOutput.blank();
+  } catch (error) {
+    output.error(error as Error);
+  } finally {
+    await client.disconnect();
+  }
+}
+
+export async function subagentsFilesListCommand(
+  runId: string,
+  options: SubagentFilesListOptions
+): Promise<void> {
+  const output = new OutputFormatter(options.json ?? false, 'subagents files list', getVersion());
+  const client = await createCliBusClient();
+
+  try {
+    const response = await requestGateway<{
+      runId: string;
+      entries: Array<{ name: string; path: string; type: string; size?: number }>;
+    }>(client, TOPICS.gateway.subagents.files.list, {
+      runId,
+      path: options.path,
+      recursive: options.recursive,
+      limit: options.limit,
+    });
+
+    if (options.json) {
+      output.success(response);
+      return;
+    }
+
+    prettyOutput.brandedHeader(`Subagent Files: ${runId}`);
+    prettyOutput.blank();
+
+    if (!response.entries || response.entries.length === 0) {
+      prettyOutput.warn('No files found');
+      prettyOutput.blank();
+      return;
+    }
+
+    for (const entry of response.entries) {
+      const size = entry.size !== undefined ? ` (${entry.size}b)` : '';
+      console.log(`  ${entry.type.padEnd(4)} ${entry.path}${size}`);
+    }
+
+    prettyOutput.blank();
+  } catch (error) {
+    output.error(error as Error);
+  } finally {
+    await client.disconnect();
+  }
+}
+
+export async function subagentsFilesGetCommand(
+  runId: string,
+  options: SubagentFilesGetOptions
+): Promise<void> {
+  const output = new OutputFormatter(options.json ?? false, 'subagents files get', getVersion());
+  const client = await createCliBusClient();
+
+  try {
+    const filePath = options.path ?? '';
+    if (!filePath.trim()) {
+      throw new CLIError('path is required', 'MISSING_ARGUMENT', 2);
+    }
+
+    const response = await requestGateway<{
+      runId: string;
+      file: {
+        path: string;
+        size: number;
+        updatedAtMs: number;
+        truncated: boolean;
+        encoding: string;
+        content: string;
+      };
+    }>(client, TOPICS.gateway.subagents.files.get, {
+      runId,
+      path: filePath,
+      maxBytes: options.maxBytes,
+    });
+
+    if (options.json) {
+      output.success(response);
+      return;
+    }
+
+    prettyOutput.brandedHeader(`Subagent File: ${runId}`);
+    prettyOutput.keyValue('Path', response.file.path);
+    prettyOutput.keyValue('Size', String(response.file.size));
+    prettyOutput.keyValue('Truncated', response.file.truncated ? 'yes' : 'no');
+    prettyOutput.blank();
+    console.log(response.file.content);
     prettyOutput.blank();
   } catch (error) {
     output.error(error as Error);

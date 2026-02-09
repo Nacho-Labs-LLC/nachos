@@ -9,6 +9,7 @@ export interface SubagentTask {
   request: LLMRequestType;
   timeoutMs?: number;
   sandboxMode?: 'host' | 'tool' | 'full';
+  workspaceDir?: string;
 }
 
 export interface SubagentResult {

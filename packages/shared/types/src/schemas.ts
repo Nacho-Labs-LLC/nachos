@@ -682,6 +682,32 @@ export const UserProfileToolSchema = Type.Object(
 
 export type UserProfileToolType = Static<typeof UserProfileToolSchema>;
 
+/**
+ * subagents tool parameters
+ */
+export const SubagentsToolSchema = Type.Object(
+  {
+    action: Type.Union(
+      [
+        Type.Literal('list'),
+        Type.Literal('info'),
+        Type.Literal('log'),
+        Type.Literal('files_list'),
+        Type.Literal('files_get'),
+      ],
+      { description: 'Subagent action to perform' }
+    ),
+    runId: Type.Optional(Type.String({ description: 'Subagent run ID' })),
+    limit: Type.Optional(Type.Number({ description: 'Result limit', minimum: 1 })),
+    path: Type.Optional(Type.String({ description: 'Workspace relative path' })),
+    recursive: Type.Optional(Type.Boolean({ description: 'List files recursively' })),
+    maxBytes: Type.Optional(Type.Number({ description: 'Max bytes to read', minimum: 1 })),
+  },
+  { $id: 'SubagentsTool', description: 'Subagent management tool parameters' }
+);
+
+export type SubagentsToolType = Static<typeof SubagentsToolSchema>;
+
 // ============================================================================
 // Health Check Schemas
 // ============================================================================
@@ -913,6 +939,7 @@ export const Schemas = {
   ToolRequest: ToolRequestSchema,
   ToolResponse: ToolResponseSchema,
   SessionsSpawnTool: SessionsSpawnToolSchema,
+  SubagentsTool: SubagentsToolSchema,
 
   // Health
   HealthStatus: HealthStatusSchema,

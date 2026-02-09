@@ -66,8 +66,11 @@ function upsertProfile(
   profileName: string,
   envVar: string
 ): { updated: boolean } {
-  const llm = (config.llm ?? {}) as TomlConfig['llm'];
-  const profiles = (llm?.profiles ?? []) as TOML.JsonArray;
+  const llm = (config.llm ?? {}) as TOML.JsonMap & {
+    profiles?: TOML.JsonArray;
+    profile_order?: TOML.JsonArray;
+  };
+  const profiles = (llm.profiles ?? []) as TOML.JsonArray;
 
   let updated = false;
   const nextProfiles = profiles.map((profile) => {
@@ -95,17 +98,16 @@ function upsertProfile(
   }
 
   llm.profiles = nextProfiles as TOML.JsonArray;
-  config.llm = llm;
+  config.llm = llm as TomlConfig['llm'];
   return { updated };
 }
 
-function updateProfileOrder(
-  config: TomlConfig,
-  profileName: string,
-  append: boolean
-): void {
-  const llm = (config.llm ?? {}) as TomlConfig['llm'];
-  const order = (llm?.profile_order ?? []) as TOML.JsonArray;
+function updateProfileOrder(config: TomlConfig, profileName: string, append: boolean): void {
+  const llm = (config.llm ?? {}) as TOML.JsonMap & {
+    profiles?: TOML.JsonArray;
+    profile_order?: TOML.JsonArray;
+  };
+  const order = (llm.profile_order ?? []) as TOML.JsonArray;
   const names = order.filter((item) => typeof item === 'string') as string[];
 
   const filtered = names.filter((name) => name !== profileName);
@@ -116,7 +118,7 @@ function updateProfileOrder(
   }
 
   llm.profile_order = filtered as TOML.JsonArray;
-  config.llm = llm;
+  config.llm = llm as TomlConfig['llm'];
 }
 
 function resolveEnvFile(configPath: string): string {
@@ -155,7 +157,9 @@ export async function setupTokenCommand(options: SetupTokenOptions): Promise<voi
   const provider = normalizeProvider(options.provider);
 
   if (provider !== 'anthropic') {
-    output.error(new CLIError('Only anthropic is supported for setup-token', 'UNSUPPORTED_PROVIDER'));
+    output.error(
+      new CLIError('Only anthropic is supported for setup-token', 'UNSUPPORTED_PROVIDER')
+    );
   }
 
   const configPath = findConfigFileOrThrow();

@@ -192,6 +192,37 @@ export function createProgram(): Command {
       });
     });
 
+  subagentsCmd
+    .command('files list <runId>')
+    .description('List subagent workspace files')
+    .option('--path <path>', 'Relative workspace path to list')
+    .option('--recursive', 'List files recursively')
+    .option('--limit <count>', 'Limit number of entries')
+    .action(async (runId: string, options) => {
+      const { subagentsFilesListCommand } = await import('./commands/subagents.js');
+      const parsed = options.limit ? Number.parseInt(options.limit, 10) : undefined;
+      await subagentsFilesListCommand(runId, {
+        ...program.opts(),
+        ...options,
+        limit: Number.isNaN(parsed) ? undefined : parsed,
+      });
+    });
+
+  subagentsCmd
+    .command('files get <runId>')
+    .description('Fetch a subagent workspace file')
+    .requiredOption('--path <path>', 'Relative workspace file path')
+    .option('--max-bytes <bytes>', 'Maximum bytes to read')
+    .action(async (runId: string, options) => {
+      const { subagentsFilesGetCommand } = await import('./commands/subagents.js');
+      const parsed = options.maxBytes ? Number.parseInt(options.maxBytes, 10) : undefined;
+      await subagentsFilesGetCommand(runId, {
+        ...program.opts(),
+        ...options,
+        maxBytes: Number.isNaN(parsed) ? undefined : parsed,
+      });
+    });
+
   // Sandbox commands
   const sandboxCmd = program.command('sandbox').description('Sandbox management');
 

@@ -15,6 +15,7 @@ import { TOPICS } from '@nachos/bus';
 import {
   MemoryToolSchema,
   SessionsSpawnToolSchema,
+  SubagentsToolSchema,
   UserProfileToolSchema,
   validateChannelInboundMessage,
 } from '@nachos/types';
@@ -74,6 +75,11 @@ import type {
 } from './state-layer/types.js';
 import { SubagentManager } from './subagents/subagent-manager.js';
 import { SubagentOrchestrator } from './subagents/subagent-orchestrator.js';
+import {
+  listSubagentWorkspaceEntries,
+  readSubagentWorkspaceFile,
+  resolveSubagentWorkspaceRoot,
+} from './subagents/workspace-utils.js';
 import type {
   SubagentManagerConfig,
   SubagentOrchestratorConfig,
@@ -181,6 +187,7 @@ export class Gateway {
   private subagentManager?: SubagentManager;
   private subagentOrchestrator?: SubagentOrchestrator;
   private subagentToolPolicy?: SubagentToolPolicyConfig;
+  private subagentWorkspaceRoot?: string;
   private sandboxManager?: SandboxManager;
   private streamingSessions: Map<
     string,
@@ -203,6 +210,7 @@ export class Gateway {
     this.securityMode = options.policyConfig?.securityMode ?? 'standard';
     this.toolGroupMap = this.buildToolGroupMap(options.toolGroups);
     this.subagentToolPolicy = options.subagentToolPolicy;
+    this.subagentWorkspaceRoot = resolveSubagentWorkspaceRoot(options.workspaceDir);
     if (options.toolSandboxConfig) {
       this.sandboxManager = new SandboxManager(options.toolSandboxConfig, {
         workspaceDir: options.workspaceDir,
@@ -269,6 +277,7 @@ export class Gateway {
         buildLLMRequest: this.buildLLMRequest.bind(this),
         defaultSystemPrompt: this.options.defaultSystemPrompt,
         config: options.subagentOrchestratorConfig,
+        workspaceRoot: this.subagentWorkspaceRoot,
       });
     }
 
@@ -845,6 +854,12 @@ export class Gateway {
         description: 'Spawn a subagent to run a task and announce results back to the requester.',
         parameters: this.sanitizeToolSchema(SessionsSpawnToolSchema),
       });
+      tools.push({
+        name: 'subagents',
+        description:
+          'Internal tool: inspect subagent runs, fetch logs, and read subagent workspace files.',
+        parameters: this.sanitizeToolSchema(SubagentsToolSchema),
+      });
     }
 
     if (this.stateLayer) {
@@ -1230,6 +1245,10 @@ export class Gateway {
       };
     }
 
+    if (call.tool === 'subagents') {
+      return this.executeSubagentsToolCall(call, session);
+    }
+
     if (call.tool === 'memory') {
       return this.executeMemoryToolCall(call, session);
     }
@@ -1476,6 +1495,109 @@ export class Gateway {
     return this.formatToolError('INVALID_PARAMETERS', `unknown user_profile action: ${action}`);
   }
 
+  private async executeSubagentsToolCall(
+    call: ToolCall,
+    session: Session | null
+  ): Promise<ToolResult> {
+    if (!this.subagentOrchestrator) {
+      return this.formatToolError('SUBAGENT_DISABLED', 'Subagent orchestration is not configured');
+    }
+
+    if (!session) {
+      return this.formatToolError('SESSION_NOT_FOUND', 'Session not found for subagent tool');
+    }
+
+    const action = this.readOptionalString(call.parameters.action);
+    if (!action) {
+      return this.formatToolError('INVALID_PARAMETERS', 'action is required');
+    }
+
+    if (action === 'list') {
+      const runs = this.filterSubagentRunsForSession(session, this.listSubagents());
+      return {
+        success: true,
+        content: [{ type: 'text', text: JSON.stringify({ runs }, null, 2) }],
+      };
+    }
+
+    const runId = this.readOptionalString(call.parameters.runId);
+    if (!runId) {
+      return this.formatToolError('INVALID_PARAMETERS', 'runId is required');
+    }
+
+    const run = this.getSubagentInfo(runId);
+    if (!run || !this.canAccessSubagentRun(session, run)) {
+      return this.formatToolError('NOT_FOUND', 'Subagent run not found');
+    }
+
+    if (action === 'info') {
+      return {
+        success: true,
+        content: [{ type: 'text', text: JSON.stringify({ run }, null, 2) }],
+      };
+    }
+
+    if (action === 'log') {
+      const limit = this.readOptionalNumber(call.parameters.limit, { min: 1 }) ?? 50;
+      const log = this.getSubagentLog(runId);
+      const messages = log?.messages ?? [];
+      return {
+        success: true,
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({ runId, messages: messages.slice(-limit) }, null, 2),
+          },
+        ],
+      };
+    }
+
+    if (action === 'files_list') {
+      const workspaceDir = this.subagentOrchestrator.getRunWorkspaceDir(runId);
+      if (!workspaceDir) {
+        return this.formatToolError('NOT_FOUND', 'Subagent workspace not available');
+      }
+
+      const entries = await listSubagentWorkspaceEntries({
+        rootDir: workspaceDir,
+        relativePath: this.readOptionalString(call.parameters.path),
+        recursive: Boolean(call.parameters.recursive),
+        limit: this.readOptionalNumber(call.parameters.limit, { min: 1 }) ?? 200,
+      });
+
+      return {
+        success: true,
+        content: [{ type: 'text', text: JSON.stringify({ runId, entries }, null, 2) }],
+      };
+    }
+
+    if (action === 'files_get') {
+      const workspaceDir = this.subagentOrchestrator.getRunWorkspaceDir(runId);
+      if (!workspaceDir) {
+        return this.formatToolError('NOT_FOUND', 'Subagent workspace not available');
+      }
+
+      const relativePath = this.readOptionalString(call.parameters.path);
+      if (!relativePath) {
+        return this.formatToolError('INVALID_PARAMETERS', 'path is required');
+      }
+
+      const maxBytes = this.readOptionalNumber(call.parameters.maxBytes, { min: 1 }) ?? 65536;
+      const file = await readSubagentWorkspaceFile({
+        rootDir: workspaceDir,
+        relativePath,
+        maxBytes,
+      });
+
+      return {
+        success: true,
+        content: [{ type: 'text', text: JSON.stringify({ runId, file }, null, 2) }],
+      };
+    }
+
+    return this.formatToolError('INVALID_PARAMETERS', `unknown subagents action: ${action}`);
+  }
+
   private formatToolError(code: string, message: string, details?: unknown): ToolResult {
     return {
       success: false,
@@ -1486,6 +1608,23 @@ export class Gateway {
         details,
       },
     };
+  }
+
+  private canAccessSubagentRun(session: Session, run: SubagentRunRecord): boolean {
+    if (session.id === run.requester.sessionId) {
+      return true;
+    }
+    if (session.userId && run.requester.userId && session.userId === run.requester.userId) {
+      return true;
+    }
+    return false;
+  }
+
+  private filterSubagentRunsForSession(
+    session: Session,
+    runs: SubagentRunRecord[]
+  ): SubagentRunRecord[] {
+    return runs.filter((run) => this.canAccessSubagentRun(session, run));
   }
 
   private isSubagentSession(session: Session | null): boolean {
@@ -2018,6 +2157,75 @@ export class Gateway {
           data: {
             runId,
             messages: messages.slice(-limit),
+          },
+        });
+      } catch (error) {
+        respondError(raw.respond, error as Error);
+      }
+    });
+
+    await client.subscribe(TOPICS.gateway.subagents.files.list, async (msg, raw) => {
+      try {
+        const payload = msg.payload as {
+          runId?: string;
+          path?: string;
+          recursive?: boolean;
+          limit?: number;
+        };
+        const runId = typeof payload?.runId === 'string' ? payload.runId : '';
+        if (!runId) {
+          throw new Error('runId is required');
+        }
+        const workspaceDir = this.subagentOrchestrator?.getRunWorkspaceDir(runId);
+        if (!workspaceDir) {
+          throw new Error('Subagent workspace not available');
+        }
+
+        const entries = await listSubagentWorkspaceEntries({
+          rootDir: workspaceDir,
+          relativePath: this.readOptionalString(payload.path),
+          recursive: Boolean(payload.recursive),
+          limit: payload.limit && payload.limit > 0 ? Math.floor(payload.limit) : 200,
+        });
+
+        raw.respond({
+          ok: true,
+          data: {
+            runId,
+            entries,
+          },
+        });
+      } catch (error) {
+        respondError(raw.respond, error as Error);
+      }
+    });
+
+    await client.subscribe(TOPICS.gateway.subagents.files.get, async (msg, raw) => {
+      try {
+        const payload = msg.payload as { runId?: string; path?: string; maxBytes?: number };
+        const runId = typeof payload?.runId === 'string' ? payload.runId : '';
+        const relativePath = this.readOptionalString(payload?.path);
+        if (!runId || !relativePath) {
+          throw new Error('runId and path are required');
+        }
+        const workspaceDir = this.subagentOrchestrator?.getRunWorkspaceDir(runId);
+        if (!workspaceDir) {
+          throw new Error('Subagent workspace not available');
+        }
+
+        const maxBytes =
+          payload?.maxBytes && payload.maxBytes > 0 ? Math.floor(payload.maxBytes) : 65536;
+        const file = await readSubagentWorkspaceFile({
+          rootDir: workspaceDir,
+          relativePath,
+          maxBytes,
+        });
+
+        raw.respond({
+          ok: true,
+          data: {
+            runId,
+            file,
           },
         });
       } catch (error) {

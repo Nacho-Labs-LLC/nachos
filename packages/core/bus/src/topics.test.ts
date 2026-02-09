@@ -106,6 +106,8 @@ describe('Topics', () => {
       expect(GATEWAY_TOPICS.subagents.info).toBe('nachos.gateway.subagents.info');
       expect(GATEWAY_TOPICS.subagents.stop).toBe('nachos.gateway.subagents.stop');
       expect(GATEWAY_TOPICS.subagents.log).toBe('nachos.gateway.subagents.log');
+      expect(GATEWAY_TOPICS.subagents.files.list).toBe('nachos.gateway.subagents.files.list');
+      expect(GATEWAY_TOPICS.subagents.files.get).toBe('nachos.gateway.subagents.files.get');
     });
 
     it('should have correct sandbox topics', () => {

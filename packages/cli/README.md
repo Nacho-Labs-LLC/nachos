@@ -274,6 +274,79 @@ Options:
   --session-id <id>       Optional session ID for audit context
 ```
 
+### Subagents
+
+#### `nachos subagents list`
+
+List subagent runs.
+
+```bash
+nachos subagents list [options]
+
+Options:
+  --limit <count>         Limit number of runs
+```
+
+#### `nachos subagents spawn`
+
+Spawn a subagent run.
+
+```bash
+nachos subagents spawn <task> [options]
+
+Options:
+  --label <label>         Optional run label
+  --profile <profile>     Subagent tool profile to apply
+  --agent-id <id>         Optional subagent ID override
+  --model <model>         Optional model override
+  --thinking <hint>       Optional thinking hint
+  --timeout <seconds>     Run timeout in seconds
+  --cleanup <mode>        Cleanup mode: delete or keep
+```
+
+#### `nachos subagents info`
+
+Show a subagent run summary.
+
+```bash
+nachos subagents info <runId>
+```
+
+#### `nachos subagents log`
+
+Show subagent run messages.
+
+```bash
+nachos subagents log <runId> [options]
+
+Options:
+  --limit <count>         Limit number of messages
+```
+
+#### `nachos subagents files list`
+
+List subagent workspace files.
+
+```bash
+nachos subagents files list <runId> [options]
+
+Options:
+  --path <path>           Relative workspace path to list
+  --recursive             List files recursively
+  --limit <count>         Limit number of entries
+```
+
+#### `nachos subagents files get`
+
+Fetch a subagent workspace file.
+
+```bash
+nachos subagents files get <runId> --path <path> [options]
+
+Options:
+  --max-bytes <bytes>     Maximum bytes to read
+```
+
 #### `nachos user-profile set`
 
 Set a user profile.

@@ -3,6 +3,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import path from 'node:path';
 import type { LLMRequestType } from '@nachos/types';
 import type { Router } from '../router.js';
 import type { SessionManager } from '../session.js';
@@ -20,6 +21,7 @@ import {
   extractResponseText,
   extractMessageText,
 } from './announce.js';
+import { ensureSubagentWorkspaceDir } from './workspace-utils.js';
 
 interface SubagentRunEntry {
   record: SubagentRunRecord;
@@ -39,6 +41,7 @@ export interface SubagentOrchestratorDeps {
   ) => Promise<LLMRequestType & { systemPromptTokens?: number }>;
   defaultSystemPrompt?: string;
   config?: SubagentOrchestratorConfig;
+  workspaceRoot?: string;
 }
 
 export class SubagentOrchestrator {
@@ -48,6 +51,8 @@ export class SubagentOrchestrator {
   private maxConcurrent: number;
   private announceConfig: SubagentAnnounceConfig;
   private stopped = false;
+  private workspaceRoot?: string;
+  private workspaceDirs = new Map<string, string>();
 
   constructor(private deps: SubagentOrchestratorDeps) {
     this.maxConcurrent = Math.max(1, Math.floor(deps.config?.maxConcurrent ?? 1));
@@ -55,6 +60,7 @@ export class SubagentOrchestrator {
       enabled: deps.config?.announce?.enabled ?? true,
       prompt: deps.config?.announce?.prompt,
     };
+    this.workspaceRoot = deps.workspaceRoot ? path.resolve(deps.workspaceRoot) : undefined;
   }
 
   async enqueue(request: SubagentRunRequest): Promise<SubagentRunRecord> {
@@ -69,7 +75,8 @@ export class SubagentOrchestrator {
 
     const runId = randomUUID();
     const now = new Date().toISOString();
-    const childSessionId = this.createSubagentSession(runId, { ...request, task });
+    const workspaceDir = await this.ensureWorkspace(runId);
+    const childSessionId = this.createSubagentSession(runId, { ...request, task }, workspaceDir);
 
     const record: SubagentRunRecord = {
       runId,
@@ -104,6 +111,10 @@ export class SubagentOrchestrator {
 
   getRunResult(runId: string): SubagentResult | undefined {
     return this.runs.get(runId)?.result;
+  }
+
+  getRunWorkspaceDir(runId: string): string | null {
+    return this.workspaceDirs.get(runId) ?? null;
   }
 
   stopRun(runId: string): boolean {
@@ -157,6 +168,7 @@ export class SubagentOrchestrator {
         request: llmRequest,
         timeoutMs: request.timeoutMs,
         sandboxMode: request.sandboxMode,
+        workspaceDir: this.workspaceDirs.get(entry.record.runId) ?? undefined,
       });
 
       entry.result = result;
@@ -197,7 +209,11 @@ export class SubagentOrchestrator {
     }
   }
 
-  private createSubagentSession(runId: string, request: SubagentRunRequest): string {
+  private createSubagentSession(
+    runId: string,
+    request: SubagentRunRequest,
+    workspaceDir?: string
+  ): string {
     const baseConfig = request.sessionConfig ?? {};
     const config = {
       ...baseConfig,
@@ -217,6 +233,7 @@ export class SubagentOrchestrator {
           profile: request.profile,
           agentId: request.agentId,
           requester: request.requester,
+          workspaceDir,
         },
       },
     });
@@ -227,6 +244,15 @@ export class SubagentOrchestrator {
     });
 
     return session.id;
+  }
+
+  private async ensureWorkspace(runId: string): Promise<string | undefined> {
+    if (!this.workspaceRoot) {
+      return undefined;
+    }
+    const dir = await ensureSubagentWorkspaceDir(this.workspaceRoot, runId);
+    this.workspaceDirs.set(runId, dir);
+    return dir;
   }
 
   private async announce(entry: SubagentRunEntry): Promise<void> {

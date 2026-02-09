@@ -170,6 +170,8 @@ export {
   ToolErrorSchema,
   SessionsSpawnToolSchema,
   type SessionsSpawnToolType,
+  SubagentsToolSchema,
+  type SubagentsToolType,
   MemoryToolSchema,
   type MemoryToolType,
   UserProfileToolSchema,

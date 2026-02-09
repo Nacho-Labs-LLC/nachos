@@ -156,6 +156,10 @@ export const GATEWAY_TOPICS = {
     info: `${TOPIC_PREFIX}.gateway.subagents.info`,
     stop: `${TOPIC_PREFIX}.gateway.subagents.stop`,
     log: `${TOPIC_PREFIX}.gateway.subagents.log`,
+    files: {
+      list: `${TOPIC_PREFIX}.gateway.subagents.files.list`,
+      get: `${TOPIC_PREFIX}.gateway.subagents.files.get`,
+    },
   },
   sandbox: {
     explain: `${TOPIC_PREFIX}.gateway.sandbox.explain`,

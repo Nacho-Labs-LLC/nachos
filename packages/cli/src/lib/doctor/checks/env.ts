@@ -20,7 +20,10 @@ function validateAnthropicSetupToken(value: string): string | undefined {
   return undefined;
 }
 
-function resolveRequiredKeys(provider: string | undefined, config: ReturnType<typeof loadTomlFile>) {
+function resolveRequiredKeys(
+  provider: string | undefined,
+  config: ReturnType<typeof loadTomlFile>
+) {
   const profiles = config.llm?.profiles ?? [];
   const profileKeys = profiles
     .filter((profile) => profile.provider === provider)
