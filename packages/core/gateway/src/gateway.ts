@@ -23,6 +23,7 @@ import type {
   RuntimeToolSandboxConfig,
   SubagentToolProfileConfig,
   SubagentToolPolicyConfig,
+  ToolGroupConfig,
   NachosConfig,
   PartialNachosConfig,
 } from '@nachos/config';
@@ -90,6 +91,13 @@ const DEFAULT_SUBAGENT_DENY_TOOLS = new Set([
   'sessions_spawn',
 ]);
 
+const DEFAULT_TOOL_GROUPS: Record<string, string[]> = {
+  lookup: ['web_fetch', 'goplaces'],
+  media: ['gifgrep'],
+  summarize: ['summarize'],
+  workspace: ['gog'],
+};
+
 /**
  * Gateway configuration options
  */
@@ -142,6 +150,8 @@ export interface GatewayOptions {
   toolSandboxConfig?: RuntimeToolSandboxConfig;
   /** Runtime workspace directory */
   workspaceDir?: string;
+  /** Tool group mapping for policy grouping */
+  toolGroups?: Record<string, ToolGroupConfig>;
 }
 
 /**
@@ -182,6 +192,8 @@ export class Gateway {
     }
   > = new Map();
   private approvalAllowlist: Set<string>;
+  private toolGroupMap: Map<string, string>;
+  private skillsPrompt: string | null = null;
 
   constructor(options: GatewayOptions = {}) {
     this.options = options;
@@ -189,6 +201,7 @@ export class Gateway {
     this.dlpConfig = options.dlpConfig;
     this.approvalAllowlist = new Set(options.approvalAllowlist ?? []);
     this.securityMode = options.policyConfig?.securityMode ?? 'standard';
+    this.toolGroupMap = this.buildToolGroupMap(options.toolGroups);
     this.subagentToolPolicy = options.subagentToolPolicy;
     if (options.toolSandboxConfig) {
       this.sandboxManager = new SandboxManager(options.toolSandboxConfig, {
@@ -753,6 +766,7 @@ export class Gateway {
           memoryEntries: memory.entries,
           memoryFacts: memory.facts,
           sessionState,
+          skills: this.skillsPrompt,
         });
 
         prompt = assembled.prompt;
@@ -932,6 +946,7 @@ export class Gateway {
       return {
         id: tc.id,
         tool: tc.name,
+        toolGroup: this.resolveToolGroup(tc.name),
         sessionId,
         userId: session?.userId,
         parameters,
@@ -1484,6 +1499,46 @@ export class Gateway {
     return tool.trim().toLowerCase();
   }
 
+  private buildToolGroupMap(groups?: Record<string, ToolGroupConfig>): Map<string, string> {
+    const map = new Map<string, string>();
+    const applyGroup = (groupName: string, tools: string[]) => {
+      for (const tool of tools) {
+        const normalized = this.normalizeToolName(tool);
+        if (normalized.length > 0) {
+          map.set(normalized, groupName);
+        }
+      }
+    };
+
+    for (const [groupName, tools] of Object.entries(DEFAULT_TOOL_GROUPS)) {
+      applyGroup(groupName, tools);
+    }
+
+    if (!groups) {
+      return map;
+    }
+
+    for (const [groupName, config] of Object.entries(groups)) {
+      if (!config || !Array.isArray(config.tools)) {
+        continue;
+      }
+      if (config.enabled === false) {
+        for (const tool of config.tools) {
+          map.delete(this.normalizeToolName(tool));
+        }
+        continue;
+      }
+      applyGroup(groupName, config.tools);
+    }
+
+    return map;
+  }
+
+  private resolveToolGroup(tool: string): string | undefined {
+    const normalized = this.normalizeToolName(tool);
+    return this.toolGroupMap.get(normalized);
+  }
+
   private resolveSubagentProfile(session: Session | null): string | undefined {
     const defaultProfile = this.readOptionalString(this.subagentToolPolicy?.default_profile);
     if (!session?.metadata || typeof session.metadata !== 'object') {
@@ -2032,12 +2087,47 @@ export class Gateway {
     // Initialize tool infrastructure
     this.approvalManager = new ApprovalManager();
     this.toolCache = new ToolCache();
+
+    // Initialize local tool handler for gateway-integrated tools (exec/shell)
+    const { LocalToolHandler } = await import('./tools/local-tool-handler.js');
+    const localToolHandler = new LocalToolHandler({
+      logger: {
+        info: (...args: unknown[]) => console.log('[LocalTools]', ...args),
+        warn: (...args: unknown[]) => console.warn('[LocalTools]', ...args),
+        error: (...args: unknown[]) => console.error('[LocalTools]', ...args),
+      },
+    });
+    console.log('[Gateway] Local tool handler initialized (exec/shell)');
+
+    // Load skills for system prompt
+    try {
+      const { loadSkills, formatSkillsForPrompt } = await import('./skills/skill-loader.js');
+      const { join } = await import('path');
+      const { fileURLToPath } = await import('url');
+      const { dirname } = await import('path');
+
+      // Resolve skills directory (relative to gateway package)
+      const currentDir = dirname(fileURLToPath(import.meta.url));
+      const skillsDir = join(currentDir, '..', '..', '..', '..', 'skills');
+
+      const skills = loadSkills({ skillsDir });
+      if (skills.length > 0) {
+        this.skillsPrompt = formatSkillsForPrompt(skills);
+        console.log(`[Gateway] Loaded ${skills.length} skills for LLM prompt`);
+      } else {
+        console.warn('[Gateway] No skills loaded');
+      }
+    } catch (error) {
+      console.error('[Gateway] Failed to load skills:', error);
+    }
+
     this.toolCoordinator = new ToolCoordinator({
       bus: this.router.getBus(),
       salsa: this.salsa ?? undefined,
       cache: this.toolCache,
       approvalManager: this.approvalManager,
       securityMode: this.options.policyConfig?.securityMode ?? 'standard',
+      localToolHandler,
     });
     console.log('[Gateway] Tool coordinator initialized');
 

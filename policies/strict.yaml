@@ -63,6 +63,19 @@ rules:
   # ============================================================================
   # Tools - All tools disabled by default in strict mode
   # ============================================================================
+  - id: "strict-tool-group-lookup-deny"
+    description: "Deny lookup tools (web_fetch + goplaces) in strict mode"
+    priority: 810
+    match:
+      resource: "tool"
+      action: "execute"
+    conditions:
+      - field: "metadata.tool_group"
+        operator: "equals"
+        value: "lookup"
+    effect: "deny"
+    reason: "Lookup tools are disabled in strict mode"
+
   - id: "strict-tool-deny-all"
     description: "Deny all tool access in strict mode"
     priority: 800

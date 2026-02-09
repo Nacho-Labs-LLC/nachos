@@ -108,6 +108,22 @@ const CONFIG_SHAPE: SchemaNode = {
     code_runner: { enabled: true, runtime: true, languages: true, timeout: true, max_memory: true },
     shell: { enabled: true },
     web_search: { enabled: true },
+    web_fetch: {
+      enabled: true,
+      allowed_domains: true,
+      max_chars: true,
+      timeout_seconds: true,
+      max_redirects: true,
+      user_agent: true,
+      firecrawl: {
+        enabled: true,
+        api_key: true,
+        base_url: true,
+        only_main_content: true,
+        max_age_ms: true,
+        timeout_seconds: true,
+      },
+    },
     copilot: {
       enabled: true,
       max_prompt_length: true,
@@ -119,6 +135,7 @@ const CONFIG_SHAPE: SchemaNode = {
       enabled: true,
       max_prompt_length: true,
     },
+    groups: true,
   },
   security: {
     mode: true,

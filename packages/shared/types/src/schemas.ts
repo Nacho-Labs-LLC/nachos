@@ -847,6 +847,20 @@ export const AuditLogEntrySchema = Type.Object(
       { description: 'Security mode at time of event' }
     ),
     policyMatched: Type.Optional(Type.String({ description: 'Matched policy rule ID' })),
+    toolMetadata: Type.Optional(
+      Type.Object(
+        {
+          toolName: Type.Optional(Type.String({ description: 'Tool name' })),
+          toolGroup: Type.Optional(Type.String({ description: 'Tool group for policy' })),
+          operation: Type.Optional(Type.String({ description: 'Operation performed' })),
+          resource: Type.Optional(Type.String({ description: 'Resource accessed' })),
+          securityTier: Type.Optional(Type.Number({ description: 'Security tier (0-4)' })),
+          duration: Type.Optional(Type.Number({ description: 'Execution duration in ms' })),
+          success: Type.Optional(Type.Boolean({ description: 'Whether execution succeeded' })),
+        },
+        { description: 'Tool execution metadata' }
+      )
+    ),
     details: Type.Optional(
       Type.Record(Type.String(), Type.Unknown(), { description: 'Additional details' })
     ),

@@ -23,6 +23,7 @@ export interface PromptAssemblyParams {
   memoryEntries?: MemoryEntry[];
   memoryFacts?: MemoryFact[];
   sessionState?: SessionStateRecord | null;
+  skills?: string | null; // Formatted skills documentation
 }
 
 export class PromptAssembler {
@@ -80,6 +81,14 @@ export class PromptAssembler {
         name: 'memory_facts',
         content: this.formatMemoryFacts(params.memoryFacts),
         source: 'memory-store',
+      });
+    }
+
+    if (params.skills) {
+      sections.push({
+        name: 'skills',
+        content: params.skills,
+        source: 'skill-loader',
       });
     }
 

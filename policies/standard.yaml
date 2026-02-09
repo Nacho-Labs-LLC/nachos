@@ -65,6 +65,89 @@ rules:
   # Tools - Common tools enabled
   # ============================================================================
 
+  # Web fetch - allowlisted domains only (customize this list)
+  - id: "standard-tool-web-fetch-allow"
+    description: "Allow web_fetch only for allowlisted domains"
+    priority: 825
+    match:
+      resource: "tool"
+      resourceId: "web_fetch"
+      action: "execute"
+    conditions:
+      - field: "metadata.domain"
+        operator: "in"
+        value:
+          - "github.com"
+          - "docs.google.com"
+          - "learn.microsoft.com"
+          - "developer.apple.com"
+          - "stackoverflow.com"
+    effect: "allow"
+    audit: true
+
+  - id: "standard-tool-web-fetch-deny"
+    description: "Deny web_fetch outside allowlisted domains"
+    priority: 824
+    match:
+      resource: "tool"
+      resourceId: "web_fetch"
+      action: "execute"
+    effect: "deny"
+    reason: "web_fetch is restricted to allowlisted domains in standard mode"
+
+  # Tool groups - lookup/media/summarize/workspace
+  - id: "standard-tool-group-lookup"
+    description: "Allow lookup tools (web_fetch + goplaces)"
+    priority: 820
+    match:
+      resource: "tool"
+      action: "execute"
+    conditions:
+      - field: "metadata.tool_group"
+        operator: "equals"
+        value: "lookup"
+    effect: "allow"
+    audit: true
+
+  - id: "standard-tool-group-media"
+    description: "Allow media tools (gifgrep)"
+    priority: 819
+    match:
+      resource: "tool"
+      action: "execute"
+    conditions:
+      - field: "metadata.tool_group"
+        operator: "equals"
+        value: "media"
+    effect: "allow"
+    audit: true
+
+  - id: "standard-tool-group-summarize"
+    description: "Allow summarize tools (summarize)"
+    priority: 818
+    match:
+      resource: "tool"
+      action: "execute"
+    conditions:
+      - field: "metadata.tool_group"
+        operator: "equals"
+        value: "summarize"
+    effect: "allow"
+    audit: true
+
+  - id: "standard-tool-group-workspace"
+    description: "Allow workspace tools (gog)"
+    priority: 817
+    match:
+      resource: "tool"
+      action: "execute"
+    conditions:
+      - field: "metadata.tool_group"
+        operator: "equals"
+        value: "workspace"
+    effect: "allow"
+    audit: true
+
   # Browser tool - Standard tier, allowed with SSRF protection
   - id: "standard-tool-browser"
     description: "Allow browser tool (SecurityTier: STANDARD)"

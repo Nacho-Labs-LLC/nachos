@@ -235,6 +235,9 @@ export interface ToolCall {
   /** Tool identifier */
   tool: string;
 
+  /** Tool group identifier for policy grouping */
+  toolGroup?: string;
+
   /** Session ID */
   sessionId: string;
 

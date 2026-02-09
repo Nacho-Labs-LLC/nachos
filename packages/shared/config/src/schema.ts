@@ -203,6 +203,40 @@ export interface WebSearchToolConfig {
 }
 
 /**
+ * Firecrawl fallback configuration for web fetch
+ */
+export interface FirecrawlConfig {
+  enabled?: boolean;
+  api_key?: string;
+  base_url?: string;
+  only_main_content?: boolean;
+  max_age_ms?: number;
+  timeout_seconds?: number;
+}
+
+/**
+ * Web fetch tool configuration
+ */
+export interface WebFetchToolConfig {
+  enabled: boolean;
+  allowed_domains?: string[];
+  max_chars?: number;
+  timeout_seconds?: number;
+  max_redirects?: number;
+  user_agent?: string;
+  firecrawl?: FirecrawlConfig;
+}
+
+/**
+ * Tool group configuration for policy grouping
+ */
+export interface ToolGroupConfig {
+  enabled?: boolean;
+  tools: string[];
+  description?: string;
+}
+
+/**
  * Copilot tool configuration
  */
 export interface CopilotToolConfig {
@@ -230,8 +264,10 @@ export interface ToolsConfig {
   code_runner?: CodeRunnerToolConfig;
   shell?: ShellToolConfig;
   web_search?: WebSearchToolConfig;
+  web_fetch?: WebFetchToolConfig;
   copilot?: CopilotToolConfig;
   claude_code_mcp?: ClaudeCodeMcpToolConfig;
+  groups?: Record<string, ToolGroupConfig>;
 }
 
 /**

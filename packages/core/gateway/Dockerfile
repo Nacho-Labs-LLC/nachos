@@ -1,8 +1,33 @@
 FROM node:22-alpine AS development
 
+# Install system dependencies and Go for CLI tools
+RUN apk add --no-cache \
+    go \
+    git \
+    ca-certificates \
+    && rm -rf /var/cache/apk/*
+
+# Install skill-based CLI tools
+RUN go install github.com/steipete/goplaces/cmd/goplaces@latest && \
+    go install github.com/steipete/gifgrep/cmd/gifgrep@latest && \
+    go install github.com/steipete/gogcli/cmd/gog@latest && \
+    go install github.com/steipete/summarize/cmd/summarize@latest
+
+# Add Go binaries to PATH
+ENV PATH="/root/go/bin:${PATH}"
+
 # Create non-root user
 RUN addgroup -g 1001 -S nachos && \
     adduser -S nachos -u 1001 -G nachos
+
+# Copy Go binaries to a location accessible by nachos user
+RUN mkdir -p /usr/local/bin/skills && \
+    cp /root/go/bin/* /usr/local/bin/skills/ 2>/dev/null || true && \
+    chmod +x /usr/local/bin/skills/* && \
+    chown -R nachos:nachos /usr/local/bin/skills
+
+# Update PATH for nachos user
+ENV PATH="/usr/local/bin/skills:${PATH}"
 
 WORKDIR /app
 

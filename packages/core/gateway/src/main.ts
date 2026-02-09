@@ -128,6 +128,7 @@ async function start(): Promise<void> {
     subagentToolPolicy,
     toolSandboxConfig,
     workspaceDir: runtime?.workspace_dir,
+    toolGroups: nachosConfig.tools?.groups,
   });
 
   const shutdown = async (signal: string) => {

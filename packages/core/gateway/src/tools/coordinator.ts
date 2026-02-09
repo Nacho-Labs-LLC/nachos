@@ -19,6 +19,7 @@ import type { Salsa, SecurityRequest } from '../salsa/index.js';
 import type { ToolCache } from './cache.js';
 import type { MessageBus } from '../router.js';
 import type { ApprovalManager } from './approval-manager.js';
+import type { LocalToolHandler } from './local-tool-handler.js';
 
 /**
  * Tool coordinator configuration
@@ -30,6 +31,7 @@ export interface ToolCoordinatorConfig {
   approvalManager?: ApprovalManager | null;
   defaultTimeout?: number;
   securityMode?: 'strict' | 'standard' | 'permissive';
+  localToolHandler?: LocalToolHandler | null;
 }
 
 /**
@@ -42,6 +44,7 @@ export class ToolCoordinator {
   private approvalManager?: ApprovalManager | null;
   private defaultTimeout: number;
   private securityMode?: 'strict' | 'standard' | 'permissive';
+  private localToolHandler?: LocalToolHandler | null;
 
   constructor(config: ToolCoordinatorConfig) {
     this.bus = config.bus;
@@ -50,6 +53,7 @@ export class ToolCoordinator {
     this.approvalManager = config.approvalManager;
     this.defaultTimeout = config.defaultTimeout ?? 30000; // 30 seconds
     this.securityMode = config.securityMode;
+    this.localToolHandler = config.localToolHandler;
   }
 
   /**
@@ -98,6 +102,14 @@ export class ToolCoordinator {
 
     if (!call.securityMode) {
       call.securityMode = this.securityMode ?? 'standard';
+    }
+
+    // Resolve tool group for local tools (for policy checking)
+    if (this.localToolHandler && this.localToolHandler.isLocalTool(call.tool)) {
+      const toolGroup = this.localToolHandler.getToolGroup(call);
+      if (toolGroup && !call.toolGroup) {
+        call.toolGroup = toolGroup;
+      }
     }
 
     try {
@@ -162,16 +174,27 @@ export class ToolCoordinator {
         }
       }
 
-      // 4. Execute via message bus
+      // 4. Execute locally if it's a local tool
+      if (this.localToolHandler && this.localToolHandler.isLocalTool(call.tool)) {
+        const result = await this.localToolHandler.execute(call);
+        // Add duration to metadata
+        if (!result.metadata) {
+          result.metadata = { duration: 0 };
+        }
+        result.metadata.duration = Date.now() - startTime;
+        return result;
+      }
+
+      // 5. Execute via message bus
       const result = await this.executeViaNats(call, options);
 
-      // 5. Cache result (if successful and cache is enabled)
+      // 6. Cache result (if successful and cache is enabled)
       if (this.cache && result.success) {
         const ttl = call.cacheTTL ?? 300; // Default 5 minutes
         await this.cache.set(call, result, ttl);
       }
 
-      // 6. Add duration to metadata
+      // 7. Add duration to metadata
       if (!result.metadata) {
         result.metadata = { duration: 0 };
       }
@@ -395,6 +418,7 @@ export class ToolCoordinator {
       return { allowed: true };
     }
 
+    const domain = this.resolveDomain(call.parameters);
     const request: SecurityRequest = {
       requestId: this.generateId(),
       userId: call.userId ?? call.sessionId,
@@ -408,6 +432,8 @@ export class ToolCoordinator {
       metadata: {
         ...call.parameters,
         securityTier: call.securityTier,
+        tool_group: call.toolGroup,
+        domain,
       },
       timestamp: new Date(),
     };
@@ -456,5 +482,17 @@ export class ToolCoordinator {
     }
 
     return undefined;
+  }
+
+  private resolveDomain(parameters: Record<string, unknown>): string | undefined {
+    const rawUrl = parameters.url;
+    if (typeof rawUrl !== 'string') {
+      return undefined;
+    }
+    try {
+      return new URL(rawUrl).hostname;
+    } catch {
+      return undefined;
+    }
   }
 }
