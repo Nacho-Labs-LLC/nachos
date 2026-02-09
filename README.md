@@ -49,7 +49,7 @@ cd nachos
 
 # Copy environment variables
 cp .env.example .env
-# Edit .env and add your LLM API key (ANTHROPIC_API_KEY or OPENAI_API_KEY)
+# Edit .env and add your LLM API key (ANTHROPIC_API_KEY, ANTHROPIC_SETUP_TOKEN, or OPENAI_API_KEY)
 
 # Start the development stack
 docker compose -f docker-compose.dev.yml up
@@ -130,6 +130,23 @@ paths = ["./workspace"]
 [security]
 mode = "standard"
 ```
+
+### Claude setup-token (subscription)
+
+If you have a Claude Pro/Max subscription, generate a setup-token via the Claude Code CLI:
+
+```bash
+claude setup-token
+```
+
+Then configure Nachos to use it:
+
+```bash
+nachos auth setup-token
+```
+
+This command creates/updates an Anthropic profile in `nachos.toml` and can optionally write the
+token to your `.env` file.
 
 ## Security Modes
 

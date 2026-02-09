@@ -16,6 +16,7 @@ version = "1.0"
 # 🥩 THE PROTEIN - Your LLM Provider
 # ═══════════════════════════════════════════════════════════════════════════════
 # Choose your AI backend. Credentials come from environment variables or .env file.
+# For Claude subscriptions, set ANTHROPIC_SETUP_TOKEN from `claude setup-token`.
 
 [llm]
 provider = "anthropic"                    # "anthropic" | "openai" | "ollama" | "custom"
@@ -23,6 +24,29 @@ model = "claude-sonnet-4-20250514"        # Default model
 fallback_order = ["anthropic:claude-haiku"] # Used if primary fails
 max_tokens = 4096                         # Max response tokens
 temperature = 0.7                         # 0.0 = deterministic, 1.0 = creative
+
+# Multiple auth profiles (optional): define env var names + preferred order.
+#
+# [[llm.profiles]]
+# name = "anthropic-subscription-1"
+# provider = "anthropic"
+# api_key_env = "ANTHROPIC_SETUP_TOKEN"
+#
+# [[llm.profiles]]
+# name = "anthropic-primary"
+# provider = "anthropic"
+# api_key_env = "ANTHROPIC_API_KEY"
+#
+# [[llm.profiles]]
+# name = "anthropic-subscription-2"
+# provider = "anthropic"
+# api_key_env = "ANTHROPIC_SETUP_TOKEN_2"
+#
+# profile_order = [
+#   "anthropic-subscription-1",
+#   "anthropic-primary",
+#   "anthropic-subscription-2",
+# ]
 
 # For Ollama (local models):
 # [llm]

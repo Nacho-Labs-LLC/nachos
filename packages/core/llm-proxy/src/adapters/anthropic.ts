@@ -200,6 +200,11 @@ export class AnthropicAdapter {
       return { apiKey: envKey };
     }
 
+    const setupToken = process.env.ANTHROPIC_SETUP_TOKEN || process.env.CLAUDE_SETUP_TOKEN;
+    if (setupToken) {
+      return { apiKey: setupToken };
+    }
+
     throw new ProviderError('Anthropic API key missing', 'auth');
   }
 }

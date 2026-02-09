@@ -6,6 +6,47 @@ import { loadTomlFile } from '@nachos/config';
 import { findConfigFile } from '../../../core/config-discovery.js';
 import type { DoctorCheck } from '../types.js';
 
+const ANTHROPIC_SETUP_TOKEN_PREFIX = 'sk-ant-oat01-';
+const ANTHROPIC_SETUP_TOKEN_MIN_LENGTH = 80;
+
+function validateAnthropicSetupToken(value: string): string | undefined {
+  const trimmed = value.trim();
+  if (!trimmed.startsWith(ANTHROPIC_SETUP_TOKEN_PREFIX)) {
+    return `Expected token starting with ${ANTHROPIC_SETUP_TOKEN_PREFIX}`;
+  }
+  if (trimmed.length < ANTHROPIC_SETUP_TOKEN_MIN_LENGTH) {
+    return 'Token looks too short; paste the full setup-token';
+  }
+  return undefined;
+}
+
+function resolveRequiredKeys(provider: string | undefined, config: ReturnType<typeof loadTomlFile>) {
+  const profiles = config.llm?.profiles ?? [];
+  const profileKeys = profiles
+    .filter((profile) => profile.provider === provider)
+    .map((profile) => profile.api_key_env)
+    .filter((env): env is string => Boolean(env && env.trim()));
+
+  const uniqueProfileKeys = Array.from(new Set(profileKeys));
+  if (uniqueProfileKeys.length > 0) {
+    return uniqueProfileKeys;
+  }
+
+  if (provider === 'anthropic') {
+    return ['ANTHROPIC_API_KEY', 'ANTHROPIC_SETUP_TOKEN', 'CLAUDE_SETUP_TOKEN'];
+  }
+
+  if (provider === 'openai') {
+    return ['OPENAI_API_KEY'];
+  }
+
+  return [];
+}
+
+function isLikelySetupToken(key: string, value: string): boolean {
+  return key.includes('SETUP_TOKEN') || value.trim().startsWith(ANTHROPIC_SETUP_TOKEN_PREFIX);
+}
+
 /**
  * Check if required environment variables are present
  */
@@ -28,17 +69,32 @@ export async function checkEnvVars(): Promise<DoctorCheck> {
 
     // Check LLM provider API keys
     const provider = config.llm?.provider;
+    const requiredKeys = resolveRequiredKeys(provider, config);
+    const presentKeys = requiredKeys.filter((key) => process.env[key]?.trim());
+    const invalidSetupTokens: string[] = [];
 
-    if (provider === 'anthropic') {
-      if (!process.env.ANTHROPIC_API_KEY) {
-        missing.push('ANTHROPIC_API_KEY');
+    for (const key of presentKeys) {
+      const value = process.env[key]?.trim() ?? '';
+      if (!value) {
+        continue;
+      }
+      if (provider === 'anthropic' && isLikelySetupToken(key, value)) {
+        const error = validateAnthropicSetupToken(value);
+        if (error) {
+          invalidSetupTokens.push(key);
+        }
       }
     }
 
-    if (provider === 'openai') {
-      if (!process.env.OPENAI_API_KEY) {
-        missing.push('OPENAI_API_KEY');
-      }
+    const validKeys = presentKeys.filter((key) => !invalidSetupTokens.includes(key));
+    if (requiredKeys.length > 0 && validKeys.length === 0) {
+      const invalidNote =
+        invalidSetupTokens.length > 0
+          ? ` Invalid setup-token: ${invalidSetupTokens.join(', ')}`
+          : '';
+      missing.push(`${requiredKeys.join(', ')}${invalidNote}`);
+    } else if (invalidSetupTokens.length > 0) {
+      warnings.push(`Invalid setup-token: ${invalidSetupTokens.join(', ')}`);
     }
 
     // Check channel-specific env vars
