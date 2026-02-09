@@ -295,6 +295,45 @@ export class DiscordChannelAdapter implements ChannelAdapter {
               },
             ],
           },
+          {
+            type: 2,
+            name: 'session',
+            description: 'Session management commands',
+            options: [
+              {
+                type: 1,
+                name: 'reset',
+                description: 'Start a fresh session',
+              },
+            ],
+          },
+          {
+            type: 2,
+            name: 'context',
+            description: 'Context management controls',
+            options: [
+              {
+                type: 1,
+                name: 'on',
+                description: 'Enable context management for this session',
+              },
+              {
+                type: 1,
+                name: 'off',
+                description: 'Disable context management for this session',
+              },
+              {
+                type: 1,
+                name: 'status',
+                description: 'Show context management status',
+              },
+              {
+                type: 1,
+                name: 'auto',
+                description: 'Reset to default context management behavior',
+              },
+            ],
+          },
         ],
       },
     ];
@@ -329,7 +368,7 @@ export class DiscordChannelAdapter implements ChannelAdapter {
     }
 
     const commandName = this.resolveCommandName(interaction);
-    if (!enabled.includes(commandName)) {
+    if (!this.isCommandEnabled(commandName, enabled)) {
       await this.logCommandAudit({
         command: commandName,
         userId: interaction.user.id,
@@ -359,6 +398,48 @@ export class DiscordChannelAdapter implements ChannelAdapter {
       return;
     }
 
+    if (commandName === 'session.reset') {
+      await this.dispatchCommandMessage({
+        text: '/reset',
+        userId: interaction.user.id,
+        conversationId: interaction.channelId,
+        isDm,
+        guildId: interaction.guildId ?? undefined,
+      });
+      await this.logCommandAudit({
+        command: commandName,
+        userId: interaction.user.id,
+        scope: isDm ? 'dm' : 'channel',
+        serverId: interaction.guildId ?? undefined,
+        conversationId: interaction.channelId,
+        outcome: 'allowed',
+      });
+      await interaction.reply({ content: '✅ New session started.', ephemeral: true });
+      return;
+    }
+
+    if (commandName.startsWith('context.')) {
+      const action = commandName.split('.')[1] ?? 'status';
+      const commandText = action === 'status' ? '/context status' : `/context ${action}`;
+      await this.dispatchCommandMessage({
+        text: commandText,
+        userId: interaction.user.id,
+        conversationId: interaction.channelId,
+        isDm,
+        guildId: interaction.guildId ?? undefined,
+      });
+      await this.logCommandAudit({
+        command: commandName,
+        userId: interaction.user.id,
+        scope: isDm ? 'dm' : 'channel',
+        serverId: interaction.guildId ?? undefined,
+        conversationId: interaction.channelId,
+        outcome: 'allowed',
+      });
+      await interaction.reply({ content: '✅ Context command sent.', ephemeral: true });
+      return;
+    }
+
     const responseText = this.buildCommandResponse(
       commandName,
       isDm,
@@ -380,8 +461,50 @@ export class DiscordChannelAdapter implements ChannelAdapter {
     const group = interaction.options.getSubcommandGroup(false);
 
     if (group === 'config' && sub === 'show') return 'config.show';
+    if (group === 'session' && sub === 'reset') return 'session.reset';
+    if (group === 'context' && sub) return `context.${sub.toLowerCase()}`;
     if (sub) return sub.toLowerCase();
     return 'help';
+  }
+
+  private isCommandEnabled(command: string, enabled: string[]): boolean {
+    if (enabled.includes(command)) return true;
+    if (command.startsWith('context.')) {
+      return enabled.includes('context');
+    }
+    if (command === 'session.reset') {
+      return enabled.includes('session.reset') || enabled.includes('session');
+    }
+    return false;
+  }
+
+  private async dispatchCommandMessage(params: {
+    text: string;
+    userId: string;
+    conversationId: string;
+    isDm: boolean;
+    guildId?: string;
+  }): Promise<void> {
+    if (!this.config) return;
+    await this.config.bus.publish(TOPICS.channel.inbound(this.channelId), {
+      channel: this.channelId,
+      channelMessageId: randomUUID(),
+      sender: {
+        id: params.userId,
+        isAllowed: true,
+      },
+      conversation: {
+        id: params.conversationId,
+        type: params.isDm ? 'dm' : 'channel',
+      },
+      content: {
+        text: params.text,
+      },
+      metadata: {
+        guildId: params.guildId,
+        source: 'slash_command',
+      },
+    });
   }
 
   private async isCommandAuthorized(
@@ -437,9 +560,14 @@ export class DiscordChannelAdapter implements ChannelAdapter {
       ].join('\n');
     }
 
-    return ['Available commands:', '/nachos status', '/nachos help', '/nachos config show'].join(
-      '\n'
-    );
+    return [
+      'Available commands:',
+      '/nachos status',
+      '/nachos help',
+      '/nachos config show',
+      '/nachos session reset',
+      '/nachos context on|off|status|auto',
+    ].join('\n');
   }
 
   private async reloadConfigFromDisk(): Promise<void> {

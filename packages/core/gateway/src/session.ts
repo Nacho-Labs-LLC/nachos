@@ -77,6 +77,35 @@ export class SessionManager {
   }
 
   /**
+   * Create a new session for the conversation without checking for existing ones.
+   */
+  createSession(options: CreateSessionOptions): Session {
+    const createData: CreateSessionData = {
+      channel: options.channel,
+      conversationId: options.conversationId,
+      userId: options.userId,
+      systemPrompt: options.systemPrompt,
+      config: options.config,
+      metadata: options.metadata,
+    };
+
+    return this.storage.createSession(createData);
+  }
+
+  /**
+   * Reset the session for a conversation by deleting the existing session and creating a new one.
+   */
+  resetSession(options: CreateSessionOptions): { previous?: Session; session: Session } {
+    const existing = this.getSessionByConversation(options.channel, options.conversationId);
+    if (existing) {
+      this.storage.deleteSession(existing.id);
+    }
+
+    const session = this.createSession(options);
+    return { previous: existing ?? undefined, session };
+  }
+
+  /**
    * Get a session by ID
    */
   getSession(sessionId: string): Session | null {

@@ -371,7 +371,53 @@ export class SlackChannelAdapter implements ChannelAdapter {
     if (primary === 'config' && secondary === 'show') {
       return { name: 'config.show', args: tokens.slice(2) };
     }
+    if (primary === 'session' && (secondary === 'reset' || secondary === 'new')) {
+      return { name: 'session.reset', args: tokens.slice(2) };
+    }
+    if (primary === 'context') {
+      return { name: 'context', args: tokens.slice(1) };
+    }
     return { name: primary, args: tokens.slice(1) };
+  }
+
+  private isCommandEnabled(command: string, enabled: string[]): boolean {
+    if (enabled.includes(command)) return true;
+    if (command.startsWith('context.') || command === 'context') {
+      return enabled.includes('context');
+    }
+    if (command === 'session.reset') {
+      return enabled.includes('session.reset') || enabled.includes('session');
+    }
+    return false;
+  }
+
+  private async dispatchCommandMessage(params: {
+    text: string;
+    userId: string;
+    conversationId: string;
+    isDm: boolean;
+    teamId?: string;
+  }): Promise<void> {
+    if (!this.config) return;
+    await this.config.bus.publish(TOPICS.channel.inbound(this.channelId), {
+      channel: this.channelId,
+      channelMessageId: randomUUID(),
+      sender: {
+        id: params.userId,
+        isAllowed: true,
+      },
+      conversation: {
+        id: params.conversationId,
+        type: params.isDm ? 'dm' : 'channel',
+      },
+      content: {
+        text: params.text,
+      },
+      metadata: {
+        teamId: params.teamId,
+        source: 'slash_command',
+      },
+    });
   }
 
   private async isCommandAuthorized(userId: string, isDm: boolean): Promise<boolean> {
@@ -421,7 +467,7 @@ export class SlackChannelAdapter implements ChannelAdapter {
     }
 
     const parsed = this.parseCommand(command.text);
-    if (!enabled.includes(parsed.name)) {
+    if (!this.isCommandEnabled(parsed.name, enabled)) {
       await this.logCommandAudit({
         command: parsed.name,
         userId: command.user_id,
@@ -447,6 +493,57 @@ export class SlackChannelAdapter implements ChannelAdapter {
         reason: 'Permission denied',
       });
       await respond({ text: 'Permission denied for this command.', response_type: 'ephemeral' });
+      return;
+    }
+
+    if (parsed.name === 'session.reset') {
+      await this.dispatchCommandMessage({
+        text: '/reset',
+        userId: command.user_id,
+        conversationId: command.channel_id,
+        isDm,
+        teamId: command.team_id,
+      });
+      await this.logCommandAudit({
+        command: parsed.name,
+        userId: command.user_id,
+        scope: isDm ? 'dm' : 'channel',
+        serverId: command.team_id,
+        conversationId: command.channel_id,
+        outcome: 'allowed',
+      });
+      await respond({ text: '✅ New session started.', response_type: 'ephemeral' });
+      return;
+    }
+
+    if (parsed.name === 'context') {
+      const action = parsed.args[0]?.toLowerCase() ?? 'status';
+      const normalizedAction =
+        action === 'enable'
+          ? 'on'
+          : action === 'disable'
+            ? 'off'
+            : action === 'default'
+              ? 'auto'
+              : action;
+      const commandText =
+        normalizedAction === 'status' ? '/context status' : `/context ${normalizedAction}`;
+      await this.dispatchCommandMessage({
+        text: commandText,
+        userId: command.user_id,
+        conversationId: command.channel_id,
+        isDm,
+        teamId: command.team_id,
+      });
+      await this.logCommandAudit({
+        command: `context.${normalizedAction}`,
+        userId: command.user_id,
+        scope: isDm ? 'dm' : 'channel',
+        serverId: command.team_id,
+        conversationId: command.channel_id,
+        outcome: 'allowed',
+      });
+      await respond({ text: '✅ Context command sent.', response_type: 'ephemeral' });
       return;
     }
 
@@ -502,6 +599,8 @@ export class SlackChannelAdapter implements ChannelAdapter {
       '- /nachos status',
       '- /nachos help',
       '- /nachos config show',
+      '- /nachos session reset',
+      '- /nachos context on|off|status|auto',
     ].join('\n');
   }
 

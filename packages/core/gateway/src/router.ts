@@ -355,6 +355,13 @@ export class Router {
       return;
     }
 
+    const metadata = sessionWithMessages.metadata as
+      | { contextManagement?: { enabled?: boolean } }
+      | null;
+    if (metadata?.contextManagement?.enabled === false) {
+      return;
+    }
+
     const stateContext: StateOperationContext = {
       sessionId,
       userId: sessionWithMessages.userId,

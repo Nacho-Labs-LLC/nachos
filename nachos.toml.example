@@ -75,7 +75,7 @@ bot_token = "${SLACK_BOT_TOKEN}"
 # webhook_path = "/slack/events"
 
 [channels.slack.commands]
-enabled = ["status", "help", "config.show"]
+enabled = ["status", "help", "config.show", "session.reset", "context"]
 admin_allowlist = ["U123456"]
 
 [[channels.slack.servers]]
@@ -88,7 +88,7 @@ enabled = false
 token = "${DISCORD_BOT_TOKEN}"
 
 [channels.discord.commands]
-enabled = ["status", "help", "config.show"]
+enabled = ["status", "help", "config.show", "session.reset", "context"]
 admin_allowlist = ["1234567890"]
 
 [[channels.discord.servers]]
@@ -303,6 +303,14 @@ soft_threshold_tokens = 4000
 extract_structured = true
 create_snapshot = true
 validate_extraction = true
+
+[runtime.context_management.commands]
+enabled = true
+allow_in_dms = true
+allow_in_channels = false
+admin_allowlist = []
+reset_triggers = ["/new", "/reset", "!new", "!reset"]
+context_triggers = ["/context", "/context-management", "!context"]
 
 # Subagent sandboxing
 [runtime.subagents]

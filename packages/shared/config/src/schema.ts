@@ -438,6 +438,18 @@ export interface MemoryFlushConfig {
 }
 
 /**
+ * Context Management - Command Configuration
+ */
+export interface ContextManagementCommandsConfig {
+  enabled?: boolean;
+  allow_in_dms?: boolean;
+  allow_in_channels?: boolean;
+  admin_allowlist?: string[];
+  reset_triggers?: string[];
+  context_triggers?: string[];
+}
+
+/**
  * Context Management Configuration
  */
 export interface ContextManagementConfig {
@@ -445,6 +457,7 @@ export interface ContextManagementConfig {
   summarization?: SummarizationConfig;
   proactive_history?: ProactiveHistoryConfig;
   memory_flush?: MemoryFlushConfig;
+  commands?: ContextManagementCommandsConfig;
 }
 
 /**

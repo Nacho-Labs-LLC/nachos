@@ -232,6 +232,14 @@ const CONFIG_SHAPE: SchemaNode = {
         system_prompt: true,
         prompt: true,
       },
+      commands: {
+        enabled: true,
+        allow_in_dms: true,
+        allow_in_channels: true,
+        admin_allowlist: true,
+        reset_triggers: true,
+        context_triggers: true,
+      },
     },
     state: {
       identity: {

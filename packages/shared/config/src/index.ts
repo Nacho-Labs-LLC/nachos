@@ -54,6 +54,7 @@ export type {
   AssistantConfig,
   SkillsConfig,
   MemoryFlushConfig,
+  ContextManagementCommandsConfig,
 } from './schema.js';
 
 // Export loader functions

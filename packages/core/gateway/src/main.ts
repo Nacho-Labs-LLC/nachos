@@ -12,7 +12,7 @@ import {
 } from './index.js';
 import { NatsBusAdapter } from './router.js';
 import type { StateLayerConfig } from './state-layer/types.js';
-import type { RuntimeConfig } from '@nachos/config';
+import type { ContextManagementCommandsConfig, RuntimeConfig } from '@nachos/config';
 import path from 'node:path';
 
 async function buildDlpConfig(configPath?: string): Promise<DLPConfig | undefined> {
@@ -56,6 +56,8 @@ async function start(): Promise<void> {
     ? mapContextManagement(runtime.context_management)
     : undefined;
   const contextManager = contextManagement ? createContextManager(contextManagement) : undefined;
+  const contextCommandConfig: ContextManagementCommandsConfig | undefined =
+    runtime?.context_management?.commands;
 
   const proactiveHistory = contextManagement?.proactive_history;
   const stateLayerConfig = buildStateLayerConfig(runtime);
@@ -123,6 +125,7 @@ async function start(): Promise<void> {
     contextManager,
     stateLayerConfig,
     memoryPipelineConfig,
+    contextCommandConfig,
     subagentConfig,
     subagentOrchestratorConfig,
     subagentToolPolicy,

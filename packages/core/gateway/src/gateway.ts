@@ -9,6 +9,7 @@ import type {
   Message,
   MessageEnvelope,
   Session,
+  SessionWithMessages,
   PromptReport,
 } from '@nachos/types';
 import { TOPICS } from '@nachos/bus';
@@ -21,6 +22,7 @@ import {
 } from '@nachos/types';
 import type {
   AuditConfig,
+  ContextManagementCommandsConfig,
   RuntimeToolSandboxConfig,
   SubagentToolProfileConfig,
   SubagentToolPolicyConfig,
@@ -104,6 +106,22 @@ const DEFAULT_TOOL_GROUPS: Record<string, string[]> = {
   workspace: ['gog'],
 };
 
+type ResolvedContextCommandConfig = {
+  enabled: boolean;
+  allowInDms: boolean;
+  allowInChannels: boolean;
+  adminAllowlist: Set<string>;
+  resetTriggers: string[];
+  contextTriggers: string[];
+};
+
+type ContextCommandOutcome = {
+  handled: boolean;
+  replyText?: string;
+  newSession?: Session;
+  nextMessageText?: string;
+};
+
 /**
  * Gateway configuration options
  */
@@ -146,6 +164,8 @@ export interface GatewayOptions {
   memoryPipeline?: MemoryPipeline;
   /** Memory pipeline configuration (used if memoryPipeline not provided) */
   memoryPipelineConfig?: MemoryPipelineConfig;
+  /** Context command configuration for session controls */
+  contextCommandConfig?: ContextManagementCommandsConfig;
   /** Subagent configuration */
   subagentConfig?: SubagentManagerConfig;
   /** Subagent orchestration configuration */
@@ -184,6 +204,7 @@ export class Gateway {
   private memoryPipeline?: MemoryPipeline;
   private memoryPipelineInterval?: NodeJS.Timeout;
   private securityMode: 'strict' | 'standard' | 'permissive';
+  private contextCommandConfig?: ContextManagementCommandsConfig;
   private subagentManager?: SubagentManager;
   private subagentOrchestrator?: SubagentOrchestrator;
   private subagentToolPolicy?: SubagentToolPolicyConfig;
@@ -211,6 +232,7 @@ export class Gateway {
     this.toolGroupMap = this.buildToolGroupMap(options.toolGroups);
     this.subagentToolPolicy = options.subagentToolPolicy;
     this.subagentWorkspaceRoot = resolveSubagentWorkspaceRoot(options.workspaceDir);
+    this.contextCommandConfig = options.contextCommandConfig;
     if (options.toolSandboxConfig) {
       this.sandboxManager = new SandboxManager(options.toolSandboxConfig, {
         workspaceDir: options.workspaceDir,
@@ -401,7 +423,7 @@ export class Gateway {
     );
 
     // Get or create session for this conversation
-    const session = this.sessionManager.getOrCreateSession({
+    let session = this.sessionManager.getOrCreateSession({
       channel: message.channel,
       conversationId: message.conversation.id,
       userId: message.sender.id,
@@ -544,6 +566,45 @@ export class Gateway {
             action: scanResult.action,
           },
         });
+      }
+    }
+
+    const commandOutcome = await this.handleContextCommand({
+      message,
+      session,
+      securityMode,
+      messageText,
+    });
+
+    if (commandOutcome?.handled) {
+      if (commandOutcome.newSession) {
+        session = commandOutcome.newSession;
+      }
+
+      if (commandOutcome.nextMessageText !== undefined) {
+        messageText = commandOutcome.nextMessageText;
+        if (message.content) {
+          message.content.text = commandOutcome.nextMessageText;
+        }
+      }
+
+      if (commandOutcome.replyText) {
+        const outbound: ChannelOutboundMessage = {
+          channel: message.channel,
+          conversationId: message.conversation.id,
+          replyToMessageId: this.getReplyToMessageId(message),
+          sessionId: session.id,
+          content: {
+            text: commandOutcome.replyText,
+            format: 'markdown',
+          },
+        };
+
+        await this.router.sendToChannel(outbound);
+
+        if (commandOutcome.nextMessageText === undefined) {
+          return;
+        }
       }
     }
 
@@ -737,6 +798,240 @@ export class Gateway {
       this.options.streamingPassthrough ?? false
     );
     await this.sendLLMResponse(message, session.id, response);
+  }
+
+  private resolveContextCommandConfig(): ResolvedContextCommandConfig {
+    const config = this.contextCommandConfig ?? {};
+    return {
+      enabled: config.enabled ?? true,
+      allowInDms: config.allow_in_dms ?? true,
+      allowInChannels: config.allow_in_channels ?? false,
+      adminAllowlist: new Set(config.admin_allowlist ?? []),
+      resetTriggers: (config.reset_triggers ?? ['/new', '/reset']).filter(Boolean),
+      contextTriggers: (config.context_triggers ?? ['/context']).filter(Boolean),
+    };
+  }
+
+  private parseContextCommand(
+    text: string,
+    config: ResolvedContextCommandConfig
+  ): { type: 'reset' | 'context'; trigger: string; remainder: string } | null {
+    const trimmed = text.trim();
+    if (!trimmed) return null;
+
+    const matchTrigger = (triggers: string[]) => {
+      const normalizedText = trimmed.toLowerCase();
+      for (const trigger of triggers) {
+        const normalizedTrigger = trigger.trim().toLowerCase();
+        if (!normalizedTrigger) continue;
+        if (normalizedText === normalizedTrigger) {
+          return { trigger: normalizedTrigger, remainder: '' };
+        }
+        if (normalizedText.startsWith(`${normalizedTrigger} `)) {
+          const remainder = trimmed.slice(normalizedTrigger.length).trim();
+          return { trigger: normalizedTrigger, remainder };
+        }
+      }
+      return null;
+    };
+
+    const reset = matchTrigger(config.resetTriggers);
+    if (reset) {
+      return { type: 'reset', trigger: reset.trigger, remainder: reset.remainder };
+    }
+
+    const context = matchTrigger(config.contextTriggers);
+    if (context) {
+      return { type: 'context', trigger: context.trigger, remainder: context.remainder };
+    }
+
+    return null;
+  }
+
+  private getContextManagementOverride(session: Session | SessionWithMessages): boolean | null {
+    const metadata = session.metadata as { contextManagement?: { enabled?: boolean } } | null;
+    if (!metadata?.contextManagement) return null;
+    const enabled = metadata.contextManagement.enabled;
+    return typeof enabled === 'boolean' ? enabled : null;
+  }
+
+  private isContextManagementEnabledForSession(session: Session | SessionWithMessages): boolean {
+    const override = this.getContextManagementOverride(session);
+    if (override === false) return false;
+    return true;
+  }
+
+  private async handleContextCommand(params: {
+    message: ChannelInboundMessage;
+    session: Session;
+    securityMode: 'strict' | 'standard' | 'permissive';
+    messageText: string;
+  }): Promise<ContextCommandOutcome | null> {
+    const { message, session, securityMode, messageText } = params;
+    if (!messageText) return null;
+
+    const config = this.resolveContextCommandConfig();
+    if (!config.enabled) return null;
+
+    const parsed = this.parseContextCommand(messageText, config);
+    if (!parsed) return null;
+
+    const isDm = message.conversation.type === 'dm';
+    if (isDm && !config.allowInDms) {
+      return {
+        handled: true,
+        replyText: 'Session commands are disabled in DMs.',
+      };
+    }
+    if (!isDm && !config.allowInChannels) {
+      return {
+        handled: true,
+        replyText: 'Session commands are disabled in channels.',
+      };
+    }
+
+    if (config.adminAllowlist.size > 0 && !config.adminAllowlist.has(message.sender.id ?? '')) {
+      return {
+        handled: true,
+        replyText: 'You are not allowed to run session commands here.',
+      };
+    }
+
+    if (parsed.type === 'reset') {
+      const newSession = await this.resetSessionForCommand(session, message, securityMode);
+      if (parsed.remainder) {
+        return {
+          handled: true,
+          newSession,
+          nextMessageText: parsed.remainder,
+        };
+      }
+
+      return {
+        handled: true,
+        newSession,
+        replyText: '✅ New session started. You are on a clean slate.',
+      };
+    }
+
+    const action = parsed.remainder.toLowerCase();
+    const metadata = (session.metadata ?? {}) as Record<string, unknown>;
+    const contextManagement =
+      (metadata.contextManagement as Record<string, unknown> | undefined) ?? {};
+    const currentOverride = this.getContextManagementOverride(session);
+    const currentEnabled = this.isContextManagementEnabledForSession(session);
+
+    if (!action || action === 'status') {
+      const modeLabel = currentOverride === null ? 'default' : 'override';
+      return {
+        handled: true,
+        replyText: `Context management is ${currentEnabled ? 'enabled' : 'disabled'} (${modeLabel}).`,
+      };
+    }
+
+    if (['on', 'enable', 'enabled'].includes(action)) {
+      contextManagement.enabled = true;
+      contextManagement.updatedAt = new Date().toISOString();
+      this.sessionManager.updateMetadata(session.id, {
+        ...metadata,
+        contextManagement,
+      });
+      return {
+        handled: true,
+        replyText: '✅ Context management enabled for this session.',
+      };
+    }
+
+    if (['off', 'disable', 'disabled'].includes(action)) {
+      contextManagement.enabled = false;
+      contextManagement.updatedAt = new Date().toISOString();
+      this.sessionManager.updateMetadata(session.id, {
+        ...metadata,
+        contextManagement,
+      });
+      return {
+        handled: true,
+        replyText: '⛔ Context management disabled for this session.',
+      };
+    }
+
+    if (['auto', 'default', 'clear', 'reset'].includes(action)) {
+      delete contextManagement.enabled;
+      contextManagement.updatedAt = new Date().toISOString();
+      const updatedMetadata = { ...metadata } as Record<string, unknown>;
+      if (Object.keys(contextManagement).length === 0) {
+        delete updatedMetadata.contextManagement;
+      } else {
+        updatedMetadata.contextManagement = contextManagement;
+      }
+      this.sessionManager.updateMetadata(session.id, updatedMetadata);
+      return {
+        handled: true,
+        replyText: '🔁 Context management reset to default for this session.',
+      };
+    }
+
+    return {
+      handled: true,
+      replyText: 'Unknown context command. Try `/context on`, `/context off`, or `/context status`.',
+    };
+  }
+
+  private async resetSessionForCommand(
+    session: Session,
+    message: ChannelInboundMessage,
+    securityMode: 'strict' | 'standard' | 'permissive'
+  ): Promise<Session> {
+    const previous = this.sessionManager.getSessionByConversation(
+      message.channel,
+      message.conversation.id
+    );
+
+    if (previous) {
+      this.sessionManager.deleteSession(previous.id);
+      if (this.stateLayer) {
+        try {
+          await this.stateLayer.deleteSessionState(previous.id, {
+            sessionId: previous.id,
+            userId: previous.userId,
+            securityMode,
+            channel: previous.channel,
+            internalTool: true,
+          });
+        } catch (error) {
+          console.warn('[Gateway] Failed to delete session state during reset:', error);
+        }
+      }
+    }
+
+    const newSession = this.sessionManager.createSession({
+      channel: message.channel,
+      conversationId: message.conversation.id,
+      userId: message.sender.id,
+      systemPrompt: session.systemPrompt ?? this.options.defaultSystemPrompt,
+      config: session.config,
+    });
+
+    await this.logAuditEvent({
+      id: randomUUID(),
+      timestamp: new Date().toISOString(),
+      instanceId: this.instanceId,
+      userId: message.sender.id,
+      sessionId: newSession.id,
+      channel: message.channel,
+      eventType: 'session_reset',
+      action: 'session.reset',
+      resource: newSession.id,
+      outcome: 'allowed',
+      securityMode,
+      details: {
+        previousSessionId: previous?.id,
+        conversationId: message.conversation.id,
+        messageId: message.channelMessageId,
+      },
+    });
+
+    return newSession;
   }
 
   private async buildLLMRequest(
@@ -2682,6 +2977,9 @@ export class Gateway {
       try {
         const sessions = this.sessionManager.listSessions({ status: 'active' });
         for (const session of sessions) {
+          if (!this.isContextManagementEnabledForSession(session)) {
+            continue;
+          }
           const context = this.buildStateContext(session);
           const shouldRun = await memoryPipeline.shouldRunPeriodic(session, context);
           if (!shouldRun) continue;
