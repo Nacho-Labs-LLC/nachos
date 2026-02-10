@@ -61,11 +61,11 @@ docker compose -f docker-compose.dev.yml logs -f
 ./docker/test-infrastructure.sh
 ```
 
-### For End Users (coming soon)
+### For End Users
 
 ```bash
-# Install the CLI
-curl -fsSL https://nachos.dev/install.sh | sh
+# Install the CLI (global)
+pnpm add -g @nachos/cli
 
 # Initialize your stack
 nachos init
@@ -76,6 +76,8 @@ nachos up
 # Open the web chat
 open http://localhost:8080
 ```
+
+Prereqs: Docker Desktop (or Docker Engine) must be running.
 
 ## The Nacho Philosophy
 
@@ -165,9 +167,13 @@ mode = "strict"  # Start here, relax as needed
 
 ## Adding Modules
 
-**Coming soon**: Module registry and CLI commands.
+Use the CLI to add module stubs, then enable them in `nachos.toml` and restart:
 
-For now, modules are configured in `nachos.toml` (restart required).
+```bash
+nachos add channel slack
+nachos add tool browser
+nachos restart
+```
 
 ## Architecture
 
@@ -204,11 +210,7 @@ For now, modules are configured in `nachos.toml` (restart required).
 └──────────────────────────────────────────────────────────────┘
 ```
 
-## CLI Reference (Coming in Phase 5)
-
-## CLI Reference (Coming in Phase 5)
-
-**Planned commands** (not yet implemented):
+## CLI Reference
 
 ```bash
 nachos init          # Initialize new project
@@ -218,7 +220,12 @@ nachos logs          # View logs
 nachos status        # Show status
 nachos doctor        # Health check
 
-nachos config        # Edit configuration
+nachos restart       # Restart the stack
+nachos config validate  # Validate nachos.toml
+nachos policy validate  # Validate policies/
+
+nachos add channel <name>
+nachos add tool <name>
 ```
 
 For now, use Docker Compose directly:
@@ -253,8 +260,8 @@ nachos/
 │   │   ├── gateway/      # Session management
 │   │   ├── bus/          # NATS message bus
 │   │   ├── llm-proxy/    # LLM provider abstraction
-│   ├── channels/         # Channel adapters (coming soon)
-│   ├── tools/            # Tool containers (coming soon)
+│   ├── channels/         # Channel adapters
+│   ├── tools/            # Tool containers
 │   └── shared/           # Shared utilities
 ├── docker/               # Docker infrastructure
 │   ├── Dockerfile.base   # Base template
@@ -263,26 +270,8 @@ nachos/
 ├── docker-compose.dev.yml # Development stack
 └── .env.example          # Environment template
 ```
-Current Phase**: Phase 7 - Additional Channels (🚧 In Progress)
 
-**Completed**:
-- ✅ Phase 0: Foundation Setup
-- ✅ Phase 1: Core Infrastructure (Gateway, Bus, Message Flow)
-- ✅ Phase 2: Security Layer (Embedded in Gateway: DLP, Rate Limiting, Policy Engine, Audit)
-- ✅ Phase 3: LLM Integration (Multi-provider proxy: Claude, GPT, Ollama)
-- ✅ Phase 4: First Channels (Slack + Discord with attachments, mention gating, pairing)
-- ✅ Phase 6: Tools (Browser, Filesystem, Code Runner)
-
-**In Progress**:
-- 🚧 Phase 5: CLI Tooling
-- 🚧 Phase 7: Additional Channels (Telegram, WhatsApp)
-
-**Next Steps**:
-- Phase 8: Polish & Launch
-- Phase 9: Registry & Addons
-
-See [../../PROJECT_ROADMAP.md](../../PROJECT_ROADMAP.md) for full details and [docs/adr/](docs/adr/) for architectural decisions.
-**Phase 2+**: Coming soon...
+See [../../PROJECT_ROADMAP.md](../../PROJECT_ROADMAP.md) for longer-term plans and [docs/adr/](docs/adr/) for architectural decisions.
 
 ## Documentation
 
