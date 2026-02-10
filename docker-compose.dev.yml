@@ -1,19 +1,16 @@
-# Docker Compose configuration for Nachos development
-# This file defines all core services with hot-reload support
+# Nachos Development Compose
+# Use `docker compose watch` for hot-reload (syncs source, rebuilds on shared changes)
+# Use `docker compose up` for static run (no hot-reload, image-baked code only)
 
 # ==================== Networks ====================
 networks:
-  # Internal network - no external access
-  # All core components communicate through this isolated network
   nachos-internal:
     driver: bridge
     internal: true
     ipam:
       config:
         - subnet: 172.20.0.0/16
-  
-  # Egress network - controlled external access
-  # Only components that need internet access join this network
+
   nachos-egress:
     driver: bridge
     ipam:
@@ -22,15 +19,48 @@ networks:
 
 # ==================== Volumes ====================
 volumes:
-  # NATS JetStream data
   nats-data:
-  # Redis data for shared state (rate limits, session routing)
   redis-data:
-  # Logs aggregation
-  nachos-logs:
+
+# ==================== Common Config ====================
+
+x-common-env: &common-env
+  NODE_ENV: development
+  NATS_URL: nats://bus:4222
+  LOG_LEVEL: debug
+
+x-channel-env: &channel-env
+  <<: *common-env
+  NACHOS_STATE_DIR: /app/state
+  NACHOS_PAIRING_TOKEN: ${NACHOS_PAIRING_TOKEN:-}
+
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-channel-defaults: &channel-defaults
+  restart: unless-stopped
+  depends_on:
+    bus:
+      condition: service_healthy
+  networks:
+    - nachos-internal
+    - nachos-egress
+  volumes:
+    - ./data/channels:/app/state
+  logging: *default-logging
+
+x-tool-security: &tool-security
+  security_opt:
+    - no-new-privileges:true
+  user: "1000:1000"
+  read_only: true
 
 # ==================== Services ====================
 services:
+
   # -------------------- Message Bus --------------------
   bus:
     container_name: nachos-bus
@@ -39,38 +69,24 @@ services:
       dockerfile: packages/core/bus/Dockerfile
     image: nachos-bus:dev
     restart: unless-stopped
-    
     networks:
       - nachos-internal
-    
     ports:
-      - "4222:4222"  # NATS client connections
-      - "8222:8222"  # NATS HTTP monitoring
-    
+      - "4222:4222"
+      - "8222:8222"
     volumes:
       - nats-data:/data
       - ./docker/nats/nats-server.conf:/etc/nats/nats-server.conf:ro
-      - nachos-logs:/var/log/nachos
-    
     command: ["-c", "/etc/nats/nats-server.conf"]
-    
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8222/healthz"]
       interval: 10s
       timeout: 3s
       retries: 3
       start_period: 5s
-    
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-        labels: "service=bus"
+    logging: *default-logging
 
   # -------------------- Gateway (with embedded Salsa) --------------------
-  # Salsa security layer is embedded in Gateway for performance
-  # See ADR-004: Embedded Salsa & Shardable Gateway
   gateway:
     container_name: nachos-gateway
     build:
@@ -78,93 +94,58 @@ services:
       dockerfile: packages/core/gateway/Dockerfile
     image: nachos-gateway:dev
     restart: unless-stopped
-
     depends_on:
       bus:
         condition: service_healthy
       redis:
         condition: service_healthy
-
     networks:
       - nachos-internal
-
     ports:
       - "3000:3000"
-
     environment:
-      - NODE_ENV=development
-      - NATS_URL=nats://bus:4222
-      - REDIS_URL=redis://redis:6379
-      - PORT=3000
-      - LOG_LEVEL=debug
-      - SECURITY_MODE=${SECURITY_MODE:-standard}
-      - GATEWAY_RATE_LIMIT_ENABLED=${GATEWAY_RATE_LIMIT_ENABLED:-true}
-      - SECURITY_RATE_LIMIT_MESSAGES=${SECURITY_RATE_LIMIT_MESSAGES:-30}
-      - SECURITY_RATE_LIMIT_TOOLS=${SECURITY_RATE_LIMIT_TOOLS:-15}
-      - SECURITY_RATE_LIMIT_LLM=${SECURITY_RATE_LIMIT_LLM:-30}
-    
+      <<: *common-env
+      REDIS_URL: redis://redis:6379
+      PORT: "3000"
+      NACHOS_CONFIG_PATH: /app/nachos.toml
     volumes:
-      # Mount source code for hot-reload
-      - ./packages/core/gateway/src:/app/packages/core/gateway/src:ro
-      - ./packages/shared:/app/packages/shared:ro
-      - ./tsconfig.base.json:/app/tsconfig.base.json:ro
-      - ./tsconfig.json:/app/tsconfig.json:ro
-      # Security policies (hot-reload enabled)
+      - ./nachos.toml:/app/nachos.toml:ro
       - ./policies:/app/policies:ro
-      # Gateway data (SQLite sessions, audit logs)
       - ./data/gateway:/app/data
-      # Cache node_modules to avoid reinstalling
-      - /app/node_modules
-      - /app/packages/core/gateway/node_modules
-      # Logs
-      - nachos-logs:/var/log/nachos
-
+    develop:
+      watch:
+        - action: sync
+          path: ./packages/core/gateway/src
+          target: /app/packages/core/gateway/src
+        - action: rebuild
+          path: ./packages/shared
     healthcheck:
       test: ["CMD", "node", "-e", "process.exit(0)"]
       interval: 30s
       timeout: 3s
       retries: 3
       start_period: 5s
-
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-        labels: "service=gateway"
+    logging: *default-logging
 
   # -------------------- Redis (Shared State) --------------------
-  # Used for rate limiting, session routing, and cross-instance state
-  # See ADR-004: Embedded Salsa & Shardable Gateway
   redis:
     container_name: nachos-redis
     image: redis:7-alpine
     restart: unless-stopped
-
     networks:
       - nachos-internal
-
     ports:
       - "6379:6379"
-
     volumes:
       - redis-data:/data
-
     command: ["redis-server", "--appendonly", "yes"]
-
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 3s
       retries: 3
       start_period: 5s
-
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-        labels: "service=redis"
+    logging: *default-logging
 
   # -------------------- LLM Proxy --------------------
   llm-proxy:
@@ -174,251 +155,134 @@ services:
       dockerfile: packages/core/llm-proxy/Dockerfile
     image: nachos-llm-proxy:dev
     restart: unless-stopped
-    
     depends_on:
       bus:
         condition: service_healthy
-    
     networks:
       - nachos-internal
-      - nachos-egress  # Needs external access for LLM APIs
-    
+      - nachos-egress
     ports:
       - "3001:3001"
-    
     environment:
-      - NODE_ENV=development
-      - NATS_URL=nats://bus:4222
-      - PORT=3001
-      - LOG_LEVEL=debug
-      # LLM API keys - set these in .env file
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-    
-    volumes:
-      # Mount source code for hot-reload
-      - ./packages/core/llm-proxy/src:/app/packages/core/llm-proxy/src:ro
-      - ./packages/shared:/app/packages/shared:ro
-      - ./tsconfig.base.json:/app/tsconfig.base.json:ro
-      - ./tsconfig.json:/app/tsconfig.json:ro
-      # Cache node_modules
-      - /app/node_modules
-      - /app/packages/core/llm-proxy/node_modules
-      # Logs
-      - nachos-logs:/var/log/nachos
-    
+      <<: *common-env
+      PORT: "3001"
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    develop:
+      watch:
+        - action: sync
+          path: ./packages/core/llm-proxy/src
+          target: /app/packages/core/llm-proxy/src
+        - action: rebuild
+          path: ./packages/shared
     healthcheck:
       test: ["CMD", "node", "-e", "process.exit(0)"]
       interval: 30s
       timeout: 3s
       retries: 3
       start_period: 5s
-    
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-        labels: "service=llm-proxy"
+    logging: *default-logging
 
-  # NOTE: Salsa (Policy Engine) is embedded in Gateway
-  # See ADR-004: Embedded Salsa & Shardable Gateway Architecture
-  # Policy engine code lives under packages/core/gateway/src/salsa
+  # ==================== Channels ====================
 
-  # ==================== Channels (Phase 4/7) ====================
-
-  # -------------------- Slack Channel --------------------
+  # -------------------- Slack --------------------
   slack:
+    <<: *channel-defaults
     container_name: nachos-channel-slack
     build:
       context: .
       dockerfile: packages/channels/slack/Dockerfile
     image: nachos-channel-slack:dev
-    restart: unless-stopped
-
-    depends_on:
-      bus:
-        condition: service_healthy
-
-    networks:
-      - nachos-internal
-      - nachos-egress
-
     ports:
       - "3005:3005"
-
     environment:
-      - NODE_ENV=development
-      - NATS_URL=nats://bus:4222
-      - LOG_LEVEL=debug
-      - NACHOS_STATE_DIR=/app/state
-      - NACHOS_PAIRING_TOKEN=${NACHOS_PAIRING_TOKEN:-}
-      - SLACK_HTTP_PORT=3005
-      - SLACK_APP_TOKEN=${SLACK_APP_TOKEN:-}
-      - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN:-}
-      - SLACK_SIGNING_SECRET=${SLACK_SIGNING_SECRET:-}
+      <<: *channel-env
+      SLACK_HTTP_PORT: "3005"
+      SLACK_APP_TOKEN: ${SLACK_APP_TOKEN:-}
+      SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN:-}
+      SLACK_SIGNING_SECRET: ${SLACK_SIGNING_SECRET:-}
+    develop:
+      watch:
+        - action: sync
+          path: ./packages/channels/slack/src
+          target: /app/packages/channels/slack/src
+        - action: rebuild
+          path: ./packages/channels/base
+        - action: rebuild
+          path: ./packages/shared
 
-    volumes:
-      - ./packages/channels/slack/src:/app/packages/channels/slack/src:ro
-      - ./packages/channels/base:/app/packages/channels/base:ro
-      - ./packages/shared:/app/packages/shared:ro
-      - ./packages/core/bus:/app/packages/core/bus:ro
-      - ./tsconfig.base.json:/app/tsconfig.base.json:ro
-      - ./tsconfig.json:/app/tsconfig.json:ro
-      - ./data/channels:/app/state
-      - /app/node_modules
-      - /app/packages/channels/slack/node_modules
-      - nachos-logs:/var/log/nachos
-
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-        labels: "service=slack"
-
-  # -------------------- Discord Channel --------------------
+  # -------------------- Discord --------------------
   discord:
+    <<: *channel-defaults
     container_name: nachos-channel-discord
     build:
       context: .
       dockerfile: packages/channels/discord/Dockerfile
     image: nachos-channel-discord:dev
-    restart: unless-stopped
-
-    depends_on:
-      bus:
-        condition: service_healthy
-
-    networks:
-      - nachos-internal
-      - nachos-egress
-
     environment:
-      - NODE_ENV=development
-      - NATS_URL=nats://bus:4222
-      - LOG_LEVEL=debug
-      - NACHOS_STATE_DIR=/app/state
-      - NACHOS_PAIRING_TOKEN=${NACHOS_PAIRING_TOKEN:-}
-      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN:-}
+      <<: *channel-env
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
+    develop:
+      watch:
+        - action: sync
+          path: ./packages/channels/discord/src
+          target: /app/packages/channels/discord/src
+        - action: rebuild
+          path: ./packages/channels/base
+        - action: rebuild
+          path: ./packages/shared
 
-    volumes:
-      - ./packages/channels/discord/src:/app/packages/channels/discord/src:ro
-      - ./packages/channels/base:/app/packages/channels/base:ro
-      - ./packages/shared:/app/packages/shared:ro
-      - ./packages/core/bus:/app/packages/core/bus:ro
-      - ./tsconfig.base.json:/app/tsconfig.base.json:ro
-      - ./tsconfig.json:/app/tsconfig.json:ro
-      - ./data/channels:/app/state
-      - /app/node_modules
-      - /app/packages/channels/discord/node_modules
-      - nachos-logs:/var/log/nachos
-
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-        labels: "service=discord"
-
-  # -------------------- Telegram Channel --------------------
+  # -------------------- Telegram --------------------
   telegram:
+    <<: *channel-defaults
     container_name: nachos-channel-telegram
     build:
       context: .
       dockerfile: packages/channels/telegram/Dockerfile
     image: nachos-channel-telegram:dev
-    restart: unless-stopped
-
-    depends_on:
-      bus:
-        condition: service_healthy
-
-    networks:
-      - nachos-internal
-      - nachos-egress
-
     environment:
-      - NODE_ENV=development
-      - NATS_URL=nats://bus:4222
-      - LOG_LEVEL=debug
-      - NACHOS_STATE_DIR=/app/state
-      - NACHOS_PAIRING_TOKEN=${NACHOS_PAIRING_TOKEN:-}
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      <<: *channel-env
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+    develop:
+      watch:
+        - action: sync
+          path: ./packages/channels/telegram/src
+          target: /app/packages/channels/telegram/src
+        - action: rebuild
+          path: ./packages/channels/base
+        - action: rebuild
+          path: ./packages/shared
 
-    volumes:
-      - ./packages/channels/telegram/src:/app/packages/channels/telegram/src:ro
-      - ./packages/channels/base:/app/packages/channels/base:ro
-      - ./packages/shared:/app/packages/shared:ro
-      - ./packages/core/bus:/app/packages/core/bus:ro
-      - ./tsconfig.base.json:/app/tsconfig.base.json:ro
-      - ./tsconfig.json:/app/tsconfig.json:ro
-      - ./data/channels:/app/state
-      - /app/node_modules
-      - /app/packages/channels/telegram/node_modules
-      - nachos-logs:/var/log/nachos
-
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-        labels: "service=telegram"
-
-  # -------------------- WhatsApp Channel --------------------
+  # -------------------- WhatsApp --------------------
   whatsapp:
+    <<: *channel-defaults
     container_name: nachos-channel-whatsapp
     build:
       context: .
       dockerfile: packages/channels/whatsapp/Dockerfile
     image: nachos-channel-whatsapp:dev
-    restart: unless-stopped
-
-    depends_on:
-      bus:
-        condition: service_healthy
-
-    networks:
-      - nachos-internal
-      - nachos-egress
-
     ports:
       - "3002:3002"
-
     environment:
-      - NODE_ENV=development
-      - NATS_URL=nats://bus:4222
-      - LOG_LEVEL=debug
-      - NACHOS_STATE_DIR=/app/state
-      - NACHOS_PAIRING_TOKEN=${NACHOS_PAIRING_TOKEN:-}
-      - WHATSAPP_HTTP_PORT=3002
-      - WHATSAPP_TOKEN=${WHATSAPP_TOKEN:-}
-      - WHATSAPP_PHONE_NUMBER_ID=${WHATSAPP_PHONE_NUMBER_ID:-}
-      - WHATSAPP_VERIFY_TOKEN=${WHATSAPP_VERIFY_TOKEN:-}
-      - WHATSAPP_APP_SECRET=${WHATSAPP_APP_SECRET:-}
+      <<: *channel-env
+      WHATSAPP_HTTP_PORT: "3002"
+      WHATSAPP_TOKEN: ${WHATSAPP_TOKEN:-}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-}
+      WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET:-}
+    develop:
+      watch:
+        - action: sync
+          path: ./packages/channels/whatsapp/src
+          target: /app/packages/channels/whatsapp/src
+        - action: rebuild
+          path: ./packages/channels/base
+        - action: rebuild
+          path: ./packages/shared
 
-    volumes:
-      - ./packages/channels/whatsapp/src:/app/packages/channels/whatsapp/src:ro
-      - ./packages/channels/base:/app/packages/channels/base:ro
-      - ./packages/shared:/app/packages/shared:ro
-      - ./packages/core/bus:/app/packages/core/bus:ro
-      - ./tsconfig.base.json:/app/tsconfig.base.json:ro
-      - ./tsconfig.json:/app/tsconfig.json:ro
-      - ./data/channels:/app/state
-      - /app/node_modules
-      - /app/packages/channels/whatsapp/node_modules
-      - nachos-logs:/var/log/nachos
+  # ==================== Tools ====================
 
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-        labels: "service=whatsapp"
-
-  # ==================== Tools (Phase 6) ====================
-
-  # -------------------- Filesystem Read Tool --------------------
+  # -------------------- Filesystem Read (SecurityTier 0 — read-only mount) --------------------
   filesystem-read:
     container_name: nachos-tool-filesystem-read
     build:
@@ -426,180 +290,60 @@ services:
       dockerfile: packages/tools/filesystem/Dockerfile
     image: nachos-tool-filesystem:dev
     restart: unless-stopped
-
+    <<: *tool-security
     depends_on:
       bus:
         condition: service_healthy
-
     networks:
       - nachos-internal
-
     environment:
-      - TOOL_MODE=read
-      - NODE_ENV=development
-      - NATS_URL=nats://bus:4222
-      - ALLOWED_PATHS=./workspace
-      - SECURITY_MODE=${SECURITY_MODE:-standard}
-
+      <<: *common-env
+      TOOL_MODE: read
+      ALLOWED_PATHS: ./workspace
     volumes:
-      - ./workspace:/workspace:ro  # Read-only mount
-      - ./packages/tools/filesystem/src:/app/src:ro
-      - ./packages/shared:/app/packages/shared:ro
-      - nachos-logs:/var/log/nachos
-
-    security_opt:
-      - no-new-privileges:true
-
-    user: "1000:1000"
-
-    read_only: true
+      - ./workspace:/workspace:ro
     tmpfs:
       - /tmp:noexec,nosuid,size=10m
+    develop:
+      watch:
+        - action: rebuild
+          path: ./packages/tools/filesystem/src
+        - action: rebuild
+          path: ./packages/shared
+    logging: *default-logging
 
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-        labels: "service=filesystem-read"
-
-  # -------------------- Filesystem Write Tool --------------------
-  filesystem-write:
-    container_name: nachos-tool-filesystem-write
+  # -------------------- Filesystem ReadWrite (SecurityTier 2 — write/edit/patch) --------------------
+  filesystem-readwrite:
+    container_name: nachos-tool-filesystem-readwrite
     build:
       context: .
       dockerfile: packages/tools/filesystem/Dockerfile
     image: nachos-tool-filesystem:dev
     restart: unless-stopped
-
+    <<: *tool-security
     depends_on:
       bus:
         condition: service_healthy
-
     networks:
       - nachos-internal
-
     environment:
-      - TOOL_MODE=write
-      - NODE_ENV=development
-      - NATS_URL=nats://bus:4222
-      - ALLOWED_PATHS=./workspace
-      - MAX_FILE_SIZE=10MB
-      - SECURITY_MODE=${SECURITY_MODE:-standard}
-
-    volumes:
-      - ./workspace:/workspace:rw  # Read-write mount
-      - ./packages/tools/filesystem/src:/app/src:ro
-      - ./packages/shared:/app/packages/shared:ro
-      - nachos-logs:/var/log/nachos
-
-    security_opt:
-      - no-new-privileges:true
-
-    user: "1000:1000"
-
-    read_only: true
-    tmpfs:
-      - /tmp:noexec,nosuid,size=100m
-
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-        labels: "service=filesystem-write"
-
-  # -------------------- Filesystem Edit Tool --------------------
-  filesystem-edit:
-    container_name: nachos-tool-filesystem-edit
-    build:
-      context: .
-      dockerfile: packages/tools/filesystem/Dockerfile
-    image: nachos-tool-filesystem:dev
-    restart: unless-stopped
-
-    depends_on:
-      bus:
-        condition: service_healthy
-
-    networks:
-      - nachos-internal
-
-    environment:
-      - TOOL_MODE=edit
-      - NODE_ENV=development
-      - NATS_URL=nats://bus:4222
-      - ALLOWED_PATHS=./workspace
-      - SECURITY_MODE=${SECURITY_MODE:-standard}
-
+      <<: *common-env
+      TOOL_MODE: readwrite
+      ALLOWED_PATHS: ./workspace
+      MAX_FILE_SIZE: 10MB
     volumes:
       - ./workspace:/workspace:rw
-      - ./packages/tools/filesystem/src:/app/src:ro
-      - ./packages/shared:/app/packages/shared:ro
-      - nachos-logs:/var/log/nachos
-
-    security_opt:
-      - no-new-privileges:true
-
-    user: "1000:1000"
-
-    read_only: true
     tmpfs:
       - /tmp:noexec,nosuid,size=100m
+    develop:
+      watch:
+        - action: rebuild
+          path: ./packages/tools/filesystem/src
+        - action: rebuild
+          path: ./packages/shared
+    logging: *default-logging
 
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-        labels: "service=filesystem-edit"
-
-  # -------------------- Filesystem Patch Tool --------------------
-  filesystem-patch:
-    container_name: nachos-tool-filesystem-patch
-    build:
-      context: .
-      dockerfile: packages/tools/filesystem/Dockerfile
-    image: nachos-tool-filesystem:dev
-    restart: unless-stopped
-
-    depends_on:
-      bus:
-        condition: service_healthy
-
-    networks:
-      - nachos-internal
-
-    environment:
-      - TOOL_MODE=patch
-      - NODE_ENV=development
-      - NATS_URL=nats://bus:4222
-      - ALLOWED_PATHS=./workspace
-      - SECURITY_MODE=${SECURITY_MODE:-standard}
-
-    volumes:
-      - ./workspace:/workspace:rw
-      - ./packages/tools/filesystem/src:/app/src:ro
-      - ./packages/shared:/app/packages/shared:ro
-      - nachos-logs:/var/log/nachos
-
-    security_opt:
-      - no-new-privileges:true
-
-    user: "1000:1000"
-
-    read_only: true
-    tmpfs:
-      - /tmp:noexec,nosuid,size=100m
-
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-        labels: "service=filesystem-patch"
-
-  # -------------------- Browser Tool --------------------
+  # -------------------- Browser --------------------
   browser:
     container_name: nachos-tool-browser
     build:
@@ -607,50 +351,37 @@ services:
       dockerfile: packages/tools/browser/Dockerfile
     image: nachos-tool-browser:dev
     restart: unless-stopped
-
     depends_on:
       bus:
         condition: service_healthy
-
     networks:
       - nachos-internal
-      - nachos-egress  # Needs external access for web browsing
-
+      - nachos-egress
     environment:
-      - NODE_ENV=development
-      - NATS_URL=nats://bus:4222
-      - ALLOWED_DOMAINS=${BROWSER_ALLOWED_DOMAINS:-*}
-      - BROWSER_HEADLESS=${BROWSER_HEADLESS:-true}
-      - BROWSER_TIMEOUT_MS=${BROWSER_TIMEOUT_MS:-30000}
-      - SECURITY_MODE=${SECURITY_MODE:-standard}
-
+      <<: *common-env
+      ALLOWED_DOMAINS: ${BROWSER_ALLOWED_DOMAINS:-*}
+      BROWSER_HEADLESS: ${BROWSER_HEADLESS:-true}
+      BROWSER_TIMEOUT_MS: ${BROWSER_TIMEOUT_MS:-30000}
     volumes:
       - ./workspace/browser-downloads:/downloads:rw
-      - ./packages/tools/browser/src:/app/src:ro
-      - ./packages/shared:/app/packages/shared:ro
-      - nachos-logs:/var/log/nachos
-
     security_opt:
       - no-new-privileges:true
-
     user: "pwuser"
-
     shm_size: 512m
     mem_limit: 1g
-
+    develop:
+      watch:
+        - action: rebuild
+          path: ./packages/tools/browser/src
+        - action: rebuild
+          path: ./packages/shared
     healthcheck:
       test: ["CMD", "node", "-e", "process.exit(0)"]
       interval: 30s
       timeout: 3s
       retries: 3
       start_period: 10s
-
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-        labels: "service=browser"
+    logging: *default-logging
 
   # -------------------- Code Runner - Python --------------------
   code-runner-python:
@@ -660,52 +391,34 @@ services:
       dockerfile: packages/tools/code-runner/Dockerfile.python
     image: nachos-tool-code-python:dev
     restart: unless-stopped
-
+    <<: *tool-security
     depends_on:
       bus:
         condition: service_healthy
-
     networks:
-      - nachos-internal  # NO external access
-
+      - nachos-internal
     environment:
-      - NODE_ENV=development
-      - NATS_URL=nats://bus:4222
-      - LANGUAGE=python
-      - EXECUTION_TIMEOUT=${CODE_EXECUTION_TIMEOUT:-30}
-      - SECURITY_MODE=${SECURITY_MODE:-standard}
-
-    volumes:
-      - ./packages/tools/code-runner/src:/app/src:ro
-      - ./packages/shared:/app/packages/shared:ro
-      - nachos-logs:/var/log/nachos
-
-    security_opt:
-      - no-new-privileges:true
-
-    user: "1000:1000"
-
-    read_only: true
+      <<: *common-env
+      LANGUAGE: python
+      EXECUTION_TIMEOUT: ${CODE_EXECUTION_TIMEOUT:-30}
     tmpfs:
       - /tmp:noexec,nosuid,size=100m
-
     mem_limit: 256m
     cpus: 0.5
     pids_limit: 50
-
+    develop:
+      watch:
+        - action: rebuild
+          path: ./packages/tools/code-runner/src
+        - action: rebuild
+          path: ./packages/shared
     healthcheck:
       test: ["CMD", "node", "-e", "process.exit(0)"]
       interval: 30s
       timeout: 3s
       retries: 3
       start_period: 10s
-
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-        labels: "service=code-runner-python"
+    logging: *default-logging
 
   # -------------------- Code Runner - JavaScript --------------------
   code-runner-javascript:
@@ -715,49 +428,31 @@ services:
       dockerfile: packages/tools/code-runner/Dockerfile.javascript
     image: nachos-tool-code-javascript:dev
     restart: unless-stopped
-
+    <<: *tool-security
     depends_on:
       bus:
         condition: service_healthy
-
     networks:
-      - nachos-internal  # NO external access
-
+      - nachos-internal
     environment:
-      - NODE_ENV=development
-      - NATS_URL=nats://bus:4222
-      - LANGUAGE=javascript
-      - EXECUTION_TIMEOUT=${CODE_EXECUTION_TIMEOUT:-30}
-      - SECURITY_MODE=${SECURITY_MODE:-standard}
-
-    volumes:
-      - ./packages/tools/code-runner/src:/app/src:ro
-      - ./packages/shared:/app/packages/shared:ro
-      - nachos-logs:/var/log/nachos
-
-    security_opt:
-      - no-new-privileges:true
-
-    user: "1000:1000"
-
-    read_only: true
+      <<: *common-env
+      LANGUAGE: javascript
+      EXECUTION_TIMEOUT: ${CODE_EXECUTION_TIMEOUT:-30}
     tmpfs:
       - /tmp:noexec,nosuid,size=100m
-
     mem_limit: 256m
     cpus: 0.5
     pids_limit: 50
-
+    develop:
+      watch:
+        - action: rebuild
+          path: ./packages/tools/code-runner/src
+        - action: rebuild
+          path: ./packages/shared
     healthcheck:
       test: ["CMD", "node", "-e", "process.exit(0)"]
       interval: 30s
       timeout: 3s
       retries: 3
       start_period: 10s
-
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-        labels: "service=code-runner-javascript"
+    logging: *default-logging

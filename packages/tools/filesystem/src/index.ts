@@ -29,35 +29,6 @@ async function main() {
   // Connect to NATS
   const nats = await connectToNats();
 
-  // Create tool instance based on mode
-  let tool;
-  switch (toolMode) {
-    case 'read':
-      tool = new FilesystemReadTool();
-      break;
-    case 'write':
-      tool = new FilesystemWriteTool();
-      break;
-    case 'edit':
-      tool = new FilesystemEditTool();
-      break;
-    case 'patch':
-      tool = new FilesystemPatchTool();
-      break;
-    case 'config':
-    case 'config_patch':
-      tool = new ConfigPatchTool();
-      break;
-    default:
-      console.error(`Unknown tool mode: ${toolMode}`);
-      process.exit(1);
-  }
-
-  // Setup graceful shutdown
-  setupShutdownHandlers(nats, async () => {
-    await tool.stop();
-  });
-
   // Get configuration from environment
   const config = {
     nats,
@@ -69,8 +40,44 @@ async function main() {
     securityMode: (process.env.SECURITY_MODE as 'strict' | 'standard' | 'permissive') ?? 'standard',
   };
 
-  // Start the tool
-  await tool.start(config);
+  // Create tool instance(s) based on mode
+  // 'readwrite' runs write+edit+patch in a single container (SecurityTier 2)
+  const tools: Array<{ start(config: typeof config): Promise<void>; stop(): Promise<void> }> = [];
+
+  switch (toolMode) {
+    case 'read':
+      tools.push(new FilesystemReadTool());
+      break;
+    case 'write':
+      tools.push(new FilesystemWriteTool());
+      break;
+    case 'edit':
+      tools.push(new FilesystemEditTool());
+      break;
+    case 'patch':
+      tools.push(new FilesystemPatchTool());
+      break;
+    case 'readwrite':
+      tools.push(new FilesystemWriteTool());
+      tools.push(new FilesystemEditTool());
+      tools.push(new FilesystemPatchTool());
+      break;
+    case 'config':
+    case 'config_patch':
+      tools.push(new ConfigPatchTool());
+      break;
+    default:
+      console.error(`Unknown tool mode: ${toolMode}`);
+      process.exit(1);
+  }
+
+  // Setup graceful shutdown
+  setupShutdownHandlers(nats, async () => {
+    await Promise.all(tools.map((t) => t.stop()));
+  });
+
+  // Start all tools (each subscribes to its own NATS topic)
+  await Promise.all(tools.map((t) => t.start(config)));
 }
 
 // Run if this is the main module
