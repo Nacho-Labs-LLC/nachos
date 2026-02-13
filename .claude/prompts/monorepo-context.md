@@ -27,7 +27,7 @@ nachos-core/
     │   ├── gateway/
     │   ├── bus/
     │   ├── llm-proxy/
-    │   └── salsa/
+    │   └── cheese/
     ├── channels/           # Channel adapters
     │   ├── slack/
     │   ├── discord/
@@ -224,7 +224,7 @@ Packages can depend on each other:
 
 ```
 gateway → shared-types, shared-utils, bus
-salsa → shared-types, shared-schemas
+cheese → shared-types, shared-schemas
 channel-slack → shared-types, bus
 ```
 

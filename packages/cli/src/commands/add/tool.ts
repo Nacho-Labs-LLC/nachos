@@ -28,6 +28,7 @@ const VALID_TOOLS = [
   'code_runner',
   'shell',
   'web_search',
+  'bootstrap',
   'claude_code_mcp',
 ] as const;
 

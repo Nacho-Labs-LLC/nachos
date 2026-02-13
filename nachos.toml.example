@@ -143,6 +143,9 @@ languages = ["python", "javascript", "typescript"]
 timeout = 30                              # Execution timeout in seconds
 max_memory = "256MB"                      # Memory limit per execution
 
+[tools.bootstrap]
+enabled = true                            # Internal state tool for bootstrap blocks
+
 [tools.shell]
 enabled = false                           # Disabled by default - high risk
 # To enable, you must also set security.mode = "permissive"
@@ -198,7 +201,7 @@ enabled = true
 max_prompt_length = 4000
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 🌶️ THE SALSA - Security Configuration
+# 🌶️ THE CHEESE - Security Configuration
 # ═══════════════════════════════════════════════════════════════════════════════
 # Security is on by default. Adjust these settings carefully.
 
@@ -311,6 +314,7 @@ allow_in_channels = false
 admin_allowlist = []
 reset_triggers = ["/new", "/reset", "!new", "!reset"]
 context_triggers = ["/context", "/context-management", "!context"]
+identity_triggers = ["/identity", "!identity"]
 
 # Subagent sandboxing
 [runtime.subagents]

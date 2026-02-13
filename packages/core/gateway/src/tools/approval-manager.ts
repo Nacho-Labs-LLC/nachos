@@ -1,8 +1,8 @@
 /**
  * Tool Approval Manager
  *
- * Hybrid approval system combining Salsa policy checks with user approval:
- * 1. Salsa policy check (fast, automated)
+ * Hybrid approval system combining Cheese policy checks with user approval:
+ * 1. Cheese policy check (fast, automated)
  * 2. User approval for SecurityTier >= 3 (RESTRICTED)
  *
  * Approval flow:

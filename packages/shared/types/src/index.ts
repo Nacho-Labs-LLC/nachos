@@ -50,6 +50,8 @@ export {
 export {
   type IdentitySource,
   type IdentityProfile,
+  type BootstrapBlockMap,
+  type BootstrapProfile,
   type MemoryKind,
   type MemoryEntry,
   type MemoryFact,
@@ -57,6 +59,7 @@ export {
   type MemoryQueryResult,
   type IdentityStore,
   type MemoryStore,
+  type BootstrapStore,
   type UserProfile,
   type UserProfileStore,
   type SessionStateRecord,
@@ -174,6 +177,8 @@ export {
   type SubagentsToolType,
   MemoryToolSchema,
   type MemoryToolType,
+  BootstrapToolSchema,
+  type BootstrapToolType,
   UserProfileToolSchema,
   type UserProfileToolType,
 

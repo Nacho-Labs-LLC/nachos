@@ -41,6 +41,7 @@ export interface StateLayerConfig {
   identity: StateStoreConfig;
   memory: StateStoreConfig;
   userProfile: StateStoreConfig;
+  bootstrap: StateStoreConfig;
   session: SessionStateConfig;
   prompt?: PromptAssemblyConfig;
 }

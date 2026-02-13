@@ -104,7 +104,7 @@ nachos/
 │   │   ├── gateway/      # Session management & routing
 │   │   ├── bus/          # Message bus (NATS wrapper)
 │   │   ├── llm-proxy/    # LLM provider abstraction
-│   │   └── salsa/        # Policy engine
+│   │   └── cheese/        # Policy engine
 │   ├── channels/         # Channel adapters
 │   │   ├── slack/
 │   │   ├── discord/

@@ -19,7 +19,9 @@ export class PostgresIdentityStore implements IdentityStore {
   async get(agentId: string): Promise<IdentityProfile | null> {
     await this.ensureSchema();
     const result = await this.pool.query(
-      `SELECT agent_id, soul, identity, user_profile, tools_notes, updated_at, version, source
+      `SELECT agent_id, soul, identity, user_profile, tools_notes,
+              identity_completed, identity_completed_at,
+              updated_at, version, source
        FROM ${this.qualified('identity_profiles')}
        WHERE agent_id = $1`,
       [agentId]
@@ -35,6 +37,8 @@ export class PostgresIdentityStore implements IdentityStore {
       identity: string;
       user_profile: string;
       tools_notes: string | null;
+      identity_completed: boolean | null;
+      identity_completed_at: string | null;
       updated_at: string;
       version: number;
       source: string | null;
@@ -46,6 +50,8 @@ export class PostgresIdentityStore implements IdentityStore {
       identity: row.identity,
       userProfile: row.user_profile,
       toolsNotes: row.tools_notes ?? undefined,
+      identityCompleted: row.identity_completed ?? undefined,
+      identityCompletedAt: row.identity_completed_at ?? undefined,
       updatedAt: row.updated_at,
       version: row.version,
       source: (row.source ?? 'db') as IdentityProfile['source'],
@@ -62,13 +68,17 @@ export class PostgresIdentityStore implements IdentityStore {
 
     await this.pool.query(
       `INSERT INTO ${this.qualified('identity_profiles')} (
-        agent_id, soul, identity, user_profile, tools_notes, updated_at, version, source
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        agent_id, soul, identity, user_profile, tools_notes,
+        identity_completed, identity_completed_at,
+        updated_at, version, source
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       ON CONFLICT (agent_id) DO UPDATE SET
         soul = EXCLUDED.soul,
         identity = EXCLUDED.identity,
         user_profile = EXCLUDED.user_profile,
         tools_notes = EXCLUDED.tools_notes,
+        identity_completed = EXCLUDED.identity_completed,
+        identity_completed_at = EXCLUDED.identity_completed_at,
         updated_at = EXCLUDED.updated_at,
         version = EXCLUDED.version,
         source = EXCLUDED.source`,
@@ -78,6 +88,8 @@ export class PostgresIdentityStore implements IdentityStore {
         updated.identity,
         updated.userProfile,
         updated.toolsNotes ?? null,
+        updated.identityCompleted ?? null,
+        updated.identityCompletedAt ?? null,
         updated.updatedAt,
         updated.version,
         updated.source,
@@ -110,10 +122,21 @@ export class PostgresIdentityStore implements IdentityStore {
         identity TEXT NOT NULL,
         user_profile TEXT NOT NULL,
         tools_notes TEXT,
+        identity_completed BOOLEAN,
+        identity_completed_at TEXT,
         updated_at TEXT NOT NULL,
         version INTEGER NOT NULL,
         source TEXT
       )`
+    );
+
+    await this.pool.query(
+      `ALTER TABLE ${this.qualified('identity_profiles')}
+        ADD COLUMN IF NOT EXISTS identity_completed BOOLEAN`
+    );
+    await this.pool.query(
+      `ALTER TABLE ${this.qualified('identity_profiles')}
+        ADD COLUMN IF NOT EXISTS identity_completed_at TEXT`
     );
 
     this.initialized = true;

@@ -8,7 +8,7 @@ Guide for implementing a new package in the Nachos monorepo following establishe
 
 What type of package are you creating?
 
-- **Core Component** (`packages/core/*`): Gateway, Bus, LLM Proxy, Salsa
+- **Core Component** (`packages/core/*`): Gateway, Bus, LLM Proxy, Cheese
 - **Channel** (`packages/channels/*`): Slack, Discord, Telegram, etc.
 - **Tool** (`packages/tools/*`): Browser, Filesystem, Code Runner, etc.
 - **Shared Utility** (`packages/shared/*`): Common types, utilities
@@ -77,7 +77,7 @@ packages/[type]/[package-name]/
 - ✅ Support session management
 
 **For Tools:**
-- ✅ Route through Salsa for policy checks
+- ✅ Route through Cheese for policy checks
 - ✅ Implement sandboxed execution
 - ✅ Add comprehensive audit logging
 - ✅ Define clear security boundaries

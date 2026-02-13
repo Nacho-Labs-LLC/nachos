@@ -1,6 +1,6 @@
 # Nachos Policy System
 
-The Salsa policy engine (embedded in the Gateway) provides security controls for the Nachos AI assistant framework. This document explains how to write and use policies.
+The Cheese policy engine (embedded in the Gateway) provides security controls for the Nachos AI assistant framework. This document explains how to write and use policies.
 
 ## Overview
 
@@ -356,5 +356,5 @@ Files are loaded in alphabetical order, rules are then sorted by priority.
 ## Further Reading
 
 - [ADR-003: Security-First Design](../docs/adr/003-security-first-design.md)
-- [ADR-004: Embedded Salsa](../docs/adr/004-embedded-salsa-shardable-gateway.md)
+- [ADR-004: Embedded Cheese](../docs/adr/004-embedded-cheese-shardable-gateway.md)
 - [Security Configuration](../docs/configuration.md#security)

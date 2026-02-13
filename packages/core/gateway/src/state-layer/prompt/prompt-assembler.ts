@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto';
 import { TokenEstimator } from '@nachos/context-manager';
 import type {
   IdentityProfile,
+  BootstrapProfile,
   MemoryEntry,
   MemoryFact,
   PromptAssemblyResult,
@@ -18,6 +19,7 @@ import type { PromptAssemblyConfig } from '../types.js';
 
 export interface PromptAssemblyParams {
   basePrompt: string;
+  bootstrap?: BootstrapProfile | null;
   identity?: IdentityProfile | null;
   userProfile?: UserProfile | null;
   memoryEntries?: MemoryEntry[];
@@ -52,12 +54,26 @@ export class PromptAssembler {
       });
     }
 
+    if (params.bootstrap) {
+      const bootstrapContent = this.formatBootstrap(params.bootstrap);
+      if (bootstrapContent) {
+        sections.push({
+          name: 'bootstrap',
+          content: bootstrapContent,
+          source: params.bootstrap.source ?? 'bootstrap-store',
+        });
+      }
+    }
+
     if (params.identity) {
-      sections.push({
-        name: 'identity',
-        content: this.formatIdentity(params.identity),
-        source: params.identity.source ?? 'identity-store',
-      });
+      const identityContent = this.formatIdentity(params.identity);
+      if (identityContent) {
+        sections.push({
+          name: 'identity',
+          content: identityContent,
+          source: params.identity.source ?? 'identity-store',
+        });
+      }
     }
 
     if (params.userProfile) {
@@ -110,18 +126,54 @@ export class PromptAssembler {
   }
 
   private formatIdentity(identity: IdentityProfile): string {
-    const lines = [
-      'Identity Profile:',
-      `Soul: ${identity.soul}`,
-      `Identity: ${identity.identity}`,
-      `User Profile: ${identity.userProfile}`,
-    ];
+    const soul = identity.soul?.trim();
+    const name = identity.identity?.trim();
+    const userProfile = identity.userProfile?.trim();
+    const toolsNotes = identity.toolsNotes?.trim();
 
-    if (identity.toolsNotes) {
-      lines.push(`Tools Notes: ${identity.toolsNotes}`);
+    if (!soul && !name && !userProfile && !toolsNotes) {
+      return '';
+    }
+
+    const lines = ['Identity Profile:'];
+    if (soul) {
+      lines.push(`Soul: ${soul}`);
+    }
+    if (name) {
+      lines.push(`Identity: ${name}`);
+    }
+    if (userProfile) {
+      lines.push(`User Profile: ${userProfile}`);
+    }
+    if (toolsNotes) {
+      lines.push(`Tools Notes: ${toolsNotes}`);
     }
 
     return lines.join('\n');
+  }
+
+  private formatBootstrap(profile: BootstrapProfile): string {
+    const content = profile.content ?? {};
+    const orderedKeys = ['agents', 'soul', 'tools', 'identity', 'user', 'bootstrap'];
+    const remaining = Object.keys(content)
+      .filter((key) => !orderedKeys.includes(key))
+      .sort((a, b) => a.localeCompare(b));
+    const keys = [...orderedKeys, ...remaining];
+
+    const blocks: string[] = [];
+    for (const key of keys) {
+      const value = content[key];
+      if (!value || value.trim().length === 0) {
+        continue;
+      }
+      blocks.push(`[${key.toUpperCase()}]\n${value.trim()}`);
+    }
+
+    if (blocks.length === 0) {
+      return '';
+    }
+
+    return ['Bootstrap Blocks:', ...blocks].join('\n\n');
   }
 
   private formatMemoryEntries(entries: MemoryEntry[]): string {

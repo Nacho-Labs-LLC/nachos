@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Gateway } from './gateway.js';
 import type { ChannelInboundMessage, Session } from '@nachos/types';
-import type { AuditConfig } from '@nachos/config';
+import type { AuditConfig, ToolsConfig } from '@nachos/config';
 import type { AuditProvider } from './audit/provider.js';
 import * as auditLoader from './audit/loader.js';
 
@@ -249,6 +249,83 @@ describe('Gateway', () => {
       expect(session.systemPrompt).toBe('You are a helpful assistant');
 
       customGateway.getStorage().close();
+    });
+  });
+
+  describe('bootstrap tool', () => {
+    it('omits bootstrap tool when disabled', () => {
+      const toolsConfig: ToolsConfig = { bootstrap: { enabled: false } };
+      const customGateway = new Gateway({ dbPath: ':memory:', toolsConfig });
+      const session = customGateway.getSessionManager().createSession({
+        channel: 'slack',
+        conversationId: 'conv-1',
+        userId: 'user-1',
+      });
+
+      (customGateway as unknown as { stateLayer?: unknown }).stateLayer = {};
+
+      const tools = (
+        customGateway as unknown as { buildToolDefinitions: (s: Session) => unknown }
+      ).buildToolDefinitions(session) as Array<{ name?: string }> | undefined;
+
+      expect(tools?.some((tool) => tool.name === 'bootstrap')).toBe(false);
+
+      customGateway.getStorage().close();
+    });
+
+    it('increments bootstrap version on set', async () => {
+      const session = gateway.getSessionManager().createSession({
+        channel: 'slack',
+        conversationId: 'conv-2',
+        userId: 'user-2',
+      });
+
+      const stateLayer = {
+        getIdentity: vi.fn().mockResolvedValue(null),
+        getBootstrap: vi.fn().mockResolvedValue({
+          agentId: 'user-2',
+          content: { foo: 'bar' },
+          updatedAt: '2024-01-01T00:00:00.000Z',
+          version: 2,
+          source: 'db',
+        }),
+        putBootstrap: vi.fn().mockImplementation(async (profile) => profile),
+        deleteBootstrap: vi.fn().mockResolvedValue(undefined),
+        close: vi.fn().mockResolvedValue(undefined),
+      };
+
+      (gateway as unknown as { stateLayer?: unknown }).stateLayer = stateLayer;
+
+      const call = {
+        tool: 'bootstrap',
+        parameters: {
+          action: 'set',
+          content: { foo: 'baz' },
+        },
+      };
+
+      const result = await (
+        gateway as unknown as {
+          executeBootstrapToolCall: (
+            c: unknown,
+            s: Session
+          ) => Promise<{ content: Array<{ text?: string }> }>;
+        }
+      ).executeBootstrapToolCall(call, session);
+
+      expect(stateLayer.putBootstrap).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agentId: 'user-2',
+          version: 3,
+          content: { foo: 'baz' },
+        }),
+        expect.anything()
+      );
+
+      const payload = JSON.parse(result.content[0]?.text ?? '{}') as {
+        profile?: { version?: number };
+      };
+      expect(payload.profile?.version).toBe(3);
     });
   });
 

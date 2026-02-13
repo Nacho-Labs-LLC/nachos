@@ -31,6 +31,7 @@ x-common-env: &common-env
 
 x-channel-env: &channel-env
   <<: *common-env
+  SECURITY_MODE: ${SECURITY_MODE:-standard}
   NACHOS_STATE_DIR: /app/state
   NACHOS_PAIRING_TOKEN: ${NACHOS_PAIRING_TOKEN:-}
 
@@ -55,7 +56,7 @@ x-channel-defaults: &channel-defaults
 x-tool-security: &tool-security
   security_opt:
     - no-new-privileges:true
-  user: "1000:1000"
+  user: "1001:1001"
   read_only: true
 
 # ==================== Services ====================
@@ -86,7 +87,7 @@ services:
       start_period: 5s
     logging: *default-logging
 
-  # -------------------- Gateway (with embedded Salsa) --------------------
+  # -------------------- Gateway (with embedded Cheese) --------------------
   gateway:
     container_name: nachos-gateway
     build:
@@ -101,6 +102,7 @@ services:
         condition: service_healthy
     networks:
       - nachos-internal
+      - nachos-egress
     ports:
       - "3000:3000"
     environment:
@@ -108,7 +110,14 @@ services:
       REDIS_URL: redis://redis:6379
       PORT: "3000"
       NACHOS_CONFIG_PATH: /app/nachos.toml
+      # Browser tool (embedded via @playwright/mcp)
+      BROWSER_ALLOWED_DOMAINS: ${BROWSER_ALLOWED_DOMAINS:-*}
+      BROWSER_HEADLESS: ${BROWSER_HEADLESS:-true}
+      BROWSER_TIMEOUT_MS: ${BROWSER_TIMEOUT_MS:-30000}
+    shm_size: 256m
     volumes:
+      # nachos.toml is optional — env vars alone are sufficient for single-channel setups.
+      # If nachos.toml exists, it is loaded first; env vars overlay on top.
       - ./nachos.toml:/app/nachos.toml:ro
       - ./policies:/app/policies:ro
       - ./data/gateway:/app/data
@@ -222,6 +231,13 @@ services:
     environment:
       <<: *channel-env
       DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
+      CHANNEL_DISCORD_ENABLED: ${CHANNEL_DISCORD_ENABLED:-}
+      # Guild/server access — set these in .env instead of nachos.toml for simple setups
+      CHANNEL_DISCORD_GUILD_ID: ${CHANNEL_DISCORD_GUILD_ID:-}
+      CHANNEL_DISCORD_CHANNEL_IDS: ${CHANNEL_DISCORD_CHANNEL_IDS:-}
+      CHANNEL_DISCORD_USER_ALLOWLIST: ${CHANNEL_DISCORD_USER_ALLOWLIST:-}
+      CHANNEL_DISCORD_MENTION_GATING: ${CHANNEL_DISCORD_MENTION_GATING:-false}
+      CHANNEL_DISCORD_DM_ALLOWLIST: ${CHANNEL_DISCORD_DM_ALLOWLIST:-}
     develop:
       watch:
         - action: sync
@@ -344,52 +360,16 @@ services:
     logging: *default-logging
 
   # -------------------- Browser --------------------
-  browser:
-    container_name: nachos-tool-browser
-    build:
-      context: .
-      dockerfile: packages/tools/browser/Dockerfile
-    image: nachos-tool-browser:dev
-    restart: unless-stopped
-    depends_on:
-      bus:
-        condition: service_healthy
-    networks:
-      - nachos-internal
-      - nachos-egress
-    environment:
-      <<: *common-env
-      ALLOWED_DOMAINS: ${BROWSER_ALLOWED_DOMAINS:-*}
-      BROWSER_HEADLESS: ${BROWSER_HEADLESS:-true}
-      BROWSER_TIMEOUT_MS: ${BROWSER_TIMEOUT_MS:-30000}
-    volumes:
-      - ./workspace/browser-downloads:/downloads:rw
-    security_opt:
-      - no-new-privileges:true
-    user: "pwuser"
-    shm_size: 512m
-    mem_limit: 1g
-    develop:
-      watch:
-        - action: rebuild
-          path: ./packages/tools/browser/src
-        - action: rebuild
-          path: ./packages/shared
-    healthcheck:
-      test: ["CMD", "node", "-e", "process.exit(0)"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
-    logging: *default-logging
+  # Browser tool now runs inside the gateway via @playwright/mcp
+  # See packages/core/gateway/src/tools/browser-local.ts
 
   # -------------------- Code Runner - Python --------------------
   code-runner-python:
     container_name: nachos-tool-code-python
     build:
       context: .
-      dockerfile: packages/tools/code-runner/Dockerfile.python
-    image: nachos-tool-code-python:dev
+      dockerfile: packages/tools/code-runner/Dockerfile
+    image: nachos-tool-code-runner:dev
     restart: unless-stopped
     <<: *tool-security
     depends_on:
@@ -425,8 +405,8 @@ services:
     container_name: nachos-tool-code-javascript
     build:
       context: .
-      dockerfile: packages/tools/code-runner/Dockerfile.javascript
-    image: nachos-tool-code-javascript:dev
+      dockerfile: packages/tools/code-runner/Dockerfile
+    image: nachos-tool-code-runner:dev
     restart: unless-stopped
     <<: *tool-security
     depends_on:

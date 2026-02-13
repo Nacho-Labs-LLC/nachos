@@ -667,12 +667,37 @@ export const MemoryToolSchema = Type.Object(
 
 export type MemoryToolType = Static<typeof MemoryToolSchema>;
 
+const BootstrapActionSchema = Type.Unsafe<'get' | 'set' | 'delete'>({
+  type: 'string',
+  enum: ['get', 'set', 'delete'],
+  description: 'Bootstrap action to perform',
+});
+
+export const BootstrapToolSchema = Type.Object(
+  {
+    action: BootstrapActionSchema,
+    content: Type.Optional(
+      Type.Record(Type.String(), Type.String(), {
+        description: 'Bootstrap content blocks keyed by name (set action)',
+      })
+    ),
+    identityCompleted: Type.Optional(
+      Type.Boolean({ description: 'Mark identity as completed (set action)' })
+    ),
+  },
+  { $id: 'BootstrapTool', description: 'Bootstrap tool parameters' }
+);
+
+export type BootstrapToolType = Static<typeof BootstrapToolSchema>;
+
 /**
  * user_profile tool parameters
  */
 export const UserProfileToolSchema = Type.Object(
   {
-    action: Type.Union([Type.Literal('get'), Type.Literal('set'), Type.Literal('delete')], {
+    action: Type.Unsafe<'get' | 'set' | 'delete'>({
+      type: 'string',
+      enum: ['get', 'set', 'delete'],
       description: 'User profile action to perform',
     }),
     profile: Type.Optional(Type.String({ description: 'Profile content (set action)' })),

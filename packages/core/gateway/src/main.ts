@@ -132,6 +132,7 @@ async function start(): Promise<void> {
     toolSandboxConfig,
     workspaceDir: runtime?.workspace_dir,
     toolGroups: nachosConfig.tools?.groups,
+    toolsConfig: nachosConfig.tools,
   });
 
   const shutdown = async (signal: string) => {
@@ -263,9 +264,10 @@ function mapContextManagement(config: RuntimeConfig['context_management']) {
 
 function buildStateLayerConfig(runtime?: RuntimeConfig): StateLayerConfig {
   const stateDir = runtime?.state_dir ?? './state';
-  const identityProvider = runtime?.state?.identity?.provider ?? 'filesystem';
-  const memoryProvider = runtime?.state?.memory?.provider ?? 'filesystem';
-  const userProfileProvider = runtime?.state?.user_profile?.provider ?? 'filesystem';
+  const identityProvider = runtime?.state?.identity?.provider ?? 'postgres';
+  const memoryProvider = runtime?.state?.memory?.provider ?? 'postgres';
+  const userProfileProvider = runtime?.state?.user_profile?.provider ?? 'postgres';
+  const bootstrapProvider = runtime?.state?.bootstrap?.provider ?? 'postgres';
   const sessionProvider =
     runtime?.state?.session?.provider ?? (runtime?.redis_url ? 'redis' : 'memory');
 
@@ -273,6 +275,8 @@ function buildStateLayerConfig(runtime?: RuntimeConfig): StateLayerConfig {
   const memoryDir = runtime?.state?.memory?.filesystem?.dir ?? path.join(stateDir, 'memory');
   const userProfileDir =
     runtime?.state?.user_profile?.filesystem?.dir ?? path.join(stateDir, 'user-profiles');
+  const bootstrapDir =
+    runtime?.state?.bootstrap?.filesystem?.dir ?? path.join(stateDir, 'bootstrap');
 
   return {
     identity: {
@@ -308,6 +312,18 @@ function buildStateLayerConfig(runtime?: RuntimeConfig): StateLayerConfig {
             schema: runtime.state.user_profile.postgres.schema,
             ssl: runtime.state.user_profile.postgres.ssl,
             maxConnections: runtime.state.user_profile.postgres.max_connections,
+          }
+        : undefined,
+    },
+    bootstrap: {
+      provider: bootstrapProvider,
+      filesystem: { dir: bootstrapDir },
+      postgres: runtime?.state?.bootstrap?.postgres
+        ? {
+            connectionString: runtime.state.bootstrap.postgres.connection_string ?? '',
+            schema: runtime.state.bootstrap.postgres.schema,
+            ssl: runtime.state.bootstrap.postgres.ssl,
+            maxConnections: runtime.state.bootstrap.postgres.max_connections,
           }
         : undefined,
     },

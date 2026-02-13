@@ -1,15 +1,84 @@
 # @nachos/config
 
-Configuration system for Nachos - provides TOML parsing, environment variable overlays, validation, and hot-reload support.
+Configuration system for Nachos - provides TOML parsing, .env loading, environment variable overlays, validation, and policy hot-reload support.
+
+## Configuration Tiers
+
+Nachos uses a layered configuration model. Lower tiers are sufficient for simple setups; higher tiers unlock more control.
+
+### Tier 1 — Env vars only (quick start, single channel)
+
+Channel adapters (Discord, Slack, Telegram, etc.) work without a `nachos.toml`. Set tokens and access rules entirely in `.env`:
+
+```bash
+# Channel identity
+DISCORD_BOT_TOKEN=your-token
+CHANNEL_DISCORD_ENABLED=true
+
+# Which guild and users can talk to the bot
+CHANNEL_DISCORD_GUILD_ID=123456789
+CHANNEL_DISCORD_CHANNEL_IDS=          # empty = allow all channels in the guild
+CHANNEL_DISCORD_USER_ALLOWLIST=111,222 # required — empty = deny all users
+CHANNEL_DISCORD_MENTION_GATING=false
+
+# Security mode
+SECURITY_MODE=standard
+```
+
+> **Note**: The gateway always requires a `nachos.toml` (for LLM provider config at minimum). Only channel containers are fully env-configurable.
+
+**Works for**: single guild, single allowlist, standard security mode, all tokens as secrets.
+
+**Requires TOML for**: multi-guild, per-guild policies, assistant system prompt, custom LLM settings.
+
+---
+
+### Tier 2 — nachos.toml + env var overlay (recommended)
+
+`nachos.toml` defines the base config. `.env` overlays secrets and targeted overrides on top. Standard setup for most deployments.
+
+**Priority order (highest wins):**
+
+```text
+shell environment / .env
+    ↓ overlays on
+nachos.toml
+    ↓ discovered from
+$NACHOS_CONFIG_PATH  →  ./nachos.toml  →  ~/.nachos/nachos.toml
+```
+
+Env vars map to TOML paths using a flat `SECTION_KEY` naming convention. See [Environment Variables](#environment-variables) below. Structured fields (arrays of objects like `servers`) cannot be set via env vars — use TOML for those.
+
+---
+
+### Tier 3 — Full nachos.toml (multi-guild, complex policies)
+
+For multiple guilds, per-server channel/user allowlists, or advanced policy rules, all channel server config lives in TOML. Env vars still overlay on top — use them for secrets, never for structured allowlists.
+
+```toml
+[[channels.discord.servers]]
+id = "guild-1"
+channel_ids = ["channel-a", "channel-b"]
+user_allowlist = ["user-1"]
+mention_gating = true
+
+[[channels.discord.servers]]
+id = "guild-2"
+channel_ids = []           # empty = allow all channels
+user_allowlist = ["user-1", "user-2"]
+```
+
+---
 
 ## Features
 
 - ✅ **TOML Parsing**: Parse `nachos.toml` configuration files
 - ✅ **Type-Safe**: Complete TypeScript types for all configuration options
-- ✅ **Environment Variables**: Override TOML values with environment variables
+- ✅ **Dotenv**: Load `.env` files into `process.env`
+- ✅ **Environment Variables**: Override TOML scalar values with env vars
 - ✅ **Validation**: Comprehensive validation with clear error messages
-- ✅ **Hot-Reload**: Watch policy files for changes and reload automatically
-- ✅ **Flexible**: Load from custom paths or default search locations
+- ✅ **Policy Hot-Reload**: Watch `policies/*.yaml` for changes without restart (config changes always require restart)
+- ✅ **Flexible**: Load from custom paths or auto-discovered locations
 
 ## Installation
 
@@ -26,7 +95,7 @@ pnpm add @nachos/config
 ```typescript
 import { loadAndValidateConfig } from '@nachos/config';
 
-// Load, overlay with env vars, and validate
+// Load .env, overlay with env vars, and validate
 const config = loadAndValidateConfig();
 
 console.log(config.llm.provider); // "anthropic"
@@ -40,6 +109,7 @@ import { loadAndValidateConfig } from '@nachos/config';
 
 const config = loadAndValidateConfig({
   configPath: '/path/to/nachos.toml',
+  envFilePath: '/path/to/.env',
 });
 ```
 
@@ -63,11 +133,24 @@ import { loadAndValidateConfig } from '@nachos/config';
 const config = loadAndValidateConfig({
   applyEnv: false,
 });
+
+```
+
+### Without Dotenv Loading
+
+```typescript
+import { loadAndValidateConfig } from '@nachos/config';
+
+// Don't load a .env file
+const config = loadAndValidateConfig({
+  applyDotenv: false,
+});
 ```
 
 ## Environment Variables
 
-Override any configuration value with environment variables:
+Override any configuration value with environment variables. If a `.env` file is present,
+it is loaded into `process.env` before applying overrides.
 
 ```bash
 # LLM Configuration
@@ -133,6 +216,10 @@ const watcher = createPolicyWatcher(
 // Later, stop watching
 await watcher.stop();
 ```
+
+## Notes
+
+- Config is loaded from TOML + environment variables only. Changes require a restart.
 
 ## Advanced Usage
 

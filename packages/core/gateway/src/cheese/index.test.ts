@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { Salsa, createSalsa } from './index.js';
+import { Cheese, createCheese } from './index.js';
 import type { SecurityRequest } from './types/index.js';
 
-describe('Salsa', () => {
-  const testPoliciesDir = '/tmp/salsa-test-policies';
+describe('Cheese', () => {
+  const testPoliciesDir = '/tmp/cheese-test-policies';
 
   beforeEach(() => {
     // Create test policies directory
@@ -23,7 +23,7 @@ describe('Salsa', () => {
   });
 
   describe('Construction', () => {
-    it('should create Salsa instance with valid policies', () => {
+    it('should create Cheese instance with valid policies', () => {
       const policyContent = `
 version: "1.0"
 rules:
@@ -35,17 +35,17 @@ rules:
 `;
       writeFileSync(join(testPoliciesDir, 'test.yaml'), policyContent);
 
-      const salsa = new Salsa({
+      const cheese = new Cheese({
         policiesPath: testPoliciesDir,
         securityMode: 'standard',
         enableHotReload: false,
         defaultEffect: 'deny',
       });
 
-      expect(salsa).toBeDefined();
-      expect(salsa.getValidationErrors()).toHaveLength(0);
+      expect(cheese).toBeDefined();
+      expect(cheese.getValidationErrors()).toHaveLength(0);
 
-      salsa.destroy();
+      cheese.destroy();
     });
 
     it('should load policies on construction', () => {
@@ -59,18 +59,18 @@ rules:
 `;
       writeFileSync(join(testPoliciesDir, 'test.yaml'), policyContent);
 
-      const salsa = new Salsa({
+      const cheese = new Cheese({
         policiesPath: testPoliciesDir,
         securityMode: 'standard',
         enableHotReload: false,
         defaultEffect: 'deny',
       });
 
-      const stats = salsa.getStats();
+      const stats = cheese.getStats();
       expect(stats.policiesLoaded).toBe(1);
       expect(stats.rulesActive).toBe(1);
 
-      salsa.destroy();
+      cheese.destroy();
     });
   });
 
@@ -88,7 +88,7 @@ rules:
 `;
       writeFileSync(join(testPoliciesDir, 'test.yaml'), policyContent);
 
-      const salsa = new Salsa({
+      const cheese = new Cheese({
         policiesPath: testPoliciesDir,
         securityMode: 'standard',
         enableHotReload: false,
@@ -109,17 +109,17 @@ rules:
         timestamp: new Date(),
       };
 
-      const result = salsa.evaluate(request);
+      const result = cheese.evaluate(request);
       expect(result.allowed).toBe(true);
       expect(result.ruleId).toBe('allow-browser');
 
-      salsa.destroy();
+      cheese.destroy();
     });
 
     it('should apply default deny when no rule matches', () => {
       writeFileSync(join(testPoliciesDir, 'test.yaml'), 'version: "1.0"\nrules: []');
 
-      const salsa = new Salsa({
+      const cheese = new Cheese({
         policiesPath: testPoliciesDir,
         securityMode: 'standard',
         enableHotReload: false,
@@ -140,11 +140,11 @@ rules:
         timestamp: new Date(),
       };
 
-      const result = salsa.evaluate(request);
+      const result = cheese.evaluate(request);
       expect(result.allowed).toBe(false);
       expect(result.effect).toBe('deny');
 
-      salsa.destroy();
+      cheese.destroy();
     });
 
     it('should evaluate in less than 1ms', () => {
@@ -159,7 +159,7 @@ rules:
 `;
       writeFileSync(join(testPoliciesDir, 'test.yaml'), policyContent);
 
-      const salsa = new Salsa({
+      const cheese = new Cheese({
         policiesPath: testPoliciesDir,
         securityMode: 'standard',
         enableHotReload: false,
@@ -180,10 +180,10 @@ rules:
         timestamp: new Date(),
       };
 
-      const result = salsa.evaluate(request);
+      const result = cheese.evaluate(request);
       expect(result.evaluationTimeMs).toBeLessThan(1);
 
-      salsa.destroy();
+      cheese.destroy();
     });
   });
 
@@ -203,7 +203,7 @@ rules:
 `;
       writeFileSync(join(testPoliciesDir, 'test.yaml'), policyContent);
 
-      const salsa = new Salsa({
+      const cheese = new Cheese({
         policiesPath: testPoliciesDir,
         securityMode: 'standard',
         enableHotReload: false,
@@ -224,17 +224,17 @@ rules:
         timestamp: new Date(),
       };
 
-      salsa.evaluate(request);
-      salsa.evaluate(request);
+      cheese.evaluate(request);
+      cheese.evaluate(request);
 
-      const stats = salsa.getStats();
+      const stats = cheese.getStats();
       expect(stats.policiesLoaded).toBe(1);
       expect(stats.rulesActive).toBe(2);
       expect(stats.evaluationsTotal).toBe(2);
       expect(stats.avgEvaluationTimeMs).toBeGreaterThan(0);
       expect(stats.lastReload).toBeDefined();
 
-      salsa.destroy();
+      cheese.destroy();
     });
   });
 
@@ -250,18 +250,18 @@ rules:
 `;
       writeFileSync(join(testPoliciesDir, 'invalid.yaml'), invalidPolicy);
 
-      const salsa = new Salsa({
+      const cheese = new Cheese({
         policiesPath: testPoliciesDir,
         securityMode: 'standard',
         enableHotReload: false,
         defaultEffect: 'deny',
       });
 
-      const errors = salsa.getValidationErrors();
+      const errors = cheese.getValidationErrors();
       expect(errors.length).toBeGreaterThan(0);
-      expect(salsa.hasValidationErrors()).toBe(true);
+      expect(cheese.hasValidationErrors()).toBe(true);
 
-      salsa.destroy();
+      cheese.destroy();
     });
 
     it('should return empty array when no errors', () => {
@@ -275,41 +275,41 @@ rules:
 `;
       writeFileSync(join(testPoliciesDir, 'valid.yaml'), validPolicy);
 
-      const salsa = new Salsa({
+      const cheese = new Cheese({
         policiesPath: testPoliciesDir,
         securityMode: 'standard',
         enableHotReload: false,
         defaultEffect: 'deny',
       });
 
-      const errors = salsa.getValidationErrors();
+      const errors = cheese.getValidationErrors();
       expect(errors).toHaveLength(0);
-      expect(salsa.hasValidationErrors()).toBe(false);
+      expect(cheese.hasValidationErrors()).toBe(false);
 
-      salsa.destroy();
+      cheese.destroy();
     });
   });
 
-  describe('createSalsa helper', () => {
-    it('should create Salsa with defaults', () => {
+  describe('createCheese helper', () => {
+    it('should create Cheese with defaults', () => {
       writeFileSync(join(testPoliciesDir, 'test.yaml'), 'version: "1.0"\nrules: []');
 
-      const salsa = createSalsa(testPoliciesDir);
+      const cheese = createCheese(testPoliciesDir);
 
-      expect(salsa).toBeDefined();
-      expect(salsa.getStats().policiesLoaded).toBe(1);
+      expect(cheese).toBeDefined();
+      expect(cheese.getStats().policiesLoaded).toBe(1);
 
-      salsa.destroy();
+      cheese.destroy();
     });
 
     it('should accept custom security mode', () => {
       writeFileSync(join(testPoliciesDir, 'test.yaml'), 'version: "1.0"\nrules: []');
 
-      const salsa = createSalsa(testPoliciesDir, 'strict');
+      const cheese = createCheese(testPoliciesDir, 'strict');
 
-      expect(salsa).toBeDefined();
+      expect(cheese).toBeDefined();
 
-      salsa.destroy();
+      cheese.destroy();
     });
   });
 });

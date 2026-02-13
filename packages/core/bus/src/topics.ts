@@ -103,7 +103,7 @@ export const TOOL_TOPICS = {
 /**
  * Policy-related topics (reserved)
  *
- * Salsa is embedded in the Gateway, so these topics are not used
+ * Cheese is embedded in the Gateway, so these topics are not used
  * unless a future external policy service is introduced.
  */
 export const POLICY_TOPICS = {

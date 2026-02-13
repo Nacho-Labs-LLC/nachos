@@ -137,6 +137,19 @@ rules:
     effect: "allow"
     audit: true
 
+  - id: "permissive-tool-state-allow"
+    description: "Allow state layer reads/writes for prompt assembly and memory"
+    priority: 816
+    match:
+      resource: "tool"
+      action: ["read", "write", "call"]
+    conditions:
+      - field: "metadata.stateAction"
+        operator: "starts_with"
+        value: "state."
+    effect: "allow"
+    audit: true
+
   # Browser tool - Full access (SecurityTier: STANDARD)
   - id: "permissive-tool-browser"
     description: "Allow browser tool with full access"

@@ -1,5 +1,5 @@
 import { createBusClient } from '@nachos/bus';
-import { createChannelBus } from '@nachos/channel-base';
+import { createChannelBus, buildServerConfigFromEnv } from '@nachos/channel-base';
 import { loadAndValidateConfig, type NachosConfig } from '@nachos/config';
 import type { ChannelAdapterConfig } from '@nachos/types';
 import { SlackChannelAdapter } from './index.js';
@@ -28,10 +28,27 @@ function buildSecrets(): Record<string, string> {
   return secrets;
 }
 
+function buildChannelConfig(config: NachosConfig | undefined): Record<string, unknown> {
+  const channelConfig = { ...(config?.channels?.slack ?? {}) } as Record<string, unknown>;
+
+  // Apply env var server/DM config when TOML has no servers defined
+  const existing = channelConfig.servers as unknown[] | undefined;
+  if (!existing?.length) {
+    const envConfig = buildServerConfigFromEnv('CHANNEL_SLACK');
+    if (envConfig.servers) channelConfig.servers = envConfig.servers;
+    if (envConfig.dm && !channelConfig.dm) channelConfig.dm = envConfig.dm;
+  }
+
+  return channelConfig;
+}
+
 async function main(): Promise<void> {
   const config = loadConfigSafe();
-  const channelConfig = (config?.channels?.slack ?? {}) as Record<string, unknown>;
-  const securityMode = config?.security?.mode ?? 'standard';
+  const channelConfig = buildChannelConfig(config);
+  const securityMode =
+    config?.security?.mode ??
+    (process.env.SECURITY_MODE as 'strict' | 'standard' | 'permissive' | undefined) ??
+    'standard';
 
   const busClient = createBusClient({
     servers: process.env.NATS_URL ?? 'nats://bus:4222',

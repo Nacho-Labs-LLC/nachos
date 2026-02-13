@@ -62,6 +62,8 @@ describe('user-profile CLI commands', () => {
   beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), 'nachos-cli-'));
     originalConfigPath = process.env.NACHOS_CONFIG_PATH;
+    delete process.env.SECURITY_MODE;
+    delete process.env.SECURITY_I_UNDERSTAND_THE_RISKS;
     process.env.NACHOS_CONFIG_PATH = writeConfig(tempDir);
   });
 

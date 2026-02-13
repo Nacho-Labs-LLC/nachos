@@ -6,14 +6,28 @@ import { loadConfig, validateConfig, type GatewayConfig } from './config.js';
 
 describe('Config', () => {
   const originalEnv = process.env;
+  const envPath = path.join(os.tmpdir(), 'nachos-empty.env');
 
   beforeEach(() => {
     // Reset environment variables before each test
     process.env = { ...originalEnv };
+    delete process.env.SECURITY_MODE;
+    delete process.env.SECURITY_I_UNDERSTAND_THE_RISKS;
+    delete process.env.SECURITY_RATE_LIMIT_MESSAGES;
+    delete process.env.SECURITY_RATE_LIMIT_TOOLS;
+    delete process.env.SECURITY_RATE_LIMIT_LLM;
+    delete process.env.REDIS_URL;
+    delete process.env.RUNTIME_REDIS_URL;
+    process.env.NACHOS_ENV_PATH = envPath;
+    fs.writeFileSync(envPath, '', 'utf-8');
   });
 
   afterEach(() => {
     process.env = originalEnv;
+    if (fs.existsSync(envPath)) {
+      fs.rmSync(envPath, { force: true });
+    }
+    delete process.env.NACHOS_ENV_PATH;
   });
 
   describe('loadConfig', () => {

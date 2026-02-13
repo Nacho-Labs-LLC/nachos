@@ -1,5 +1,5 @@
 /**
- * Salsa Policy Engine
+ * Cheese Policy Engine
  *
  * Main entry point for the embedded policy engine.
  * Combines loader and evaluator with hot-reload support.
@@ -17,12 +17,12 @@ import { PolicyLoader } from './policy/loader.js';
 import { PolicyEvaluator } from './policy/evaluator.js';
 
 /**
- * Salsa Policy Engine
+ * Cheese Policy Engine
  *
  * Embedded security policy engine for Gateway.
  * Provides <1ms policy evaluation with hot-reload support.
  */
-export class Salsa {
+export class Cheese {
   private loader: PolicyLoader;
   private evaluator: PolicyEvaluator;
   private lastReload: Date | null = null;
@@ -62,14 +62,14 @@ export class Salsa {
    * Reload policies from disk
    */
   reload(): void {
-    console.log('[Salsa] Loading policies...');
+    console.log('[Cheese] Loading policies...');
     const [policies, errors] = this.loader.load();
 
     this.validationErrors = errors;
     this.lastReload = new Date();
 
     if (errors.length > 0) {
-      console.error('[Salsa] Policy validation errors:');
+      console.error('[Cheese] Policy validation errors:');
       for (const error of errors) {
         console.error(
           `  [${error.file}${error.ruleId ? `:${error.ruleId}` : ''}] ${error.message}`
@@ -80,9 +80,9 @@ export class Salsa {
     // Load valid policies into evaluator
     if (policies.length > 0) {
       this.evaluator.loadPolicies(policies);
-      console.log(`[Salsa] Loaded ${policies.length} policy document(s) successfully`);
+      console.log(`[Cheese] Loaded ${policies.length} policy document(s) successfully`);
     } else {
-      console.warn('[Salsa] No valid policies loaded - using default deny');
+      console.warn('[Cheese] No valid policies loaded - using default deny');
     }
   }
 
@@ -90,12 +90,12 @@ export class Salsa {
    * Handle policy reload from file watcher
    */
   private handleReload(policies: PolicyDocument[], errors: PolicyValidationError[]): void {
-    console.log('[Salsa] Policies reloaded from disk');
+    console.log('[Cheese] Policies reloaded from disk');
     this.validationErrors = errors;
     this.lastReload = new Date();
 
     if (errors.length > 0) {
-      console.error('[Salsa] Validation errors after reload:');
+      console.error('[Cheese] Validation errors after reload:');
       for (const error of errors) {
         console.error(
           `  [${error.file}${error.ruleId ? `:${error.ruleId}` : ''}] ${error.message}`
@@ -105,7 +105,7 @@ export class Salsa {
 
     if (policies.length > 0) {
       this.evaluator.loadPolicies(policies);
-      console.log(`[Salsa] Reloaded ${policies.length} policy document(s)`);
+      console.log(`[Cheese] Reloaded ${policies.length} policy document(s)`);
     }
   }
 
@@ -113,7 +113,7 @@ export class Salsa {
    * Handle loader errors
    */
   private handleError(error: Error): void {
-    console.error('[Salsa] Policy loader error:', error);
+    console.error('[Cheese] Policy loader error:', error);
   }
 
   /**
@@ -155,13 +155,13 @@ export class Salsa {
 }
 
 /**
- * Create a Salsa instance with sensible defaults
+ * Create a Cheese instance with sensible defaults
  */
-export function createSalsa(
+export function createCheese(
   policiesPath: string,
   securityMode: 'strict' | 'standard' | 'permissive' = 'standard'
-): Salsa {
-  return new Salsa({
+): Cheese {
+  return new Cheese({
     policiesPath,
     securityMode,
     enableHotReload: true,

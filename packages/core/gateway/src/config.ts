@@ -4,9 +4,14 @@
  * Environment-based configuration with sensible defaults.
  */
 import type { DLPConfig } from './security/dlp.js';
-import { ConfigLoadError, listEnabledChannels, loadAndValidateConfig } from '@nachos/config';
+import {
+  ConfigLoadError,
+  createEnvOverlay,
+  listEnabledChannels,
+  loadAndValidateConfig,
+} from '@nachos/config';
 import { createDefaultRateLimiterConfig, type RateLimiterConfig } from './security/rate-limiter.js';
-import type { PolicyEngineConfig } from './salsa/types/index.js';
+import type { PolicyEngineConfig } from './cheese/types/index.js';
 
 /**
  * Gateway configuration interface
@@ -26,7 +31,7 @@ export interface GatewayConfig {
   logLevel: 'debug' | 'info' | 'warn' | 'error';
   /** DLP (Data Loss Prevention) configuration */
   dlp?: DLPConfig;
-  /** Policy engine (Salsa) configuration */
+  /** Policy engine (Cheese) configuration */
   policy?: Partial<PolicyEngineConfig>;
   /** Rate limiting configuration */
   rateLimiter?: RateLimiterConfig;
@@ -119,7 +124,14 @@ function resolveChannelsFromConfig(): string[] {
     return listEnabledChannels(config);
   } catch (error) {
     if (error instanceof ConfigLoadError) {
-      return defaults.channels;
+      // No TOML present — apply env overlay to detect channels declared via
+      // CHANNEL_DISCORD_ENABLED=true, CHANNEL_SLACK_ENABLED=true, etc.
+      const overlay = createEnvOverlay() as { channels?: Record<string, { enabled?: boolean }> };
+      const channels = overlay.channels ?? {};
+      const fromEnv = Object.entries(channels)
+        .filter(([_, cfg]) => cfg?.enabled !== false)
+        .map(([name]) => name);
+      return fromEnv.length > 0 ? fromEnv : defaults.channels;
     }
     throw error;
   }

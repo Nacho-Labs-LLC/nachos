@@ -10,6 +10,16 @@ describe('Main Configuration Loading', () => {
 
   beforeEach(() => {
     process.env = { ...originalEnv };
+    delete process.env.SECURITY_MODE;
+    delete process.env.SECURITY_I_UNDERSTAND_THE_RISKS;
+    delete process.env.SECURITY_RATE_LIMIT_MESSAGES;
+    delete process.env.SECURITY_RATE_LIMIT_TOOLS;
+    delete process.env.SECURITY_RATE_LIMIT_LLM;
+    delete process.env.LLM_MODEL;
+    delete process.env.LLM_MAX_TOKENS;
+    delete process.env.REDIS_URL;
+    delete process.env.RUNTIME_REDIS_URL;
+    delete process.env.NACHOS_ENV_PATH;
     // Create test directory
     if (!fs.existsSync(testDir)) {
       fs.mkdirSync(testDir, { recursive: true });
@@ -151,6 +161,56 @@ messages_per_minute = 30
       expect(config.llm.max_tokens).toBe(8192);
       expect(config.security.rate_limits?.messages_per_minute).toBe(50);
       expect(config.runtime?.redis_url).toBe('redis://localhost:6379');
+    });
+
+    it('should load env vars from a .env file when applyDotenv is true', () => {
+      const configPath = path.join(testDir, 'nachos.toml');
+      const envPath = path.join(testDir, '.env');
+      const toml = `
+[nachos]
+name = "test"
+version = "1.0"
+
+[llm]
+provider = "anthropic"
+model = "claude"
+
+[security]
+mode = "standard"
+      `;
+      fs.writeFileSync(configPath, toml);
+      fs.writeFileSync(envPath, 'LLM_MODEL=gpt-4\n');
+
+      const config = loadAndValidateConfig({ configPath, envFilePath: envPath });
+
+      expect(config.llm.model).toBe('gpt-4');
+    });
+
+    it('should skip dotenv loading when applyDotenv is false', () => {
+      const configPath = path.join(testDir, 'nachos.toml');
+      const envPath = path.join(testDir, '.env');
+      const toml = `
+[nachos]
+name = "test"
+version = "1.0"
+
+[llm]
+provider = "anthropic"
+model = "claude"
+
+[security]
+mode = "standard"
+      `;
+      fs.writeFileSync(configPath, toml);
+      fs.writeFileSync(envPath, 'LLM_MODEL=gpt-4\n');
+
+      const config = loadAndValidateConfig({
+        configPath,
+        envFilePath: envPath,
+        applyDotenv: false,
+      });
+
+      expect(config.llm.model).toBe('claude');
     });
   });
 });

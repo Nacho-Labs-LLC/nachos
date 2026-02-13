@@ -11,9 +11,11 @@ import type {
   Session,
   SessionWithMessages,
   PromptReport,
+  BootstrapProfile,
 } from '@nachos/types';
 import { TOPICS } from '@nachos/bus';
 import {
+  BootstrapToolSchema,
   MemoryToolSchema,
   SessionsSpawnToolSchema,
   SubagentsToolSchema,
@@ -27,17 +29,10 @@ import type {
   SubagentToolProfileConfig,
   SubagentToolPolicyConfig,
   ToolGroupConfig,
+  ToolsConfig,
   NachosConfig,
-  PartialNachosConfig,
 } from '@nachos/config';
-import {
-  applyRuntimeOverlay,
-  loadAndValidateConfig,
-  loadRuntimeOverlay,
-  resolveRuntimeStateDir,
-  saveRuntimeOverlay,
-  validateConfigOrThrow,
-} from '@nachos/config';
+import { loadAndValidateConfig, validateConfigOrThrow } from '@nachos/config';
 import { randomUUID } from 'node:crypto';
 import { StateStorage } from './state.js';
 import { SessionManager } from './session.js';
@@ -49,7 +44,7 @@ import {
   NatsBusAdapter,
 } from './router.js';
 import { createHealthServer, performHealthCheck, type HealthCheckDeps } from './health.js';
-import { Salsa, type PolicyEngineConfig, type SecurityRequest } from './salsa/index.js';
+import { Cheese, type PolicyEngineConfig, type SecurityRequest } from './cheese/index.js';
 import { AuditLogger, loadAuditProvider } from './audit/index.js';
 import type { AuditEvent } from './audit/types.js';
 import { DLPSecurityLayer, type DLPConfig } from './security/dlp.js';
@@ -67,6 +62,7 @@ import {
   createStateLayer,
   type StateOperationContext,
 } from './state-layer/state-layer.js';
+import { createDefaultBootstrapBlocks } from './state-layer/bootstrap/bootstrap-templates.js';
 import { MemoryPipeline, type MemoryPipelineConfig } from './state-layer/memory-pipeline.js';
 import { tokenEstimator } from '@nachos/context-manager';
 import type { ContextManager } from '@nachos/context-manager';
@@ -104,7 +100,234 @@ const DEFAULT_TOOL_GROUPS: Record<string, string[]> = {
   media: ['gifgrep'],
   summarize: ['summarize'],
   workspace: ['gog'],
+  state: ['memory', 'user_profile', 'bootstrap'],
+  browser: [
+    'browser_navigate',
+    'browser_snapshot',
+    'browser_click',
+    'browser_type',
+    'browser_fill',
+    'browser_select_option',
+    'browser_hover',
+    'browser_press_key',
+    'browser_screenshot',
+    'browser_evaluate',
+    'browser_wait',
+    'browser_close',
+    'browser_go_back',
+    'browser_go_forward',
+    'browser_tab_new',
+    'browser_tab_close',
+    'browser_tab_list',
+    'browser_pdf_save',
+  ],
 };
+
+/**
+ * Browser tool definitions exposed to the LLM.
+ * These map to @playwright/mcp tools and are executed locally in the gateway.
+ */
+const BROWSER_TOOL_DEFINITIONS: Array<{
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+}> = [
+  {
+    name: 'browser_navigate',
+    description: 'Navigate to a URL in the browser.',
+    parameters: {
+      type: 'object',
+      properties: {
+        url: { type: 'string', description: 'URL to navigate to' },
+      },
+      required: ['url'],
+    },
+  },
+  {
+    name: 'browser_snapshot',
+    description:
+      'Capture an accessibility snapshot of the current page. Returns a structured ARIA tree with element references (ref) that can be used to target elements in subsequent actions like click, type, and fill.',
+    parameters: {
+      type: 'object',
+      properties: {
+        ref: { type: 'string', description: 'Specific element ref to snapshot (optional)' },
+      },
+    },
+  },
+  {
+    name: 'browser_click',
+    description: 'Click an element on the page using its ref from a snapshot.',
+    parameters: {
+      type: 'object',
+      properties: {
+        element: {
+          type: 'string',
+          description: 'Human-readable description of the element to click',
+        },
+        ref: { type: 'string', description: 'Exact ref value from the accessibility snapshot' },
+      },
+      required: ['element', 'ref'],
+    },
+  },
+  {
+    name: 'browser_type',
+    description: 'Type text into an editable element identified by its ref.',
+    parameters: {
+      type: 'object',
+      properties: {
+        element: { type: 'string', description: 'Human-readable description of the element' },
+        ref: { type: 'string', description: 'Exact ref value from the accessibility snapshot' },
+        text: { type: 'string', description: 'Text to type' },
+        submit: { type: 'boolean', description: 'Press Enter after typing (default: false)' },
+      },
+      required: ['element', 'ref', 'text'],
+    },
+  },
+  {
+    name: 'browser_fill',
+    description: 'Clear and fill an input field identified by its ref.',
+    parameters: {
+      type: 'object',
+      properties: {
+        element: { type: 'string', description: 'Human-readable description of the element' },
+        ref: { type: 'string', description: 'Exact ref value from the accessibility snapshot' },
+        value: { type: 'string', description: 'Value to fill' },
+      },
+      required: ['element', 'ref', 'value'],
+    },
+  },
+  {
+    name: 'browser_select_option',
+    description: 'Select an option in a dropdown identified by its ref.',
+    parameters: {
+      type: 'object',
+      properties: {
+        element: {
+          type: 'string',
+          description: 'Human-readable description of the select element',
+        },
+        ref: { type: 'string', description: 'Exact ref value from the accessibility snapshot' },
+        values: { type: 'array', items: { type: 'string' }, description: 'Values to select' },
+      },
+      required: ['element', 'ref', 'values'],
+    },
+  },
+  {
+    name: 'browser_hover',
+    description: 'Hover over an element identified by its ref.',
+    parameters: {
+      type: 'object',
+      properties: {
+        element: { type: 'string', description: 'Human-readable description of the element' },
+        ref: { type: 'string', description: 'Exact ref value from the accessibility snapshot' },
+      },
+      required: ['element', 'ref'],
+    },
+  },
+  {
+    name: 'browser_press_key',
+    description: 'Press a keyboard key or combination (e.g. "Enter", "Control+c", "ArrowDown").',
+    parameters: {
+      type: 'object',
+      properties: {
+        key: { type: 'string', description: 'Key or key combination to press' },
+      },
+      required: ['key'],
+    },
+  },
+  {
+    name: 'browser_screenshot',
+    description:
+      'Take a screenshot of the current page. Use browser_snapshot for structured data instead when possible.',
+    parameters: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'browser_evaluate',
+    description: 'Execute JavaScript in the browser page context.',
+    parameters: {
+      type: 'object',
+      properties: {
+        expression: { type: 'string', description: 'JavaScript expression to evaluate' },
+      },
+      required: ['expression'],
+    },
+  },
+  {
+    name: 'browser_wait',
+    description: 'Wait for a specified amount of time.',
+    parameters: {
+      type: 'object',
+      properties: {
+        time: { type: 'number', description: 'Time to wait in seconds (max 10)' },
+      },
+      required: ['time'],
+    },
+  },
+  {
+    name: 'browser_close',
+    description: 'Close the current browser page.',
+    parameters: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'browser_go_back',
+    description: 'Navigate back in browser history.',
+    parameters: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'browser_go_forward',
+    description: 'Navigate forward in browser history.',
+    parameters: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'browser_tab_new',
+    description: 'Open a new browser tab, optionally navigating to a URL.',
+    parameters: {
+      type: 'object',
+      properties: {
+        url: { type: 'string', description: 'URL to navigate the new tab to (optional)' },
+      },
+    },
+  },
+  {
+    name: 'browser_tab_close',
+    description: 'Close a browser tab by its index.',
+    parameters: {
+      type: 'object',
+      properties: {
+        index: { type: 'number', description: 'Tab index to close' },
+      },
+      required: ['index'],
+    },
+  },
+  {
+    name: 'browser_tab_list',
+    description: 'List all open browser tabs.',
+    parameters: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'browser_pdf_save',
+    description: 'Save the current page as a PDF.',
+    parameters: {
+      type: 'object',
+      properties: {},
+    },
+  },
+];
 
 type ResolvedContextCommandConfig = {
   enabled: boolean;
@@ -113,6 +336,7 @@ type ResolvedContextCommandConfig = {
   adminAllowlist: Set<string>;
   resetTriggers: string[];
   contextTriggers: string[];
+  identityTriggers: string[];
 };
 
 type ContextCommandOutcome = {
@@ -178,6 +402,8 @@ export interface GatewayOptions {
   workspaceDir?: string;
   /** Tool group mapping for policy grouping */
   toolGroups?: Record<string, ToolGroupConfig>;
+  /** Tool configuration from nachos.toml */
+  toolsConfig?: ToolsConfig;
 }
 
 /**
@@ -188,13 +414,14 @@ export class Gateway {
   private sessionManager: SessionManager;
   private router: Router;
   private rateLimiter?: RateLimiter;
-  private salsa: Salsa | null = null;
+  private cheese: Cheese | null = null;
   private auditLogger: AuditLogger | null = null;
   private dlp: DLPSecurityLayer | null = null;
   private dlpConfig?: DLPConfig;
   private toolCoordinator: ToolCoordinator | null = null;
   private toolCache: ToolCache | null = null;
   private approvalManager: ApprovalManager | null = null;
+  private localToolHandler?: import('./tools/local-tool-handler.js').LocalToolHandler;
   private instanceId: string;
   private healthServer: ReturnType<typeof createHealthServer> | null = null;
   private options: GatewayOptions;
@@ -222,6 +449,7 @@ export class Gateway {
   private approvalAllowlist: Set<string>;
   private toolGroupMap: Map<string, string>;
   private skillsPrompt: string | null = null;
+  private toolsConfig?: ToolsConfig;
 
   constructor(options: GatewayOptions = {}) {
     this.options = options;
@@ -230,6 +458,7 @@ export class Gateway {
     this.approvalAllowlist = new Set(options.approvalAllowlist ?? []);
     this.securityMode = options.policyConfig?.securityMode ?? 'standard';
     this.toolGroupMap = this.buildToolGroupMap(options.toolGroups);
+    this.toolsConfig = options.toolsConfig;
     this.subagentToolPolicy = options.subagentToolPolicy;
     this.subagentWorkspaceRoot = resolveSubagentWorkspaceRoot(options.workspaceDir);
     this.contextCommandConfig = options.contextCommandConfig;
@@ -256,10 +485,10 @@ export class Gateway {
     const bus = options.bus ?? new InMemoryMessageBus();
     this.router = new Router({ bus, componentName: 'gateway', rateLimiter: this.rateLimiter });
 
-    // Initialize Salsa policy engine if configured
+    // Initialize Cheese policy engine if configured
     if (options.policyConfig) {
-      this.salsa = new Salsa(options.policyConfig);
-      console.log('[Gateway] Policy engine (Salsa) initialized');
+      this.cheese = new Cheese(options.policyConfig);
+      console.log('[Gateway] Policy engine (Cheese) initialized');
     }
 
     if (options.stateLayer) {
@@ -430,8 +659,8 @@ export class Gateway {
       systemPrompt: this.options.defaultSystemPrompt,
     });
 
-    if (this.salsa) {
-      const policyResult = this.salsa.evaluate({
+    if (this.cheese) {
+      const policyResult = this.cheese.evaluate({
         requestId: envelope.id,
         userId: message.sender.id,
         sessionId: session.id,
@@ -809,13 +1038,14 @@ export class Gateway {
       adminAllowlist: new Set(config.admin_allowlist ?? []),
       resetTriggers: (config.reset_triggers ?? ['/new', '/reset']).filter(Boolean),
       contextTriggers: (config.context_triggers ?? ['/context']).filter(Boolean),
+      identityTriggers: (config.identity_triggers ?? ['/identity']).filter(Boolean),
     };
   }
 
   private parseContextCommand(
     text: string,
     config: ResolvedContextCommandConfig
-  ): { type: 'reset' | 'context'; trigger: string; remainder: string } | null {
+  ): { type: 'reset' | 'context' | 'identity'; trigger: string; remainder: string } | null {
     const trimmed = text.trim();
     if (!trimmed) return null;
 
@@ -838,6 +1068,11 @@ export class Gateway {
     const reset = matchTrigger(config.resetTriggers);
     if (reset) {
       return { type: 'reset', trigger: reset.trigger, remainder: reset.remainder };
+    }
+
+    const identity = matchTrigger(config.identityTriggers);
+    if (identity) {
+      return { type: 'identity', trigger: identity.trigger, remainder: identity.remainder };
     }
 
     const context = matchTrigger(config.contextTriggers);
@@ -915,6 +1150,39 @@ export class Gateway {
     }
 
     const action = parsed.remainder.toLowerCase();
+
+    if (parsed.type === 'identity') {
+      if (!this.stateLayer) {
+        return {
+          handled: true,
+          replyText: 'Identity state is not configured.',
+        };
+      }
+
+      if (!action || action === 'status') {
+        const completed = await this.getIdentityCompletionStatus(session);
+        return {
+          handled: true,
+          replyText: completed
+            ? 'Identity onboarding is complete.'
+            : 'Identity onboarding is not complete yet.',
+        };
+      }
+
+      if (['reset', 'clear', 'restart'].includes(action)) {
+        await this.resetIdentityForCommand(session);
+        return {
+          handled: true,
+          replyText: '🔁 Identity reset. Bootstrap guidance restored for onboarding.',
+        };
+      }
+
+      return {
+        handled: true,
+        replyText: 'Unknown identity command. Try `/identity status` or `/identity reset`.',
+      };
+    }
+
     const metadata = (session.metadata ?? {}) as Record<string, unknown>;
     const contextManagement =
       (metadata.contextManagement as Record<string, unknown> | undefined) ?? {};
@@ -973,7 +1241,8 @@ export class Gateway {
 
     return {
       handled: true,
-      replyText: 'Unknown context command. Try `/context on`, `/context off`, or `/context status`.',
+      replyText:
+        'Unknown context command. Try `/context on`, `/context off`, or `/context status`.',
     };
   }
 
@@ -1019,7 +1288,7 @@ export class Gateway {
       userId: message.sender.id,
       sessionId: newSession.id,
       channel: message.channel,
-      eventType: 'session_reset',
+      eventType: 'session_end',
       action: 'session.reset',
       resource: newSession.id,
       outcome: 'allowed',
@@ -1050,21 +1319,39 @@ export class Gateway {
     let prompt = basePrompt;
     let promptReport: PromptReport | undefined;
     let systemPromptTokens = 0;
+    let bootstrapLocked = false;
 
     if (this.stateLayer) {
       const context = this.buildStateContext(session);
       const agentId = this.resolveAgentId(session);
+      const isSubagent = this.isSubagentSession(session);
 
       try {
-        const identity = await this.stateLayer.getIdentity(agentId, context);
-        const userProfile = session.userId
-          ? await this.stateLayer.getUserProfile(agentId, session.userId, context)
-          : null;
-        const memory = await this.stateLayer.queryMemory({ agentId, limit: 200 }, context);
-        const sessionState = await this.stateLayer.getSessionState(sessionId, context);
+        const identity = isSubagent ? null : await this.stateLayer.getIdentity(agentId, context);
+        bootstrapLocked = Boolean(identity?.identityCompleted);
+        let bootstrap = await this.stateLayer.getBootstrap(agentId, context);
+        if (identity?.identityCompleted) {
+          bootstrap = await this.pruneBootstrapAfterCompletion(bootstrap, context);
+        }
+        if (isSubagent) {
+          bootstrap = this.filterBootstrapForSubagent(bootstrap);
+        }
+
+        const userProfile = isSubagent
+          ? null
+          : session.userId
+            ? await this.stateLayer.getUserProfile(agentId, session.userId, context)
+            : null;
+        const memory = isSubagent
+          ? { entries: [], facts: [] }
+          : await this.stateLayer.queryMemory({ agentId, limit: 200 }, context);
+        const sessionState = isSubagent
+          ? null
+          : await this.stateLayer.getSessionState(sessionId, context);
 
         const assembled = this.stateLayer.assemblePrompt({
           basePrompt,
+          bootstrap,
           identity,
           userProfile,
           memoryEntries: memory.entries,
@@ -1100,7 +1387,7 @@ export class Gateway {
       messages.push(...extraMessages);
     }
 
-    const tools = this.buildToolDefinitions(session);
+    const tools = this.buildToolDefinitions(session, { bootstrapLocked });
 
     return {
       sessionId,
@@ -1136,12 +1423,16 @@ export class Gateway {
     return session.userId ?? session.id;
   }
 
-  private buildToolDefinitions(session: Session): LLMRequestType['tools'] {
+  private buildToolDefinitions(
+    session: Session,
+    options?: { bootstrapLocked?: boolean }
+  ): LLMRequestType['tools'] {
     if (this.isSubagentSession(session)) {
       return undefined;
     }
 
     const tools: NonNullable<LLMRequestType['tools']> = [];
+    const bootstrapLocked = Boolean(options?.bootstrapLocked);
 
     if (this.subagentManager) {
       tools.push({
@@ -1164,6 +1455,14 @@ export class Gateway {
           'Internal state tool: query and curate durable memory entries and facts for the current user and agent.',
         parameters: this.sanitizeToolSchema(MemoryToolSchema),
       });
+      if (this.toolsConfig?.bootstrap?.enabled !== false && !bootstrapLocked) {
+        tools.push({
+          name: 'bootstrap',
+          description:
+            'Internal state tool: read or update bootstrap blocks for the current agent.',
+          parameters: this.sanitizeToolSchema(BootstrapToolSchema),
+        });
+      }
       tools.push({
         name: 'user_profile',
         description:
@@ -1171,6 +1470,9 @@ export class Gateway {
         parameters: this.sanitizeToolSchema(UserProfileToolSchema),
       });
     }
+
+    // Browser automation tools (powered by @playwright/mcp)
+    tools.push(...BROWSER_TOOL_DEFINITIONS);
 
     return tools.length > 0 ? tools : undefined;
   }
@@ -1548,6 +1850,10 @@ export class Gateway {
       return this.executeMemoryToolCall(call, session);
     }
 
+    if (call.tool === 'bootstrap') {
+      return this.executeBootstrapToolCall(call, session);
+    }
+
     if (call.tool === 'user_profile') {
       return this.executeUserProfileToolCall(call, session);
     }
@@ -1788,6 +2094,91 @@ export class Gateway {
     }
 
     return this.formatToolError('INVALID_PARAMETERS', `unknown user_profile action: ${action}`);
+  }
+
+  private async executeBootstrapToolCall(
+    call: ToolCall,
+    session: Session | null
+  ): Promise<ToolResult> {
+    if (this.toolsConfig?.bootstrap?.enabled === false) {
+      return this.formatToolError('TOOL_DISABLED', 'bootstrap tool is disabled');
+    }
+
+    if (!this.stateLayer) {
+      return this.formatToolError('STATE_LAYER_DISABLED', 'State layer is not configured');
+    }
+
+    if (!session) {
+      return this.formatToolError('SESSION_NOT_FOUND', 'Session not found for bootstrap tool');
+    }
+
+    const action = this.readOptionalString(call.parameters.action);
+    if (!action) {
+      return this.formatToolError('INVALID_PARAMETERS', 'action is required');
+    }
+
+    const identityCompleted = this.readOptionalBoolean(call.parameters.identityCompleted);
+
+    const agentId = this.resolveAgentId(session);
+    const context = { ...this.buildStateContext(session), internalTool: true };
+
+    if (await this.getIdentityCompletionStatus(session)) {
+      if (action !== 'get') {
+        return this.formatToolError(
+          'TOOL_DISABLED',
+          'bootstrap is locked after identity completion; use /identity reset to restart onboarding'
+        );
+      }
+    }
+
+    if (action === 'get') {
+      const profile = await this.stateLayer.getBootstrap(agentId, context);
+      return {
+        success: true,
+        content: [{ type: 'text', text: JSON.stringify({ profile }, null, 2) }],
+      };
+    }
+
+    if (action === 'set') {
+      const content = this.readOptionalStringMap(call.parameters.content);
+      if (!content) {
+        return this.formatToolError('INVALID_PARAMETERS', 'content is required');
+      }
+
+      const current = await this.stateLayer.getBootstrap(agentId, context);
+      const nextContent = { ...content };
+      if (identityCompleted) {
+        delete nextContent.bootstrap;
+      }
+      const stored = await this.stateLayer.putBootstrap(
+        {
+          agentId,
+          content: nextContent,
+          updatedAt: new Date().toISOString(),
+          version: current?.version ? current.version + 1 : 1,
+        },
+        context
+      );
+
+      if (identityCompleted) {
+        await this.markIdentityCompleted(agentId, nextContent, context);
+      }
+
+      return {
+        success: true,
+        content: [{ type: 'text', text: JSON.stringify({ profile: stored }, null, 2) }],
+      };
+    }
+
+    if (action === 'delete') {
+      await this.stateLayer.deleteBootstrap(agentId, context);
+      return {
+        success: true,
+        content: [{ type: 'text', text: JSON.stringify({ deleted: true }, null, 2) }],
+      };
+    }
+
+    return this.formatToolError('INVALID_PARAMETERS', `unknown bootstrap action: ${action}`);
   }
 
   private async executeSubagentsToolCall(
@@ -2105,6 +2496,160 @@ export class Gateway {
     return value;
   }
 
+  private readOptionalBoolean(value: unknown): boolean | undefined {
+    if (typeof value !== 'boolean') {
+      return undefined;
+    }
+    return value;
+  }
+
+  private async getIdentityCompletionStatus(session: Session): Promise<boolean> {
+    if (!this.stateLayer) {
+      return false;
+    }
+    const agentId = this.resolveAgentId(session);
+    const context = { ...this.buildStateContext(session), internalTool: true };
+    const identity = await this.stateLayer.getIdentity(agentId, context);
+    return Boolean(identity?.identityCompleted);
+  }
+
+  private async resetIdentityForCommand(session: Session): Promise<void> {
+    if (!this.stateLayer) {
+      return;
+    }
+
+    const agentId = this.resolveAgentId(session);
+    const context = { ...this.buildStateContext(session), internalTool: true };
+    const now = new Date().toISOString();
+    const current = await this.stateLayer.getIdentity(agentId, context);
+
+    await this.stateLayer.putIdentity(
+      {
+        agentId,
+        soul: '',
+        identity: '',
+        userProfile: '',
+        toolsNotes: '',
+        updatedAt: now,
+        version: current?.version ? current.version + 1 : 1,
+        identityCompleted: false,
+        identityCompletedAt: undefined,
+      },
+      context
+    );
+
+    const defaults = createDefaultBootstrapBlocks();
+    const existingBootstrap = await this.stateLayer.getBootstrap(agentId, context);
+    const content = {
+      ...(existingBootstrap?.content ?? {}),
+      soul: defaults.soul ?? '',
+      identity: defaults.identity ?? '',
+      user: defaults.user ?? '',
+      bootstrap: defaults.bootstrap ?? '',
+    };
+
+    await this.stateLayer.putBootstrap(
+      {
+        agentId,
+        content,
+        updatedAt: now,
+        version: existingBootstrap?.version ? existingBootstrap.version + 1 : 1,
+      },
+      context
+    );
+  }
+
+  private filterBootstrapForSubagent(bootstrap: BootstrapProfile | null): BootstrapProfile | null {
+    if (!bootstrap) {
+      return null;
+    }
+    const allowed = new Set(['agents', 'tools']);
+    const filtered: Record<string, string> = {};
+    for (const [key, value] of Object.entries(bootstrap.content ?? {})) {
+      if (!allowed.has(key)) {
+        continue;
+      }
+      filtered[key] = value;
+    }
+    if (Object.keys(filtered).length === 0) {
+      return null;
+    }
+    return {
+      ...bootstrap,
+      content: filtered,
+    };
+  }
+
+  private async pruneBootstrapAfterCompletion(
+    bootstrap: BootstrapProfile | null,
+    context: StateOperationContext
+  ): Promise<BootstrapProfile | null> {
+    if (!bootstrap) {
+      return null;
+    }
+    if (!('bootstrap' in (bootstrap.content ?? {}))) {
+      return bootstrap;
+    }
+    const nextContent = { ...bootstrap.content };
+    delete nextContent.bootstrap;
+    const stored = await this.stateLayer?.putBootstrap(
+      {
+        ...bootstrap,
+        content: nextContent,
+        updatedAt: new Date().toISOString(),
+        version: bootstrap.version + 1,
+      },
+      context
+    );
+    return stored ?? bootstrap;
+  }
+
+  private async markIdentityCompleted(
+    agentId: string,
+    bootstrapContent: Record<string, string>,
+    context: StateOperationContext
+  ): Promise<void> {
+    if (!this.stateLayer) {
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const current = await this.stateLayer.getIdentity(agentId, context);
+    const soul = current?.soul ?? bootstrapContent.soul ?? '';
+    const identity = current?.identity ?? bootstrapContent.identity ?? '';
+    const userProfile = current?.userProfile ?? bootstrapContent.user ?? '';
+    const toolsNotes = current?.toolsNotes ?? bootstrapContent.tools ?? undefined;
+
+    await this.stateLayer.putIdentity(
+      {
+        agentId,
+        soul,
+        identity,
+        userProfile,
+        toolsNotes,
+        updatedAt: now,
+        version: current?.version ? current.version + 1 : 1,
+        identityCompleted: true,
+        identityCompletedAt: now,
+      },
+      context
+    );
+  }
+
+  private readOptionalStringMap(value: unknown): Record<string, string> | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return null;
+    }
+    const result: Record<string, string> = {};
+    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+      if (typeof entry !== 'string') {
+        return null;
+      }
+      result[key] = entry;
+    }
+    return result;
+  }
+
   private readTimeoutMs(value: unknown): number | undefined {
     if (typeof value !== 'number' || !Number.isFinite(value)) {
       return undefined;
@@ -2146,8 +2691,8 @@ export class Gateway {
       return;
     }
 
-    if (this.salsa) {
-      const policyResult = this.salsa.evaluate({
+    if (this.cheese) {
+      const policyResult = this.cheese.evaluate({
         requestId: `${sessionId}-outbound-${Date.now()}`,
         userId: inbound.sender.id,
         sessionId,
@@ -2600,7 +3145,8 @@ export class Gateway {
         error: (...args: unknown[]) => console.error('[LocalTools]', ...args),
       },
     });
-    console.log('[Gateway] Local tool handler initialized (exec/shell)');
+    this.localToolHandler = localToolHandler;
+    console.log('[Gateway] Local tool handler initialized (exec/shell, browser)');
 
     // Load skills for system prompt
     try {
@@ -2626,7 +3172,7 @@ export class Gateway {
 
     this.toolCoordinator = new ToolCoordinator({
       bus: this.router.getBus(),
-      salsa: this.salsa ?? undefined,
+      cheese: this.cheese ?? undefined,
       cache: this.toolCache,
       approvalManager: this.approvalManager,
       securityMode: this.options.policyConfig?.securityMode ?? 'standard',
@@ -2781,7 +3327,6 @@ export class Gateway {
     try {
       baseConfig = loadAndValidateConfig({
         configPath: process.env.NACHOS_CONFIG_PATH,
-        applyRuntime: false,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -2794,26 +3339,27 @@ export class Gateway {
       return;
     }
 
-    const stateDir = resolveRuntimeStateDir(baseConfig);
-    const currentOverlay = loadRuntimeOverlay(stateDir) as PartialNachosConfig;
-    const mergedOverlay = this.mergeConfigOverlay(
-      currentOverlay as Record<string, unknown>,
-      update.changes
-    ) as PartialNachosConfig;
-
     try {
-      const candidate = applyRuntimeOverlay(baseConfig, mergedOverlay);
+      const candidate = this.mergeConfigOverlay(
+        baseConfig as unknown as Record<string, unknown>,
+        update.changes
+      ) as unknown as NachosConfig;
       validateConfigOrThrow(candidate);
 
       if (!update.dryRun) {
-        saveRuntimeOverlay(stateDir, mergedOverlay);
+        await emitResult({
+          requestId,
+          success: false,
+          message: 'Runtime config updates are disabled. Edit config and restart.',
+          errors: ['runtime_config_updates_disabled'],
+        });
+      } else {
+        await emitResult({
+          requestId,
+          success: true,
+          message: 'Config update validated. Restart required to apply changes.',
+        });
       }
-
-      await emitResult({
-        requestId,
-        success: true,
-        message: update.dryRun ? 'Config update validated.' : 'Config update applied.',
-      });
 
       await this.logAuditEvent({
         id: randomUUID(),
@@ -2825,7 +3371,8 @@ export class Gateway {
         eventType: 'config_update',
         action: 'config.update',
         resource: requestId,
-        outcome: 'allowed',
+        outcome: update.dryRun ? 'allowed' : 'denied',
+        reason: update.dryRun ? undefined : 'Runtime config updates are disabled',
         securityMode: this.options.policyConfig?.securityMode ?? 'standard',
         details: {
           serverId: actor?.serverId,
@@ -2877,9 +3424,9 @@ export class Gateway {
       await this.healthServer.stop();
     }
 
-    // Cleanup Salsa
-    if (this.salsa) {
-      this.salsa.destroy();
+    // Cleanup Cheese
+    if (this.cheese) {
+      this.cheese.destroy();
     }
 
     if (this.auditLogger) {
@@ -2901,6 +3448,10 @@ export class Gateway {
 
     if (this.subagentOrchestrator) {
       await this.subagentOrchestrator.shutdown();
+    }
+
+    if (this.localToolHandler) {
+      await this.localToolHandler.close();
     }
 
     this.storage.close();
@@ -3023,15 +3574,15 @@ export class Gateway {
       checkBus: () => this.isConnected,
     });
 
-    // Add Salsa statistics if available
-    if (this.salsa) {
-      const salsaStats = this.salsa.getStats();
+    // Add Cheese statistics if available
+    if (this.cheese) {
+      const cheeseStats = this.cheese.getStats();
       return {
         ...health,
-        salsa: {
-          policiesLoaded: salsaStats.policiesLoaded,
-          rulesActive: salsaStats.rulesActive,
-          hasErrors: this.salsa.hasValidationErrors(),
+        cheese: {
+          policiesLoaded: cheeseStats.policiesLoaded,
+          rulesActive: cheeseStats.rulesActive,
+          hasErrors: this.cheese.hasValidationErrors(),
         },
       };
     }
@@ -3090,10 +3641,10 @@ export class Gateway {
   }
 
   /**
-   * Get the policy engine (Salsa)
+   * Get the policy engine (Cheese)
    */
-  getSalsa(): Salsa | null {
-    return this.salsa;
+  getCheese(): Cheese | null {
+    return this.cheese;
   }
 
   /**
@@ -3102,7 +3653,7 @@ export class Gateway {
    * @returns Security result with allow/deny decision
    */
   evaluatePolicy(request: SecurityRequest) {
-    if (!this.salsa) {
+    if (!this.cheese) {
       // If no policy engine is configured, allow by default
       return {
         allowed: true,
@@ -3111,7 +3662,7 @@ export class Gateway {
       };
     }
 
-    return this.salsa.evaluate(request);
+    return this.cheese.evaluate(request);
   }
 
   /**

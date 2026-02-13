@@ -16,7 +16,8 @@ COPY tsconfig.base.json tsconfig.json ./
 # Copy shared packages
 COPY packages/shared ./packages/shared
 
-# Copy llm-proxy package
+# Copy core packages used by llm-proxy
+COPY packages/core/bus ./packages/core/bus
 COPY packages/core/llm-proxy ./packages/core/llm-proxy
 
 # Install dependencies

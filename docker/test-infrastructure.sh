@@ -46,7 +46,7 @@ sleep 5
 # Test 2: All containers are healthy
 echo ""
 echo "📋 Test 2: All services are healthy"
-SERVICES=("nachos-bus" "nachos-gateway" "nachos-llm-proxy" "nachos-salsa")
+SERVICES=("nachos-bus" "nachos-gateway" "nachos-llm-proxy" "nachos-cheese")
 for SERVICE in "${SERVICES[@]}"; do
     echo -n "   ${SERVICE}... "
     STATUS=$(docker inspect ${SERVICE} --format='{{.State.Health.Status}}' 2>/dev/null || echo "unknown")

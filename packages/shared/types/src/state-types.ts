@@ -2,7 +2,9 @@
  * State layer types for identity, memory, session state, and prompt reporting.
  */
 
-export type IdentitySource = 'filesystem' | 'db' | 'api' | 'unknown';
+export type IdentitySource = 'filesystem' | 'db' | 'api' | 'unknown' | 'default';
+
+export type BootstrapBlockMap = Record<string, string>;
 
 export interface IdentityProfile {
   agentId: string;
@@ -10,6 +12,16 @@ export interface IdentityProfile {
   identity: string;
   userProfile: string;
   toolsNotes?: string;
+  identityCompleted?: boolean;
+  identityCompletedAt?: string;
+  updatedAt: string;
+  version: number;
+  source?: IdentitySource;
+}
+
+export interface BootstrapProfile {
+  agentId: string;
+  content: BootstrapBlockMap;
   updatedAt: string;
   version: number;
   source?: IdentitySource;
@@ -79,6 +91,12 @@ export interface MemoryStore {
   appendFacts(facts: MemoryFact[]): Promise<MemoryFact[]>;
   query(query: MemoryQuery): Promise<MemoryQueryResult>;
   deleteEntry(id: string): Promise<void>;
+}
+
+export interface BootstrapStore {
+  get(agentId: string): Promise<BootstrapProfile | null>;
+  put(profile: BootstrapProfile): Promise<BootstrapProfile>;
+  delete(agentId: string): Promise<void>;
 }
 
 export interface UserProfileStore {

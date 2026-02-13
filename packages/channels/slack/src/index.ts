@@ -1,5 +1,4 @@
 import { App } from '@slack/bolt';
-import { loadAndValidateConfig } from '@nachos/config';
 import type { SlackChannelConfig } from '@nachos/config';
 import {
   TOPICS,
@@ -122,10 +121,6 @@ export class SlackChannelAdapter implements ChannelAdapter {
     if (this.config) {
       await this.config.bus.subscribe(TOPICS.channel.outbound(this.channelId), async (payload) => {
         await this.sendMessage(payload as OutboundMessage);
-      });
-
-      await this.config.bus.subscribe(TOPICS.config.updated, async () => {
-        await this.reloadConfigFromDisk();
       });
     }
   }
@@ -602,20 +597,6 @@ export class SlackChannelAdapter implements ChannelAdapter {
       '- /nachos session reset',
       '- /nachos context on|off|status|auto',
     ].join('\n');
-  }
-
-  private async reloadConfigFromDisk(): Promise<void> {
-    if (!this.config) return;
-    try {
-      const config = loadAndValidateConfig({
-        configPath: process.env.NACHOS_CONFIG_PATH,
-      });
-      this.channelConfig = (config.channels?.slack ?? {}) as SlackChannelConfig;
-      this.config.config = this.channelConfig as unknown as Record<string, unknown>;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.warn(`[Slack] Failed to reload config: ${message}`);
-    }
   }
 
   private async logCommandAudit(params: {

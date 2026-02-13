@@ -7,6 +7,8 @@ import type { Pool } from 'pg';
 import type {
   IdentityProfile,
   IdentityStore,
+  BootstrapProfile,
+  BootstrapStore,
   MemoryEntry,
   MemoryFact,
   MemoryQuery,
@@ -21,6 +23,9 @@ import type {
 import type { StateLayerConfig, StateLayerDependencies, StatePolicyRequest } from './types.js';
 import { FilesystemIdentityStore } from './identity/filesystem-identity-store.js';
 import { PostgresIdentityStore } from './identity/postgres-identity-store.js';
+import { FilesystemBootstrapStore } from './bootstrap/filesystem-bootstrap-store.js';
+import { PostgresBootstrapStore } from './bootstrap/postgres-bootstrap-store.js';
+import { createDefaultBootstrapBlocks } from './bootstrap/bootstrap-templates.js';
 import { FilesystemMemoryStore } from './memory/filesystem-memory-store.js';
 import { PostgresMemoryStore } from './memory/postgres-memory-store.js';
 import { FilesystemUserProfileStore } from './user-profile/filesystem-user-profile-store.js';
@@ -42,6 +47,7 @@ export interface StateOperationContext {
 
 export class StateLayer {
   private identityStore: IdentityStore;
+  private bootstrapStore: BootstrapStore;
   private memoryStore: MemoryStore;
   private userProfileStore: UserProfileStore;
   private sessionStateStore: SessionStateStore;
@@ -50,6 +56,7 @@ export class StateLayer {
 
   constructor(params: {
     identityStore: IdentityStore;
+    bootstrapStore: BootstrapStore;
     memoryStore: MemoryStore;
     userProfileStore: UserProfileStore;
     sessionStateStore: SessionStateStore;
@@ -57,6 +64,7 @@ export class StateLayer {
     dependencies?: StateLayerDependencies;
   }) {
     this.identityStore = params.identityStore;
+    this.bootstrapStore = params.bootstrapStore;
     this.memoryStore = params.memoryStore;
     this.userProfileStore = params.userProfileStore;
     this.sessionStateStore = params.sessionStateStore;
@@ -88,6 +96,57 @@ export class StateLayer {
     await this.ensureAllowed('state.identity.delete', context, agentId);
     await this.identityStore.delete(agentId);
     await this.auditAllowed('state.identity.delete', context, agentId);
+  }
+
+  async getBootstrap(
+    agentId: string,
+    context: StateOperationContext
+  ): Promise<BootstrapProfile | null> {
+    await this.ensureAllowed('state.bootstrap.read', context, agentId);
+    let profile = await this.bootstrapStore.get(agentId);
+    if (!profile) {
+      try {
+        profile = await this.seedBootstrapProfile(agentId, context);
+      } catch {
+        profile = null;
+      }
+    }
+    await this.auditAllowed('state.bootstrap.read', context, agentId);
+    return profile;
+  }
+
+  async putBootstrap(
+    profile: BootstrapProfile,
+    context: StateOperationContext
+  ): Promise<BootstrapProfile> {
+    await this.ensureAllowed('state.bootstrap.write', context, profile.agentId);
+    const stored = await this.bootstrapStore.put(profile);
+    await this.auditAllowed('state.bootstrap.write', context, profile.agentId);
+    return stored;
+  }
+
+  async deleteBootstrap(agentId: string, context: StateOperationContext): Promise<void> {
+    await this.ensureAllowed('state.bootstrap.delete', context, agentId);
+    await this.bootstrapStore.delete(agentId);
+    await this.auditAllowed('state.bootstrap.delete', context, agentId);
+  }
+
+  private async seedBootstrapProfile(
+    agentId: string,
+    context: StateOperationContext
+  ): Promise<BootstrapProfile | null> {
+    const profile: BootstrapProfile = {
+      agentId,
+      content: createDefaultBootstrapBlocks(),
+      updatedAt: new Date().toISOString(),
+      version: 1,
+      source: 'default',
+    };
+
+    await this.ensureAllowed('state.bootstrap.write', context, agentId);
+    const stored = await this.bootstrapStore.put(profile);
+    await this.auditAllowed('state.bootstrap.write', context, agentId);
+    return stored;
   }
 
   async appendMemoryEntry(
@@ -211,6 +270,7 @@ export class StateLayer {
   async close(): Promise<void> {
     const closers = [
       this.identityStore,
+      this.bootstrapStore,
       this.memoryStore,
       this.userProfileStore,
       this.sessionStateStore,
@@ -306,6 +366,7 @@ export function createStateLayer(
   deps?: StateLayerDependencies
 ): StateLayer {
   const identityStore = createIdentityStore(config);
+  const bootstrapStore = createBootstrapStore(config);
   const memoryStore = createMemoryStore(config);
   const userProfileStore = createUserProfileStore(config);
   const sessionStore = createSessionStateStore(config);
@@ -313,6 +374,7 @@ export function createStateLayer(
 
   return new StateLayer({
     identityStore,
+    bootstrapStore,
     memoryStore,
     userProfileStore,
     sessionStateStore: sessionStore,
@@ -336,6 +398,23 @@ function createIdentityStore(config: StateLayerConfig): IdentityStore {
     throw new Error('Filesystem identity store requires dir');
   }
   return new FilesystemIdentityStore(dir);
+}
+
+function createBootstrapStore(config: StateLayerConfig): BootstrapStore {
+  if (config.bootstrap.provider === 'postgres') {
+    const settings = config.bootstrap.postgres;
+    if (!settings?.connectionString) {
+      throw new Error('Postgres bootstrap store requires connectionString');
+    }
+    const pool = createPgPool(settings);
+    return new PostgresBootstrapStore(pool, settings.schema);
+  }
+
+  const dir = config.bootstrap.filesystem?.dir;
+  if (!dir) {
+    throw new Error('Filesystem bootstrap store requires dir');
+  }
+  return new FilesystemBootstrapStore(dir);
 }
 
 function createMemoryStore(config: StateLayerConfig): MemoryStore {

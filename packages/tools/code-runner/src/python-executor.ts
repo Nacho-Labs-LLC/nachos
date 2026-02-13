@@ -15,10 +15,11 @@ import * as path from 'path';
 import { randomUUID } from 'crypto';
 import { ToolService } from '@nachos/tool-base';
 import type {
-  ToolServiceConfig,
+  ToolConfig,
   ToolParameters,
   ToolResult,
-  ValidationResult,
+  ToolValidationResult,
+  ToolHealthStatus,
   ParameterSchema,
   ContentBlock,
 } from '@nachos/types';
@@ -75,7 +76,7 @@ export class PythonExecutor extends ToolService {
   private maxTimeout = 30; // Maximum timeout in seconds
   private maxMemoryBytes?: number;
 
-  async initialize(config: ToolServiceConfig): Promise<void> {
+  async initialize(config: ToolConfig): Promise<void> {
     console.log('Python executor initialized');
 
     // Override max timeout from config if provided
@@ -96,7 +97,7 @@ export class PythonExecutor extends ToolService {
     }
   }
 
-  async validate(params: ToolParameters): Promise<ValidationResult> {
+  validate(params: ToolParameters): ToolValidationResult {
     const p = params as PythonExecutorParameters;
 
     const errors: string[] = [];
@@ -132,6 +133,10 @@ export class PythonExecutor extends ToolService {
     };
   }
 
+  async healthCheck(): Promise<ToolHealthStatus> {
+    return { healthy: true };
+  }
+
   async execute(params: ToolParameters): Promise<ToolResult> {
     const p = params as PythonExecutorParameters;
 
@@ -165,13 +170,20 @@ export class PythonExecutor extends ToolService {
           });
         }
 
+        const warnings: string[] = [];
+        if (formatted.truncated) {
+          warnings.push('Output was truncated');
+        }
+        if (formatted.exitCode !== null && formatted.exitCode !== 0) {
+          warnings.push(`Exit code: ${formatted.exitCode}`);
+        }
+
         return {
           success: formatted.exitCode === 0,
           content,
           metadata: {
             duration: 0, // Will be set by base class
-            exitCode: formatted.exitCode,
-            truncated: formatted.truncated,
+            ...(warnings.length > 0 ? { warnings } : {}),
           },
         };
       } finally {
@@ -315,7 +327,7 @@ export class PythonExecutor extends ToolService {
       throw new Error(`Invalid memory size: ${value}`);
     }
 
-    const amount = parseFloat(match[1]);
+    const amount = parseFloat(match[1]!);
     const unit = match[2] ?? 'b';
     const factor =
       unit === 'b'

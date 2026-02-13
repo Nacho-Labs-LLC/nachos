@@ -4,10 +4,10 @@
 
 Nachos is a Docker-native, security-first, modular AI assistant framework. This is a **pnpm monorepo** with multiple interconnected packages.
 
-**Mental Model**: Think of nachos (the food) - chips (core), cheese (message bus), protein (LLM), toppings (channels/tools), salsa (security).
+**Mental Model**: Think of nachos (the food) - chips (core), cheese (message bus), protein (LLM), toppings (channels/tools), cheese (security).
 
 **Architecture**:
-- **Core** (`packages/core/*`): Gateway, Bus (NATS), LLM Proxy, Salsa (security)
+- **Core** (`packages/core/*`): Gateway, Bus (NATS), LLM Proxy, Cheese (security)
 - **Channels** (`packages/channels/*`): Slack, Discord, Telegram, WebChat
 - **Tools** (`packages/tools/*`): Browser, Filesystem, Code Runner
 - **Shared** (`packages/shared/*`): Common types, utilities, schemas
@@ -31,7 +31,7 @@ async function writeFile(
   context: RequestContext
 ) {
   // 1. Policy check
-  const policy = await salsa.evaluate({
+  const policy = await cheese.evaluate({
     operation: 'filesystem.write',
     resource: path,
     context
@@ -207,7 +207,7 @@ async function executeTool(
   }
 
   // 2. Check policy
-  const policy = await salsa.evaluate({
+  const policy = await cheese.evaluate({
     operation: `tool.${tool}.${operation}`,
     resource: params.resource,
     context

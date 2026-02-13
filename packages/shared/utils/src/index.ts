@@ -48,7 +48,7 @@ export function shouldAllowGroupMessage(params: {
     mentionPatterns = [],
   } = params;
 
-  if (!channelAllowlist.includes(channelId)) return false;
+  if (channelAllowlist.length > 0 && !channelAllowlist.includes(channelId)) return false;
   if (!userAllowlist.includes(userId)) return false;
   if (!mentionGating) return true;
   return isMentioned(text, mentionPatterns);

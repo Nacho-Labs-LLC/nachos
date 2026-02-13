@@ -263,7 +263,7 @@ function buildRedisService(): Service {
 }
 
 /**
- * Build Gateway service (with embedded Salsa)
+ * Build Gateway service (with embedded Cheese)
  */
 function buildGatewayService(config: NachosConfig, projectRoot: string): Service {
   const securityMode = config.security?.mode ?? 'standard';

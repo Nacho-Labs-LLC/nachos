@@ -228,6 +228,13 @@ export interface WebFetchToolConfig {
 }
 
 /**
+ * Bootstrap tool configuration
+ */
+export interface BootstrapToolConfig {
+  enabled: boolean;
+}
+
+/**
  * Tool group configuration for policy grouping
  */
 export interface ToolGroupConfig {
@@ -265,6 +272,7 @@ export interface ToolsConfig {
   shell?: ShellToolConfig;
   web_search?: WebSearchToolConfig;
   web_fetch?: WebFetchToolConfig;
+  bootstrap?: BootstrapToolConfig;
   copilot?: CopilotToolConfig;
   claude_code_mcp?: ClaudeCodeMcpToolConfig;
   groups?: Record<string, ToolGroupConfig>;
@@ -447,6 +455,7 @@ export interface ContextManagementCommandsConfig {
   admin_allowlist?: string[];
   reset_triggers?: string[];
   context_triggers?: string[];
+  identity_triggers?: string[];
 }
 
 /**
@@ -498,6 +507,7 @@ export interface StateLayerConfig {
   identity?: StateStoreConfig;
   memory?: StateStoreConfig;
   user_profile?: StateStoreConfig;
+  bootstrap?: StateStoreConfig;
   session?: SessionStateConfig;
   prompt_report?: PromptReportConfig;
 }

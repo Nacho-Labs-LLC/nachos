@@ -42,7 +42,7 @@ async function main() {
 
   // Create tool instance(s) based on mode
   // 'readwrite' runs write+edit+patch in a single container (SecurityTier 2)
-  const tools: Array<{ start(config: typeof config): Promise<void>; stop(): Promise<void> }> = [];
+  const tools: Array<{ start(config: unknown): Promise<void>; stop(): Promise<void> }> = [];
 
   switch (toolMode) {
     case 'read':

@@ -82,6 +82,7 @@ const ENV_VAR_MAPPINGS: Record<string, string> = {
   TOOL_CODE_RUNNER_TIMEOUT: 'tools.code_runner.timeout',
   TOOL_SHELL_ENABLED: 'tools.shell.enabled',
   TOOL_WEB_SEARCH_ENABLED: 'tools.web_search.enabled',
+  TOOL_BOOTSTRAP_ENABLED: 'tools.bootstrap.enabled',
   TOOL_CLAUDE_CODE_MCP_ENABLED: 'tools.claude_code_mcp.enabled',
 };
 

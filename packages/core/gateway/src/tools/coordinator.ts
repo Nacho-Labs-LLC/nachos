@@ -2,7 +2,7 @@
  * Tool Coordinator
  *
  * Orchestrates tool execution with:
- * - Policy checks via Salsa
+ * - Policy checks via Cheese
  * - Parallel vs sequential execution
  * - Cache integration
  * - NATS communication
@@ -15,7 +15,7 @@ import {
   type ExecutionOptions,
   type MessageEnvelope,
 } from '@nachos/types';
-import type { Salsa, SecurityRequest } from '../salsa/index.js';
+import type { Cheese, SecurityRequest } from '../cheese/index.js';
 import type { ToolCache } from './cache.js';
 import type { MessageBus } from '../router.js';
 import type { ApprovalManager } from './approval-manager.js';
@@ -26,7 +26,7 @@ import type { LocalToolHandler } from './local-tool-handler.js';
  */
 export interface ToolCoordinatorConfig {
   bus: MessageBus;
-  salsa?: Salsa | null;
+  cheese?: Cheese | null;
   cache?: ToolCache;
   approvalManager?: ApprovalManager | null;
   defaultTimeout?: number;
@@ -39,7 +39,7 @@ export interface ToolCoordinatorConfig {
  */
 export class ToolCoordinator {
   private bus: MessageBus;
-  private salsa?: Salsa | null;
+  private cheese?: Cheese | null;
   private cache?: ToolCache;
   private approvalManager?: ApprovalManager | null;
   private defaultTimeout: number;
@@ -48,7 +48,7 @@ export class ToolCoordinator {
 
   constructor(config: ToolCoordinatorConfig) {
     this.bus = config.bus;
-    this.salsa = config.salsa;
+    this.cheese = config.cheese;
     this.cache = config.cache;
     this.approvalManager = config.approvalManager;
     this.defaultTimeout = config.defaultTimeout ?? 30000; // 30 seconds
@@ -113,8 +113,8 @@ export class ToolCoordinator {
     }
 
     try {
-      // 1. Check policy (if Salsa is configured)
-      if (this.salsa) {
+      // 1. Check policy (if Cheese is configured)
+      if (this.cheese) {
         const policyResult = await this.checkPolicy(call);
         if (!policyResult.allowed) {
           return {
@@ -414,7 +414,7 @@ export class ToolCoordinator {
     reason?: string;
     ruleId?: string;
   }> {
-    if (!this.salsa) {
+    if (!this.cheese) {
       return { allowed: true };
     }
 
@@ -438,7 +438,7 @@ export class ToolCoordinator {
       timestamp: new Date(),
     };
 
-    const result = this.salsa.evaluate(request);
+    const result = this.cheese.evaluate(request);
 
     return {
       allowed: result.allowed,

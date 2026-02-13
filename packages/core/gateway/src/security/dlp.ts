@@ -86,7 +86,7 @@ export interface DLPScanResult {
 
 /**
  * DLP Security Layer
- * Embeddable scanner for Gateway security (Salsa pattern)
+ * Embeddable scanner for Gateway security (Cheese pattern)
  */
 export class DLPSecurityLayer {
   private scanner: Scanner;

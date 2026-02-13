@@ -1,5 +1,5 @@
 /**
- * Salsa Policy Engine Types
+ * Cheese Policy Engine Types
  *
  * Type definitions for the embedded policy engine that controls
  * all security decisions in the Gateway.

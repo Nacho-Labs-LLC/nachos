@@ -156,7 +156,7 @@ async function writeFile(
   content: string,
   context: RequestContext
 ) {
-  const policy = await salsa.evaluate({
+  const policy = await cheese.evaluate({
     operation: 'filesystem.write',
     resource: path,
     context

@@ -124,6 +124,7 @@ const CONFIG_SHAPE: SchemaNode = {
         timeout_seconds: true,
       },
     },
+    bootstrap: { enabled: true },
     copilot: {
       enabled: true,
       max_prompt_length: true,
@@ -239,6 +240,7 @@ const CONFIG_SHAPE: SchemaNode = {
         admin_allowlist: true,
         reset_triggers: true,
         context_triggers: true,
+        identity_triggers: true,
       },
     },
     state: {
@@ -263,6 +265,16 @@ const CONFIG_SHAPE: SchemaNode = {
         },
       },
       user_profile: {
+        provider: true,
+        filesystem: { dir: true },
+        postgres: {
+          connection_string: true,
+          schema: true,
+          ssl: true,
+          max_connections: true,
+        },
+      },
+      bootstrap: {
         provider: true,
         filesystem: { dir: true },
         postgres: {
@@ -623,6 +635,7 @@ function validateRuntimeConfig(config: NachosConfig, errors: string[], _warnings
     validateStore(config.runtime.state.identity, 'identity');
     validateStore(config.runtime.state.memory, 'memory');
     validateStore(config.runtime.state.user_profile, 'user_profile');
+    validateStore(config.runtime.state.bootstrap, 'bootstrap');
 
     if (config.runtime.state.session?.provider) {
       const provider = config.runtime.state.session.provider;

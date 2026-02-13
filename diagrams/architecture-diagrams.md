@@ -29,7 +29,7 @@ flowchart TB
         subgraph Core["Core Layer"]
             Gateway["🔲 Gateway<br/>Sessions & Routing"]
             Bus["🧀 Message Bus<br/>(NATS)"]
-            Salsa["🌶️ Salsa<br/>Policy Engine"]
+            Cheese["🌶️ Cheese<br/>Policy Engine"]
         end
 
         subgraph Protein["LLM Layer"]
@@ -56,7 +56,7 @@ flowchart TB
 
     Channels <--> Bus
     Bus <--> Gateway
-    Gateway <--> Salsa
+    Gateway <--> Cheese
     Gateway <--> LLMProxy
     Gateway <--> Tools
 
@@ -75,7 +75,7 @@ sequenceDiagram
     participant U as 👤 User
     participant C as 📱 Channel
     participant B as 🧀 Bus
-    participant S as 🌶️ Salsa
+    participant S as 🌶️ Cheese
     participant G as 🔲 Gateway
     participant L as 🥩 LLM Proxy
     participant T as 🔧 Tool
@@ -122,7 +122,7 @@ flowchart TB
         subgraph internal["nachos-internal (isolated network)"]
             gateway["gateway<br/>───────<br/>📦 node:22-alpine<br/>🔒 non-root<br/>💾 512MB"]
             bus["bus<br/>───────<br/>📦 nats:alpine<br/>🔒 non-root<br/>💾 256MB"]
-            salsa["salsa<br/>───────<br/>📦 node:22-alpine<br/>🔒 non-root<br/>💾 256MB"]
+            cheese["cheese<br/>───────<br/>📦 node:22-alpine<br/>🔒 non-root<br/>💾 256MB"]
             filesystem["filesystem<br/>───────<br/>📦 node:22-alpine<br/>🔒 non-root<br/>💾 128MB"]
             coderunner["code-runner<br/>───────<br/>📦 node:22-alpine<br/>🔒 sandboxed<br/>💾 512MB"]
         end
@@ -143,7 +143,7 @@ flowchart TB
 
     gateway --- state
     filesystem --- workspace
-    salsa --- policies
+    cheese --- policies
 
     internal ~~~ egress
 ```
@@ -160,7 +160,7 @@ flowchart TD
         req["🔵 Request"]
     end
 
-    subgraph Salsa["🌶️ Salsa Security Layer"]
+    subgraph Cheese["🌶️ Cheese Security Layer"]
         dlp["DLP Scanner<br/>───────<br/>Detect sensitive data"]
         rate["Rate Limiter<br/>───────<br/>Throttle abuse"]
         policy["Policy Engine<br/>───────<br/>Evaluate rules"]
@@ -348,7 +348,7 @@ flowchart TD
         prepare["Prepare request"]
     end
 
-    subgraph Salsa["Policy Check"]
+    subgraph Cheese["Policy Check"]
         check["Check permissions"]
         tier["Verify security tier"]
     end
@@ -410,7 +410,7 @@ flowchart TB
     subgraph Internal["nachos-internal<br/>(no external access)"]
         gateway["Gateway"]
         bus["Bus"]
-        salsa["Salsa"]
+        cheese["Cheese"]
         fs["Filesystem"]
         code["Code Runner"]
     end

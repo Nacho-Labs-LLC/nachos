@@ -1,17 +1,28 @@
 FROM node:22-alpine AS development
 
-# Install system dependencies and Go for CLI tools
+# Install system dependencies, Go for CLI tools, and Chromium for browser tool
 RUN apk add --no-cache \
     go \
     git \
     ca-certificates \
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ttf-freefont \
     && rm -rf /var/cache/apk/*
 
-# Install skill-based CLI tools
+# Point playwright-core at Alpine's Chromium
+ENV CHROME_BIN=/usr/bin/chromium-browser
+ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
+# Install Go-based skill CLI tools
 RUN go install github.com/steipete/goplaces/cmd/goplaces@latest && \
     go install github.com/steipete/gifgrep/cmd/gifgrep@latest && \
-    go install github.com/steipete/gogcli/cmd/gog@latest && \
-    go install github.com/steipete/summarize/cmd/summarize@latest
+    go install github.com/steipete/gogcli/cmd/gog@latest
+
+# Install Node-based skill CLI tools
+RUN npm install -g @steipete/summarize
 
 # Add Go binaries to PATH
 ENV PATH="/root/go/bin:${PATH}"
@@ -41,7 +52,8 @@ COPY tsconfig.base.json tsconfig.json ./
 # Copy shared packages
 COPY packages/shared ./packages/shared
 
-# Copy gateway package
+# Copy core packages used by gateway
+COPY packages/core/bus ./packages/core/bus
 COPY packages/core/gateway ./packages/core/gateway
 
 # Install dependencies

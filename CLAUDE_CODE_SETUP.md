@@ -134,7 +134,7 @@ async function executeTool(params: unknown, context: RequestContext) {
   }
 
   // Policy check
-  const policy = await salsa.evaluate({
+  const policy = await cheese.evaluate({
     operation: 'tool.execute',
     resource: params.resource,
     context

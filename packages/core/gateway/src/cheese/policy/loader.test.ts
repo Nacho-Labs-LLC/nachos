@@ -230,6 +230,9 @@ rules:
 
       // Wait a bit then update the file
       setTimeout(() => {
+        if (!existsSync(testPoliciesDir)) {
+          return;
+        }
         const updatedPolicy = `
 version: "1.0"
 rules:

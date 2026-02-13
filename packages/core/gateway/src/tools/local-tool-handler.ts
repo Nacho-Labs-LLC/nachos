@@ -6,10 +6,12 @@
  *
  * Currently supports:
  * - shell/exec: CLI command execution with skill-based allowlisting
+ * - browser_*: Browser automation via @playwright/mcp
  */
 
 import type { ToolCall, ToolResult, ContentBlock } from '@nachos/types';
 import { ShellTool, type ShellToolConfig } from './shell-tool.js';
+import { BrowserLocalTool, type BrowserToolConfig } from './browser-local.js';
 
 /**
  * Logger interface (minimal subset needed)
@@ -26,6 +28,7 @@ interface Logger {
 export interface LocalToolHandlerConfig {
   logger: Logger;
   shellConfig?: Partial<ShellToolConfig>;
+  browserConfig?: Partial<BrowserToolConfig>;
 }
 
 /**
@@ -34,6 +37,7 @@ export interface LocalToolHandlerConfig {
 export class LocalToolHandler {
   private logger: Logger;
   private shellTool: ShellTool;
+  private browserTool: BrowserLocalTool;
 
   constructor(config: LocalToolHandlerConfig) {
     this.logger = config.logger;
@@ -43,13 +47,19 @@ export class LocalToolHandler {
       logger: config.logger,
       ...config.shellConfig,
     });
+
+    // Initialize browser tool (lazy — Chromium only starts on first use)
+    this.browserTool = new BrowserLocalTool({
+      logger: config.logger,
+      ...config.browserConfig,
+    });
   }
 
   /**
    * Check if a tool should be handled locally
    */
   isLocalTool(toolName: string): boolean {
-    return toolName === 'exec' || toolName === 'shell';
+    return toolName === 'exec' || toolName === 'shell' || this.browserTool.isBrowserTool(toolName);
   }
 
   /**
@@ -62,6 +72,10 @@ export class LocalToolHandler {
       // Route to appropriate handler
       if (call.tool === 'exec' || call.tool === 'shell') {
         return await this.executeShell(call);
+      }
+
+      if (this.browserTool.isBrowserTool(call.tool)) {
+        return await this.browserTool.execute(call);
       }
 
       // Unknown local tool
@@ -102,7 +116,17 @@ export class LocalToolHandler {
         return this.shellTool.getToolGroup(command);
       }
     }
+    if (this.browserTool.isBrowserTool(call.tool)) {
+      return 'browser';
+    }
     return undefined;
+  }
+
+  /**
+   * Shut down all local tools (call on gateway shutdown)
+   */
+  async close(): Promise<void> {
+    await this.browserTool.close();
   }
 
   /**

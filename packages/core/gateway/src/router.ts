@@ -355,9 +355,9 @@ export class Router {
       return;
     }
 
-    const metadata = sessionWithMessages.metadata as
-      | { contextManagement?: { enabled?: boolean } }
-      | null;
+    const metadata = sessionWithMessages.metadata as {
+      contextManagement?: { enabled?: boolean; compactionHistory?: Array<Record<string, unknown>> };
+    } | null;
     if (metadata?.contextManagement?.enabled === false) {
       return;
     }
@@ -539,10 +539,6 @@ export class Router {
     this.sessionManager.replaceMessages(sessionId, compactedNachosMessages);
 
     // Update session metadata with context state
-    const metadata = sessionWithMessages.metadata as {
-      contextManagement?: { compactionHistory?: Array<Record<string, unknown>> };
-    } | null;
-
     this.sessionManager.updateMetadata(sessionId, {
       contextManagement: {
         lastCompaction: new Date().toISOString(),
