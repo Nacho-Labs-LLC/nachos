@@ -21,12 +21,14 @@ networks:
 volumes:
   nats-data:
   redis-data:
+  postgres-data:
 
 # ==================== Common Config ====================
 
 x-common-env: &common-env
   NODE_ENV: development
   NATS_URL: nats://bus:4222
+  NATS_SERVERS: nats://bus:4222
   LOG_LEVEL: debug
 
 x-channel-env: &channel-env
@@ -34,6 +36,7 @@ x-channel-env: &channel-env
   SECURITY_MODE: ${SECURITY_MODE:-standard}
   NACHOS_STATE_DIR: /app/state
   NACHOS_PAIRING_TOKEN: ${NACHOS_PAIRING_TOKEN:-}
+  NACHOS_CONFIG_PATH: /app/nachos.toml
 
 x-logging: &default-logging
   driver: "json-file"
@@ -47,9 +50,10 @@ x-channel-defaults: &channel-defaults
     bus:
       condition: service_healthy
   networks:
-    - nachos-internal
     - nachos-egress
+    - nachos-internal
   volumes:
+    - ./nachos.toml:/app/nachos.toml:ro
     - ./data/channels:/app/state
   logging: *default-logging
 
@@ -100,9 +104,11 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
     networks:
-      - nachos-internal
       - nachos-egress
+      - nachos-internal
     ports:
       - "3000:3000"
     environment:
@@ -156,6 +162,29 @@ services:
       start_period: 5s
     logging: *default-logging
 
+  # -------------------- Postgres (State Layer) --------------------
+  postgres:
+    container_name: nachos-postgres
+    image: postgres:16-alpine
+    restart: unless-stopped
+    networks:
+      - nachos-internal
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: nachos
+      POSTGRES_USER: nachos
+      POSTGRES_PASSWORD: nachos
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    logging: *default-logging
+
   # -------------------- LLM Proxy --------------------
   llm-proxy:
     container_name: nachos-llm-proxy
@@ -168,8 +197,8 @@ services:
       bus:
         condition: service_healthy
     networks:
-      - nachos-internal
       - nachos-egress
+      - nachos-internal
     ports:
       - "3001:3001"
     environment:

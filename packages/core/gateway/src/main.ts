@@ -133,6 +133,8 @@ async function start(): Promise<void> {
     workspaceDir: runtime?.workspace_dir,
     toolGroups: nachosConfig.tools?.groups,
     toolsConfig: nachosConfig.tools,
+    skillsConfig: nachosConfig.skills,
+    nachosConfig,
   });
 
   const shutdown = async (signal: string) => {
@@ -264,10 +266,10 @@ function mapContextManagement(config: RuntimeConfig['context_management']) {
 
 function buildStateLayerConfig(runtime?: RuntimeConfig): StateLayerConfig {
   const stateDir = runtime?.state_dir ?? './state';
-  const identityProvider = runtime?.state?.identity?.provider ?? 'postgres';
-  const memoryProvider = runtime?.state?.memory?.provider ?? 'postgres';
-  const userProfileProvider = runtime?.state?.user_profile?.provider ?? 'postgres';
-  const bootstrapProvider = runtime?.state?.bootstrap?.provider ?? 'postgres';
+  const identityProvider = runtime?.state?.identity?.provider ?? 'filesystem';
+  const memoryProvider = runtime?.state?.memory?.provider ?? 'filesystem';
+  const userProfileProvider = runtime?.state?.user_profile?.provider ?? 'filesystem';
+  const bootstrapProvider = runtime?.state?.bootstrap?.provider ?? 'filesystem';
   const sessionProvider =
     runtime?.state?.session?.provider ?? (runtime?.redis_url ? 'redis' : 'memory');
 

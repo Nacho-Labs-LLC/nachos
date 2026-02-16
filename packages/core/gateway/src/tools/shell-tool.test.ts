@@ -29,11 +29,25 @@ describe('ShellTool', () => {
       expect(shellTool.isCommandAllowed('gog gmail search')).toBe(true);
     });
 
+    it('should allow pipelines with allowlisted commands', () => {
+      expect(shellTool.isCommandAllowed('goplaces search "test" | gifgrep cats')).toBe(true);
+    });
+
     it('should deny commands not in the allowlist', () => {
       expect(shellTool.isCommandAllowed('curl https://example.com')).toBe(false);
       expect(shellTool.isCommandAllowed('rm -rf /')).toBe(false);
       expect(shellTool.isCommandAllowed('wget https://evil.com')).toBe(false);
       expect(shellTool.isCommandAllowed('bash -c "malicious"')).toBe(false);
+    });
+
+    it('should deny commands with disallowed chained commands', () => {
+      expect(shellTool.isCommandAllowed('goplaces search "test"; rm -rf /')).toBe(false);
+      expect(shellTool.isCommandAllowed('goplaces search "test" && rm -rf /')).toBe(false);
+    });
+
+    it('should deny commands with command substitution', () => {
+      expect(shellTool.isCommandAllowed('goplaces search "$(rm -rf /)"')).toBe(false);
+      expect(shellTool.isCommandAllowed('goplaces search "`rm -rf /`"')).toBe(false);
     });
 
     it('should handle empty commands', () => {

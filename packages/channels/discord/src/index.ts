@@ -69,7 +69,7 @@ export class DiscordChannelAdapter implements ChannelAdapter {
     }
 
     const channelConfig = this.config.config as DiscordChannelConfig;
-    const token = channelConfig.token ?? this.config.secrets.DISCORD_BOT_TOKEN;
+    const token = this.resolveDiscordToken(channelConfig);
     if (!token) {
       throw new Error('Discord token is required');
     }
@@ -82,6 +82,19 @@ export class DiscordChannelAdapter implements ChannelAdapter {
     await this.config.bus.subscribe(TOPICS.channel.outbound(this.channelId), async (payload) => {
       await this.sendMessage(payload as OutboundMessage);
     });
+  }
+
+  private resolveDiscordToken(channelConfig: DiscordChannelConfig): string | undefined {
+    const tokenFromConfig = channelConfig.token?.trim();
+    if (tokenFromConfig) {
+      const envMatch = tokenFromConfig.match(/^\$\{([A-Z0-9_]+)\}$/);
+      if (envMatch && envMatch[1]) {
+        return process.env[envMatch[1]] ?? this.config?.secrets.DISCORD_BOT_TOKEN;
+      }
+      return tokenFromConfig;
+    }
+
+    return this.config?.secrets.DISCORD_BOT_TOKEN;
   }
 
   async stop(): Promise<void> {

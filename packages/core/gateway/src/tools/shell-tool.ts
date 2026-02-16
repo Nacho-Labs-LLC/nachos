@@ -163,39 +163,38 @@ export class ShellTool {
   async execute(options: ExecOptions): Promise<ExecResult> {
     const timeout = Math.min(options.timeout ?? this.defaultTimeout, this.maxTimeout);
 
-    // Parse command to extract binary name
-    const commandParts = options.command.trim().split(/\s+/);
-    const binaryName = commandParts[0];
-
-    if (!binaryName) {
+    if (!options.command.trim()) {
       throw new Error('Empty command');
     }
 
-    // Check if binary is allowed
-    const toolConfig = this.allowedTools.get(binaryName);
-    if (!toolConfig) {
-      throw new Error(
-        `Command '${binaryName}' not allowed. Allowed tools: ${Array.from(
-          this.allowedTools.keys()
-        ).join(', ')}`
-      );
+    if (!this.isCommandAllowed(options.command)) {
+      const allowed = Array.from(this.allowedTools.keys()).join(', ');
+      throw new Error(`Command not allowed. Allowed tools: ${allowed}`);
     }
 
-    // Validate required environment variables
-    if (toolConfig.requiredEnv) {
-      const mergedEnv = { ...process.env, ...options.env };
-      for (const envVar of toolConfig.requiredEnv) {
-        if (!mergedEnv[envVar]) {
-          throw new Error(
-            `Missing required environment variable: ${envVar} for tool ${binaryName}`
-          );
+    const binaries = this.extractCommandBins(options.command);
+
+    // Validate required environment variables for each binary
+    const mergedEnv = { ...process.env, ...options.env };
+    for (const binaryName of binaries) {
+      const toolConfig = this.allowedTools.get(binaryName);
+      if (!toolConfig) {
+        throw new Error(`Command '${binaryName}' not allowed.`);
+      }
+      if (toolConfig.requiredEnv) {
+        for (const envVar of toolConfig.requiredEnv) {
+          if (!mergedEnv[envVar]) {
+            throw new Error(
+              `Missing required environment variable: ${envVar} for tool ${binaryName}`
+            );
+          }
         }
       }
     }
 
-    this.logger.info(`Executing command: ${binaryName}`, {
+    this.logger.info(`Executing command: ${binaries.join(' ')}`, {
       command: options.command,
-      toolGroup: toolConfig.group,
+      toolGroup: this.getToolGroup(options.command),
       timeout,
     });
 
@@ -209,16 +208,37 @@ export class ShellTool {
    * Get tool group for a command
    */
   getToolGroup(command: string): string | undefined {
-    const binaryName = command.trim().split(/\s+/)[0];
-    return binaryName ? this.allowedTools.get(binaryName)?.group : undefined;
+    const binaries = this.extractCommandBins(command);
+    if (binaries.length === 0) return undefined;
+    const groups = new Set(
+      binaries
+        .map((bin) => this.allowedTools.get(bin)?.group)
+        .filter((group): group is string => Boolean(group))
+    );
+    if (groups.size === 1) {
+      return groups.values().next().value as string;
+    }
+    if (groups.size > 1) {
+      return 'shell';
+    }
+    return undefined;
   }
 
   /**
    * Check if a command is allowed
    */
   isCommandAllowed(command: string): boolean {
-    const binaryName = command.trim().split(/\s+/)[0];
-    return binaryName ? this.allowedTools.has(binaryName) : false;
+    if (!command.trim()) {
+      return false;
+    }
+    if (this.containsCommandSubstitution(command)) {
+      return false;
+    }
+    const binaries = this.extractCommandBins(command);
+    if (binaries.length === 0) {
+      return false;
+    }
+    return binaries.every((bin) => this.allowedTools.has(bin));
   }
 
   /**
@@ -337,5 +357,172 @@ export class ShellTool {
         });
       });
     });
+  }
+
+  private containsCommandSubstitution(command: string): boolean {
+    return command.includes('`') || command.includes('$(');
+  }
+
+  private extractCommandBins(command: string): string[] {
+    const segments = this.splitCommandSegments(command);
+    const bins: string[] = [];
+    for (const segment of segments) {
+      const bin = this.extractBinaryFromSegment(segment);
+      if (!bin) {
+        continue;
+      }
+      bins.push(bin);
+    }
+    return bins;
+  }
+
+  private splitCommandSegments(command: string): string[] {
+    const segments: string[] = [];
+    let current = '';
+    let inSingleQuote = false;
+    let inDoubleQuote = false;
+    let escaped = false;
+
+    for (let i = 0; i < command.length; i += 1) {
+      const ch = command[i] ?? '';
+      const next = command[i + 1] ?? '';
+      const prev = command[i - 1] ?? '';
+
+      if (escaped) {
+        current += ch;
+        escaped = false;
+        continue;
+      }
+
+      if (ch === '\\') {
+        current += ch;
+        escaped = true;
+        continue;
+      }
+
+      if (!inDoubleQuote && ch === "'") {
+        inSingleQuote = !inSingleQuote;
+        current += ch;
+        continue;
+      }
+
+      if (!inSingleQuote && ch === '"') {
+        inDoubleQuote = !inDoubleQuote;
+        current += ch;
+        continue;
+      }
+
+      if (inSingleQuote || inDoubleQuote) {
+        current += ch;
+        continue;
+      }
+
+      const isPipe = ch === '|';
+      const isSemicolon = ch === ';';
+      const isAnd = ch === '&';
+      const isAndAnd = isAnd && next === '&';
+      const isOrOr = isPipe && next === '|';
+
+      if (isSemicolon || isPipe || isAndAnd || isOrOr) {
+        const trimmed = current.trim();
+        if (trimmed) {
+          segments.push(trimmed);
+        }
+        current = '';
+        if (isAndAnd || isOrOr) {
+          i += 1;
+        }
+        continue;
+      }
+
+      if (isAnd && !isAndAnd && /\s/.test(prev) && /\s/.test(next)) {
+        const trimmed = current.trim();
+        if (trimmed) {
+          segments.push(trimmed);
+        }
+        current = '';
+        continue;
+      }
+
+      current += ch;
+    }
+
+    const tail = current.trim();
+    if (tail) {
+      segments.push(tail);
+    }
+
+    return segments;
+  }
+
+  private extractBinaryFromSegment(segment: string): string | undefined {
+    const tokens = this.tokenizeSegment(segment);
+    for (const token of tokens) {
+      if (this.isAssignmentToken(token)) {
+        continue;
+      }
+      if (this.isRedirectionToken(token)) {
+        continue;
+      }
+      return token;
+    }
+    return undefined;
+  }
+
+  private tokenizeSegment(segment: string): string[] {
+    const tokens: string[] = [];
+    let current = '';
+    let inSingleQuote = false;
+    let inDoubleQuote = false;
+    let escaped = false;
+
+    for (let i = 0; i < segment.length; i += 1) {
+      const ch = segment[i] ?? '';
+
+      if (escaped) {
+        current += ch;
+        escaped = false;
+        continue;
+      }
+
+      if (ch === '\\') {
+        escaped = true;
+        continue;
+      }
+
+      if (!inDoubleQuote && ch === "'") {
+        inSingleQuote = !inSingleQuote;
+        continue;
+      }
+
+      if (!inSingleQuote && ch === '"') {
+        inDoubleQuote = !inDoubleQuote;
+        continue;
+      }
+
+      if (!inSingleQuote && !inDoubleQuote && /\s/.test(ch)) {
+        if (current) {
+          tokens.push(current);
+          current = '';
+        }
+        continue;
+      }
+
+      current += ch;
+    }
+
+    if (current) {
+      tokens.push(current);
+    }
+
+    return tokens;
+  }
+
+  private isAssignmentToken(token: string): boolean {
+    return /^[A-Za-z_][A-Za-z0-9_]*=/.test(token);
+  }
+
+  private isRedirectionToken(token: string): boolean {
+    return /^\d*>/.test(token) || token.startsWith('>') || token.startsWith('<');
   }
 }

@@ -26,6 +26,7 @@ import type {
   AuditConfig,
   ContextManagementCommandsConfig,
   RuntimeToolSandboxConfig,
+  SkillsConfig,
   SubagentToolProfileConfig,
   SubagentToolPolicyConfig,
   ToolGroupConfig,
@@ -87,6 +88,8 @@ import type {
   SubagentTask,
 } from './subagents/types.js';
 import { SandboxManager } from './sandbox/sandbox-manager.js';
+import type { Skill } from './skills/skill-loader.js';
+import type { SkillToolConfig } from './tools/shell-tool.js';
 
 const DEFAULT_SUBAGENT_DENY_TOOLS = new Set([
   'sessions_list',
@@ -404,6 +407,10 @@ export interface GatewayOptions {
   toolGroups?: Record<string, ToolGroupConfig>;
   /** Tool configuration from nachos.toml */
   toolsConfig?: ToolsConfig;
+  /** Skills configuration from nachos.toml */
+  skillsConfig?: SkillsConfig;
+  /** Full Nachos config (for skills gating) */
+  nachosConfig?: NachosConfig;
 }
 
 /**
@@ -450,6 +457,8 @@ export class Gateway {
   private toolGroupMap: Map<string, string>;
   private skillsPrompt: string | null = null;
   private toolsConfig?: ToolsConfig;
+  private skillsConfig?: SkillsConfig;
+  private nachosConfig?: NachosConfig;
 
   constructor(options: GatewayOptions = {}) {
     this.options = options;
@@ -459,6 +468,8 @@ export class Gateway {
     this.securityMode = options.policyConfig?.securityMode ?? 'standard';
     this.toolGroupMap = this.buildToolGroupMap(options.toolGroups);
     this.toolsConfig = options.toolsConfig;
+    this.skillsConfig = options.skillsConfig;
+    this.nachosConfig = options.nachosConfig;
     this.subagentToolPolicy = options.subagentToolPolicy;
     this.subagentWorkspaceRoot = resolveSubagentWorkspaceRoot(options.workspaceDir);
     this.contextCommandConfig = options.contextCommandConfig;
@@ -1040,6 +1051,28 @@ export class Gateway {
       contextTriggers: (config.context_triggers ?? ['/context']).filter(Boolean),
       identityTriggers: (config.identity_triggers ?? ['/identity']).filter(Boolean),
     };
+  }
+
+  private buildSkillToolConfigs(skills: Skill[]): SkillToolConfig[] {
+    const configs = new Map<string, SkillToolConfig>();
+
+    for (const skill of skills) {
+      const bins = skill.metadata.nachos?.requires?.bins ?? [];
+      const requiredEnv = skill.metadata.nachos?.requires?.env ?? [];
+      for (const bin of bins) {
+        if (configs.has(bin)) {
+          continue;
+        }
+        const group = this.resolveToolGroup(bin) ?? 'shell';
+        configs.set(bin, {
+          bin,
+          group,
+          requiredEnv,
+        });
+      }
+    }
+
+    return Array.from(configs.values());
   }
 
   private parseContextCommand(
@@ -3136,21 +3169,11 @@ export class Gateway {
     this.approvalManager = new ApprovalManager();
     this.toolCache = new ToolCache();
 
-    // Initialize local tool handler for gateway-integrated tools (exec/shell)
-    const { LocalToolHandler } = await import('./tools/local-tool-handler.js');
-    const localToolHandler = new LocalToolHandler({
-      logger: {
-        info: (...args: unknown[]) => console.log('[LocalTools]', ...args),
-        warn: (...args: unknown[]) => console.warn('[LocalTools]', ...args),
-        error: (...args: unknown[]) => console.error('[LocalTools]', ...args),
-      },
-    });
-    this.localToolHandler = localToolHandler;
-    console.log('[Gateway] Local tool handler initialized (exec/shell, browser)');
-
-    // Load skills for system prompt
+    // Load skills for system prompt and exec allowlist
+    let skillToolConfigs: SkillToolConfig[] = [];
     try {
-      const { loadSkills, formatSkillsForPrompt } = await import('./skills/skill-loader.js');
+      const { loadSkills, formatSkillsForPrompt, filterSkillsForPrompt } =
+        await import('./skills/skill-loader.js');
       const { join } = await import('path');
       const { fileURLToPath } = await import('url');
       const { dirname } = await import('path');
@@ -3160,15 +3183,42 @@ export class Gateway {
       const skillsDir = join(currentDir, '..', '..', '..', '..', 'skills');
 
       const skills = loadSkills({ skillsDir });
-      if (skills.length > 0) {
-        this.skillsPrompt = formatSkillsForPrompt(skills);
-        console.log(`[Gateway] Loaded ${skills.length} skills for LLM prompt`);
+      const shellEnabled = this.toolsConfig?.shell?.enabled !== false;
+      const allowlist = this.skillsConfig?.allow ?? this.skillsConfig?.enabled;
+      const filtered = filterSkillsForPrompt(skills, {
+        allow: allowlist,
+        deny: this.skillsConfig?.deny,
+        entries: this.skillsConfig?.entries,
+        config: this.nachosConfig,
+      });
+      const skillsForPrompt = shellEnabled ? filtered : [];
+
+      if (skillsForPrompt.length > 0) {
+        this.skillsPrompt = formatSkillsForPrompt(skillsForPrompt);
+        console.log(`[Gateway] Loaded ${skillsForPrompt.length} skills for LLM prompt`);
       } else {
         console.warn('[Gateway] No skills loaded');
       }
+
+      skillToolConfigs = shellEnabled ? this.buildSkillToolConfigs(skillsForPrompt) : [];
     } catch (error) {
       console.error('[Gateway] Failed to load skills:', error);
     }
+
+    // Initialize local tool handler for gateway-integrated tools (exec/shell)
+    const { LocalToolHandler } = await import('./tools/local-tool-handler.js');
+    const localToolHandler = new LocalToolHandler({
+      logger: {
+        info: (...args: unknown[]) => console.log('[LocalTools]', ...args),
+        warn: (...args: unknown[]) => console.warn('[LocalTools]', ...args),
+        error: (...args: unknown[]) => console.error('[LocalTools]', ...args),
+      },
+      shellConfig: {
+        allowedTools: skillToolConfigs,
+      },
+    });
+    this.localToolHandler = localToolHandler;
+    console.log('[Gateway] Local tool handler initialized (exec/shell, browser)');
 
     this.toolCoordinator = new ToolCoordinator({
       bus: this.router.getBus(),

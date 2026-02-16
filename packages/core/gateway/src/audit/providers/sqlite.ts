@@ -1,4 +1,6 @@
 import Database from 'better-sqlite3';
+import { existsSync, mkdirSync } from 'node:fs';
+import { dirname } from 'node:path';
 import type { AuditEvent } from '../types.js';
 import type { AuditProvider, AuditQueryFilter } from '../provider.js';
 
@@ -19,6 +21,10 @@ export class SQLiteAuditProvider implements AuditProvider {
   constructor(private readonly config: SQLiteAuditProviderConfig) {}
 
   async init(): Promise<void> {
+    const directory = dirname(this.config.path);
+    if (!existsSync(directory)) {
+      mkdirSync(directory, { recursive: true });
+    }
     this.db = new Database(this.config.path);
     this.db.pragma('journal_mode = WAL');
     this.db.exec(`

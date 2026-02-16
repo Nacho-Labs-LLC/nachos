@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { loadSkills, formatSkillsForPrompt } from './skill-loader.js';
+import { loadSkills, formatSkillsForPrompt, filterSkillsForPrompt } from './skill-loader.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
@@ -237,6 +237,62 @@ metadata: {invalid json here
 
       // Should have separators (---) between skills
       expect(formatted).toContain('---');
+    });
+  });
+
+  describe('filterSkillsForPrompt', () => {
+    it('should filter by allowlist, denylist, and requirements', () => {
+      const skills = [
+        {
+          name: 'allowed',
+          metadata: {
+            name: 'allowed',
+            description: 'Allowed',
+            nachos: {
+              requires: { bins: ['bin1'], env: ['TEST_KEY'] },
+            },
+          },
+          content: '# Allowed',
+          filePath: '/test/allowed/SKILL.md',
+        },
+        {
+          name: 'denied',
+          metadata: { name: 'denied', description: 'Denied' },
+          content: '# Denied',
+          filePath: '/test/denied/SKILL.md',
+        },
+      ];
+
+      const filtered = filterSkillsForPrompt(skills, {
+        allow: ['allowed', 'denied'],
+        deny: ['denied'],
+        env: { TEST_KEY: 'ok' },
+        hasBinary: (bin) => bin === 'bin1',
+      });
+
+      expect(filtered).toHaveLength(1);
+      expect(filtered[0]?.name).toBe('allowed');
+    });
+
+    it('should exclude skills with missing env requirements', () => {
+      const skills = [
+        {
+          name: 'needs-env',
+          metadata: {
+            name: 'needs-env',
+            description: 'Needs env',
+            nachos: { requires: { env: ['MISSING_ENV'] } },
+          },
+          content: '# Needs env',
+          filePath: '/test/needs-env/SKILL.md',
+        },
+      ];
+
+      const filtered = filterSkillsForPrompt(skills, {
+        env: {},
+      });
+
+      expect(filtered).toHaveLength(0);
     });
   });
 });

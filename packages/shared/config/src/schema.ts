@@ -78,7 +78,10 @@ export interface ChannelDMConfig {
  * Channel server/guild configuration
  */
 export interface ChannelServerConfig {
-  id: string;
+  /** Deprecated single server id (use ids). */
+  id?: string;
+  /** One or more server ids. */
+  ids?: string[];
   channel_ids: string[];
   user_allowlist: string[];
   mention_gating?: boolean;
@@ -594,8 +597,19 @@ export interface AssistantConfig {
 /**
  * Skills configuration
  */
+export interface SkillEntryConfig {
+  enabled?: boolean;
+}
+
 export interface SkillsConfig {
+  /** Deprecated alias for allowlist. */
   enabled?: string[];
+  /** Allowlisted skills (if set, only these load). */
+  allow?: string[];
+  /** Denylisted skills. */
+  deny?: string[];
+  /** Per-skill configuration overrides. */
+  entries?: Record<string, SkillEntryConfig>;
 }
 
 /**

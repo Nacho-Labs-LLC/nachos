@@ -53,6 +53,7 @@ export type {
   RuntimeToolSandboxConfig,
   AssistantConfig,
   SkillsConfig,
+  SkillEntryConfig,
   MemoryFlushConfig,
   ContextManagementCommandsConfig,
 } from './schema.js';

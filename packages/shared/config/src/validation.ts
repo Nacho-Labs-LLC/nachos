@@ -50,6 +50,7 @@ const CONFIG_SHAPE: SchemaNode = {
       servers: {
         __array: {
           id: true,
+          ids: true,
           channel_ids: true,
           user_allowlist: true,
           mention_gating: true,
@@ -64,6 +65,7 @@ const CONFIG_SHAPE: SchemaNode = {
       servers: {
         __array: {
           id: true,
+          ids: true,
           channel_ids: true,
           user_allowlist: true,
           mention_gating: true,
@@ -77,6 +79,7 @@ const CONFIG_SHAPE: SchemaNode = {
       servers: {
         __array: {
           id: true,
+          ids: true,
           channel_ids: true,
           user_allowlist: true,
           mention_gating: true,
@@ -95,6 +98,7 @@ const CONFIG_SHAPE: SchemaNode = {
       servers: {
         __array: {
           id: true,
+          ids: true,
           channel_ids: true,
           user_allowlist: true,
           mention_gating: true,
@@ -325,7 +329,7 @@ const CONFIG_SHAPE: SchemaNode = {
     },
   },
   assistant: { name: true, system_prompt: true, context_files: true },
-  skills: { enabled: true },
+  skills: { enabled: true, allow: true, deny: true, entries: true },
 };
 
 function validateNoUnknownKeys(
@@ -761,12 +765,16 @@ function validateChannelsConfig(config: NachosConfig, errors: string[], warnings
       const prefix = `${path}.servers[${index}]`;
       const record = server as {
         id?: string;
+        ids?: string[];
         channel_ids?: string[];
         user_allowlist?: string[];
         mention_gating?: boolean;
       };
-      if (!record.id || record.id.trim() === '') {
-        errors.push(`${prefix}.id is required`);
+      const ids = Array.isArray(record.ids)
+        ? record.ids.map((entry) => entry.trim()).filter(Boolean)
+        : [];
+      if ((!record.id || record.id.trim() === '') && ids.length === 0) {
+        errors.push(`${prefix}.id or ${prefix}.ids is required`);
       }
       if (!Array.isArray(record.channel_ids)) {
         errors.push(`${prefix}.channel_ids is required and must be an array`);

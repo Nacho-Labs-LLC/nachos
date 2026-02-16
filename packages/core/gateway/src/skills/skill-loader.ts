@@ -5,8 +5,9 @@
  * Skills provide CLI tool documentation and usage examples.
  */
 
-import { readFileSync, readdirSync, statSync } from 'fs';
-import { join } from 'path';
+import { accessSync, constants, readFileSync, readdirSync, statSync } from 'fs';
+import { join, delimiter } from 'path';
+import type { NachosConfig, SkillEntryConfig } from '@nachos/config';
 
 /**
  * Parsed skill metadata from frontmatter
@@ -18,9 +19,12 @@ export interface SkillMetadata {
   nachos?: {
     requires?: {
       bins?: string[];
+      anyBins?: string[];
       env?: string[];
+      config?: string[];
     };
     primaryEnv?: string;
+    os?: string[];
   };
 }
 
@@ -42,6 +46,15 @@ export interface SkillLoaderConfig {
   skillsDir: string;
   /** Tool groups to filter skills by (if undefined, load all) */
   toolGroups?: string[];
+}
+
+export interface SkillFilterOptions {
+  allow?: string[];
+  deny?: string[];
+  entries?: Record<string, SkillEntryConfig>;
+  config?: NachosConfig;
+  env?: NodeJS.ProcessEnv;
+  hasBinary?: (bin: string) => boolean;
 }
 
 /**
@@ -100,6 +113,49 @@ function parseFrontmatter(content: string): {
   }
 
   return { metadata, content: markdownContent.trim() };
+}
+
+function normalizeList(value?: string[]): string[] | undefined {
+  if (!value) return undefined;
+  const normalized = value.map((entry) => entry.trim()).filter(Boolean);
+  return normalized.length > 0 ? normalized : undefined;
+}
+
+function hasBinary(bin: string): boolean {
+  const pathEnv = process.env.PATH ?? '';
+  const parts = pathEnv.split(delimiter).filter(Boolean);
+  for (const part of parts) {
+    const candidate = join(part, bin);
+    try {
+      accessSync(candidate, constants.X_OK);
+      return true;
+    } catch {
+      // keep scanning
+    }
+  }
+  return false;
+}
+
+function isConfigPathTruthy(config: NachosConfig | undefined, pathStr: string): boolean {
+  if (!config) return false;
+  const parts = pathStr.split('.').filter(Boolean);
+  let current: unknown = config;
+  for (const part of parts) {
+    if (typeof current !== 'object' || current === null) {
+      return false;
+    }
+    current = (current as Record<string, unknown>)[part];
+  }
+  if (typeof current === 'boolean') {
+    return current;
+  }
+  if (typeof current === 'number') {
+    return current !== 0;
+  }
+  if (typeof current === 'string') {
+    return current.trim().length > 0;
+  }
+  return Boolean(current);
 }
 
 /**
@@ -161,6 +217,62 @@ export function loadSkills(config: SkillLoaderConfig): Skill[] {
     console.error('[SkillLoader] Failed to load skills:', error);
     return [];
   }
+}
+
+export function filterSkillsForPrompt(skills: Skill[], options: SkillFilterOptions = {}): Skill[] {
+  const allowlist = normalizeList(options.allow);
+  const denylist = new Set(normalizeList(options.deny) ?? []);
+  const entries = options.entries ?? {};
+  const env = options.env ?? process.env;
+  const hasBin = options.hasBinary ?? hasBinary;
+
+  return skills.filter((skill) => {
+    if (allowlist && !allowlist.includes(skill.name)) {
+      return false;
+    }
+    if (denylist.has(skill.name)) {
+      return false;
+    }
+
+    const entryConfig = entries[skill.name];
+    if (entryConfig?.enabled === false) {
+      return false;
+    }
+
+    const requires = skill.metadata.nachos?.requires;
+    const requiredBins = requires?.bins ?? [];
+    for (const bin of requiredBins) {
+      if (!hasBin(bin)) {
+        return false;
+      }
+    }
+
+    const requiredAnyBins = requires?.anyBins ?? [];
+    if (requiredAnyBins.length > 0 && !requiredAnyBins.some((bin) => hasBin(bin))) {
+      return false;
+    }
+
+    const requiredEnv = requires?.env ?? [];
+    for (const envVar of requiredEnv) {
+      if (!env[envVar]) {
+        return false;
+      }
+    }
+
+    const requiredConfig = requires?.config ?? [];
+    for (const configPath of requiredConfig) {
+      if (!isConfigPathTruthy(options.config, configPath)) {
+        return false;
+      }
+    }
+
+    const osList = skill.metadata.nachos?.os ?? [];
+    if (osList.length > 0 && !osList.includes(process.platform)) {
+      return false;
+    }
+
+    return true;
+  });
 }
 
 /**

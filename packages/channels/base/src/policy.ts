@@ -25,6 +25,10 @@ export function findServerConfig(
   servers: ChannelServerConfig[] | undefined,
   id: string
 ): ChannelServerConfig | undefined {
-  return servers?.find((server) => server.id === id);
+  return servers?.find((server) => {
+    if (server.ids && server.ids.includes(id)) {
+      return true;
+    }
+    return server.id === id;
+  });
 }
-

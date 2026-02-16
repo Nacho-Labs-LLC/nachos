@@ -79,7 +79,7 @@ enabled = ["status", "help", "config.show", "session.reset", "context"]
 admin_allowlist = ["U123456"]
 
 [[channels.slack.servers]]
-id = "T123456"
+ids = ["T123456"]
 channel_ids = ["C111", "C222"]
 user_allowlist = ["U123", "U456"]
 
@@ -92,7 +92,7 @@ enabled = ["status", "help", "config.show", "session.reset", "context"]
 admin_allowlist = ["1234567890"]
 
 [[channels.discord.servers]]
-id = "1234567890"
+ids = ["1234567890"]
 channel_ids = ["111", "222"]
 user_allowlist = ["user_a", "user_b"]
 
@@ -101,7 +101,7 @@ enabled = false
 token = "${TELEGRAM_BOT_TOKEN}"
 
 [[channels.telegram.servers]]
-id = "9876543210"
+ids = ["9876543210"]
 channel_ids = ["333", "444"]
 user_allowlist = ["user_c", "user_d"]
 
@@ -264,28 +264,28 @@ pids_limit = 100
 [runtime.state]
 
 [runtime.state.identity]
-provider = "filesystem"                   # "filesystem" | "postgres"
-[runtime.state.identity.filesystem]
-dir = "./state/identity"
-# [runtime.state.identity.postgres]
-# connection_string = "postgres://user:pass@localhost:5432/nachos"
-# schema = "public"
+provider = "postgres"                     # "filesystem" | "postgres"
+[runtime.state.identity.postgres]
+connection_string = "postgres://nachos:nachos@postgres:5432/nachos"
+schema = "public"
 
 [runtime.state.memory]
-provider = "filesystem"
-[runtime.state.memory.filesystem]
-dir = "./state/memory"
-# [runtime.state.memory.postgres]
-# connection_string = "postgres://user:pass@localhost:5432/nachos"
-# schema = "public"
+provider = "postgres"
+[runtime.state.memory.postgres]
+connection_string = "postgres://nachos:nachos@postgres:5432/nachos"
+schema = "public"
 
 [runtime.state.user_profile]
-provider = "filesystem"
-[runtime.state.user_profile.filesystem]
-dir = "./state/user-profiles"
-# [runtime.state.user_profile.postgres]
-# connection_string = "postgres://user:pass@localhost:5432/nachos"
-# schema = "public"
+provider = "postgres"
+[runtime.state.user_profile.postgres]
+connection_string = "postgres://nachos:nachos@postgres:5432/nachos"
+schema = "public"
+
+[runtime.state.bootstrap]
+provider = "postgres"
+[runtime.state.bootstrap.postgres]
+connection_string = "postgres://nachos:nachos@postgres:5432/nachos"
+schema = "public"
 
 [runtime.state.session]
 provider = "redis"                        # "redis" | "memory"
