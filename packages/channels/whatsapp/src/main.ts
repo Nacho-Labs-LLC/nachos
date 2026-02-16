@@ -32,6 +32,21 @@ function buildSecrets(): Record<string, string> {
 }
 
 async function main(): Promise<void> {
+  if (
+    !process.env.WHATSAPP_TOKEN ||
+    !process.env.WHATSAPP_PHONE_NUMBER_ID ||
+    !process.env.WHATSAPP_VERIFY_TOKEN
+  ) {
+    console.warn(
+      '[WhatsApp] WHATSAPP_TOKEN, WHATSAPP_PHONE_NUMBER_ID, and WHATSAPP_VERIFY_TOKEN are required — channel disabled. Set the env vars and restart to enable.'
+    );
+    await new Promise<void>((resolve) => {
+      process.once('SIGTERM', resolve);
+      process.once('SIGINT', resolve);
+    });
+    return;
+  }
+
   const config = loadConfigSafe();
   const channelConfig = (config?.channels?.whatsapp ?? {}) as Record<string, unknown>;
   const securityMode = config?.security?.mode ?? 'standard';

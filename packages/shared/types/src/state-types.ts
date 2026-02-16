@@ -90,7 +90,7 @@ export interface MemoryStore {
   appendEntry(entry: MemoryEntry): Promise<MemoryEntry>;
   appendFacts(facts: MemoryFact[]): Promise<MemoryFact[]>;
   query(query: MemoryQuery): Promise<MemoryQueryResult>;
-  deleteEntry(id: string): Promise<void>;
+  deleteEntry(id: string, agentId: string): Promise<void>;
 }
 
 export interface BootstrapStore {

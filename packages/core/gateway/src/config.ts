@@ -6,7 +6,7 @@
 import type { DLPConfig } from './security/dlp.js';
 import {
   ConfigLoadError,
-  createEnvOverlay,
+  ConfigValidationError,
   listEnabledChannels,
   loadAndValidateConfig,
 } from '@nachos/config';
@@ -123,15 +123,8 @@ function resolveChannelsFromConfig(): string[] {
     const config = loadAndValidateConfig({ configPath });
     return listEnabledChannels(config);
   } catch (error) {
-    if (error instanceof ConfigLoadError) {
-      // No TOML present — apply env overlay to detect channels declared via
-      // CHANNEL_DISCORD_ENABLED=true, CHANNEL_SLACK_ENABLED=true, etc.
-      const overlay = createEnvOverlay() as { channels?: Record<string, { enabled?: boolean }> };
-      const channels = overlay.channels ?? {};
-      const fromEnv = Object.entries(channels)
-        .filter(([_, cfg]) => cfg?.enabled !== false)
-        .map(([name]) => name);
-      return fromEnv.length > 0 ? fromEnv : defaults.channels;
+    if (error instanceof ConfigLoadError || error instanceof ConfigValidationError) {
+      return defaults.channels;
     }
     throw error;
   }

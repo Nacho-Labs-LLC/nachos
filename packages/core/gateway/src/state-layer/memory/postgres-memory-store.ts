@@ -37,6 +37,7 @@ type MemoryFactRow = {
 
 export class PostgresMemoryStore implements MemoryStore {
   private initialized = false;
+  private schemaPromise: Promise<void> | null = null;
   private schema: string;
 
   constructor(
@@ -159,12 +160,13 @@ export class PostgresMemoryStore implements MemoryStore {
         );
       }
 
+      const factsLimit = query.limit ?? 200;
       const factsResult = await this.pool.query(
         `SELECT id, agent_id, subject, predicate, object, confidence, source_entry_id, created_at
          FROM ${this.qualified('memory_facts')}
          WHERE ${factsWhere.join(' AND ')}
          ORDER BY created_at DESC
-         LIMIT 200`,
+         LIMIT ${factsLimit}`,
         factsValues
       );
 
@@ -183,18 +185,35 @@ export class PostgresMemoryStore implements MemoryStore {
     return { entries, facts };
   }
 
-  async deleteEntry(id: string): Promise<void> {
+  async deleteEntry(id: string, agentId: string): Promise<void> {
     await this.ensureSchema();
-    await this.pool.query(`DELETE FROM ${this.qualified('memory_entries')} WHERE id = $1`, [id]);
+    await this.pool.query(
+      `DELETE FROM ${this.qualified('memory_entries')} WHERE id = $1 AND agent_id = $2`,
+      [id, agentId]
+    );
   }
 
   private qualified(table: string): string {
     return `"${this.schema}".${table}`;
   }
 
-  private async ensureSchema(): Promise<void> {
-    if (this.initialized) return;
+  private ensureSchema(): Promise<void> {
+    if (this.initialized) return Promise.resolve();
+    if (!this.schemaPromise) {
+      this.schemaPromise = this.runSchema()
+        .then(() => {
+          this.initialized = true;
+          this.schemaPromise = null;
+        })
+        .catch((err) => {
+          this.schemaPromise = null;
+          throw err;
+        });
+    }
+    return this.schemaPromise;
+  }
 
+  private async runSchema(): Promise<void> {
     await this.pool.query(`CREATE SCHEMA IF NOT EXISTS "${this.schema}"`);
 
     await this.pool.query(
@@ -232,11 +251,9 @@ export class PostgresMemoryStore implements MemoryStore {
     await this.pool.query(
       `CREATE INDEX IF NOT EXISTS memory_facts_agent_idx ON ${this.qualified('memory_facts')}(agent_id)`
     );
-
-    this.initialized = true;
   }
 
   async close(): Promise<void> {
-    await this.pool.end();
+    // Pool lifecycle is managed by the StateLayer that created this store.
   }
 }

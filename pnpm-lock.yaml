@@ -129,6 +129,9 @@ importers:
 
   packages/channels/telegram:
     dependencies:
+      '@nachos/bus':
+        specifier: workspace:*
+        version: link:../../core/bus
       '@nachos/channel-base':
         specifier: workspace:*
         version: link:../base

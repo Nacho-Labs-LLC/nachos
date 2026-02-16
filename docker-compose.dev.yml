@@ -177,6 +177,9 @@ services:
       PORT: "3001"
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      NACHOS_CONFIG: /app/nachos.toml
+    volumes:
+      - ./nachos.toml:/app/nachos.toml:ro
     develop:
       watch:
         - action: sync

@@ -76,9 +76,6 @@ export {
   type ChannelRegistryEntry,
 } from './registry.js';
 
-// Export environment overlay functions
-export { createEnvOverlay, applyEnvOverlay } from './env.js';
-
 // Export validation functions
 export {
   validateConfig,

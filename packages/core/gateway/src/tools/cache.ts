@@ -40,6 +40,7 @@ export class ToolCache {
   private enabled: boolean;
   private memoryCache: Map<string, CachedEntry> = new Map();
   private redis: RedisClient | null = null;
+  private redisReady: Promise<void> | null = null;
   private defaultTTL: number;
   private maxMemoryEntries: number;
   private cleanupInterval?: NodeJS.Timeout;
@@ -49,9 +50,9 @@ export class ToolCache {
     this.defaultTTL = config.defaultTTL ?? 300; // 5 minutes
     this.maxMemoryEntries = config.maxMemoryEntries ?? 1000;
 
-    // Initialize Redis if URL provided
+    // Initialize Redis if URL provided — track the promise so callers can await readiness
     if (config.redisUrl) {
-      this.initializeRedis(config.redisUrl);
+      this.redisReady = this.initializeRedis(config.redisUrl);
     }
 
     // Start cleanup interval (every minute)
@@ -66,6 +67,12 @@ export class ToolCache {
   async get(call: ToolCall): Promise<ToolResult | null> {
     if (!this.enabled) {
       return null;
+    }
+
+    // Await Redis init before first use to avoid the async race
+    if (this.redisReady) {
+      await this.redisReady;
+      this.redisReady = null;
     }
 
     const key = this.generateKey(call);
@@ -97,6 +104,12 @@ export class ToolCache {
       return;
     }
 
+    // Await Redis init before first use to avoid the async race
+    if (this.redisReady) {
+      await this.redisReady;
+      this.redisReady = null;
+    }
+
     const key = this.generateKey(call);
     const effectiveTTL = ttl ?? this.defaultTTL;
 
@@ -125,16 +138,22 @@ export class ToolCache {
   }
 
   /**
-   * Clear all cached entries
+   * Clear all cached entries.
+   * Uses SCAN to delete only tool:* keys so Redis data from other subsystems
+   * (session state, rate limiting) is never touched.
    */
   async clear(): Promise<void> {
     this.memoryCache.clear();
 
     if (this.redis) {
-      // Note: This is a simple implementation
-      // In production, use a more sophisticated approach
-      // (e.g., key prefix pattern for tool cache keys)
-      await this.redis.flushdb();
+      let cursor = 0;
+      do {
+        const result = await this.redis.scan(cursor, { MATCH: 'tool:*', COUNT: 100 });
+        cursor = result.cursor;
+        if (result.keys.length > 0) {
+          await this.redis.del(result.keys);
+        }
+      } while (cursor !== 0);
     }
   }
 
@@ -246,38 +265,26 @@ export class ToolCache {
   }
 
   /**
-   * Initialize Redis connection
+   * Initialize Redis connection. Returns a promise that resolves when ready
+   * (or rejects/silently falls back if Redis is unavailable).
    */
-  private initializeRedis(url: string): void {
+  private async initializeRedis(url: string): Promise<void> {
     try {
-      // Dynamic import to avoid hard dependency on Redis
-      import('redis')
-        .then((redisModule) => {
-          const client = redisModule.createClient({ url });
+      const redisModule = await import('redis');
+      const client = redisModule.createClient({ url });
 
-          client.on('error', (error) => {
-            console.error('Redis error:', error);
-            // Fall back to memory-only caching
-            this.redis = null;
-          });
+      client.on('error', (error) => {
+        // Log but do NOT null out this.redis — the node-redis client auto-reconnects
+        // internally. Clearing this.redis would permanently lose the backend.
+        // getFromRedis/setInRedis have try/catch that handles transient failures.
+        console.error('Redis cache error (auto-reconnect in progress):', error);
+      });
 
-          client.on('ready', () => {
-            console.log('Redis cache connected');
-          });
-
-          client.connect().catch((error) => {
-            console.error('Failed to connect to Redis:', error);
-            this.redis = null;
-          });
-
-          this.redis = client as unknown as RedisClient;
-        })
-        .catch((error) => {
-          console.error('Failed to load Redis module:', error);
-          this.redis = null;
-        });
+      await client.connect();
+      console.log('Redis cache connected');
+      this.redis = client as unknown as RedisClient;
     } catch (error) {
-      console.error('Error initializing Redis:', error);
+      console.error('Failed to connect to Redis cache, using memory-only:', error);
       this.redis = null;
     }
   }
@@ -306,13 +313,16 @@ export class ToolCache {
 }
 
 /**
- * Simple Redis client interface
- * (matches the redis package interface we need)
+ * Redis client interface — scoped to the operations used by ToolCache.
+ * Uses SCAN for key-pattern deletion to avoid touching data owned by other subsystems.
  */
 interface RedisClient {
   get(key: string): Promise<string | null>;
   setex(key: string, seconds: number, value: string): Promise<void>;
-  del(key: string): Promise<void>;
-  flushdb(): Promise<void>;
+  del(key: string | string[]): Promise<void>;
+  scan(
+    cursor: number,
+    options: { MATCH: string; COUNT: number }
+  ): Promise<{ cursor: number; keys: string[] }>;
   quit(): Promise<void>;
 }

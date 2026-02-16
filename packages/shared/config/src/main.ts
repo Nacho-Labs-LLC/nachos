@@ -1,12 +1,12 @@
 /**
  * Main Configuration Loading
  *
- * Convenience function that combines loading, overlay, and validation
+ * Convenience function that combines loading and validation.
+ * Configuration lives in nachos.toml. Secrets (API keys) live in .env.
  */
 
 import type { NachosConfig } from './schema.js';
 import { loadConfig } from './loader.js';
-import { applyEnvOverlay } from './env.js';
 import { validateConfigOrThrow } from './validation.js';
 import * as dotenv from 'dotenv';
 import * as fs from 'node:fs';
@@ -22,24 +22,24 @@ export interface LoadConfigOptions {
   applyDotenv?: boolean;
   /** Custom path to a .env file (optional) */
   envFilePath?: string;
-  /** Whether to apply environment variable overlays (default: true) */
-  applyEnv?: boolean;
   /** Whether to validate the configuration (default: true) */
   validate?: boolean;
 }
 
 /**
- * Load, overlay, and validate configuration in one call
+ * Load and validate configuration in one call
  *
  * This is the recommended way to load Nachos configuration.
+ * All config lives in nachos.toml. The .env file is loaded to expose
+ * secrets (API keys, bot tokens) into process.env for services that need them.
  *
  * @param options Configuration loading options
- * @returns Validated and merged configuration
+ * @returns Validated configuration
  * @throws ConfigLoadError if loading fails
  * @throws ConfigValidationError if validation fails
  */
 export function loadAndValidateConfig(options: LoadConfigOptions = {}): NachosConfig {
-  const { configPath, applyDotenv = true, envFilePath, applyEnv = true, validate = true } = options;
+  const { configPath, applyDotenv = true, envFilePath, validate = true } = options;
 
   if (applyDotenv) {
     const resolvedEnvPath =
@@ -53,15 +53,8 @@ export function loadAndValidateConfig(options: LoadConfigOptions = {}): NachosCo
     }
   }
 
-  // Load base configuration from TOML file
-  let config = loadConfig(configPath);
+  const config = loadConfig(configPath);
 
-  // Apply environment variable overlays
-  if (applyEnv) {
-    config = applyEnvOverlay(config);
-  }
-
-  // Validate configuration
   if (validate) {
     validateConfigOrThrow(config);
   }

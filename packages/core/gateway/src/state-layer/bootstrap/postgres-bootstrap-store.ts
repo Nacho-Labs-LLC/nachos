@@ -7,6 +7,7 @@ import type { BootstrapProfile, BootstrapStore } from '@nachos/types';
 
 export class PostgresBootstrapStore implements BootstrapStore {
   private initialized = false;
+  private schemaPromise: Promise<void> | null = null;
   private schema: string;
 
   constructor(
@@ -88,9 +89,23 @@ export class PostgresBootstrapStore implements BootstrapStore {
     return `"${this.schema}".${table}`;
   }
 
-  private async ensureSchema(): Promise<void> {
-    if (this.initialized) return;
+  private ensureSchema(): Promise<void> {
+    if (this.initialized) return Promise.resolve();
+    if (!this.schemaPromise) {
+      this.schemaPromise = this.runSchema()
+        .then(() => {
+          this.initialized = true;
+          this.schemaPromise = null;
+        })
+        .catch((err) => {
+          this.schemaPromise = null;
+          throw err;
+        });
+    }
+    return this.schemaPromise;
+  }
 
+  private async runSchema(): Promise<void> {
     await this.pool.query(`CREATE SCHEMA IF NOT EXISTS "${this.schema}"`);
     await this.pool.query(
       `CREATE TABLE IF NOT EXISTS ${this.qualified('bootstrap_profiles')} (
@@ -101,11 +116,9 @@ export class PostgresBootstrapStore implements BootstrapStore {
         source TEXT
       )`
     );
-
-    this.initialized = true;
   }
 
   async close(): Promise<void> {
-    await this.pool.end();
+    // Pool lifecycle is managed by the StateLayer that created this store.
   }
 }

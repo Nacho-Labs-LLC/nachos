@@ -125,6 +125,7 @@ const CONFIG_SHAPE: SchemaNode = {
       },
     },
     bootstrap: { enabled: true },
+    overrides: true,
     copilot: {
       enabled: true,
       max_prompt_length: true,
@@ -142,6 +143,7 @@ const CONFIG_SHAPE: SchemaNode = {
     mode: true,
     i_understand_the_risks: true,
     dlp: { enabled: true, action: true, patterns: true },
+    approval: { approver_allowlist: true },
     rate_limits: {
       messages_per_minute: true,
       tool_calls_per_minute: true,
@@ -168,6 +170,8 @@ const CONFIG_SHAPE: SchemaNode = {
   },
   runtime: {
     state_dir: true,
+    config_dir: true,
+    workspace_dir: true,
     log_level: true,
     log_format: true,
     redis_url: true,

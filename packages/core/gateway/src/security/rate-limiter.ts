@@ -65,27 +65,36 @@ export class MemoryRateLimitStore implements RateLimitStore {
 
 export class RedisRateLimitStore implements RateLimitStore {
   private client: RedisClientType;
+  // See RedisSessionStateStore for the rationale: connect() must be called
+  // exactly once. node-redis v4 handles reconnection and command queueing
+  // internally after that.
+  private connectCalled = false;
   private connecting: Promise<void> | null = null;
-  private connected = false;
 
   constructor(redisUrl: string) {
     this.client = createClient({ url: redisUrl });
     this.client.on('error', (error) => {
-      console.warn('[RateLimiter] Redis error', error);
-      this.connected = false;
-      this.connecting = null;
+      console.warn('[RateLimiter] Redis error (auto-reconnect in progress):', error);
     });
   }
 
   private async ensureConnected(): Promise<void> {
-    if (!this.connected) {
-      if (!this.connecting) {
-        this.connecting = this.client.connect().then(() => undefined);
-      }
-      await this.connecting;
-      this.connected = true;
-      this.connecting = null;
+    if (this.connectCalled) return;
+
+    if (!this.connecting) {
+      this.connectCalled = true;
+      this.connecting = this.client
+        .connect()
+        .then(() => {
+          this.connecting = null;
+        })
+        .catch((err: Error) => {
+          this.connectCalled = false;
+          this.connecting = null;
+          throw err;
+        });
     }
+    await this.connecting;
   }
 
   async record(key: string, timestampMs: number, windowMs: number): Promise<number> {
@@ -108,9 +117,9 @@ export class RedisRateLimitStore implements RateLimitStore {
   }
 
   async disconnect(): Promise<void> {
-    if (this.connected) {
+    if (this.connectCalled) {
       await this.client.disconnect();
-      this.connected = false;
+      this.connectCalled = false;
     }
   }
 

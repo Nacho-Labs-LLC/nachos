@@ -7,6 +7,7 @@ import type { IdentityProfile, IdentityStore } from '@nachos/types';
 
 export class PostgresIdentityStore implements IdentityStore {
   private initialized = false;
+  private schemaPromise: Promise<void> | null = null;
   private schema: string;
 
   constructor(
@@ -111,9 +112,23 @@ export class PostgresIdentityStore implements IdentityStore {
     return `"${this.schema}".${table}`;
   }
 
-  private async ensureSchema(): Promise<void> {
-    if (this.initialized) return;
+  private ensureSchema(): Promise<void> {
+    if (this.initialized) return Promise.resolve();
+    if (!this.schemaPromise) {
+      this.schemaPromise = this.runSchema()
+        .then(() => {
+          this.initialized = true;
+          this.schemaPromise = null;
+        })
+        .catch((err) => {
+          this.schemaPromise = null;
+          throw err;
+        });
+    }
+    return this.schemaPromise;
+  }
 
+  private async runSchema(): Promise<void> {
     await this.pool.query(`CREATE SCHEMA IF NOT EXISTS "${this.schema}"`);
     await this.pool.query(
       `CREATE TABLE IF NOT EXISTS ${this.qualified('identity_profiles')} (
@@ -138,11 +153,9 @@ export class PostgresIdentityStore implements IdentityStore {
       `ALTER TABLE ${this.qualified('identity_profiles')}
         ADD COLUMN IF NOT EXISTS identity_completed_at TEXT`
     );
-
-    this.initialized = true;
   }
 
   async close(): Promise<void> {
-    await this.pool.end();
+    // Pool lifecycle is managed by the StateLayer that created this store.
   }
 }

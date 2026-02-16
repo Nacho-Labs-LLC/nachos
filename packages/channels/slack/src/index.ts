@@ -1,4 +1,4 @@
-import { App } from '@slack/bolt';
+import boltPkg from '@slack/bolt';
 import type { SlackChannelConfig } from '@nachos/config';
 import {
   TOPICS,
@@ -46,7 +46,7 @@ export class SlackChannelAdapter implements ChannelAdapter {
   readonly name = 'Slack';
 
   private config?: ChannelAdapterConfig;
-  private app?: App;
+  private app?: InstanceType<typeof boltPkg.App>;
   private botUserId?: string;
   private mode: 'socket' | 'http' = 'socket';
   private channelConfig?: SlackChannelConfig;
@@ -72,7 +72,7 @@ export class SlackChannelAdapter implements ChannelAdapter {
       if (!appToken || !botToken) {
         throw new Error('Slack socket mode requires app_token and bot_token');
       }
-      this.app = new App({
+      this.app = new boltPkg.App({
         token: botToken,
         appToken,
         socketMode: true,
@@ -84,7 +84,7 @@ export class SlackChannelAdapter implements ChannelAdapter {
       if (!webhookPath) {
         throw new Error('Slack http mode requires webhook_path');
       }
-      this.app = new App({
+      this.app = new boltPkg.App({
         token: botToken,
         signingSecret,
         endpoints: webhookPath,

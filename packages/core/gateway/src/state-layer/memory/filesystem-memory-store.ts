@@ -62,10 +62,7 @@ export class FilesystemMemoryStore implements MemoryStore {
     };
   }
 
-  async deleteEntry(id: string): Promise<void> {
-    const agentId = await this.findAgentForEntry(id);
-    if (!agentId) return;
-
+  async deleteEntry(id: string, agentId: string): Promise<void> {
     const entries = await this.readEntries(agentId);
     const remaining = entries.filter((entry) => entry.id !== id);
     await fs.writeFile(this.entriesPath(agentId), this.serializeJsonl(remaining), 'utf-8');
@@ -114,24 +111,5 @@ export class FilesystemMemoryStore implements MemoryStore {
   private serializeJsonl<T>(items: T[]): string {
     if (items.length === 0) return '';
     return items.map((item) => JSON.stringify(item)).join('\n') + '\n';
-  }
-
-  private async findAgentForEntry(entryId: string): Promise<string | null> {
-    try {
-      const agents = await fs.readdir(this.baseDir, { withFileTypes: true });
-      for (const agent of agents) {
-        if (!agent.isDirectory()) continue;
-        const entries = await this.readEntries(agent.name);
-        if (entries.some((entry) => entry.id === entryId)) {
-          return agent.name;
-        }
-      }
-      return null;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        return null;
-      }
-      throw error;
-    }
   }
 }

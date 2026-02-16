@@ -5,7 +5,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-vi.mock('@slack/bolt', () => ({ App: vi.fn() }));
+vi.mock('@slack/bolt', () => {
+  const App = vi.fn();
+  return { default: { App }, App };
+});
 
 type ChannelAdapterConfig = {
   config: Record<string, unknown>;

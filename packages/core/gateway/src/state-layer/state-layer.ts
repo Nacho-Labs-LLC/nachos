@@ -2,7 +2,7 @@
  * State layer composition and policy-enforced operations.
  */
 
-import { createRequire } from 'node:module';
+import pg from 'pg';
 import type { Pool } from 'pg';
 import type {
   IdentityProfile,
@@ -36,6 +36,7 @@ import {
 } from './session/redis-session-state-store.js';
 import { PromptAssembler } from './prompt/prompt-assembler.js';
 import type { PromptAssemblyParams } from './prompt/prompt-assembler.js';
+import type { StateStorePostgresConfig } from './types.js';
 
 export interface StateOperationContext {
   sessionId: string;
@@ -53,6 +54,7 @@ export class StateLayer {
   private sessionStateStore: SessionStateStore;
   private promptAssembler: PromptAssembler;
   private dependencies: StateLayerDependencies;
+  private pgPools: Pool[];
 
   constructor(params: {
     identityStore: IdentityStore;
@@ -62,6 +64,7 @@ export class StateLayer {
     sessionStateStore: SessionStateStore;
     promptAssembler: PromptAssembler;
     dependencies?: StateLayerDependencies;
+    pgPools?: Pool[];
   }) {
     this.identityStore = params.identityStore;
     this.bootstrapStore = params.bootstrapStore;
@@ -70,6 +73,16 @@ export class StateLayer {
     this.sessionStateStore = params.sessionStateStore;
     this.promptAssembler = params.promptAssembler;
     this.dependencies = params.dependencies ?? {};
+    this.pgPools = params.pgPools ?? [];
+
+    if (!this.dependencies.policyCheck) {
+      console.warn(
+        '[StateLayer] No policyCheck provided — all state operations will be permitted without enforcement.'
+      );
+    }
+    if (!this.dependencies.auditLogger) {
+      console.warn('[StateLayer] No auditLogger provided — state operations will not be audited.');
+    }
   }
 
   async getIdentity(
@@ -187,7 +200,7 @@ export class StateLayer {
     context: StateOperationContext
   ): Promise<void> {
     await this.ensureAllowed('state.memory.delete', context, agentId);
-    await this.memoryStore.deleteEntry(id);
+    await this.memoryStore.deleteEntry(id, agentId);
     await this.auditAllowed('state.memory.delete', context, agentId);
   }
 
@@ -282,6 +295,10 @@ export class StateLayer {
         await store.close();
       }
     }
+    // Close shared Postgres pools after stores are done
+    for (const pool of this.pgPools) {
+      await pool.end();
+    }
   }
 
   private async ensureAllowed(
@@ -290,6 +307,8 @@ export class StateLayer {
     resource?: string
   ): Promise<void> {
     if (context.internalTool) {
+      // Still audit internal tool operations even though policy check is skipped
+      await this.auditAllowed(action, context, resource);
       return;
     }
     if (!this.dependencies.policyCheck) return;
@@ -359,16 +378,28 @@ export class StateLayer {
   }
 }
 
-const require = createRequire(import.meta.url);
-
 export function createStateLayer(
   config: StateLayerConfig,
   deps?: StateLayerDependencies
 ): StateLayer {
-  const identityStore = createIdentityStore(config);
-  const bootstrapStore = createBootstrapStore(config);
-  const memoryStore = createMemoryStore(config);
-  const userProfileStore = createUserProfileStore(config);
+  // Deduplicate Postgres pools by connection string so all stores sharing the
+  // same database use a single pool instead of creating four separate ones.
+  const poolMap = new Map<string, Pool>();
+  const pgPools: Pool[] = [];
+
+  function getOrCreatePool(settings: StateStorePostgresConfig): Pool {
+    const existing = poolMap.get(settings.connectionString);
+    if (existing) return existing;
+    const pool = createPgPool(settings);
+    poolMap.set(settings.connectionString, pool);
+    pgPools.push(pool);
+    return pool;
+  }
+
+  const identityStore = createIdentityStore(config, getOrCreatePool);
+  const bootstrapStore = createBootstrapStore(config, getOrCreatePool);
+  const memoryStore = createMemoryStore(config, getOrCreatePool);
+  const userProfileStore = createUserProfileStore(config, getOrCreatePool);
   const sessionStore = createSessionStateStore(config);
   const promptAssembler = new PromptAssembler(config.prompt);
 
@@ -380,17 +411,20 @@ export function createStateLayer(
     sessionStateStore: sessionStore,
     promptAssembler,
     dependencies: deps,
+    pgPools,
   });
 }
 
-function createIdentityStore(config: StateLayerConfig): IdentityStore {
+function createIdentityStore(
+  config: StateLayerConfig,
+  getOrCreatePool: (settings: StateStorePostgresConfig) => Pool
+): IdentityStore {
   if (config.identity.provider === 'postgres') {
     const settings = config.identity.postgres;
     if (!settings?.connectionString) {
       throw new Error('Postgres identity store requires connectionString');
     }
-    const pool = createPgPool(settings);
-    return new PostgresIdentityStore(pool, settings.schema);
+    return new PostgresIdentityStore(getOrCreatePool(settings), settings.schema);
   }
 
   const dir = config.identity.filesystem?.dir;
@@ -400,14 +434,16 @@ function createIdentityStore(config: StateLayerConfig): IdentityStore {
   return new FilesystemIdentityStore(dir);
 }
 
-function createBootstrapStore(config: StateLayerConfig): BootstrapStore {
+function createBootstrapStore(
+  config: StateLayerConfig,
+  getOrCreatePool: (settings: StateStorePostgresConfig) => Pool
+): BootstrapStore {
   if (config.bootstrap.provider === 'postgres') {
     const settings = config.bootstrap.postgres;
     if (!settings?.connectionString) {
       throw new Error('Postgres bootstrap store requires connectionString');
     }
-    const pool = createPgPool(settings);
-    return new PostgresBootstrapStore(pool, settings.schema);
+    return new PostgresBootstrapStore(getOrCreatePool(settings), settings.schema);
   }
 
   const dir = config.bootstrap.filesystem?.dir;
@@ -417,14 +453,16 @@ function createBootstrapStore(config: StateLayerConfig): BootstrapStore {
   return new FilesystemBootstrapStore(dir);
 }
 
-function createMemoryStore(config: StateLayerConfig): MemoryStore {
+function createMemoryStore(
+  config: StateLayerConfig,
+  getOrCreatePool: (settings: StateStorePostgresConfig) => Pool
+): MemoryStore {
   if (config.memory.provider === 'postgres') {
     const settings = config.memory.postgres;
     if (!settings?.connectionString) {
       throw new Error('Postgres memory store requires connectionString');
     }
-    const pool = createPgPool(settings);
-    return new PostgresMemoryStore(pool, settings.schema);
+    return new PostgresMemoryStore(getOrCreatePool(settings), settings.schema);
   }
 
   const dir = config.memory.filesystem?.dir;
@@ -434,14 +472,16 @@ function createMemoryStore(config: StateLayerConfig): MemoryStore {
   return new FilesystemMemoryStore(dir);
 }
 
-function createUserProfileStore(config: StateLayerConfig): UserProfileStore {
+function createUserProfileStore(
+  config: StateLayerConfig,
+  getOrCreatePool: (settings: StateStorePostgresConfig) => Pool
+): UserProfileStore {
   if (config.userProfile.provider === 'postgres') {
     const settings = config.userProfile.postgres;
     if (!settings?.connectionString) {
       throw new Error('Postgres user profile store requires connectionString');
     }
-    const pool = createPgPool(settings);
-    return new PostgresUserProfileStore(pool, settings.schema);
+    return new PostgresUserProfileStore(getOrCreatePool(settings), settings.schema);
   }
 
   const dir = config.userProfile.filesystem?.dir;
@@ -460,15 +500,13 @@ function createSessionStateStore(config: StateLayerConfig): SessionStateStore {
     return new RedisSessionStateStore(redisUrl, config.session.ttlSeconds);
   }
 
+  console.warn(
+    '[StateLayer] Using in-memory session store — active sessions will be lost on gateway restart. Configure session.provider=redis for persistence.'
+  );
   return new InMemorySessionStateStore();
 }
 
-function createPgPool(settings: {
-  connectionString: string;
-  ssl?: boolean | Record<string, unknown>;
-  maxConnections?: number;
-}): Pool {
-  const pg = require('pg') as typeof import('pg');
+function createPgPool(settings: StateStorePostgresConfig): Pool {
   return new pg.Pool({
     connectionString: settings.connectionString,
     ssl: settings.ssl,

@@ -10,15 +10,6 @@ describe('Main Configuration Loading', () => {
 
   beforeEach(() => {
     process.env = { ...originalEnv };
-    delete process.env.SECURITY_MODE;
-    delete process.env.SECURITY_I_UNDERSTAND_THE_RISKS;
-    delete process.env.SECURITY_RATE_LIMIT_MESSAGES;
-    delete process.env.SECURITY_RATE_LIMIT_TOOLS;
-    delete process.env.SECURITY_RATE_LIMIT_LLM;
-    delete process.env.LLM_MODEL;
-    delete process.env.LLM_MAX_TOKENS;
-    delete process.env.REDIS_URL;
-    delete process.env.RUNTIME_REDIS_URL;
     delete process.env.NACHOS_ENV_PATH;
     // Create test directory
     if (!fs.existsSync(testDir)) {
@@ -35,7 +26,7 @@ describe('Main Configuration Loading', () => {
   });
 
   describe('loadAndValidateConfig', () => {
-    it('should load, overlay, and validate config', () => {
+    it('should load and validate config from TOML', () => {
       const configPath = path.join(testDir, 'nachos.toml');
       const toml = `
 [nachos]
@@ -51,37 +42,11 @@ mode = "standard"
       `;
       fs.writeFileSync(configPath, toml);
 
-      process.env.LLM_MODEL = 'gpt-4';
-      process.env.SECURITY_MODE = 'strict';
-
       const config = loadAndValidateConfig({ configPath });
 
       expect(config.nachos.name).toBe('test-assistant');
-      expect(config.llm.model).toBe('gpt-4'); // From env
-      expect(config.security.mode).toBe('strict'); // From env
-    });
-
-    it('should skip env overlay when applyEnv is false', () => {
-      const configPath = path.join(testDir, 'nachos.toml');
-      const toml = `
-[nachos]
-name = "test"
-version = "1.0"
-
-[llm]
-provider = "anthropic"
-model = "claude"
-
-[security]
-mode = "standard"
-      `;
-      fs.writeFileSync(configPath, toml);
-
-      process.env.LLM_MODEL = 'gpt-4';
-
-      const config = loadAndValidateConfig({ configPath, applyEnv: false });
-
-      expect(config.llm.model).toBe('claude'); // Not overridden
+      expect(config.llm.model).toBe('claude');
+      expect(config.security.mode).toBe('standard');
     });
 
     it('should skip validation when validate is false', () => {
@@ -132,38 +97,7 @@ mode = "standard"
       }).toThrow(ConfigValidationError);
     });
 
-    it('should apply environment variables correctly', () => {
-      const configPath = path.join(testDir, 'nachos.toml');
-      const toml = `
-[nachos]
-name = "test"
-version = "1.0"
-
-[llm]
-provider = "anthropic"
-model = "claude"
-max_tokens = 4096
-
-[security]
-mode = "standard"
-
-[security.rate_limits]
-messages_per_minute = 30
-      `;
-      fs.writeFileSync(configPath, toml);
-
-      process.env.LLM_MAX_TOKENS = '8192';
-      process.env.SECURITY_RATE_LIMIT_MESSAGES = '50';
-      process.env.RUNTIME_REDIS_URL = 'redis://localhost:6379';
-
-      const config = loadAndValidateConfig({ configPath });
-
-      expect(config.llm.max_tokens).toBe(8192);
-      expect(config.security.rate_limits?.messages_per_minute).toBe(50);
-      expect(config.runtime?.redis_url).toBe('redis://localhost:6379');
-    });
-
-    it('should load env vars from a .env file when applyDotenv is true', () => {
+    it('should load .env secrets into process.env when applyDotenv is true', () => {
       const configPath = path.join(testDir, 'nachos.toml');
       const envPath = path.join(testDir, '.env');
       const toml = `
@@ -179,14 +113,17 @@ model = "claude"
 mode = "standard"
       `;
       fs.writeFileSync(configPath, toml);
-      fs.writeFileSync(envPath, 'LLM_MODEL=gpt-4\n');
+      fs.writeFileSync(envPath, 'ANTHROPIC_API_KEY=test-key-from-dotenv\n');
 
-      const config = loadAndValidateConfig({ configPath, envFilePath: envPath });
+      delete process.env.ANTHROPIC_API_KEY;
+      loadAndValidateConfig({ configPath, envFilePath: envPath });
 
-      expect(config.llm.model).toBe('gpt-4');
+      // .env secrets are loaded into process.env for services that read them directly
+      expect(process.env.ANTHROPIC_API_KEY).toBe('test-key-from-dotenv');
+      // Config still comes from TOML only
     });
 
-    it('should skip dotenv loading when applyDotenv is false', () => {
+    it('should not load .env when applyDotenv is false', () => {
       const configPath = path.join(testDir, 'nachos.toml');
       const envPath = path.join(testDir, '.env');
       const toml = `
@@ -202,15 +139,12 @@ model = "claude"
 mode = "standard"
       `;
       fs.writeFileSync(configPath, toml);
-      fs.writeFileSync(envPath, 'LLM_MODEL=gpt-4\n');
+      fs.writeFileSync(envPath, 'ANTHROPIC_API_KEY=should-not-load\n');
 
-      const config = loadAndValidateConfig({
-        configPath,
-        envFilePath: envPath,
-        applyDotenv: false,
-      });
+      delete process.env.ANTHROPIC_API_KEY;
+      loadAndValidateConfig({ configPath, envFilePath: envPath, applyDotenv: false });
 
-      expect(config.llm.model).toBe('claude');
+      expect(process.env.ANTHROPIC_API_KEY).toBeUndefined();
     });
   });
 });

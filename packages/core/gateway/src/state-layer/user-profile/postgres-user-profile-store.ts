@@ -7,6 +7,7 @@ import type { UserProfile, UserProfileStore } from '@nachos/types';
 
 export class PostgresUserProfileStore implements UserProfileStore {
   private initialized = false;
+  private schemaPromise: Promise<void> | null = null;
   private schema: string;
 
   constructor(
@@ -91,9 +92,23 @@ export class PostgresUserProfileStore implements UserProfileStore {
     return `"${this.schema}".${table}`;
   }
 
-  private async ensureSchema(): Promise<void> {
-    if (this.initialized) return;
+  private ensureSchema(): Promise<void> {
+    if (this.initialized) return Promise.resolve();
+    if (!this.schemaPromise) {
+      this.schemaPromise = this.runSchema()
+        .then(() => {
+          this.initialized = true;
+          this.schemaPromise = null;
+        })
+        .catch((err) => {
+          this.schemaPromise = null;
+          throw err;
+        });
+    }
+    return this.schemaPromise;
+  }
 
+  private async runSchema(): Promise<void> {
     await this.pool.query(`CREATE SCHEMA IF NOT EXISTS "${this.schema}"`);
     await this.pool.query(
       `CREATE TABLE IF NOT EXISTS ${this.qualified('user_profiles')} (
@@ -106,11 +121,9 @@ export class PostgresUserProfileStore implements UserProfileStore {
         PRIMARY KEY (agent_id, user_id)
       )`
     );
-
-    this.initialized = true;
   }
 
   async close(): Promise<void> {
-    await this.pool.end();
+    // Pool lifecycle is managed by the StateLayer that created this store.
   }
 }

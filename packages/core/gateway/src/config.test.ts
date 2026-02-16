@@ -19,6 +19,8 @@ describe('Config', () => {
     delete process.env.REDIS_URL;
     delete process.env.RUNTIME_REDIS_URL;
     process.env.NACHOS_ENV_PATH = envPath;
+    // Prevent tests from picking up the real nachos.toml on disk
+    process.env.NACHOS_CONFIG_PATH = '/nonexistent/nachos.toml';
     fs.writeFileSync(envPath, '', 'utf-8');
   });
 

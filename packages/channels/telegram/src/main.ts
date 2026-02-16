@@ -23,6 +23,17 @@ function buildSecrets(): Record<string, string> {
 }
 
 async function main(): Promise<void> {
+  if (!process.env.TELEGRAM_BOT_TOKEN) {
+    console.warn(
+      '[Telegram] TELEGRAM_BOT_TOKEN not configured — channel disabled. Set the env var and restart to enable.'
+    );
+    await new Promise<void>((resolve) => {
+      process.once('SIGTERM', resolve);
+      process.once('SIGINT', resolve);
+    });
+    return;
+  }
+
   const config = loadConfigSafe();
   const channelConfig = (config?.channels?.telegram ?? {}) as Record<string, unknown>;
   const securityMode = config?.security?.mode ?? 'standard';

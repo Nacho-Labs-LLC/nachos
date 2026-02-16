@@ -7,12 +7,20 @@ import type { SessionStateRecord, SessionStateStore } from '@nachos/types';
 
 export class RedisSessionStateStore implements SessionStateStore {
   private client: RedisClientType;
-  private connected = false;
   private ttlSeconds?: number;
+  // Tracks whether connect() has ever been called. node-redis v4 manages
+  // reconnection internally after the first connect(), so we must never call
+  // it a second time. Commands issued while reconnecting are queued by the
+  // library (enableOfflineQueue: true is the default).
+  private connectCalled = false;
+  private connecting: Promise<void> | null = null;
 
   constructor(redisUrl: string, ttlSeconds?: number, client?: RedisClientType) {
     this.client = client ?? createClient({ url: redisUrl });
     this.ttlSeconds = ttlSeconds;
+    this.client.on('error', (err: Error) => {
+      console.warn('[SessionStore] Redis error (auto-reconnect in progress):', err.message);
+    });
   }
 
   async get(sessionId: string): Promise<SessionStateRecord | null> {
@@ -47,9 +55,9 @@ export class RedisSessionStateStore implements SessionStateStore {
   }
 
   async close(): Promise<void> {
-    if (this.connected) {
+    if (this.connectCalled) {
       await this.client.quit();
-      this.connected = false;
+      this.connectCalled = false;
     }
   }
 
@@ -58,10 +66,24 @@ export class RedisSessionStateStore implements SessionStateStore {
   }
 
   private async ensureConnected(): Promise<void> {
-    if (!this.connected) {
-      await this.client.connect();
-      this.connected = true;
+    // After the first connect(), let node-redis handle reconnection internally.
+    // Commands will be queued during temporary disconnects.
+    if (this.connectCalled) return;
+
+    if (!this.connecting) {
+      this.connectCalled = true;
+      this.connecting = this.client
+        .connect()
+        .then(() => {
+          this.connecting = null;
+        })
+        .catch((err: Error) => {
+          this.connectCalled = false;
+          this.connecting = null;
+          throw err;
+        });
     }
+    await this.connecting;
   }
 }
 
