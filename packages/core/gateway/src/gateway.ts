@@ -13,6 +13,14 @@ import type {
   PromptReport,
   BootstrapProfile,
 } from '@nachos/types';
+import {
+  createSessionNotFoundError,
+  createInvalidStateError,
+  createConfigError,
+  createLogger,
+} from '@nachos/types';
+
+const logger = createLogger('gateway');
 import { TOPICS } from '@nachos/bus';
 import {
   BootstrapToolSchema,
@@ -61,17 +69,16 @@ import type { ToolCall, ToolResult } from '@nachos/types';
 import {
   StateLayer,
   createStateLayer,
+  createDefaultBootstrapBlocks,
+  MemoryPipeline,
   type StateOperationContext,
-} from './state-layer/state-layer.js';
-import { createDefaultBootstrapBlocks } from './state-layer/bootstrap/bootstrap-templates.js';
-import { MemoryPipeline, type MemoryPipelineConfig } from './state-layer/memory-pipeline.js';
+  type StateLayerConfig,
+  type StateLayerDependencies,
+  type StatePolicyRequest,
+} from '@nachos/state';
+import type { MemoryPipelineConfig } from '@nachos/state';
 import { tokenEstimator } from '@nachos/context-manager';
 import type { ContextManager } from '@nachos/context-manager';
-import type {
-  StateLayerConfig,
-  StateLayerDependencies,
-  StatePolicyRequest,
-} from './state-layer/types.js';
 import { SubagentManager } from './subagents/subagent-manager.js';
 import { SubagentOrchestrator } from './subagents/subagent-orchestrator.js';
 import {
@@ -90,6 +97,18 @@ import type {
 import { SandboxManager } from './sandbox/sandbox-manager.js';
 import type { Skill } from './skills/skill-loader.js';
 import type { SkillToolConfig } from './tools/shell-tool.js';
+import {
+  readOptionalString,
+  readOptionalStringArray,
+  readOptionalNumber,
+  readOptionalBoolean,
+  readOptionalStringMap,
+  readTimeoutMs,
+  readCleanup,
+  stringifyToolParameters,
+  coerceLLMContentText,
+} from './utils/parsing.js';
+import { registerManagementHandlers } from './management/management-handlers.js';
 
 const DEFAULT_SUBAGENT_DENY_TOOLS = new Set([
   'sessions_list',
@@ -451,8 +470,10 @@ export class Gateway {
       buffer: string;
       lastSentAt: number;
       lastSentLength: number;
+      createdAt: number;
     }
   > = new Map();
+  private streamingSessionSweepInterval?: NodeJS.Timeout;
   private approvalAllowlist: Set<string>;
   private toolGroupMap: Map<string, string>;
   private skillsPrompt: string | null = null;
@@ -492,14 +513,13 @@ export class Gateway {
       );
     }
 
-    // Initialize router
+    // Initialize bus (router created after state layer setup below)
     const bus = options.bus ?? new InMemoryMessageBus();
-    this.router = new Router({ bus, componentName: 'gateway', rateLimiter: this.rateLimiter });
 
     // Initialize Cheese policy engine if configured
     if (options.policyConfig) {
       this.cheese = new Cheese(options.policyConfig);
-      console.log('[Gateway] Policy engine (Cheese) initialized');
+      logger.info('Policy engine (Cheese) initialized');
     }
 
     if (options.stateLayer) {
@@ -607,7 +627,7 @@ export class Gateway {
   private async handleInboundMessage(envelope: MessageEnvelope): Promise<void> {
     const validated = validateChannelInboundMessage(envelope.payload);
     if (!validated.success || !validated.data) {
-      console.warn('[Gateway] Invalid inbound channel message', validated.errors);
+      logger.warn({ errors: validated.errors }, 'Invalid inbound channel message');
       return;
     }
 
@@ -1029,6 +1049,7 @@ export class Gateway {
         buffer: '',
         lastSentAt: 0,
         lastSentLength: 0,
+        createdAt: Date.now(),
       });
     }
 
@@ -1301,7 +1322,7 @@ export class Gateway {
             internalTool: true,
           });
         } catch (error) {
-          console.warn('[Gateway] Failed to delete session state during reset:', error);
+          logger.warn({ err: error }, 'Failed to delete session state during reset');
         }
       }
     }
@@ -1343,7 +1364,7 @@ export class Gateway {
   ): Promise<LLMRequestType & { systemPromptTokens?: number; promptReport?: PromptReport }> {
     const session = this.sessionManager.getSessionWithMessages(sessionId);
     if (!session) {
-      throw new Error('Session not found');
+      throw createSessionNotFoundError('Session not found', { component: 'gateway' });
     }
 
     const messages: LLMRequestType['messages'] = [];
@@ -1402,7 +1423,7 @@ export class Gateway {
           promptReportUpdatedAt: assembled.report.generatedAt,
         });
       } catch (error) {
-        console.warn('[Gateway] Failed to assemble prompt with state layer:', error);
+        logger.warn({ err: error }, 'Failed to assemble prompt with state layer');
       }
     } else if (basePrompt) {
       systemPromptTokens = tokenEstimator.estimate(basePrompt);
@@ -1574,7 +1595,7 @@ export class Gateway {
     toolCalls: Array<{ id: string; name: string; arguments: string }>
   ): Promise<LLMRequestType['messages']> {
     if (!this.toolCoordinator) {
-      throw new Error('Tool coordinator not initialized');
+      throw createInvalidStateError('Tool coordinator not initialized', { component: 'gateway' });
     }
 
     const session = this.sessionManager.getSession(sessionId);
@@ -2495,46 +2516,11 @@ export class Gateway {
     };
   }
 
-  private readOptionalString(value: unknown): string | undefined {
-    if (typeof value !== 'string') {
-      return undefined;
-    }
-    const trimmed = value.trim();
-    return trimmed.length > 0 ? trimmed : undefined;
-  }
-
-  private readOptionalStringArray(value: unknown): string[] | null {
-    if (!Array.isArray(value)) {
-      return null;
-    }
-    const items = value
-      .map((item) => (typeof item === 'string' ? item.trim() : ''))
-      .filter((item) => item.length > 0);
-    return items.length > 0 ? items : null;
-  }
-
-  private readOptionalNumber(
-    value: unknown,
-    limits?: { min?: number; max?: number }
-  ): number | undefined {
-    if (typeof value !== 'number' || !Number.isFinite(value)) {
-      return undefined;
-    }
-    if (limits?.min !== undefined && value < limits.min) {
-      return undefined;
-    }
-    if (limits?.max !== undefined && value > limits.max) {
-      return undefined;
-    }
-    return value;
-  }
-
-  private readOptionalBoolean(value: unknown): boolean | undefined {
-    if (typeof value !== 'boolean') {
-      return undefined;
-    }
-    return value;
-  }
+  // Utility parsing methods delegate to extracted functions in utils/parsing.ts
+  private readOptionalString(value: unknown) { return readOptionalString(value); }
+  private readOptionalStringArray(value: unknown) { return readOptionalStringArray(value); }
+  private readOptionalNumber(value: unknown, limits?: { min?: number; max?: number }) { return readOptionalNumber(value, limits); }
+  private readOptionalBoolean(value: unknown) { return readOptionalBoolean(value); }
 
   private async getIdentityCompletionStatus(session: Session): Promise<boolean> {
     if (!this.stateLayer) {
@@ -2669,37 +2655,9 @@ export class Gateway {
     );
   }
 
-  private readOptionalStringMap(value: unknown): Record<string, string> | null {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      return null;
-    }
-    const result: Record<string, string> = {};
-    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
-      if (typeof entry !== 'string') {
-        return null;
-      }
-      result[key] = entry;
-    }
-    return result;
-  }
-
-  private readTimeoutMs(value: unknown): number | undefined {
-    if (typeof value !== 'number' || !Number.isFinite(value)) {
-      return undefined;
-    }
-    const rounded = Math.floor(value);
-    if (rounded <= 0) {
-      return undefined;
-    }
-    return rounded * 1000;
-  }
-
-  private readCleanup(value: unknown): 'delete' | 'keep' | undefined {
-    if (value === 'delete' || value === 'keep') {
-      return value;
-    }
-    return undefined;
-  }
+  private readOptionalStringMap(value: unknown) { return readOptionalStringMap(value); }
+  private readTimeoutMs(value: unknown) { return readTimeoutMs(value); }
+  private readCleanup(value: unknown) { return readCleanup(value); }
 
   private async sendLLMResponse(
     inbound: ChannelInboundMessage,
@@ -2788,34 +2746,8 @@ export class Gateway {
     await this.router.sendToChannel(outbound);
   }
 
-  private stringifyToolParameters(parameters: Record<string, unknown>): string {
-    try {
-      return JSON.stringify(parameters);
-    } catch {
-      return '';
-    }
-  }
-
-  private coerceLLMContentText(content: unknown): string {
-    if (typeof content === 'string') {
-      return content;
-    }
-
-    if (Array.isArray(content)) {
-      return content
-        .map((part) => {
-          if (!part || typeof part !== 'object' || !('text' in part)) {
-            return '';
-          }
-          const text = (part as { text?: unknown }).text;
-          return typeof text === 'string' ? text : '';
-        })
-        .filter((text) => text.length > 0)
-        .join('');
-    }
-
-    return '';
-  }
+  private stringifyToolParameters(parameters: Record<string, unknown>) { return stringifyToolParameters(parameters); }
+  private coerceLLMContentText(content: unknown) { return coerceLLMContentText(content); }
 
   private getReplyToMessageId(message: ChannelInboundMessage): string | undefined {
     const metadata = message.metadata as { thread_ts?: string } | undefined;
@@ -2915,238 +2847,17 @@ export class Gateway {
       return;
     }
 
-    const client = bus.getClient();
-    const respondError = (respond: (data: unknown) => boolean, error: Error) => {
-      respond({
-        ok: false,
-        error: {
-          code: 'GATEWAY_REQUEST_ERROR',
-          message: error.message,
-        },
-      });
-    };
-
-    await client.subscribe(TOPICS.gateway.subagents.list, async (msg, raw) => {
-      try {
-        const payload = msg.payload as { limit?: number };
-        const runs = this.listSubagents();
-        const limit = payload?.limit && payload.limit > 0 ? Math.floor(payload.limit) : undefined;
-        const items = limit ? runs.slice(0, limit) : runs;
-        raw.respond({ ok: true, data: { runs: items, total: runs.length } });
-      } catch (error) {
-        respondError(raw.respond, error as Error);
-      }
-    });
-
-    await client.subscribe(TOPICS.gateway.subagents.spawn, async (msg, raw) => {
-      try {
-        if (!this.subagentOrchestrator) {
-          throw new Error('Subagent execution is not configured');
-        }
-
-        const payload = msg.payload as {
-          task?: string;
-          label?: string;
-          profile?: string;
-          agentId?: string;
-          model?: string;
-          thinking?: string;
-          cleanup?: string;
-          runTimeoutSeconds?: number;
-          sessionId?: string;
-          channel?: string;
-          conversationId?: string;
-          replyToMessageId?: string;
-          userId?: string;
-        };
-
-        const task = typeof payload.task === 'string' ? payload.task.trim() : '';
-        if (!task) {
-          throw new Error('task is required');
-        }
-
-        const runRequest: SubagentRunRequest = {
-          task,
-          label: this.readOptionalString(payload.label),
-          profile: this.readOptionalString(payload.profile),
-          agentId: this.readOptionalString(payload.agentId),
-          model: this.readOptionalString(payload.model),
-          thinking: this.readOptionalString(payload.thinking),
-          cleanup: this.readCleanup(payload.cleanup),
-          timeoutMs: this.readTimeoutMs(payload.runTimeoutSeconds),
-          requester: {
-            sessionId: this.readOptionalString(payload.sessionId) ?? 'cli',
-            channel: this.readOptionalString(payload.channel) ?? 'cli',
-            conversationId: this.readOptionalString(payload.conversationId) ?? 'cli',
-            replyToMessageId: this.readOptionalString(payload.replyToMessageId),
-            userId: this.readOptionalString(payload.userId),
-          },
-        };
-
-        const run = await this.subagentOrchestrator.enqueue(runRequest);
-        raw.respond({
-          ok: true,
-          data: {
-            runId: run.runId,
-            childSessionId: run.childSessionId,
-          },
-        });
-      } catch (error) {
-        respondError(raw.respond, error as Error);
-      }
-    });
-
-    await client.subscribe(TOPICS.gateway.subagents.info, async (msg, raw) => {
-      try {
-        const payload = msg.payload as { runId?: string };
-        const runId = typeof payload?.runId === 'string' ? payload.runId : '';
-        const run = runId ? this.getSubagentInfo(runId) : null;
-        raw.respond({ ok: true, data: { run } });
-      } catch (error) {
-        respondError(raw.respond, error as Error);
-      }
-    });
-
-    await client.subscribe(TOPICS.gateway.subagents.stop, async (msg, raw) => {
-      try {
-        const payload = msg.payload as { runId?: string };
-        const runId = typeof payload?.runId === 'string' ? payload.runId : '';
-        const ok = runId ? this.stopSubagent(runId) : false;
-        raw.respond({ ok: true, data: { stopped: ok } });
-      } catch (error) {
-        respondError(raw.respond, error as Error);
-      }
-    });
-
-    await client.subscribe(TOPICS.gateway.subagents.log, async (msg, raw) => {
-      try {
-        const payload = msg.payload as { runId?: string; limit?: number };
-        const runId = typeof payload?.runId === 'string' ? payload.runId : '';
-        const limit = payload?.limit && payload.limit > 0 ? Math.floor(payload.limit) : 50;
-        const log = runId ? this.getSubagentLog(runId) : null;
-        const messages = log?.messages ?? [];
-        raw.respond({
-          ok: true,
-          data: {
-            runId,
-            messages: messages.slice(-limit),
-          },
-        });
-      } catch (error) {
-        respondError(raw.respond, error as Error);
-      }
-    });
-
-    await client.subscribe(TOPICS.gateway.subagents.files.list, async (msg, raw) => {
-      try {
-        const payload = msg.payload as {
-          runId?: string;
-          path?: string;
-          recursive?: boolean;
-          limit?: number;
-        };
-        const runId = typeof payload?.runId === 'string' ? payload.runId : '';
-        if (!runId) {
-          throw new Error('runId is required');
-        }
-        const workspaceDir = this.subagentOrchestrator?.getRunWorkspaceDir(runId);
-        if (!workspaceDir) {
-          throw new Error('Subagent workspace not available');
-        }
-
-        const entries = await listSubagentWorkspaceEntries({
-          rootDir: workspaceDir,
-          relativePath: this.readOptionalString(payload.path),
-          recursive: Boolean(payload.recursive),
-          limit: payload.limit && payload.limit > 0 ? Math.floor(payload.limit) : 200,
-        });
-
-        raw.respond({
-          ok: true,
-          data: {
-            runId,
-            entries,
-          },
-        });
-      } catch (error) {
-        respondError(raw.respond, error as Error);
-      }
-    });
-
-    await client.subscribe(TOPICS.gateway.subagents.files.get, async (msg, raw) => {
-      try {
-        const payload = msg.payload as { runId?: string; path?: string; maxBytes?: number };
-        const runId = typeof payload?.runId === 'string' ? payload.runId : '';
-        const relativePath = this.readOptionalString(payload?.path);
-        if (!runId || !relativePath) {
-          throw new Error('runId and path are required');
-        }
-        const workspaceDir = this.subagentOrchestrator?.getRunWorkspaceDir(runId);
-        if (!workspaceDir) {
-          throw new Error('Subagent workspace not available');
-        }
-
-        const maxBytes =
-          payload?.maxBytes && payload.maxBytes > 0 ? Math.floor(payload.maxBytes) : 65536;
-        const file = await readSubagentWorkspaceFile({
-          rootDir: workspaceDir,
-          relativePath,
-          maxBytes,
-        });
-
-        raw.respond({
-          ok: true,
-          data: {
-            runId,
-            file,
-          },
-        });
-      } catch (error) {
-        respondError(raw.respond, error as Error);
-      }
-    });
-
-    await client.subscribe(TOPICS.gateway.sandbox.explain, async (_msg, raw) => {
-      try {
-        raw.respond({
-          ok: true,
-          data: {
-            config: this.options.toolSandboxConfig ?? null,
-            decisions: this.buildSandboxDecisionSamples(),
-          },
-        });
-      } catch (error) {
-        respondError(raw.respond, error as Error);
-      }
-    });
-
-    await client.subscribe(TOPICS.gateway.sandbox.list, async (_msg, raw) => {
-      try {
-        const runs = this.listSubagents();
-        raw.respond({
-          ok: true,
-          data: {
-            config: this.options.toolSandboxConfig ?? null,
-            decisions: this.buildSandboxDecisionSamples(),
-            subagentRuns: runs,
-          },
-        });
-      } catch (error) {
-        respondError(raw.respond, error as Error);
-      }
-    });
-
-    await client.subscribe(TOPICS.gateway.sandbox.recreate, async (_msg, raw) => {
-      try {
-        raw.respond({
-          ok: true,
-          data: {
-            message: 'Sandbox configuration is stateless; nothing to recreate.',
-          },
-        });
-      } catch (error) {
-        respondError(raw.respond, error as Error);
-      }
+    await registerManagementHandlers({
+      getBus: () => bus,
+      getSessionManager: () => this.sessionManager,
+      getSubagentOrchestrator: () => this.subagentOrchestrator,
+      getSandboxManager: () => this.sandboxManager,
+      getToolSandboxConfig: () => this.options.toolSandboxConfig,
+      listSubagents: () => this.listSubagents(),
+      getSubagentInfo: (runId) => this.getSubagentInfo(runId),
+      stopSubagent: (runId) => this.stopSubagent(runId),
+      getSubagentLog: (runId) => this.getSubagentLog(runId),
+      buildSandboxDecisionSamples: () => this.buildSandboxDecisionSamples(),
     });
   }
 
@@ -3162,7 +2873,7 @@ export class Gateway {
 
     if (this.dlpConfig) {
       this.dlp = new DLPSecurityLayer(this.dlpConfig, this.auditLogger ?? undefined);
-      console.log('[Gateway] DLP security layer initialized');
+      logger.info('DLP security layer initialized');
     }
 
     // Initialize tool infrastructure
@@ -3195,30 +2906,31 @@ export class Gateway {
 
       if (skillsForPrompt.length > 0) {
         this.skillsPrompt = formatSkillsForPrompt(skillsForPrompt);
-        console.log(`[Gateway] Loaded ${skillsForPrompt.length} skills for LLM prompt`);
+        logger.info({ count: skillsForPrompt.length }, 'Loaded skills for LLM prompt');
       } else {
-        console.warn('[Gateway] No skills loaded');
+        logger.warn('No skills loaded');
       }
 
       skillToolConfigs = shellEnabled ? this.buildSkillToolConfigs(skillsForPrompt) : [];
     } catch (error) {
-      console.error('[Gateway] Failed to load skills:', error);
+      logger.error({ err: error }, 'Failed to load skills');
     }
 
     // Initialize local tool handler for gateway-integrated tools (exec/shell)
     const { LocalToolHandler } = await import('./tools/local-tool-handler.js');
+    const localToolsLogger = createLogger('local-tools');
     const localToolHandler = new LocalToolHandler({
       logger: {
-        info: (...args: unknown[]) => console.log('[LocalTools]', ...args),
-        warn: (...args: unknown[]) => console.warn('[LocalTools]', ...args),
-        error: (...args: unknown[]) => console.error('[LocalTools]', ...args),
+        info: (...args: unknown[]) => localToolsLogger.info(args[0] as string),
+        warn: (...args: unknown[]) => localToolsLogger.warn(args[0] as string),
+        error: (...args: unknown[]) => localToolsLogger.error(args[0] as string),
       },
       shellConfig: {
         allowedTools: skillToolConfigs,
       },
     });
     this.localToolHandler = localToolHandler;
-    console.log('[Gateway] Local tool handler initialized (exec/shell, browser)');
+    logger.info('Local tool handler initialized (exec/shell, browser)');
 
     this.toolCoordinator = new ToolCoordinator({
       bus: this.router.getBus(),
@@ -3228,12 +2940,12 @@ export class Gateway {
       securityMode: this.options.policyConfig?.securityMode ?? 'standard',
       localToolHandler,
     });
-    console.log('[Gateway] Tool coordinator initialized');
+    logger.info('Tool coordinator initialized');
 
     this.approvalManager.on('approval-requested', async (request) => {
       const session = this.sessionManager.getSession(request.sessionId);
       if (!session) {
-        console.warn(`[Gateway] Approval request for unknown session: ${request.sessionId}`);
+        logger.warn({ sessionId: request.sessionId }, 'Approval request for unknown session');
         return;
       }
 
@@ -3291,6 +3003,18 @@ export class Gateway {
           }
         }
       });
+
+      // Sweep stale streaming sessions every 60s to prevent leaks if LLM proxy
+      // crashes without sending a 'done' event.
+      this.streamingSessionSweepInterval = setInterval(() => {
+        const maxAge = 300_000; // 5 minutes
+        const now = Date.now();
+        for (const [id, state] of this.streamingSessions) {
+          if (now - state.createdAt > maxAge) {
+            this.streamingSessions.delete(id);
+          }
+        }
+      }, 60_000);
     }
 
     await this.registerManagementHandlers();
@@ -3329,7 +3053,7 @@ export class Gateway {
     }
 
     this.isConnected = true;
-    console.log('Gateway started');
+    logger.info('Gateway started');
   }
 
   private async handleConfigUpdate(data: unknown): Promise<void> {
@@ -3492,6 +3216,15 @@ export class Gateway {
       this.memoryPipelineInterval = undefined;
     }
 
+    if (this.streamingSessionSweepInterval) {
+      clearInterval(this.streamingSessionSweepInterval);
+      this.streamingSessionSweepInterval = undefined;
+    }
+
+    if (this.toolCache) {
+      await this.toolCache.shutdown();
+    }
+
     if (this.stateLayer) {
       await this.stateLayer.close();
     }
@@ -3505,7 +3238,7 @@ export class Gateway {
     }
 
     this.storage.close();
-    console.log('Gateway stopped');
+    logger.info('Gateway stopped');
   }
 
   /**
@@ -3513,12 +3246,12 @@ export class Gateway {
    */
   setupSignalHandlers(): void {
     const shutdown = async (signal: string) => {
-      console.log(`Received ${signal}, shutting down gracefully...`);
+      logger.info({ signal }, 'Received signal, shutting down gracefully...');
       try {
         await this.stop();
         process.exit(0);
       } catch (error) {
-        console.error('Error during shutdown:', error);
+        logger.error({ err: error }, 'Error during shutdown');
         process.exit(1);
       }
     };
@@ -3596,7 +3329,7 @@ export class Gateway {
           });
         }
       } catch (error) {
-        console.warn('[Gateway] Periodic memory extraction failed:', error);
+        logger.warn({ err: error }, 'Periodic memory extraction failed');
       }
     }, intervalMs);
   }
@@ -3661,7 +3394,7 @@ export class Gateway {
 
   async spawnSubagent(request: SubagentRunRequest): Promise<SubagentRunRecord> {
     if (!this.subagentOrchestrator) {
-      throw new Error('Subagent orchestration is not configured');
+      throw createConfigError('Subagent orchestration is not configured', { component: 'gateway' });
     }
 
     return this.subagentOrchestrator.enqueue(request);
@@ -3728,7 +3461,7 @@ export class Gateway {
     );
 
     if (!session) {
-      throw new Error('Session not found after processing message');
+      throw createSessionNotFoundError('Session not found after processing message', { component: 'gateway' });
     }
 
     return session;

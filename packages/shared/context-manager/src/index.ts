@@ -96,7 +96,6 @@ export {
 export {
   SummarizationService,
   createSummarizationService,
-  MockLLMProvider,
   type LLMProvider,
 } from './summarization/service.js';
 

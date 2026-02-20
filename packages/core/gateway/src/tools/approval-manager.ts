@@ -12,6 +12,7 @@
  */
 
 import type { ToolCall, SecurityTier } from '@nachos/types';
+import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'events';
 
 /**
@@ -237,7 +238,7 @@ export class ApprovalManager extends EventEmitter {
    * Generate unique request ID
    */
   private generateRequestId(): string {
-    return `approval-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    return randomUUID();
   }
 
   /**

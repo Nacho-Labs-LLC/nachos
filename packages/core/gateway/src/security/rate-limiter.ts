@@ -3,6 +3,9 @@
  */
 import { createClient, type RedisClientType } from 'redis';
 import { v4 as uuid } from 'uuid';
+import { createInternalError, createLogger } from '@nachos/types';
+
+const logger = createLogger('rate-limiter');
 
 export type RateLimitAction = 'message' | 'tool' | 'llm';
 
@@ -44,6 +47,24 @@ const DEFAULT_WINDOW_MS = 60_000;
 
 export class MemoryRateLimitStore implements RateLimitStore {
   private entries = new Map<string, number[]>();
+  private cleanupInterval?: NodeJS.Timeout;
+
+  constructor() {
+    // Periodically purge entries whose timestamps are entirely outside
+    // the rate-limit window so the map does not grow without bound.
+    this.cleanupInterval = setInterval(() => {
+      const now = Date.now();
+      const windowStart = now - DEFAULT_WINDOW_MS;
+      for (const [key, timestamps] of this.entries) {
+        const valid = timestamps.filter((t) => t > windowStart);
+        if (valid.length === 0) {
+          this.entries.delete(key);
+        } else {
+          this.entries.set(key, valid);
+        }
+      }
+    }, 60_000);
+  }
 
   async record(key: string, timestampMs: number, windowMs: number): Promise<number> {
     const windowStart = timestampMs - windowMs;
@@ -55,7 +76,15 @@ export class MemoryRateLimitStore implements RateLimitStore {
   }
 
   async disconnect(): Promise<void> {
+    this.destroy();
     this.entries.clear();
+  }
+
+  destroy(): void {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = undefined;
+    }
   }
 
   getSource(): 'memory' | 'redis' {
@@ -74,7 +103,7 @@ export class RedisRateLimitStore implements RateLimitStore {
   constructor(redisUrl: string) {
     this.client = createClient({ url: redisUrl });
     this.client.on('error', (error) => {
-      console.warn('[RateLimiter] Redis error (auto-reconnect in progress):', error);
+      logger.warn({ err: error }, 'Redis error (auto-reconnect in progress)');
     });
   }
 
@@ -107,11 +136,11 @@ export class RedisRateLimitStore implements RateLimitStore {
     pipeline.pExpire(key, windowMs);
     const results = await pipeline.exec();
     if (!results) {
-      throw new Error('Redis rate limit pipeline failed');
+      throw createInternalError('Redis rate limit pipeline failed', { component: 'gateway' });
     }
     const countResult = results[2] as [Error | null, number] | undefined;
     if (!countResult || countResult[0]) {
-      throw new Error('Redis rate limit count failed');
+      throw createInternalError('Redis rate limit count failed', { component: 'gateway' });
     }
     return Number(countResult[1]);
   }
@@ -198,9 +227,9 @@ export class RateLimiter {
       const count = await this.store.record(key, timestampMs, windowMs);
       return { count, source: this.store.getSource() };
     } catch (error) {
-      console.warn(
-        `[RateLimiter] ${this.store.getSource()} store failed; falling back to memory`,
-        error
+      logger.warn(
+        { err: error, source: this.store.getSource() },
+        'Rate limit store failed; falling back to memory'
       );
       if (this.store instanceof RedisRateLimitStore) {
         await this.store.disconnect();
@@ -209,7 +238,7 @@ export class RateLimiter {
         const count = await this.fallbackStore.record(key, timestampMs, windowMs);
         return { count, source: this.fallbackStore.getSource() };
       }
-      throw new Error('Rate limit storage unavailable');
+      throw createInternalError('Rate limit storage unavailable', { component: 'gateway' });
     }
   }
 

@@ -19,6 +19,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@nachos/types": "workspace:*",
     "nats": "^2.29.3"
   },
   "devDependencies": {

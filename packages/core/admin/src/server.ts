@@ -1,0 +1,74 @@
+import { Hono } from 'hono';
+import { logger } from 'hono/logger';
+import { cors } from 'hono/cors';
+import { serve } from '@hono/node-server';
+import { serveStatic } from '@hono/node-server/serve-static';
+import { authMiddleware } from './middleware/auth.js';
+import { configRouter } from './routes/config.js';
+import { statusRouter } from './routes/status.js';
+import { auditRouter } from './routes/audit.js';
+import { sessionsRouter } from './routes/sessions.js';
+import { skillsRouter } from './routes/skills.js';
+import { servicesRouter } from './routes/services.js';
+import { logsRouter } from './routes/logs.js';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const PORT = Number(process.env['PORT'] ?? '8082');
+
+// In production: dist/server.js lives in dist/, public files in dist/public/
+// In dev: serve-static path won't be hit; Vite dev server handles frontend
+const publicDir = join(__dirname, 'public');
+
+const app = new Hono();
+
+app.use('*', logger());
+app.use(
+  '/api/*',
+  cors({
+    // Allow only localhost origins — admin UI is not intended for cross-origin access
+    origin: (origin) => {
+      if (!origin) return null;
+      try {
+        const { hostname } = new URL(origin);
+        return hostname === 'localhost' || hostname === '127.0.0.1' ? origin : null;
+      } catch {
+        return null;
+      }
+    },
+    allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  })
+);
+app.use('/api/*', authMiddleware());
+
+app.route('/api/config', configRouter);
+app.route('/api/status', statusRouter);
+app.route('/api/audit', auditRouter);
+app.route('/api/sessions', sessionsRouter);
+app.route('/api/skills', skillsRouter);
+app.route('/api/services', servicesRouter);
+app.route('/api/logs', logsRouter);
+
+app.get('/api/health', (c) =>
+  c.json({ status: 'ok', service: 'nachos-admin', timestamp: new Date().toISOString() })
+);
+
+// Serve built Vue SPA static assets
+app.use('/*', serveStatic({ root: publicDir }));
+
+// SPA fallback — return index.html for any unmatched route (client-side routing)
+app.get('/*', serveStatic({ root: publicDir, path: '/index.html' }));
+
+serve({ fetch: app.fetch, port: PORT }, (info) => {
+  console.log(`[admin] Nachos Admin UI → http://localhost:${info.port}`);
+  console.log(`[admin] Config path: ${process.env['NACHOS_CONFIG_PATH'] ?? '/app/nachos.toml'}`);
+
+  if (!process.env['NACHOS_ADMIN_TOKEN']) {
+    console.warn('');
+    console.warn('  ⚠  WARNING: NACHOS_ADMIN_TOKEN is not set.');
+    console.warn('     The admin API is accessible without authentication.');
+    console.warn('     Set NACHOS_ADMIN_TOKEN in your .env file to require a token.');
+    console.warn('');
+  }
+});

@@ -149,6 +149,14 @@ export function generateComposeFile(config: NachosConfig, projectRoot: string): 
       }
     }
 
+    // Add admin UI (conditional)
+    if (config.admin?.enabled) {
+      const dockerfilePath = join(projectRoot, 'packages/core/admin/Dockerfile');
+      if (existsSync(dockerfilePath)) {
+        compose.services.admin = buildAdminService(config, projectRoot);
+      }
+    }
+
     return compose;
   } catch (error) {
     throw new ComposeGenerationError(error instanceof Error ? error.message : String(error));
@@ -847,6 +855,64 @@ function buildCopilotService(config: NachosConfig, projectRoot: string): Service
         'max-size': '10m',
         'max-file': '3',
         labels: 'service=copilot',
+      },
+    },
+  };
+}
+
+/**
+ * Build Admin UI service
+ */
+function buildAdminService(config: NachosConfig, projectRoot: string): Service {
+  const port = config.admin?.port ?? 8082;
+  const adminToken = process.env['NACHOS_ADMIN_TOKEN'] ?? '';
+
+  return {
+    container_name: 'nachos-admin',
+    build: {
+      context: projectRoot,
+      dockerfile: 'packages/core/admin/Dockerfile',
+    },
+    image: 'nachos-admin:dev',
+    restart: 'unless-stopped',
+    depends_on: {
+      gateway: { condition: 'service_healthy' },
+    },
+    networks: ['nachos-internal'],
+    ports: [`${port}:${port}`],
+    environment: {
+      NODE_ENV: 'development',
+      PORT: String(port),
+      NACHOS_CONFIG_PATH: '/app/nachos.toml',
+      NACHOS_STATE_DIR: '/app/state',
+      NACHOS_SKILLS_DIR: '/app/skills',
+      GATEWAY_HEALTH_URL: 'http://gateway:3000/health',
+      NACHOS_ADMIN_TOKEN: adminToken,
+    },
+    volumes: [
+      `${projectRoot}/nachos.toml:/app/nachos.toml:rw`,
+      `${projectRoot}/data/gateway:/app/state:ro`,
+      `${projectRoot}/skills:/app/skills:ro`,
+      '/var/run/docker.sock:/var/run/docker.sock:rw',
+    ],
+    healthcheck: {
+      test: [
+        'CMD',
+        'node',
+        '-e',
+        `fetch('http://localhost:${port}/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))`,
+      ],
+      interval: '30s',
+      timeout: '5s',
+      retries: 3,
+      start_period: '10s',
+    },
+    logging: {
+      driver: 'json-file',
+      options: {
+        'max-size': '10m',
+        'max-file': '3',
+        labels: 'service=admin',
       },
     },
   };

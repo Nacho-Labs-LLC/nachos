@@ -1,6 +1,7 @@
 import type { AuditConfig } from '@nachos/config';
 import { isAbsolute, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { createConfigError, createValidationError } from '@nachos/types';
 import type { AuditProvider } from './provider.js';
 import { CompositeAuditProvider } from './providers/composite.js';
 import { FileAuditProvider } from './providers/file.js';
@@ -26,7 +27,7 @@ export async function loadAuditProvider(config: AuditConfig): Promise<AuditProvi
       });
     case 'webhook':
       if (!config.url) {
-        throw new Error('Audit webhook provider requires security.audit.url');
+        throw createConfigError('Audit webhook provider requires security.audit.url', { component: 'gateway' });
       }
       return new WebhookAuditProvider({
         url: config.url,
@@ -36,7 +37,7 @@ export async function loadAuditProvider(config: AuditConfig): Promise<AuditProvi
       });
     case 'custom': {
       if (!config.custom_path) {
-        throw new Error('Audit custom provider requires security.audit.custom_path');
+        throw createConfigError('Audit custom provider requires security.audit.custom_path', { component: 'gateway' });
       }
       const resolvedPath = config.custom_path.startsWith('file:')
         ? config.custom_path
@@ -48,14 +49,14 @@ export async function loadAuditProvider(config: AuditConfig): Promise<AuditProvi
       const module = await import(resolvedPath);
       const Provider = module.default ?? module.AuditProvider;
       if (!Provider) {
-        throw new Error('Audit custom provider module must export default or AuditProvider');
+        throw createConfigError('Audit custom provider module must export default or AuditProvider', { component: 'gateway' });
       }
       return new Provider(config.custom_config ?? {});
     }
     case 'composite': {
       const providerNames = config.providers ?? [];
       if (providerNames.includes('composite')) {
-        throw new Error('Composite audit provider cannot include itself');
+        throw createValidationError('Composite audit provider cannot include itself', { component: 'gateway' });
       }
       const baseConfig: AuditConfig = {
         enabled: config.enabled,
@@ -77,6 +78,6 @@ export async function loadAuditProvider(config: AuditConfig): Promise<AuditProvi
       return new CompositeAuditProvider(providers);
     }
     default:
-      throw new Error(`Unknown audit provider: ${provider}`);
+      throw createConfigError(`Unknown audit provider: ${provider}`, { component: 'gateway' });
   }
 }

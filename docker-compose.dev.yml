@@ -29,6 +29,7 @@ x-common-env: &common-env
   NODE_ENV: development
   NATS_URL: nats://bus:4222
   NATS_SERVERS: nats://bus:4222
+  NATS_TOKEN: ${NATS_TOKEN:-nachos-dev-token}
   LOG_LEVEL: debug
 
 x-channel-env: &channel-env
@@ -78,11 +79,10 @@ services:
       - nachos-internal
     ports:
       - "4222:4222"
-      - "8222:8222"
     volumes:
       - nats-data:/data
       - ./docker/nats/nats-server.conf:/etc/nats/nats-server.conf:ro
-    command: ["-c", "/etc/nats/nats-server.conf"]
+    command: ["-c", "/etc/nats/nats-server.conf", "--auth", "${NATS_TOKEN:-nachos-dev-token}"]
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8222/healthz"]
       interval: 10s
@@ -135,7 +135,7 @@ services:
         - action: rebuild
           path: ./packages/shared
     healthcheck:
-      test: ["CMD", "node", "-e", "process.exit(0)"]
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8081/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
       timeout: 3s
       retries: 3
@@ -169,12 +169,10 @@ services:
     restart: unless-stopped
     networks:
       - nachos-internal
-    ports:
-      - "5432:5432"
     environment:
-      POSTGRES_DB: nachos
-      POSTGRES_USER: nachos
-      POSTGRES_PASSWORD: nachos
+      POSTGRES_DB: ${POSTGRES_DB:-nachos}
+      POSTGRES_USER: ${POSTGRES_USER:-nachos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nachos}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -217,11 +215,50 @@ services:
         - action: rebuild
           path: ./packages/shared
     healthcheck:
-      test: ["CMD", "node", "-e", "process.exit(0)"]
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
       timeout: 3s
       retries: 3
       start_period: 5s
+    logging: *default-logging
+
+  # -------------------- Admin UI --------------------
+  admin:
+    container_name: nachos-admin
+    build:
+      context: .
+      dockerfile: packages/core/admin/Dockerfile
+    image: nachos-admin:dev
+    restart: unless-stopped
+    depends_on:
+      gateway:
+        condition: service_healthy
+    networks:
+      - nachos-internal
+    ports:
+      - "8082:8082"
+    environment:
+      NODE_ENV: development
+      PORT: "8082"
+      NACHOS_CONFIG_PATH: /app/nachos.toml
+      NACHOS_STATE_DIR: /app/state
+      GATEWAY_HEALTH_URL: http://gateway:8081/health
+      NACHOS_ADMIN_TOKEN: ${NACHOS_ADMIN_TOKEN:-}
+    volumes:
+      - ./nachos.toml:/app/nachos.toml:rw
+      - ./data/gateway:/app/state:ro
+    develop:
+      watch:
+        - action: rebuild
+          path: ./packages/core/admin/src
+        - action: rebuild
+          path: ./packages/core/admin/frontend/src
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8082/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     logging: *default-logging
 
   # ==================== Channels ====================

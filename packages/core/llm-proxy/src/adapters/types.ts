@@ -27,6 +27,8 @@ export interface AdapterSendOptions {
   model: string;
   temperature?: number;
   maxTokens?: number;
+  /** Request timeout in milliseconds. Defaults to 120_000 (2 minutes). */
+  timeout?: number;
   onProfileCooldown?: (profileName: string, reason: 'rate_limit' | 'billing') => void;
   getProfileApiKey?: (profileName: string) => string | null;
   getProfileList?: () => string[];

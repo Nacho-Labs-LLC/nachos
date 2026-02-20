@@ -427,6 +427,16 @@ export function createProgram(): Command {
     });
 
   program
+    .command('ui')
+    .alias('open')
+    .description('Open the Admin UI in the browser')
+    .option('-p, --port <port>', 'Admin UI port (default: 8082)', parseInt)
+    .action(async (options) => {
+      const { uiCommand } = await import('./commands/ui.js');
+      await uiCommand({ ...program.opts(), ...options });
+    });
+
+  program
     .command('doctor')
     .description('Run health checks')
     .action(async () => {

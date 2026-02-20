@@ -6,7 +6,10 @@
  */
 
 import crypto from 'node:crypto';
+import { createLogger } from '@nachos/types';
 import type { ToolCall, ToolResult } from '@nachos/types';
+
+const logger = createLogger('tool-cache');
 
 /**
  * Cache configuration
@@ -244,7 +247,7 @@ export class ToolCache {
 
       return JSON.parse(data) as ToolResult;
     } catch (error) {
-      console.error('Error getting from Redis:', error);
+      logger.error({ err: error }, 'Error getting from Redis');
       return null;
     }
   }
@@ -260,7 +263,7 @@ export class ToolCache {
     try {
       await this.redis.setex(key, ttl, JSON.stringify(result));
     } catch (error) {
-      console.error('Error setting in Redis:', error);
+      logger.error({ err: error }, 'Error setting in Redis');
     }
   }
 
@@ -277,14 +280,14 @@ export class ToolCache {
         // Log but do NOT null out this.redis — the node-redis client auto-reconnects
         // internally. Clearing this.redis would permanently lose the backend.
         // getFromRedis/setInRedis have try/catch that handles transient failures.
-        console.error('Redis cache error (auto-reconnect in progress):', error);
+        logger.error({ err: error }, 'Redis cache error (auto-reconnect in progress)');
       });
 
       await client.connect();
-      console.log('Redis cache connected');
+      logger.info('Redis cache connected');
       this.redis = client as unknown as RedisClient;
     } catch (error) {
-      console.error('Failed to connect to Redis cache, using memory-only:', error);
+      logger.error({ err: error }, 'Failed to connect to Redis cache, using memory-only');
       this.redis = null;
     }
   }
@@ -307,7 +310,7 @@ export class ToolCache {
     }
 
     if (keysToDelete.length > 0) {
-      console.log(`Cleaned up ${keysToDelete.length} expired cache entries`);
+      logger.info({ count: keysToDelete.length }, 'Cleaned up expired cache entries');
     }
   }
 }

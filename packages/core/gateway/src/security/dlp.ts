@@ -5,6 +5,9 @@
 import { Scanner, redact, type Finding, type ScannerConfig } from '@nacho-labs/nachos-dlp';
 import { randomUUID } from 'node:crypto';
 import type { AuditLogger } from '../audit/logger.js';
+import { createLogger } from '@nachos/types';
+
+const logger = createLogger('dlp');
 
 /**
  * DLP action to take when sensitive data is detected
@@ -318,13 +321,12 @@ export class DLPSecurityLayer {
    */
   private logFindings(findings: Finding[], channelId?: string): void {
     if (!this.auditLogger) {
-      console.warn('[DLP]', {
-        timestamp: new Date().toISOString(),
+      logger.warn({
         channelId,
         findingsCount: findings.length,
         severities: findings.map((f) => f.severity),
         patternIds: findings.map((f) => f.patternId),
-      });
+      }, 'DLP findings detected (no audit logger configured)');
       return;
     }
 

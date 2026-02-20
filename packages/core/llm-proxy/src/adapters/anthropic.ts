@@ -84,26 +84,46 @@ function extractText(content: AnthropicContentBlock[] | undefined): string {
     .join('');
 }
 
+const DEFAULT_TIMEOUT_MS = 120_000;
+
 export class AnthropicAdapter {
   public readonly name = 'anthropic';
   public readonly type = 'anthropic' as const;
+  private clientCache = new Map<string, Anthropic>();
+
   constructor(
     private readonly baseUrl?: string,
     private readonly defaultApiKey?: string
   ) {}
 
+  private getClient(apiKey: string): Anthropic {
+    let client = this.clientCache.get(apiKey);
+    if (!client) {
+      if (this.clientCache.size >= 10) {
+        const firstKey = this.clientCache.keys().next().value as string;
+        this.clientCache.delete(firstKey);
+      }
+      client = new Anthropic({ apiKey, baseURL: this.baseUrl });
+      this.clientCache.set(apiKey, client);
+    }
+    return client;
+  }
+
   async send(request: LLMRequestType, options: AdapterSendOptions): Promise<AdapterResponse> {
     const { apiKey, profileName } = this.resolveApiKey(options);
     try {
-      const client = new Anthropic({ apiKey, baseURL: this.baseUrl });
-      const response = await client.messages.create({
-        model: options.model,
-        system: extractSystemPrompt(request.messages),
-        messages: toAnthropicMessages(request.messages),
-        tools: toAnthropicTools(request.tools),
-        max_tokens: options.maxTokens ?? 1024,
-        temperature: options.temperature,
-      });
+      const client = this.getClient(apiKey);
+      const response = await client.messages.create(
+        {
+          model: options.model,
+          system: extractSystemPrompt(request.messages),
+          messages: toAnthropicMessages(request.messages),
+          tools: toAnthropicTools(request.tools),
+          max_tokens: options.maxTokens ?? 1024,
+          temperature: options.temperature,
+        },
+        { timeout: options.timeout ?? DEFAULT_TIMEOUT_MS }
+      );
 
       const contentBlocks = response.content as unknown as AnthropicContentBlock[];
 
@@ -143,23 +163,88 @@ export class AnthropicAdapter {
     options: AdapterStreamOptions,
     onChunk: StreamChunkHandler
   ): Promise<AdapterResponse> {
-    const response = await this.send(request, options);
-    await onChunk({
-      sessionId: options.sessionId,
-      index: 0,
-      type: 'delta',
-      delta: typeof response.message.content === 'string' ? response.message.content : '',
-      provider: this.name,
-      model: response.model ?? options.model,
-    });
-    await onChunk({
-      sessionId: options.sessionId,
-      index: 1,
-      type: 'done',
-      provider: this.name,
-      model: response.model ?? options.model,
-    });
-    return response;
+    const { apiKey, profileName } = this.resolveApiKey(options);
+    try {
+      const client = this.getClient(apiKey);
+      const stream = client.messages.stream(
+        {
+          model: options.model,
+          system: extractSystemPrompt(request.messages),
+          messages: toAnthropicMessages(request.messages),
+          tools: toAnthropicTools(request.tools),
+          max_tokens: options.maxTokens ?? 1024,
+          temperature: options.temperature,
+        },
+        { timeout: options.timeout ?? DEFAULT_TIMEOUT_MS }
+      );
+
+      let index = 0;
+      let aggregatedText = '';
+
+      stream.on('text', (text) => {
+        aggregatedText += text;
+        void onChunk({
+          sessionId: options.sessionId,
+          index: index++,
+          type: 'delta',
+          delta: text,
+          provider: this.name,
+          model: options.model,
+        });
+      });
+
+      const finalMessage = await stream.finalMessage();
+
+      const contentBlocks = finalMessage.content as unknown as AnthropicContentBlock[];
+      const toolCalls = mapToolCalls(contentBlocks);
+
+      if (toolCalls && toolCalls.length > 0) {
+        for (const toolCall of toolCalls) {
+          await onChunk({
+            sessionId: options.sessionId,
+            index: index++,
+            type: 'tool_call',
+            toolCall,
+            provider: this.name,
+            model: options.model,
+          });
+        }
+      }
+
+      const usage = finalMessage.usage
+        ? {
+            promptTokens: finalMessage.usage.input_tokens,
+            completionTokens: finalMessage.usage.output_tokens,
+            totalTokens: finalMessage.usage.input_tokens + finalMessage.usage.output_tokens,
+          }
+        : undefined;
+
+      await onChunk({
+        sessionId: options.sessionId,
+        index: index++,
+        type: 'done',
+        provider: this.name,
+        model: finalMessage.model ?? options.model,
+      });
+
+      return {
+        message: { role: 'assistant', content: aggregatedText },
+        toolCalls,
+        usage,
+        provider: this.name,
+        model: finalMessage.model ?? options.model,
+        finishReason: finalMessage.stop_reason ?? undefined,
+      };
+    } catch (error) {
+      const mapped = this.mapError(error);
+      if (profileName && (mapped.kind === 'rate_limit' || mapped.kind === 'billing')) {
+        options.onProfileCooldown?.(
+          profileName,
+          mapped.kind === 'billing' ? 'billing' : 'rate_limit'
+        );
+      }
+      throw mapped;
+    }
   }
 
   private mapError(error: unknown): ProviderError {

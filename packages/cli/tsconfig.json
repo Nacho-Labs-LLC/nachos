@@ -7,13 +7,13 @@
     "baseUrl": ".",
     "paths": {
       "@nachos/bus": ["../core/bus/src/index.ts"],
-      "@nachos/gateway": ["../core/gateway/src/index.ts"],
+      "@nachos/state": ["../shared/state/src/index.ts"],
       "@nachos/types": ["../shared/types/src/index.ts"]
     }
   },
   "references": [
     { "path": "../core/bus" },
-    { "path": "../core/gateway" },
+    { "path": "../shared/state" },
     { "path": "../shared/types" },
     { "path": "../shared/config" }
   ],

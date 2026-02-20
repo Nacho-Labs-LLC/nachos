@@ -4,6 +4,7 @@
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { createValidationError, createPermissionDeniedError } from '@nachos/types';
 
 export interface SubagentWorkspaceEntry {
   name: string;
@@ -89,7 +90,7 @@ export async function readSubagentWorkspaceFile(params: {
   const targetPath = resolveWithinRoot(params.rootDir, params.relativePath);
   const stat = await fs.stat(targetPath);
   if (!stat.isFile()) {
-    throw new Error('Requested path is not a file');
+    throw createValidationError('Requested path is not a file', { component: 'gateway' });
   }
 
   const limit = Math.max(1, params.maxBytes ?? 65536);
@@ -112,7 +113,7 @@ function resolveWithinRoot(rootDir: string, relativePath: string): string {
   const target = path.resolve(root, relativePath);
   const rel = path.relative(root, target);
   if (rel.startsWith('..') || path.isAbsolute(rel)) {
-    throw new Error('Path escapes subagent workspace');
+    throw createPermissionDeniedError('Path escapes subagent workspace', { component: 'gateway' });
   }
   return target;
 }

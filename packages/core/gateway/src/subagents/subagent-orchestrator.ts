@@ -5,6 +5,7 @@
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import type { LLMRequestType } from '@nachos/types';
+import { createInvalidStateError, createValidationError } from '@nachos/types';
 import type { Router } from '../router.js';
 import type { SessionManager } from '../session.js';
 import type { SubagentManager } from './subagent-manager.js';
@@ -65,12 +66,12 @@ export class SubagentOrchestrator {
 
   async enqueue(request: SubagentRunRequest): Promise<SubagentRunRecord> {
     if (this.stopped) {
-      throw new Error('Subagent orchestrator is stopped');
+      throw createInvalidStateError('Subagent orchestrator is stopped', { component: 'gateway' });
     }
 
     const task = request.task.trim();
     if (!task) {
-      throw new Error('Subagent task is required');
+      throw createValidationError('Subagent task is required', { component: 'gateway' });
     }
 
     const runId = randomUUID();

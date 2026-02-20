@@ -50,9 +50,50 @@ describe('ShellTool', () => {
       expect(shellTool.isCommandAllowed('goplaces search "`rm -rf /`"')).toBe(false);
     });
 
+    it('should deny commands with additional substitution patterns', () => {
+      expect(shellTool.isCommandAllowed('goplaces search ${HOME}')).toBe(false);
+      expect(shellTool.isCommandAllowed('goplaces search <(cat /etc/passwd)')).toBe(false);
+      expect(shellTool.isCommandAllowed('goplaces search >(tee /tmp/out)')).toBe(false);
+      expect(shellTool.isCommandAllowed('goplaces search <<EOF')).toBe(false);
+    });
+
     it('should handle empty commands', () => {
       expect(shellTool.isCommandAllowed('')).toBe(false);
       expect(shellTool.isCommandAllowed('   ')).toBe(false);
+    });
+  });
+
+  describe('command segment parsing', () => {
+    it('should handle pipe operators between allowed commands', () => {
+      expect(shellTool.isCommandAllowed('goplaces search "test" | gifgrep cats')).toBe(true);
+    });
+
+    it('should handle && operators between allowed commands', () => {
+      expect(shellTool.isCommandAllowed('goplaces search "test" && gifgrep cats')).toBe(true);
+    });
+
+    it('should handle || operators between allowed commands', () => {
+      expect(shellTool.isCommandAllowed('goplaces search "test" || gifgrep cats')).toBe(true);
+    });
+
+    it('should handle ; operators between allowed commands', () => {
+      expect(shellTool.isCommandAllowed('goplaces search "test"; gifgrep cats')).toBe(true);
+    });
+
+    it('should return shell group for mixed tool groups in compound commands', () => {
+      expect(shellTool.getToolGroup('goplaces search "test" | gifgrep cats')).toBe('shell');
+    });
+
+    it('should return correct group for single-group compound commands', () => {
+      // Both gifgrep commands are in the media group
+      const mediaTool = new ShellTool({
+        logger: mockLogger,
+        allowedTools: [
+          { bin: 'gifgrep', group: 'media' },
+          { bin: 'gifutil', group: 'media' },
+        ],
+      });
+      expect(mediaTool.getToolGroup('gifgrep cats | gifutil resize')).toBe('media');
     });
   });
 
@@ -83,6 +124,70 @@ describe('ShellTool', () => {
       expect(binaries).toContain('summarize');
       expect(binaries).toContain('gog');
       expect(binaries).toHaveLength(4);
+    });
+  });
+
+  describe('shell:false execution', () => {
+    it('should execute a simple command with shell:false via echo', async () => {
+      // Use a custom tool that maps to a real binary (node)
+      const tool = new ShellTool({
+        logger: mockLogger,
+        allowedTools: [{ bin: 'node', group: 'test' }],
+      });
+
+      const result = await tool.execute({
+        command: 'node -e "process.stdout.write(\'hello\')"',
+        timeout: 5000,
+      });
+
+      expect(result.stdout).toBe('hello');
+      expect(result.exitCode).toBe(0);
+      expect(result.timedOut).toBe(false);
+    });
+
+    it('should handle pipe chains with shell:false', async () => {
+      const tool = new ShellTool({
+        logger: mockLogger,
+        allowedTools: [{ bin: 'node', group: 'test' }],
+      });
+
+      const result = await tool.execute({
+        command: 'node -e "process.stdout.write(\'hello world\')" | node -e "let d=\'\';process.stdin.on(\'data\',c=>d+=c);process.stdin.on(\'end\',()=>process.stdout.write(d.toUpperCase()))"',
+        timeout: 5000,
+      });
+
+      expect(result.stdout).toBe('HELLO WORLD');
+      expect(result.exitCode).toBe(0);
+    });
+
+    it('should handle && operator - stop on failure', async () => {
+      const tool = new ShellTool({
+        logger: mockLogger,
+        allowedTools: [{ bin: 'node', group: 'test' }],
+      });
+
+      const result = await tool.execute({
+        command: 'node -e "process.exit(1)" && node -e "process.stdout.write(\'should not run\')"',
+        timeout: 5000,
+      });
+
+      expect(result.stdout).not.toContain('should not run');
+      expect(result.exitCode).toBe(1);
+    });
+
+    it('should handle || operator - run second on failure', async () => {
+      const tool = new ShellTool({
+        logger: mockLogger,
+        allowedTools: [{ bin: 'node', group: 'test' }],
+      });
+
+      const result = await tool.execute({
+        command: 'node -e "process.exit(1)" || node -e "process.stdout.write(\'fallback\')"',
+        timeout: 5000,
+      });
+
+      expect(result.stdout).toContain('fallback');
+      expect(result.exitCode).toBe(0);
     });
   });
 

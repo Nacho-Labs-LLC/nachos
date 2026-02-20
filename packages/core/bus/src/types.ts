@@ -37,6 +37,8 @@ export interface NachosBusOptions {
   maxReconnectAttempts?: number;
   /** Reconnect time wait in milliseconds */
   reconnectTimeWait?: number;
+  /** Authentication token for NATS connection */
+  token?: string;
 }
 
 /**

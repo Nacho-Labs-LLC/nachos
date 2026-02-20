@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { loadAndValidateConfig } from '@nachos/config';
 import type { IdentitySource, UserProfile } from '@nachos/types';
-import type { StateOperationContext } from '@nachos/gateway';
+import type { StateOperationContext } from '@nachos/state';
 import { createStateLayerFromConfig } from '../core/state-layer.js';
 import { findConfigFileOrThrow } from '../core/config-discovery.js';
 import { CLIError } from '../core/errors.js';

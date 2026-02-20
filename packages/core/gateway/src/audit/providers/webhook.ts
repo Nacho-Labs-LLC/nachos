@@ -1,5 +1,8 @@
 import type { AuditEvent } from '../types.js';
 import type { AuditProvider } from '../provider.js';
+import { createLogger } from '@nachos/types';
+
+const logger = createLogger('audit-webhook');
 
 const DEFAULT_BATCH_SIZE = 50;
 
@@ -47,7 +50,7 @@ export class WebhookAuditProvider implements AuditProvider {
         body: JSON.stringify({ events }),
       });
     } catch (error) {
-      console.error('[Audit] Webhook provider failed', error);
+      logger.error({ err: error }, 'Webhook provider failed');
     }
   }
 

@@ -166,6 +166,13 @@ export const GATEWAY_TOPICS = {
     list: `${TOPIC_PREFIX}.gateway.sandbox.list`,
     recreate: `${TOPIC_PREFIX}.gateway.sandbox.recreate`,
   },
+
+  /**
+   * Channel presence announcements
+   * Publisher: Channel adapters
+   * Subscriber: Gateway
+   */
+  channelAnnounce: `${TOPIC_PREFIX}.gateway.channel.announce`,
 } as const;
 
 /**

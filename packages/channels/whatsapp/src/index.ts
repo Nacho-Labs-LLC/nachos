@@ -77,6 +77,7 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
   private webhookPath = '/whatsapp/webhook';
   private apiVersion = 'v20.0';
   private appSecret?: string;
+  private securityMode = process.env.SECURITY_MODE ?? 'standard';
   private pairingStore = createPairingStore('whatsapp', {
     stateDir: process.env.RUNTIME_STATE_DIR ?? process.env.NACHOS_STATE_DIR,
   });
@@ -100,6 +101,13 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
     }
     if (!this.token || !this.phoneNumberId || !this.verifyToken) {
       throw new Error('WhatsApp adapter requires token, phone_number_id, and verify_token');
+    }
+
+    if (!this.appSecret) {
+      console.warn(
+        '[WhatsApp] WARNING: appSecret is not configured. Webhook signature verification is disabled. ' +
+        'Set WHATSAPP_APP_SECRET to enable signature verification.'
+      );
     }
 
     const port = Number(process.env.WHATSAPP_HTTP_PORT ?? 3002);
@@ -251,6 +259,11 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
         res.end(JSON.stringify({ error: 'Invalid signature' }));
         return;
       }
+    } else if (this.securityMode === 'strict') {
+      console.error('[WhatsApp] Rejecting unsigned webhook — appSecret not configured in strict security mode');
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Webhook signature verification required in strict mode' }));
+      return;
     }
 
     let payload: WhatsAppWebhookPayload | null = null;

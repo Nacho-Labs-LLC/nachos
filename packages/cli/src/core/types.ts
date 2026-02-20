@@ -95,6 +95,7 @@ export interface StackStatus {
   urls: {
     gateway?: string;
     webchat?: string;
+    admin?: string;
     nats_monitoring?: string;
   };
 }

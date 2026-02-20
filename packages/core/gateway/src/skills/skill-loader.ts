@@ -8,6 +8,9 @@
 import { accessSync, constants, readFileSync, readdirSync, statSync } from 'fs';
 import { join, delimiter } from 'path';
 import type { NachosConfig, SkillEntryConfig } from '@nachos/config';
+import { createLogger } from '@nachos/types';
+
+const logger = createLogger('skill-loader');
 
 /**
  * Parsed skill metadata from frontmatter
@@ -182,7 +185,7 @@ export function loadSkills(config: SkillLoaderConfig): Skill[] {
         const { metadata, content: markdownContent } = parseFrontmatter(content);
 
         if (!metadata.name) {
-          console.warn(`[SkillLoader] Skill at ${skillFile} missing name in frontmatter`);
+          logger.warn({ skillFile }, 'Skill missing name in frontmatter');
           continue;
         }
 
@@ -214,7 +217,7 @@ export function loadSkills(config: SkillLoaderConfig): Skill[] {
 
     return skills;
   } catch (error) {
-    console.error('[SkillLoader] Failed to load skills:', error);
+    logger.error({ err: error }, 'Failed to load skills');
     return [];
   }
 }

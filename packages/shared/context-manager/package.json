@@ -1,6 +1,6 @@
 {
   "name": "@nachos/context-manager",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "Context management system for NACHOS - enables indefinite sessions through sliding windows, summarization, and proactive history saving",
   "type": "module",
   "main": "./dist/index.js",
@@ -26,9 +26,9 @@
     "@nacho-labs/nachos-dlp": "^1.1.1"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "typescript": "^5.6.0",
-    "vitest": "^2.0.0"
+    "@types/node": "^22.10.5",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
   },
   "keywords": [
     "nachos",
@@ -37,6 +37,6 @@
     "summarization",
     "session-management"
   ],
-  "author": "NACHOS Team",
+  "author": "Nachos Team",
   "license": "MIT"
 }

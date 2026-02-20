@@ -54,6 +54,7 @@ async function main(): Promise<void> {
   const busClient = createBusClient({
     servers: process.env.NATS_URL ?? 'nats://bus:4222',
     name: 'channel-whatsapp',
+    token: process.env.NATS_TOKEN,
   });
   await busClient.connect();
 

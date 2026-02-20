@@ -1,6 +1,9 @@
 import { createWriteStream, existsSync, mkdirSync, rename, stat, unlink } from 'node:fs';
 import { dirname } from 'node:path';
 import type { WriteStream } from 'node:fs';
+import { createValidationError, createLogger } from '@nachos/types';
+
+const auditLogger = createLogger('audit-file');
 import type { AuditEvent } from '../types.js';
 import type { AuditProvider } from '../provider.js';
 
@@ -37,19 +40,19 @@ export class FileAuditProvider implements AuditProvider {
       return;
     }
     if (flushIntervalMs <= 0) {
-      throw new Error('Audit file flushIntervalMs must be greater than 0');
+      throw createValidationError('Audit file flushIntervalMs must be greater than 0', { component: 'gateway' });
     }
     this.flushTimer = setInterval(() => {
       if (this.isClosing) {
         return;
       }
       void this.flush().catch((error) => {
-        console.error('[Audit] Failed to flush file audit buffer', {
+        auditLogger.error({
+          err: error,
           path: this.config.path,
           bufferSize: this.buffer.length,
           note: 'Audit events will retry on the next flush; persistent failures may drop events.',
-          error,
-        });
+        }, 'Failed to flush file audit buffer');
       });
     }, flushIntervalMs);
     this.flushTimer.unref();

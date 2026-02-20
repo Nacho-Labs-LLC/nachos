@@ -4,7 +4,7 @@
 
 import path from 'node:path';
 import type { NachosConfig, RuntimeConfig } from '@nachos/config';
-import { createStateLayer, type StateLayer, type StateLayerConfig } from '@nachos/gateway';
+import { createStateLayer, type StateLayer, type StateLayerConfig } from '@nachos/state';
 
 export function buildStateLayerConfig(runtime?: RuntimeConfig): StateLayerConfig {
   const stateDir = runtime?.state_dir ?? './state';

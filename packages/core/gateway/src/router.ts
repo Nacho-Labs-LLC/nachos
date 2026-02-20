@@ -2,13 +2,17 @@
  * Message Router - Routes messages between components
  */
 import {
+  createInvalidMessageError,
   createRateLimitedError,
+  createLogger,
   type MessageEnvelope,
   type ChannelInboundMessage,
   type ChannelOutboundMessage,
   type Message,
 } from '@nachos/types';
 import { validateMessageEnvelope } from '@nachos/types';
+
+const logger = createLogger('router');
 import {
   TOPICS,
   type NachosBusClient,
@@ -29,8 +33,7 @@ import type {
 } from '@nachos/context-manager';
 import { messageAdapter } from '@nachos/context-manager';
 import type { SessionManager } from './session.js';
-import type { MemoryPipeline } from './state-layer/memory-pipeline.js';
-import type { StateOperationContext } from './state-layer/state-layer.js';
+import type { MemoryPipeline, StateOperationContext } from '@nachos/state';
 
 /**
  * Route handler function type
@@ -111,7 +114,7 @@ export class NatsBusAdapter implements MessageBus {
     // NachosBusClient.publish wraps data in an envelope, but we already have an envelope
     // So we need to extract the payload if data is already an envelope
     if (!isMessageEnvelope(data)) {
-      throw new Error('Invalid message envelope: data must be a valid MessageEnvelope');
+      throw createInvalidMessageError('Invalid message envelope: data must be a valid MessageEnvelope', { component: 'gateway' });
     }
     this.client.publish(topic, data.payload, {
       type: data.type,
@@ -123,7 +126,7 @@ export class NatsBusAdapter implements MessageBus {
     const subscription = await this.client.subscribe(topic, async (msg: BusMessageEnvelope) => {
       const validation = validateMessageEnvelope(msg);
       if (!validation.success) {
-        console.warn('[Router] Dropping invalid bus envelope', validation.errors);
+        logger.warn({ errors: validation.errors }, 'Dropping invalid bus envelope');
         return;
       }
       // Convert the bus envelope to the gateway envelope format
@@ -142,7 +145,7 @@ export class NatsBusAdapter implements MessageBus {
 
   async request(topic: string, data: unknown, timeout?: number): Promise<unknown> {
     if (!isMessageEnvelope(data)) {
-      throw new Error('Invalid message envelope: data must be a valid MessageEnvelope');
+      throw createInvalidMessageError('Invalid message envelope: data must be a valid MessageEnvelope', { component: 'gateway' });
     }
     const response = await this.client.request(topic, data.payload, {
       type: data.type,
@@ -273,7 +276,7 @@ export class Router {
     if (handler) {
       await handler(envelope);
     } else {
-      console.warn(`No handler registered for message type: ${envelope.type}`);
+      logger.warn({ type: envelope.type }, 'No handler registered for message type');
     }
   }
 
@@ -351,7 +354,7 @@ export class Router {
     // Get session with messages
     const sessionWithMessages = this.sessionManager.getSessionWithMessages(sessionId);
     if (!sessionWithMessages) {
-      console.warn(`[Router] Cannot check context: session ${sessionId} not found`);
+      logger.warn({ sessionId }, 'Cannot check context: session not found');
       return;
     }
 
@@ -419,7 +422,7 @@ export class Router {
             })
           );
         } catch (error) {
-          console.warn('[Router] Memory flush extraction failed:', error);
+          logger.warn({ err: error }, 'Memory flush extraction failed');
         }
       }
 
@@ -454,7 +457,7 @@ export class Router {
             })
           );
         } catch (error) {
-          console.warn('[Router] Threshold extraction failed:', error);
+          logger.warn({ err: error }, 'Threshold extraction failed');
         }
       }
     }
@@ -497,9 +500,7 @@ export class Router {
       return;
     }
 
-    console.log(
-      `[Router] Context compaction needed for session ${sessionId}: ${check.action.reason}`
-    );
+    logger.info({ sessionId, reason: check.action.reason }, 'Context compaction needed');
 
     // Execute compaction
     const compactionResult: EnhancedCompactionResult = await this.contextManager.compact({
@@ -510,9 +511,7 @@ export class Router {
 
     // Convert compacted messages back to NACHOS format
     if (!compactionResult.messagesKept) {
-      console.warn(
-        '[Router] Compaction completed without messagesKept. Skipping message replacement.'
-      );
+      logger.warn('Compaction completed without messagesKept. Skipping message replacement.');
       return;
     }
 
@@ -521,7 +520,7 @@ export class Router {
       !compactionResult.messagesDropped ||
       !compactionResult.slidingResult
     ) {
-      console.warn('[Router] Compaction result missing details. Skipping metadata update.');
+      logger.warn('Compaction result missing details. Skipping metadata update.');
       return;
     }
 
@@ -531,9 +530,7 @@ export class Router {
 
     // Replace messages in StateStorage (atomic operation)
     const messageCount = this.sessionManager.getMessageCount(sessionId);
-    console.log(
-      `[Router] Replacing ${messageCount} messages with ${compactedNachosMessages.length} compacted messages`
-    );
+    logger.info({ before: messageCount, after: compactedNachosMessages.length }, 'Replacing messages with compacted messages');
 
     // Atomically replace messages in storage
     this.sessionManager.replaceMessages(sessionId, compactedNachosMessages);
@@ -588,7 +585,7 @@ export class Router {
             trigger: 'compaction',
           });
         } catch (error) {
-          console.warn('[Router] Failed to store compaction extraction:', error);
+          logger.warn({ err: error }, 'Failed to store compaction extraction');
         }
       }
 
@@ -610,8 +607,9 @@ export class Router {
       );
     }
 
-    console.log(
-      `[Router] Context compaction completed: ${check.budget.currentUsage} → ${compactionResult.budget.currentUsage} tokens`
+    logger.info(
+      { tokensBefore: check.budget.currentUsage, tokensAfter: compactionResult.budget.currentUsage },
+      'Context compaction completed'
     );
   }
 
@@ -672,7 +670,7 @@ export class Router {
     }
     const userId = getRateLimitUserId(payload);
     if (!userId) {
-      console.warn('[Router] Missing user identifier in payload; using anonymous bucket');
+      logger.warn('Missing user identifier in payload; using anonymous bucket');
     }
     const resolvedUserId = userId ?? 'anonymous';
     const result = await this.rateLimiter.check(resolvedUserId, action);

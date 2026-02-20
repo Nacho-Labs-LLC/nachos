@@ -61,6 +61,7 @@ export async function statusCommand(options: StatusOptions): Promise<void> {
       urls: {
         gateway: 'http://localhost:3000',
         webchat: 'http://localhost:8080',
+        admin: 'http://localhost:8082',
         nats_monitoring: 'http://localhost:8222',
       },
     };
@@ -95,6 +96,7 @@ export async function statusCommand(options: StatusOptions): Promise<void> {
       prettyOutput.header('Service URLs:');
       prettyOutput.keyValue('Gateway', status.urls.gateway || 'N/A');
       prettyOutput.keyValue('Webchat', status.urls.webchat || 'N/A');
+      prettyOutput.keyValue('Admin UI', status.urls.admin || 'N/A');
       prettyOutput.keyValue('NATS Monitoring', status.urls.nats_monitoring || 'N/A');
       prettyOutput.blank();
     }

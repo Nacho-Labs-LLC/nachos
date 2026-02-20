@@ -4,11 +4,15 @@ import { createBusClient, TOPICS } from '@nachos/bus';
 import { loadAndValidateConfig } from '@nachos/config';
 import {
   validateLLMRequest,
+  createLogger,
   type LLMRequestType,
   type LLMResponseType,
   type LLMStreamChunkType,
   type AuditLogEntryType,
 } from '@nachos/types';
+
+const logger = createLogger('llm-proxy');
+import { createServer, type Server } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { createAdapterRegistry } from './adapters/registry.js';
 import { ProviderError, type LLMProviderAdapter } from './adapters/types.js';
@@ -42,7 +46,11 @@ const adapterRegistry = createAdapterRegistry(llmConfig);
 const bus = createBusClient({
   servers: NATS_URL,
   name: 'llm-proxy',
+  token: process.env.NATS_TOKEN,
 });
+
+const startTime = Date.now();
+let healthServer: Server | null = null;
 
 function parseFallbackOrder(order?: string[]): Array<{ provider: string; model: string }> {
   if (!order || order.length === 0) return [];
@@ -450,11 +458,44 @@ async function start(): Promise<void> {
     });
   });
 
-  console.log('✅ LLM Proxy service ready');
-  console.log(`   NATS: ${NATS_URL}`);
+  healthServer = createServer((req, res) => {
+    if (req.url === '/health' && req.method === 'GET') {
+      const status = bus.isConnected() ? 'healthy' : 'unhealthy';
+      const health = {
+        status,
+        component: 'llm-proxy',
+        uptime: Math.floor((Date.now() - startTime) / 1000),
+        checks: { bus: bus.isConnected() ? 'ok' : 'error' },
+      };
+      res.writeHead(status === 'healthy' ? 200 : 503, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(health));
+    } else {
+      res.writeHead(404);
+      res.end();
+    }
+  });
+  healthServer.listen(3001);
+
+  logger.info({ natsUrl: NATS_URL }, 'LLM Proxy service ready');
 }
 
 start().catch((error) => {
-  console.error('Failed to start LLM Proxy:', error);
+  logger.fatal({ err: error }, 'Failed to start LLM Proxy');
   process.exit(1);
 });
+
+const shutdown = async (signal: string): Promise<void> => {
+  logger.info({ signal }, 'Received signal, shutting down...');
+  if (healthServer) {
+    healthServer.close();
+  }
+  try {
+    await bus.disconnect();
+  } catch (error) {
+    logger.error({ err: error }, 'Error during bus disconnect');
+  }
+  process.exit(0);
+};
+
+process.on('SIGINT', () => void shutdown('SIGINT'));
+process.on('SIGTERM', () => void shutdown('SIGTERM'));

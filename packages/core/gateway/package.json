@@ -25,6 +25,7 @@
     "@nachos/bus": "workspace:*",
     "@nachos/config": "workspace:*",
     "@nachos/context-manager": "workspace:*",
+    "@nachos/state": "workspace:*",
     "@nachos/types": "workspace:*",
     "better-sqlite3": "^12.6.2",
     "dockerode": "^4.0.2",

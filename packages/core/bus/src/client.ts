@@ -8,6 +8,9 @@
 import { connect, StringCodec, NatsError, ErrorCode } from 'nats';
 import type { NatsConnection, Subscription } from 'nats';
 import { randomUUID } from 'node:crypto';
+import { createLogger } from '@nachos/types';
+
+const logger = createLogger('bus');
 import type {
   NachosBusOptions,
   PublishOptions,
@@ -44,7 +47,7 @@ const sc = StringCodec();
  */
 export class NachosBusClient implements INachosBusClient {
   private connection: NatsConnection | null = null;
-  private readonly options: Required<NachosBusOptions>;
+  private readonly options: Required<Omit<NachosBusOptions, 'token'>> & Pick<NachosBusOptions, 'token'>;
   private readonly eventHandlers: Map<BusEvent, Set<BusEventHandler>> = new Map();
   private startTime: number = 0;
 
@@ -55,6 +58,7 @@ export class NachosBusClient implements INachosBusClient {
       timeout: options.timeout ?? DEFAULT_TIMEOUT,
       maxReconnectAttempts: options.maxReconnectAttempts ?? DEFAULT_MAX_RECONNECT_ATTEMPTS,
       reconnectTimeWait: options.reconnectTimeWait ?? DEFAULT_RECONNECT_TIME_WAIT,
+      token: options.token,
     };
   }
 
@@ -76,6 +80,7 @@ export class NachosBusClient implements INachosBusClient {
       timeout: this.options.timeout,
       maxReconnectAttempts: this.options.maxReconnectAttempts,
       reconnectTimeWait: this.options.reconnectTimeWait,
+      token: this.options.token || undefined,
     });
 
     this.startTime = Date.now();
@@ -220,9 +225,7 @@ export class NachosBusClient implements INachosBusClient {
           },
         });
       } catch (error) {
-        // Log parsing errors but continue processing
-        // NOTE: In production, consider using a structured logger for better aggregation
-        console.error(`Error processing message on topic ${msg.subject}:`, error);
+        logger.error({ err: error, topic: msg.subject }, 'Error processing message');
       }
     }
   }
@@ -332,8 +335,7 @@ export class NachosBusClient implements INachosBusClient {
       try {
         handler(event, data);
       } catch (error) {
-        // NOTE: In production, consider using a structured logger for better aggregation
-        console.error(`Error in event handler for ${event}:`, error);
+        logger.error({ err: error, event }, 'Error in event handler');
       }
     });
   }

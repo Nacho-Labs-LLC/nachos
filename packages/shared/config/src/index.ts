@@ -54,6 +54,7 @@ export type {
   AssistantConfig,
   SkillsConfig,
   SkillEntryConfig,
+  AdminConfig,
   MemoryFlushConfig,
   ContextManagementCommandsConfig,
 } from './schema.js';

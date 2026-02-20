@@ -14,6 +14,9 @@ import type {
   SecurityResult,
   PolicyEffect,
 } from '../types/index.js';
+import { createLogger } from '@nachos/types';
+
+const logger = createLogger('policy-evaluator');
 
 /**
  * Policy Evaluator
@@ -47,7 +50,7 @@ export class PolicyEvaluator {
     allRules.sort((a, b) => b.priority - a.priority);
 
     this.rules = allRules;
-    console.log(`[PolicyEvaluator] Loaded ${allRules.length} rule(s)`);
+    logger.info({ count: allRules.length }, 'Loaded rule(s)');
   }
 
   /**

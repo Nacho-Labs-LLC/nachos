@@ -106,6 +106,9 @@ export async function upCommand(options: UpOptions): Promise<void> {
       if (urls.webchat) {
         prettyOutput.keyValue('Webchat', urls.webchat);
       }
+      if (urls.admin) {
+        prettyOutput.keyValue('Admin UI', urls.admin);
+      }
       if (urls.nats_monitoring) {
         prettyOutput.keyValue('NATS Monitoring', urls.nats_monitoring);
       }
@@ -164,19 +167,29 @@ interface ChannelsConfig {
   webchat?: WebchatConfig;
 }
 
+interface AdminConfig {
+  enabled?: boolean;
+  port?: number;
+}
+
 interface ServiceConfig {
   channels?: ChannelsConfig;
+  admin?: AdminConfig;
 }
 
 function buildServiceUrls(config: ServiceConfig): {
   gateway?: string;
   webchat?: string;
+  admin?: string;
   nats_monitoring?: string;
 } {
   return {
     gateway: 'http://localhost:3000',
     webchat: config.channels?.webchat?.enabled
       ? `http://localhost:${config.channels.webchat.port || 8080}`
+      : undefined,
+    admin: config.admin?.enabled
+      ? `http://localhost:${config.admin.port ?? 8082}`
       : undefined,
     nats_monitoring: 'http://localhost:8222',
   };

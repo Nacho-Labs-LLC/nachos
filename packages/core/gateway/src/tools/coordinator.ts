@@ -8,6 +8,7 @@
  * - NATS communication
  */
 
+import { randomUUID } from 'node:crypto';
 import {
   SecurityTier,
   type ToolCall,
@@ -451,7 +452,7 @@ export class ToolCoordinator {
    * Generate a unique ID
    */
   private generateId(): string {
-    return `coord-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+    return randomUUID();
   }
 
   private resolveSecurityTier(call: ToolCall): SecurityTier | undefined {

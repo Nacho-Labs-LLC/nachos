@@ -44,22 +44,21 @@ export {
   type CreateMessageData,
 } from './state.js';
 
-// State layer
+// State layer (re-exported from @nachos/state)
 export {
   StateLayer,
   createStateLayer,
+  MemoryPipeline,
+  createDefaultBootstrapBlocks,
   type StateOperationContext,
-} from './state-layer/state-layer.js';
-export type {
-  StateLayerConfig,
-  StateLayerDependencies,
-  StatePolicyRequest,
-  StatePolicyDecision,
-  StatePolicyCheck,
-  StateAuditLogger,
-  PromptAssemblyConfig,
-} from './state-layer/types.js';
-export { MemoryPipeline } from './state-layer/memory-pipeline.js';
+  type StateLayerConfig,
+  type StateLayerDependencies,
+  type StatePolicyRequest,
+  type StatePolicyDecision,
+  type StatePolicyCheck,
+  type StateAuditLogger,
+  type PromptAssemblyConfig,
+} from '@nachos/state';
 export { SubagentManager } from './subagents/subagent-manager.js';
 export { SubagentOrchestrator } from './subagents/subagent-orchestrator.js';
 export type {

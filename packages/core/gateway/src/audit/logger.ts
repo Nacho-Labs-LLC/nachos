@@ -1,5 +1,8 @@
 import type { AuditEvent } from './types.js';
 import type { AuditProvider } from './provider.js';
+import { createLogger } from '@nachos/types';
+
+const logger = createLogger('audit');
 
 export class AuditLogger {
   constructor(private readonly provider: AuditProvider) {}
@@ -12,7 +15,7 @@ export class AuditLogger {
     try {
       await this.provider.log(event);
     } catch (error) {
-      console.error('[Audit] Failed to log event', error);
+      logger.error({ err: error }, 'Failed to log event');
     }
   }
 
@@ -20,7 +23,7 @@ export class AuditLogger {
     try {
       await this.provider.flush();
     } catch (error) {
-      console.error('[Audit] Failed to flush audit events', error);
+      logger.error({ err: error }, 'Failed to flush audit events');
     }
   }
 
@@ -28,7 +31,7 @@ export class AuditLogger {
     try {
       await this.provider.close();
     } catch (error) {
-      console.error('[Audit] Failed to close audit provider', error);
+      logger.error({ err: error }, 'Failed to close audit provider');
     }
   }
 }

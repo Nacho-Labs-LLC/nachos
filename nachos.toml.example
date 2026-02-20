@@ -55,6 +55,18 @@ temperature = 0.7                         # 0.0 = deterministic, 1.0 = creative
 # base_url = "http://host.docker.internal:11434"
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# 🖥️  ADMIN UI - Web Interface
+# ═══════════════════════════════════════════════════════════════════════════════
+# Local web UI for managing the bot and its settings.
+# Access at http://localhost:8082 after `nachos up`.
+# Run `nachos ui` to open in browser.
+
+[admin]
+enabled = true
+port = 8082                               # Local port for admin web UI
+# Set NACHOS_ADMIN_TOKEN env var to require token auth (recommended for non-local use)
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # 🫑 TOPPINGS - Channels
 # ═══════════════════════════════════════════════════════════════════════════════
 # Enable the messaging platforms you want to connect.

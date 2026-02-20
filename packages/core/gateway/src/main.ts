@@ -3,6 +3,9 @@
  */
 import { createBusClient } from '@nachos/bus';
 import { loadAndValidateConfig } from '@nachos/config';
+import { createLogger } from '@nachos/types';
+
+const logger = createLogger('gateway');
 import { createContextManager } from '@nachos/context-manager';
 import { createDefaultDLPConfig, type DLPConfig } from './security/dlp.js';
 import {
@@ -11,7 +14,7 @@ import {
   validateConfig as validateGatewayConfig,
 } from './index.js';
 import { NatsBusAdapter } from './router.js';
-import type { StateLayerConfig } from './state-layer/types.js';
+import type { StateLayerConfig } from '@nachos/state';
 import type { ContextManagementCommandsConfig, RuntimeConfig } from '@nachos/config';
 import path from 'node:path';
 
@@ -97,6 +100,7 @@ async function start(): Promise<void> {
   const busClient = createBusClient({
     servers: gatewayConfig.natsServers,
     name: 'gateway',
+    token: process.env.NATS_TOKEN,
   });
 
   await busClient.connect();
@@ -138,7 +142,7 @@ async function start(): Promise<void> {
   });
 
   const shutdown = async (signal: string) => {
-    console.log(`[Gateway] ${signal} received, shutting down...`);
+    logger.info({ signal }, 'Received signal, shutting down...');
     try {
       await gateway.stop();
     } finally {
@@ -345,6 +349,6 @@ function buildStateLayerConfig(runtime?: RuntimeConfig): StateLayerConfig {
 }
 
 start().catch((error) => {
-  console.error('[Gateway] Fatal error', error);
+  logger.fatal({ err: error }, 'Fatal error');
   process.exit(1);
 });

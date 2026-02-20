@@ -47,6 +47,7 @@ async function main(): Promise<void> {
   const busClient = createBusClient({
     servers: process.env.NATS_URL ?? 'nats://bus:4222',
     name: 'channel-slack',
+    token: process.env.NATS_TOKEN,
   });
   await busClient.connect();
 

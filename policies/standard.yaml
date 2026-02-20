@@ -83,7 +83,6 @@ rules:
           - "developer.apple.com"
           - "stackoverflow.com"
     effect: "allow"
-    audit: true
 
   - id: "standard-tool-web-fetch-deny"
     description: "Deny web_fetch outside allowlisted domains"
@@ -107,7 +106,6 @@ rules:
         operator: "equals"
         value: "lookup"
     effect: "allow"
-    audit: true
 
   - id: "standard-tool-group-media"
     description: "Allow media tools (gifgrep)"
@@ -120,7 +118,6 @@ rules:
         operator: "equals"
         value: "media"
     effect: "allow"
-    audit: true
 
   - id: "standard-tool-group-summarize"
     description: "Allow summarize tools (summarize)"
@@ -133,7 +130,6 @@ rules:
         operator: "equals"
         value: "summarize"
     effect: "allow"
-    audit: true
 
   - id: "standard-tool-group-workspace"
     description: "Allow workspace tools (gog)"
@@ -146,7 +142,6 @@ rules:
         operator: "equals"
         value: "workspace"
     effect: "allow"
-    audit: true
 
   - id: "standard-tool-state-allow"
     description: "Allow state layer reads/writes for prompt assembly and memory"
@@ -159,7 +154,6 @@ rules:
         operator: "starts_with"
         value: "state."
     effect: "allow"
-    audit: true
 
   # Browser tool - Standard tier, allowed with SSRF protection
   - id: "standard-tool-browser"
@@ -169,7 +163,6 @@ rules:
       resource: "tool"
       resourceId: "browser"
     effect: "allow"
-    audit: true
 
   # Filesystem Read - Safe tier, workspace only
   - id: "standard-tool-filesystem-read"
@@ -179,7 +172,7 @@ rules:
       resource: "tool"
       resourceId: "filesystem_read"
     conditions:
-      - field: "parameters.path"
+      - field: "metadata.path"
         operator: "starts_with"
         value: "./workspace"
     effect: "allow"
@@ -193,7 +186,7 @@ rules:
     effect: "deny"
     reason: "Filesystem read is restricted to ./workspace directory"
 
-  # Filesystem Write - Elevated tier, workspace only with file size limit
+  # Filesystem Write - Elevated tier, workspace only
   - id: "standard-tool-filesystem-write"
     description: "Allow filesystem write tool (SecurityTier: ELEVATED) in workspace"
     priority: 740
@@ -201,15 +194,10 @@ rules:
       resource: "tool"
       resourceId: "filesystem_write"
     conditions:
-      - field: "parameters.path"
+      - field: "metadata.path"
         operator: "starts_with"
         value: "./workspace"
-      - field: "parameters.size"
-        operator: "less_than"
-        value: 10485760  # 10MB
     effect: "allow"
-    audit: true
-    dlp_scan: true  # Scan content before write
 
   - id: "standard-tool-filesystem-write-deny-outside"
     description: "Deny filesystem write outside workspace"
@@ -228,11 +216,10 @@ rules:
       resource: "tool"
       resourceId: "filesystem_edit"
     conditions:
-      - field: "parameters.path"
+      - field: "metadata.path"
         operator: "starts_with"
         value: "./workspace"
     effect: "allow"
-    audit: true
 
   - id: "standard-tool-filesystem-edit-deny-outside"
     description: "Deny filesystem edit outside workspace"
@@ -251,11 +238,10 @@ rules:
       resource: "tool"
       resourceId: "filesystem_patch"
     conditions:
-      - field: "parameters.path"
+      - field: "metadata.path"
         operator: "starts_with"
         value: "./workspace"
     effect: "allow"
-    audit: true
 
   - id: "standard-tool-filesystem-patch-deny-outside"
     description: "Deny filesystem patch outside workspace"
@@ -266,38 +252,34 @@ rules:
     effect: "deny"
     reason: "Filesystem patch is restricted to ./workspace directory"
 
-  # Code Runner Python - Restricted tier, requires user approval
+  # Code Runner Python - Restricted tier
+  # NOTE: require_approval is enforced at the gateway layer via SecurityTier,
+  # not by the policy engine. This rule only controls the allow/deny decision.
   - id: "standard-tool-code-runner-python"
-    description: "Allow Python code runner (SecurityTier: RESTRICTED, requires approval)"
+    description: "Allow Python code runner (SecurityTier: RESTRICTED)"
     priority: 700
     match:
       resource: "tool"
       resourceId: "code_runner_python"
     effect: "allow"
-    audit: true
-    require_approval: true
 
-  # Code Runner JavaScript - Restricted tier, requires user approval
+  # Code Runner JavaScript - Restricted tier
   - id: "standard-tool-code-runner-javascript"
-    description: "Allow JavaScript code runner (SecurityTier: RESTRICTED, requires approval)"
+    description: "Allow JavaScript code runner (SecurityTier: RESTRICTED)"
     priority: 690
     match:
       resource: "tool"
       resourceId: "code_runner_javascript"
     effect: "allow"
-    audit: true
-    require_approval: true
 
-  # GitHub Copilot CLI - Restricted tier, requires user approval
+  # GitHub Copilot CLI - Restricted tier
   - id: "standard-tool-copilot"
-    description: "Allow GitHub Copilot CLI (SecurityTier: RESTRICTED, requires approval)"
+    description: "Allow GitHub Copilot CLI (SecurityTier: RESTRICTED)"
     priority: 680
     match:
       resource: "tool"
       resourceId: "copilot"
     effect: "allow"
-    audit: true
-    require_approval: true
 
   # ============================================================================
   # Network Access - Limited egress

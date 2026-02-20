@@ -7,7 +7,7 @@
 # - Broader filesystem access
 # - Broader network access
 #
-# ⚠️  WARNING: Use with caution - requires explicit opt-in
+# WARNING: Use with caution - requires explicit opt-in
 
 version: "1.0"
 
@@ -72,7 +72,6 @@ rules:
           - "developer.apple.com"
           - "stackoverflow.com"
     effect: "allow"
-    audit: true
 
   - id: "permissive-tool-web-fetch-deny"
     description: "Deny web_fetch outside allowlisted domains"
@@ -96,7 +95,6 @@ rules:
         operator: "equals"
         value: "lookup"
     effect: "allow"
-    audit: true
 
   - id: "permissive-tool-group-media"
     description: "Allow media tools (gifgrep)"
@@ -109,7 +107,6 @@ rules:
         operator: "equals"
         value: "media"
     effect: "allow"
-    audit: true
 
   - id: "permissive-tool-group-summarize"
     description: "Allow summarize tools (summarize)"
@@ -122,7 +119,6 @@ rules:
         operator: "equals"
         value: "summarize"
     effect: "allow"
-    audit: true
 
   - id: "permissive-tool-group-workspace"
     description: "Allow workspace tools (gog)"
@@ -135,7 +131,6 @@ rules:
         operator: "equals"
         value: "workspace"
     effect: "allow"
-    audit: true
 
   - id: "permissive-tool-state-allow"
     description: "Allow state layer reads/writes for prompt assembly and memory"
@@ -148,7 +143,6 @@ rules:
         operator: "starts_with"
         value: "state."
     effect: "allow"
-    audit: true
 
   # Browser tool - Full access (SecurityTier: STANDARD)
   - id: "permissive-tool-browser"
@@ -158,122 +152,308 @@ rules:
       resource: "tool"
       resourceId: "browser"
     effect: "allow"
-    audit: true
 
-  # Filesystem Read - Broader access (still deny system paths)
+  # Filesystem Read - Broader access, deny only sensitive system paths
+  # Each system path gets its own deny rule since the evaluator does not
+  # support a "not_starts_with_any" operator.
+  - id: "permissive-tool-filesystem-read-deny-etc"
+    description: "Deny filesystem read in /etc"
+    priority: 760
+    match:
+      resource: "tool"
+      resourceId: "filesystem_read"
+    conditions:
+      - field: "metadata.path"
+        operator: "starts_with"
+        value: "/etc"
+    effect: "deny"
+    reason: "System directories are not accessible even in permissive mode"
+
+  - id: "permissive-tool-filesystem-read-deny-sys"
+    description: "Deny filesystem read in /sys"
+    priority: 759
+    match:
+      resource: "tool"
+      resourceId: "filesystem_read"
+    conditions:
+      - field: "metadata.path"
+        operator: "starts_with"
+        value: "/sys"
+    effect: "deny"
+    reason: "System directories are not accessible even in permissive mode"
+
+  - id: "permissive-tool-filesystem-read-deny-proc"
+    description: "Deny filesystem read in /proc"
+    priority: 758
+    match:
+      resource: "tool"
+      resourceId: "filesystem_read"
+    conditions:
+      - field: "metadata.path"
+        operator: "starts_with"
+        value: "/proc"
+    effect: "deny"
+    reason: "System directories are not accessible even in permissive mode"
+
+  - id: "permissive-tool-filesystem-read-deny-dev"
+    description: "Deny filesystem read in /dev"
+    priority: 757
+    match:
+      resource: "tool"
+      resourceId: "filesystem_read"
+    conditions:
+      - field: "metadata.path"
+        operator: "starts_with"
+        value: "/dev"
+    effect: "deny"
+    reason: "System directories are not accessible even in permissive mode"
+
+  - id: "permissive-tool-filesystem-read-deny-root"
+    description: "Deny filesystem read in /root"
+    priority: 756
+    match:
+      resource: "tool"
+      resourceId: "filesystem_read"
+    conditions:
+      - field: "metadata.path"
+        operator: "starts_with"
+        value: "/root"
+    effect: "deny"
+    reason: "System directories are not accessible even in permissive mode"
+
   - id: "permissive-tool-filesystem-read"
     description: "Allow filesystem read with broader access"
     priority: 750
     match:
       resource: "tool"
       resourceId: "filesystem_read"
-    conditions:
-      # Deny system directories
-      - field: "parameters.path"
-        operator: "not_starts_with_any"
-        value:
-          - "/etc"
-          - "/sys"
-          - "/proc"
-          - "/dev"
-          - "/root"
     effect: "allow"
 
-  - id: "permissive-tool-filesystem-read-deny-system"
-    description: "Deny filesystem read in system directories"
-    priority: 749
+  # Filesystem Write - Broader access, deny sensitive system paths
+  - id: "permissive-tool-filesystem-write-deny-etc"
+    description: "Deny filesystem write in /etc"
+    priority: 746
     match:
       resource: "tool"
-      resourceId: "filesystem_read"
+      resourceId: "filesystem_write"
+    conditions:
+      - field: "metadata.path"
+        operator: "starts_with"
+        value: "/etc"
     effect: "deny"
     reason: "System directories are not accessible even in permissive mode"
 
-  # Filesystem Write - Broader access (still deny system paths)
+  - id: "permissive-tool-filesystem-write-deny-sys"
+    description: "Deny filesystem write in /sys"
+    priority: 745
+    match:
+      resource: "tool"
+      resourceId: "filesystem_write"
+    conditions:
+      - field: "metadata.path"
+        operator: "starts_with"
+        value: "/sys"
+    effect: "deny"
+    reason: "System directories are not accessible even in permissive mode"
+
+  - id: "permissive-tool-filesystem-write-deny-proc"
+    description: "Deny filesystem write in /proc"
+    priority: 744
+    match:
+      resource: "tool"
+      resourceId: "filesystem_write"
+    conditions:
+      - field: "metadata.path"
+        operator: "starts_with"
+        value: "/proc"
+    effect: "deny"
+    reason: "System directories are not accessible even in permissive mode"
+
+  - id: "permissive-tool-filesystem-write-deny-dev"
+    description: "Deny filesystem write in /dev"
+    priority: 743
+    match:
+      resource: "tool"
+      resourceId: "filesystem_write"
+    conditions:
+      - field: "metadata.path"
+        operator: "starts_with"
+        value: "/dev"
+    effect: "deny"
+    reason: "System directories are not accessible even in permissive mode"
+
+  - id: "permissive-tool-filesystem-write-deny-root"
+    description: "Deny filesystem write in /root"
+    priority: 742
+    match:
+      resource: "tool"
+      resourceId: "filesystem_write"
+    conditions:
+      - field: "metadata.path"
+        operator: "starts_with"
+        value: "/root"
+    effect: "deny"
+    reason: "System directories are not accessible even in permissive mode"
+
   - id: "permissive-tool-filesystem-write"
     description: "Allow filesystem write with broader access"
     priority: 740
     match:
       resource: "tool"
       resourceId: "filesystem_write"
-    conditions:
-      # Deny system directories
-      - field: "parameters.path"
-        operator: "not_starts_with_any"
-        value:
-          - "/etc"
-          - "/sys"
-          - "/proc"
-          - "/dev"
-          - "/root"
     effect: "allow"
-    audit: true
 
-  - id: "permissive-tool-filesystem-write-deny-system"
-    description: "Deny filesystem write in system directories"
-    priority: 739
+  # Filesystem Edit - Broader access, deny sensitive system paths
+  - id: "permissive-tool-filesystem-edit-deny-etc"
+    description: "Deny filesystem edit in /etc"
+    priority: 736
     match:
       resource: "tool"
-      resourceId: "filesystem_write"
+      resourceId: "filesystem_edit"
+    conditions:
+      - field: "metadata.path"
+        operator: "starts_with"
+        value: "/etc"
     effect: "deny"
     reason: "System directories are not accessible even in permissive mode"
 
-  # Filesystem Edit - Broader access
+  - id: "permissive-tool-filesystem-edit-deny-sys"
+    description: "Deny filesystem edit in /sys"
+    priority: 735
+    match:
+      resource: "tool"
+      resourceId: "filesystem_edit"
+    conditions:
+      - field: "metadata.path"
+        operator: "starts_with"
+        value: "/sys"
+    effect: "deny"
+    reason: "System directories are not accessible even in permissive mode"
+
+  - id: "permissive-tool-filesystem-edit-deny-proc"
+    description: "Deny filesystem edit in /proc"
+    priority: 734
+    match:
+      resource: "tool"
+      resourceId: "filesystem_edit"
+    conditions:
+      - field: "metadata.path"
+        operator: "starts_with"
+        value: "/proc"
+    effect: "deny"
+    reason: "System directories are not accessible even in permissive mode"
+
+  - id: "permissive-tool-filesystem-edit-deny-dev"
+    description: "Deny filesystem edit in /dev"
+    priority: 733
+    match:
+      resource: "tool"
+      resourceId: "filesystem_edit"
+    conditions:
+      - field: "metadata.path"
+        operator: "starts_with"
+        value: "/dev"
+    effect: "deny"
+    reason: "System directories are not accessible even in permissive mode"
+
+  - id: "permissive-tool-filesystem-edit-deny-root"
+    description: "Deny filesystem edit in /root"
+    priority: 732
+    match:
+      resource: "tool"
+      resourceId: "filesystem_edit"
+    conditions:
+      - field: "metadata.path"
+        operator: "starts_with"
+        value: "/root"
+    effect: "deny"
+    reason: "System directories are not accessible even in permissive mode"
+
   - id: "permissive-tool-filesystem-edit"
     description: "Allow filesystem edit with broader access"
     priority: 730
     match:
       resource: "tool"
       resourceId: "filesystem_edit"
-    conditions:
-      - field: "parameters.path"
-        operator: "not_starts_with_any"
-        value:
-          - "/etc"
-          - "/sys"
-          - "/proc"
-          - "/dev"
-          - "/root"
     effect: "allow"
-    audit: true
 
-  - id: "permissive-tool-filesystem-edit-deny-system"
-    description: "Deny filesystem edit in system directories"
-    priority: 729
+  # Filesystem Patch - Broader access, deny sensitive system paths
+  - id: "permissive-tool-filesystem-patch-deny-etc"
+    description: "Deny filesystem patch in /etc"
+    priority: 726
     match:
       resource: "tool"
-      resourceId: "filesystem_edit"
+      resourceId: "filesystem_patch"
+    conditions:
+      - field: "metadata.path"
+        operator: "starts_with"
+        value: "/etc"
     effect: "deny"
     reason: "System directories are not accessible even in permissive mode"
 
-  # Filesystem Patch - Broader access
+  - id: "permissive-tool-filesystem-patch-deny-sys"
+    description: "Deny filesystem patch in /sys"
+    priority: 725
+    match:
+      resource: "tool"
+      resourceId: "filesystem_patch"
+    conditions:
+      - field: "metadata.path"
+        operator: "starts_with"
+        value: "/sys"
+    effect: "deny"
+    reason: "System directories are not accessible even in permissive mode"
+
+  - id: "permissive-tool-filesystem-patch-deny-proc"
+    description: "Deny filesystem patch in /proc"
+    priority: 724
+    match:
+      resource: "tool"
+      resourceId: "filesystem_patch"
+    conditions:
+      - field: "metadata.path"
+        operator: "starts_with"
+        value: "/proc"
+    effect: "deny"
+    reason: "System directories are not accessible even in permissive mode"
+
+  - id: "permissive-tool-filesystem-patch-deny-dev"
+    description: "Deny filesystem patch in /dev"
+    priority: 723
+    match:
+      resource: "tool"
+      resourceId: "filesystem_patch"
+    conditions:
+      - field: "metadata.path"
+        operator: "starts_with"
+        value: "/dev"
+    effect: "deny"
+    reason: "System directories are not accessible even in permissive mode"
+
+  - id: "permissive-tool-filesystem-patch-deny-root"
+    description: "Deny filesystem patch in /root"
+    priority: 722
+    match:
+      resource: "tool"
+      resourceId: "filesystem_patch"
+    conditions:
+      - field: "metadata.path"
+        operator: "starts_with"
+        value: "/root"
+    effect: "deny"
+    reason: "System directories are not accessible even in permissive mode"
+
   - id: "permissive-tool-filesystem-patch"
     description: "Allow filesystem patch with broader access"
     priority: 720
     match:
       resource: "tool"
       resourceId: "filesystem_patch"
-    conditions:
-      - field: "parameters.path"
-        operator: "not_starts_with_any"
-        value:
-          - "/etc"
-          - "/sys"
-          - "/proc"
-          - "/dev"
-          - "/root"
     effect: "allow"
-    audit: true
 
-  - id: "permissive-tool-filesystem-patch-deny-system"
-    description: "Deny filesystem patch in system directories"
-    priority: 719
-    match:
-      resource: "tool"
-      resourceId: "filesystem_patch"
-    effect: "deny"
-    reason: "System directories are not accessible even in permissive mode"
-
-  # Code Runner Python - Allow (still requires user approval due to RESTRICTED tier)
+  # Code Runner Python - Allow
+  # NOTE: Approval enforcement is handled at the gateway layer via SecurityTier,
+  # not by the policy engine. This rule only controls the allow/deny decision.
   - id: "permissive-tool-code-runner-python"
     description: "Allow Python code runner"
     priority: 700
@@ -281,10 +461,8 @@ rules:
       resource: "tool"
       resourceId: "code_runner_python"
     effect: "allow"
-    audit: true
-    require_approval: true
 
-  # Code Runner JavaScript - Allow (still requires user approval due to RESTRICTED tier)
+  # Code Runner JavaScript - Allow
   - id: "permissive-tool-code-runner-javascript"
     description: "Allow JavaScript code runner"
     priority: 690
@@ -292,10 +470,8 @@ rules:
       resource: "tool"
       resourceId: "code_runner_javascript"
     effect: "allow"
-    audit: true
-    require_approval: true
 
-  # GitHub Copilot CLI - Allow (still requires user approval due to RESTRICTED tier)
+  # GitHub Copilot CLI - Allow
   - id: "permissive-tool-copilot"
     description: "Allow GitHub Copilot CLI"
     priority: 680
@@ -303,16 +479,14 @@ rules:
       resource: "tool"
       resourceId: "copilot"
     effect: "allow"
-    audit: true
-    require_approval: true
 
   # ============================================================================
   # Network Access - Broader access
   # ============================================================================
 
-  # Allow network access broadly (but still log it)
+  # Allow network read access broadly
   - id: "permissive-network-allow"
-    description: "Allow network access in permissive mode"
+    description: "Allow network read access in permissive mode"
     priority: 600
     match:
       resource: "network"

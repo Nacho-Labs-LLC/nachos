@@ -15,6 +15,9 @@ import type {
 } from './types/index.js';
 import { PolicyLoader } from './policy/loader.js';
 import { PolicyEvaluator } from './policy/evaluator.js';
+import { createLogger } from '@nachos/types';
+
+const logger = createLogger('cheese');
 
 /**
  * Cheese Policy Engine
@@ -60,52 +63,73 @@ export class Cheese {
 
   /**
    * Reload policies from disk
+   *
+   * Atomic reload: if ANY policy document fails validation, the entire
+   * reload is rejected and the previous rule set is retained. On initial
+   * load (no previous set), the engine falls back to default deny.
    */
   reload(): void {
-    console.log('[Cheese] Loading policies...');
+    logger.info('Loading policies...');
     const [policies, errors] = this.loader.load();
 
-    this.validationErrors = errors;
-    this.lastReload = new Date();
-
     if (errors.length > 0) {
-      console.error('[Cheese] Policy validation errors:');
+      logger.error('Policy validation errors — rejecting entire load:');
       for (const error of errors) {
-        console.error(
-          `  [${error.file}${error.ruleId ? `:${error.ruleId}` : ''}] ${error.message}`
+        logger.error(
+          { file: error.file, ruleId: error.ruleId },
+          error.message
         );
       }
+      this.validationErrors = errors;
+      if (this.lastReload) {
+        logger.warn('Keeping previous policy set intact');
+      } else {
+        logger.warn('No valid policies loaded on initial start - using default deny');
+      }
+      return;
     }
 
-    // Load valid policies into evaluator
+    this.validationErrors = [];
+    this.lastReload = new Date();
+
     if (policies.length > 0) {
       this.evaluator.loadPolicies(policies);
-      console.log(`[Cheese] Loaded ${policies.length} policy document(s) successfully`);
+      logger.info({ count: policies.length }, 'Loaded policy document(s) successfully');
     } else {
-      console.warn('[Cheese] No valid policies loaded - using default deny');
+      logger.warn('No policy files found - using default deny');
     }
   }
 
   /**
    * Handle policy reload from file watcher
+   *
+   * Atomic reload: if ANY policy document fails validation, the entire
+   * reload is rejected and the previous rule set is retained.
    */
   private handleReload(policies: PolicyDocument[], errors: PolicyValidationError[]): void {
-    console.log('[Cheese] Policies reloaded from disk');
-    this.validationErrors = errors;
-    this.lastReload = new Date();
+    logger.info('Policies reloaded from disk');
 
     if (errors.length > 0) {
-      console.error('[Cheese] Validation errors after reload:');
+      logger.error('Validation errors after reload — rejecting entire reload:');
       for (const error of errors) {
-        console.error(
-          `  [${error.file}${error.ruleId ? `:${error.ruleId}` : ''}] ${error.message}`
+        logger.error(
+          { file: error.file, ruleId: error.ruleId },
+          error.message
         );
       }
+      logger.warn('Keeping previous policy set intact');
+      // Do NOT update validationErrors or evaluator — previous state is retained
+      return;
     }
+
+    this.validationErrors = [];
+    this.lastReload = new Date();
 
     if (policies.length > 0) {
       this.evaluator.loadPolicies(policies);
-      console.log(`[Cheese] Reloaded ${policies.length} policy document(s)`);
+      logger.info({ count: policies.length }, 'Reloaded policy document(s)');
+    } else {
+      logger.warn('Reload produced zero policies — keeping previous set');
     }
   }
 
@@ -113,7 +137,7 @@ export class Cheese {
    * Handle loader errors
    */
   private handleError(error: Error): void {
-    console.error('[Cheese] Policy loader error:', error);
+    logger.error({ err: error }, 'Policy loader error');
   }
 
   /**

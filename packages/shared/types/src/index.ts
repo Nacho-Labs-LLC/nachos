@@ -1,17 +1,12 @@
 // Shared types for Nachos
+// NOTE: Config types (NachosConfig, LLMConfig, etc.) should be imported
+// directly from '@nachos/config', not from this package.
 
-// Re-export configuration types from @nachos/config
-export type {
-  NachosConfig,
-  PartialNachosConfig,
-  NachosSection,
-  LLMConfig,
-  ChannelsConfig,
-  ToolsConfig,
-  SecurityConfig,
-  RuntimeConfig,
-  AssistantConfig,
-} from '@nachos/config';
+// ============================================================================
+// Structured Logger
+// ============================================================================
+
+export { createLogger, type Logger } from './logger.js';
 
 // ============================================================================
 // Tool Types (Phase 6)
@@ -324,7 +319,7 @@ export {
 } from './errors.js';
 
 // ============================================================================
-// Legacy Interface Types (for backwards compatibility)
+// Channel Adapter Types
 // ============================================================================
 
 export type {
@@ -338,278 +333,32 @@ export type {
   OutboundMessage,
 } from './channel.js';
 
-// NOTE: These interfaces are maintained for backwards compatibility.
-// For new code, prefer using the TypeBox schema types (e.g., MessageEnvelopeType)
-// which provide both compile-time and runtime type safety.
-
-// NachosConfig is already exported from @nachos/config (line 5)
-
-/**
- * Base message envelope for all inter-component communication
- * @deprecated Use MessageEnvelopeType from schemas.js for type safety
- */
-export interface MessageEnvelope {
-  id: string;
-  timestamp: string;
-  source: string;
-  type: string;
-  correlationId?: string;
-  payload: unknown;
-}
-
-/**
- * Attachment structure for messages
- * @deprecated Use AttachmentType from schemas.js for type safety
- */
-export interface Attachment {
-  type: string;
-  url: string;
-  name?: string;
-  mimeType?: string;
-  size?: number;
-}
-
-/**
- * Sender information in channel messages
- * @deprecated Use SenderType from schemas.js for type safety
- */
-export interface Sender {
-  id: string;
-  name?: string;
-  isAllowed: boolean;
-}
-
-/**
- * Conversation context
- * @deprecated Use ConversationType from schemas.js for type safety
- */
-export interface Conversation {
-  id: string;
-  type: 'dm' | 'channel' | 'thread';
-}
-
-/**
- * Content structure for messages
- * @deprecated Use MessageContentType from schemas.js for type safety
- */
-export interface MessageContent {
-  text?: string;
-  attachments?: Attachment[];
-}
-
-/**
- * Inbound message from channels
- * @deprecated Use ChannelInboundMessageType from schemas.js for type safety
- */
-export interface ChannelInboundMessage {
-  channel: string;
-  channelMessageId: string;
-  sessionId?: string;
-  sender: Sender;
-  conversation: Conversation;
-  content: MessageContent;
-  metadata?: Record<string, unknown>;
-}
-
-/**
- * Outbound message to channels
- * @deprecated Use ChannelOutboundMessageType from schemas.js for type safety
- */
-export interface ChannelOutboundMessage {
-  channel: string;
-  conversationId: string;
-  sessionId?: string;
-  replyToMessageId?: string;
-  content: {
-    text: string;
-    format?: 'plain' | 'markdown';
-    attachments?: Array<{
-      type: string;
-      data: string | unknown;
-      name?: string;
-    }>;
-  };
-  options?: {
-    ephemeral?: boolean;
-    threadReply?: boolean;
-  };
-}
-
 // ============================================================================
-// Session Types (Legacy)
+// Legacy Type Aliases (backed by TypeBox schemas)
+//
+// These aliases preserve the old short names (e.g. `Session`, `Message`) so
+// existing imports continue to work. They resolve to the TypeBox-derived
+// `Static<>` types, giving both compile-time and runtime type safety.
 // ============================================================================
 
-/**
- * Session status
- * @deprecated Use SessionStatusType from schemas.js for type safety
- */
-export type SessionStatus = 'active' | 'paused' | 'ended';
-
-/**
- * Message role in conversation
- * @deprecated Use MessageRoleType from schemas.js for type safety
- */
-export type MessageRole = 'system' | 'user' | 'assistant' | 'tool';
-
-/**
- * Message in conversation history
- * @deprecated Use MessageType from schemas.js for type safety
- */
-export interface Message {
-  id: string;
-  sessionId: string;
-  role: MessageRole;
-  content: string;
-  toolCalls?: unknown;
-  createdAt: string;
-}
-
-/**
- * Session configuration
- * @deprecated Use SessionConfigType from schemas.js for type safety
- */
-export interface SessionConfig {
-  model?: string;
-  maxTokens?: number;
-  tools?: string[];
-}
-
-/**
- * Session data structure
- * @deprecated Use SessionType from schemas.js for type safety
- */
-export interface Session {
-  id: string;
-  createdAt: string;
-  updatedAt: string;
-  channel: string;
-  conversationId: string;
-  userId: string;
-  status: SessionStatus;
-  systemPrompt?: string;
-  config: SessionConfig;
-  metadata: Record<string, unknown>;
-}
-
-/**
- * Session with messages (for read operations)
- * @deprecated Use SessionWithMessagesType from schemas.js for type safety
- */
-export interface SessionWithMessages extends Session {
-  messages: Message[];
-}
-
-// ============================================================================
-// LLM Types (Legacy)
-// ============================================================================
-
-/**
- * LLM message structure
- * @deprecated Use LLMMessageType from schemas.js for type safety
- */
-export interface LLMMessage {
-  role: MessageRole;
-  content:
-    | string
-    | Array<{
-        type: string;
-        text?: string;
-        image_url?: string;
-        tool_use_id?: string;
-        tool_result?: unknown;
-      }>;
-  name?: string;
-  tool_call_id?: string;
-}
-
-/**
- * LLM request structure
- * @deprecated Use LLMRequestType from schemas.js for type safety
- */
-export interface LLMRequest {
-  sessionId: string;
-  messages: LLMMessage[];
-  tools?: Array<{
-    name: string;
-    description: string;
-    parameters: Record<string, unknown>;
-  }>;
-  options?: {
-    model?: string;
-    maxTokens?: number;
-    temperature?: number;
-    stream?: boolean;
-  };
-}
-
-// ============================================================================
-// Tool Types (Legacy)
-// ============================================================================
-
-/**
- * Tool execution request
- * @deprecated Use ToolRequestType from schemas.js for type safety
- */
-export interface ToolRequest {
-  sessionId: string;
-  tool: string;
-  callId: string;
-  parameters: Record<string, unknown>;
-}
-
-/**
- * Tool execution response
- * @deprecated Use ToolResponseType from schemas.js for type safety
- */
-export interface ToolResponse {
-  sessionId: string;
-  callId: string;
-  success: boolean;
-  result?: unknown;
-  error?: {
-    code: string;
-    message: string;
-  };
-}
-
-// ============================================================================
-// Health Check Types (Legacy)
-// ============================================================================
-
-/**
- * Health status
- * @deprecated Use HealthStatusType from schemas.js for type safety
- */
-export type HealthStatus = 'healthy' | 'degraded' | 'unhealthy';
-
-/**
- * Health check result
- * @deprecated Use HealthCheckType from schemas.js for type safety
- */
-export interface HealthCheck {
-  status: HealthStatus;
-  component: string;
-  version: string;
-  uptime: number;
-  checks: Record<string, 'ok' | 'error'>;
-}
-
-// ============================================================================
-// Error Types (Legacy - for backwards compatibility)
-// ============================================================================
-
-/**
- * Legacy error codes
- * @deprecated Use NachosErrorCodes from errors.js for more comprehensive error codes
- */
-export const ErrorCodes = {
-  CONFIG: 'NACHOS_ERR_CONFIG',
-  POLICY_DENIED: 'NACHOS_ERR_POLICY_DENIED',
-  RATE_LIMITED: 'NACHOS_ERR_RATE_LIMITED',
-  LLM_FAILED: 'NACHOS_ERR_LLM_FAILED',
-  TOOL_FAILED: 'NACHOS_ERR_TOOL_FAILED',
-  CHANNEL_FAILED: 'NACHOS_ERR_CHANNEL_FAILED',
-  SESSION_NOT_FOUND: 'NACHOS_ERR_SESSION_NOT_FOUND',
-  TIMEOUT: 'NACHOS_ERR_TIMEOUT',
-  INTERNAL: 'NACHOS_ERR_INTERNAL',
-} as const;
+export type {
+  MessageEnvelopeType as MessageEnvelope,
+  AttachmentType as Attachment,
+  SenderType as Sender,
+  ConversationType as Conversation,
+  MessageContentType as MessageContent,
+  ChannelInboundMessageType as ChannelInboundMessage,
+  ChannelOutboundMessageType as ChannelOutboundMessage,
+  SessionStatusType as SessionStatus,
+  MessageRoleType as MessageRole,
+  MessageType as Message,
+  SessionConfigType as SessionConfig,
+  SessionType as Session,
+  SessionWithMessagesType as SessionWithMessages,
+  LLMMessageType as LLMMessage,
+  LLMRequestType as LLMRequest,
+  ToolRequestType as ToolRequest,
+  ToolResponseType as ToolResponse,
+  HealthStatusType as HealthStatus,
+  HealthCheckType as HealthCheck,
+} from './schemas.js';

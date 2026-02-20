@@ -66,6 +66,8 @@ function mapFinishReason(reason: string | null | undefined): string | undefined 
   return reason ?? undefined;
 }
 
+const DEFAULT_TIMEOUT_MS = 120_000;
+
 export class OpenAIAdapter {
   public readonly name = 'openai';
   public readonly type = 'openai' as const;
@@ -78,14 +80,17 @@ export class OpenAIAdapter {
     const { apiKey, profileName } = this.resolveApiKey(options);
     try {
       const client = new OpenAI({ apiKey, baseURL: this.baseUrl });
-      const response = await client.chat.completions.create({
-        model: options.model,
-        messages: toOpenAiMessages(request.messages),
-        tools: toOpenAiTools(request.tools),
-        temperature: options.temperature,
-        max_tokens: options.maxTokens,
-        stream: false,
-      });
+      const response = await client.chat.completions.create(
+        {
+          model: options.model,
+          messages: toOpenAiMessages(request.messages),
+          tools: toOpenAiTools(request.tools),
+          temperature: options.temperature,
+          max_tokens: options.maxTokens,
+          stream: false,
+        },
+        { timeout: options.timeout ?? DEFAULT_TIMEOUT_MS }
+      );
 
       const choice = response.choices[0];
       if (!choice) {
@@ -132,14 +137,17 @@ export class OpenAIAdapter {
     const { apiKey, profileName } = this.resolveApiKey(options);
     try {
       const client = new OpenAI({ apiKey, baseURL: this.baseUrl });
-      const stream = await client.chat.completions.create({
-        model: options.model,
-        messages: toOpenAiMessages(request.messages),
-        tools: toOpenAiTools(request.tools),
-        temperature: options.temperature,
-        max_tokens: options.maxTokens,
-        stream: true,
-      });
+      const stream = await client.chat.completions.create(
+        {
+          model: options.model,
+          messages: toOpenAiMessages(request.messages),
+          tools: toOpenAiTools(request.tools),
+          temperature: options.temperature,
+          max_tokens: options.maxTokens,
+          stream: true,
+        },
+        { timeout: options.timeout ?? DEFAULT_TIMEOUT_MS }
+      );
 
       let index = 0;
       let aggregated = '';

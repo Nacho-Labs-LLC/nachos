@@ -1,6 +1,6 @@
 {
   "name": "@nachos/tool-claude-code-mcp",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "type": "module",
   "description": "Claude Code MCP client tool for Nachos",
   "main": "dist/index.js",
@@ -28,9 +28,9 @@
     "zod": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "typescript": "^5.6.0",
-    "vitest": "^2.0.0"
+    "@types/node": "^22.10.5",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
   },
   "engines": {
     "node": ">=22.0.0"

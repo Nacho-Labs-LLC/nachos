@@ -9,6 +9,9 @@ import { join, extname } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import type { PolicyDocument, PolicyValidationError } from '../types/index.js';
 import { validatePolicyDocument } from './validator.js';
+import { createLogger } from '@nachos/types';
+
+const logger = createLogger('policy-loader');
 
 /**
  * Policy loader configuration
@@ -62,7 +65,7 @@ export class PolicyLoader {
     const yamlFiles = files.filter((f) => extname(f) === '.yaml' || extname(f) === '.yml');
 
     if (yamlFiles.length === 0) {
-      console.warn(`[PolicyLoader] No policy files found in ${this.config.policiesPath}`);
+      logger.warn({ path: this.config.policiesPath }, 'No policy files found');
     }
 
     // Load and validate each file
@@ -108,18 +111,16 @@ export class PolicyLoader {
     }
 
     if (this.watcher) {
-      console.warn('[PolicyLoader] Watcher already started');
+      logger.warn('Watcher already started');
       return;
     }
 
     if (!existsSync(this.config.policiesPath)) {
-      console.error(
-        `[PolicyLoader] Cannot watch non-existent directory: ${this.config.policiesPath}`
-      );
+      logger.error({ path: this.config.policiesPath }, 'Cannot watch non-existent directory');
       return;
     }
 
-    console.log(`[PolicyLoader] Watching ${this.config.policiesPath} for policy changes`);
+    logger.info({ path: this.config.policiesPath }, 'Watching for policy changes');
 
     this.watcher = watch(this.config.policiesPath, { recursive: false }, (eventType, filename) => {
       if (!filename) return;
@@ -128,7 +129,7 @@ export class PolicyLoader {
       const ext = extname(filename);
       if (ext !== '.yaml' && ext !== '.yml') return;
 
-      console.log(`[PolicyLoader] Policy file changed: ${filename} (${eventType})`);
+      logger.info({ filename, eventType }, 'Policy file changed');
 
       // Debounce reloads to handle multiple rapid changes
       if (this.reloadTimeoutId) {
@@ -148,7 +149,7 @@ export class PolicyLoader {
     if (this.watcher) {
       this.watcher.close();
       this.watcher = null;
-      console.log('[PolicyLoader] Stopped watching policy files');
+      logger.info('Stopped watching policy files');
     }
 
     if (this.reloadTimeoutId) {
@@ -162,24 +163,24 @@ export class PolicyLoader {
    */
   reload(): void {
     try {
-      console.log('[PolicyLoader] Reloading policies...');
+      logger.info('Reloading policies...');
       const [policies, errors] = this.load();
 
       if (errors.length > 0) {
-        console.error('[PolicyLoader] Validation errors during reload:');
+        logger.error('Validation errors during reload:');
         for (const error of errors) {
-          console.error(`  - ${error.file}: ${error.message}`);
+          logger.error({ file: error.file }, error.message);
         }
       }
 
-      console.log(`[PolicyLoader] Loaded ${policies.length} policy document(s)`);
+      logger.info({ count: policies.length }, 'Loaded policy document(s)');
 
       // Notify callback
       if (this.config.onReload) {
         this.config.onReload(policies, errors);
       }
     } catch (error) {
-      console.error('[PolicyLoader] Error during reload:', error);
+      logger.error({ err: error }, 'Error during reload');
       if (this.config.onError) {
         this.config.onError(error as Error);
       }

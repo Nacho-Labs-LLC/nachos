@@ -613,6 +613,14 @@ export interface SkillsConfig {
 }
 
 /**
+ * Admin UI configuration
+ */
+export interface AdminConfig {
+  enabled?: boolean;
+  port?: number;
+}
+
+/**
  * Complete Nachos configuration
  */
 export interface NachosConfig {
@@ -624,6 +632,7 @@ export interface NachosConfig {
   runtime?: RuntimeConfig;
   assistant?: AssistantConfig;
   skills?: SkillsConfig;
+  admin?: AdminConfig;
 }
 
 /**

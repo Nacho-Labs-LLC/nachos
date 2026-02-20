@@ -10,6 +10,7 @@ import {
   listEnabledChannels,
   loadAndValidateConfig,
 } from '@nachos/config';
+import { createValidationError } from '@nachos/types';
 import { createDefaultRateLimiterConfig, type RateLimiterConfig } from './security/rate-limiter.js';
 import type { PolicyEngineConfig } from './cheese/types/index.js';
 
@@ -142,18 +143,18 @@ function parseSecurityMode(value: string | undefined): 'strict' | 'standard' | '
  */
 export function validateConfig(config: GatewayConfig): void {
   if (config.healthPort < 1 || config.healthPort > 65535) {
-    throw new Error(`Invalid health port: ${config.healthPort}`);
+    throw createValidationError(`Invalid health port: ${config.healthPort}`, { component: 'gateway' });
   }
 
   if (!config.dbPath) {
-    throw new Error('Database path is required');
+    throw createValidationError('Database path is required', { component: 'gateway' });
   }
 
   if (
     !config.natsServers ||
     (Array.isArray(config.natsServers) && config.natsServers.length === 0)
   ) {
-    throw new Error('At least one NATS server is required');
+    throw createValidationError('At least one NATS server is required', { component: 'gateway' });
   }
 
   if (config.rateLimiter?.limits) {
@@ -161,24 +162,24 @@ export function validateConfig(config: GatewayConfig): void {
       config.rateLimiter.limits;
 
     if (messagesPerMinute !== undefined && messagesPerMinute < 1) {
-      throw new Error('Rate limiter messagesPerMinute must be at least 1');
+      throw createValidationError('Rate limiter messagesPerMinute must be at least 1', { component: 'gateway' });
     }
 
     if (toolCallsPerMinute !== undefined && toolCallsPerMinute < 1) {
-      throw new Error('Rate limiter toolCallsPerMinute must be at least 1');
+      throw createValidationError('Rate limiter toolCallsPerMinute must be at least 1', { component: 'gateway' });
     }
 
     if (llmRequestsPerMinute !== undefined && llmRequestsPerMinute < 1) {
-      throw new Error('Rate limiter llmRequestsPerMinute must be at least 1');
+      throw createValidationError('Rate limiter llmRequestsPerMinute must be at least 1', { component: 'gateway' });
     }
   }
 
   if (config.streamingChunkSize !== undefined && config.streamingChunkSize < 1) {
-    throw new Error('Streaming chunk size must be at least 1');
+    throw createValidationError('Streaming chunk size must be at least 1', { component: 'gateway' });
   }
 
   if (config.streamingMinIntervalMs !== undefined && config.streamingMinIntervalMs < 0) {
-    throw new Error('Streaming min interval must be non-negative');
+    throw createValidationError('Streaming min interval must be non-negative', { component: 'gateway' });
   }
 }
 

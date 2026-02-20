@@ -5,7 +5,11 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'http';
 import { readFileSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { createLogger } from '@nachos/types';
 import type { HealthCheck, HealthStatus } from '@nachos/types';
+import type { ChannelRegistry, ChannelPresence } from './channel-registry.js';
+
+const logger = createLogger('health');
 
 /**
  * Get the version from package.json
@@ -35,6 +39,7 @@ const VERSION = getVersion();
 export interface HealthCheckDeps {
   checkDatabase?: () => boolean;
   checkBus?: () => boolean;
+  channelRegistry?: ChannelRegistry;
 }
 
 /**
@@ -120,6 +125,13 @@ export function performHealthCheck(deps?: HealthCheckDeps): HealthCheck {
 }
 
 /**
+ * Extended health response including channel presence
+ */
+export interface HealthCheckWithChannels extends HealthCheck {
+  channels?: Record<string, ChannelPresence>;
+}
+
+/**
  * HTTP handler for health check endpoint
  */
 function healthHandler(
@@ -127,10 +139,16 @@ function healthHandler(
 ): (req: IncomingMessage, res: ServerResponse) => void {
   return (_req: IncomingMessage, res: ServerResponse) => {
     const health = performHealthCheck(deps);
+    const response: HealthCheckWithChannels = { ...health };
+
+    if (deps?.channelRegistry) {
+      response.channels = deps.channelRegistry.getStatus();
+    }
+
     const statusCode = health.status === 'healthy' ? 200 : 503;
 
     res.writeHead(statusCode, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify(health, null, 2));
+    res.end(JSON.stringify(response, null, 2));
   };
 }
 
@@ -160,7 +178,7 @@ export function createHealthServer(options?: HealthServerOptions): {
     start: () =>
       new Promise<void>((resolve) => {
         server.listen(port, () => {
-          console.log(`Health server listening on port ${port}`);
+          logger.info({ port }, 'Health server listening');
           resolve();
         });
       }),
