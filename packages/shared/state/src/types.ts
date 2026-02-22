@@ -17,10 +17,17 @@ export interface StateStorePostgresConfig {
 
 export type StateStoreProvider = 'filesystem' | 'postgres';
 
+export interface StateStoreSemanticConfig {
+  enabled?: boolean;
+  model?: string;
+  cacheDir?: string;
+}
+
 export interface StateStoreConfig {
   provider: StateStoreProvider;
   filesystem?: StateStoreFilesystemConfig;
   postgres?: StateStorePostgresConfig;
+  semantic?: StateStoreSemanticConfig;
 }
 
 export interface SessionStateConfig {

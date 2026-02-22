@@ -73,6 +73,8 @@ export interface MemoryQuery {
   text?: string;
   limit?: number;
   offset?: number;
+  semantic?: boolean;
+  minSimilarity?: number;
 }
 
 export interface MemoryQueryResult {

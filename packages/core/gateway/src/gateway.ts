@@ -535,6 +535,10 @@ export class Gateway {
         options.stateLayerConfig,
         this.buildStateLayerDependencies()
       );
+      // Initialize state layer (e.g., semantic search if enabled)
+      this.stateLayer.init().catch((error) => {
+        console.error('[Gateway] Failed to initialize state layer:', error);
+      });
     }
 
     if (options.memoryPipeline) {
