@@ -2429,6 +2429,57 @@ export class Gateway {
       };
     }
 
+    if (action === 'stop') {
+      const stopped = this.subagentOrchestrator.stopRun(runId);
+      return {
+        success: stopped,
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              {
+                runId,
+                stopped,
+                message: stopped
+                  ? 'Subagent run stopped successfully'
+                  : 'Cannot stop run (already running or completed)',
+              },
+              null,
+              2
+            ),
+          },
+        ],
+      };
+    }
+
+    if (action === 'steer') {
+      const message = this.readOptionalString(call.parameters.message);
+      if (!message) {
+        return this.formatToolError('INVALID_PARAMETERS', 'message is required for steer action');
+      }
+
+      const steered = await this.steerSubagent(runId, message);
+      return {
+        success: steered,
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              {
+                runId,
+                steered,
+                message: steered
+                  ? 'Message sent to subagent'
+                  : 'Cannot steer run (not running or already completed)',
+              },
+              null,
+              2
+            ),
+          },
+        ],
+      };
+    }
+
     return this.formatToolError('INVALID_PARAMETERS', `unknown subagents action: ${action}`);
   }
 
@@ -3532,6 +3583,10 @@ export class Gateway {
 
   stopSubagent(runId: string): boolean {
     return this.subagentOrchestrator?.stopRun(runId) ?? false;
+  }
+
+  async steerSubagent(runId: string, message: string): Promise<boolean> {
+    return (await this.subagentOrchestrator?.steerRun(runId, message)) ?? false;
   }
 
   getSubagentInfo(runId: string): SubagentRunRecord | null {

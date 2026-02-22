@@ -135,6 +135,26 @@ export class SubagentOrchestrator {
     return true;
   }
 
+  async steerRun(runId: string, message: string): Promise<boolean> {
+    const entry = this.runs.get(runId);
+    if (!entry) {
+      return false;
+    }
+
+    // Can only steer running subagents (not queued, completed, or failed)
+    if (entry.record.status !== 'running') {
+      return false;
+    }
+
+    // Add user message to subagent's session
+    this.deps.sessionManager.addMessage(entry.record.childSessionId, {
+      role: 'user',
+      content: message,
+    });
+
+    return true;
+  }
+
   async shutdown(): Promise<void> {
     this.stopped = true;
     this.queue = [];
