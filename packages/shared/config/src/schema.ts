@@ -128,6 +128,11 @@ export interface DiscordChannelConfig extends BaseChannelConfig {
   allow_bots?: boolean;
   /** If allow_bots is true, optionally restrict to these bot user IDs only. */
   bot_allowlist?: string[];
+  /** Status emoji reactions during bot operations (default: disabled). */
+  status_emojis?: {
+    /** Enable status emoji reactions on messages (default: false). */
+    enabled?: boolean;
+  };
 }
 
 /**

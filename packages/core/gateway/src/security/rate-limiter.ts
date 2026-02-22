@@ -138,7 +138,6 @@ export class RedisRateLimitStore implements RateLimitStore {
     if (!results) {
       throw createInternalError('Redis rate limit pipeline failed', { component: 'gateway' });
     }
-    // node-redis v4 multi().exec() returns a flat array of values, not [Error, value] tuples
     const countResult = results[2];
     if (countResult === undefined || countResult === null) {
       throw createInternalError('Redis rate limit count failed', { component: 'gateway' });

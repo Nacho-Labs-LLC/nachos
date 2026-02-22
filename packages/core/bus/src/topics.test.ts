@@ -10,6 +10,7 @@ import {
   HEALTH_TOPICS,
   GATEWAY_TOPICS,
   CONFIG_TOPICS,
+  STATUS_TOPICS,
   extractChannelFromTopic,
   extractToolFromTopic,
   extractSessionFromStreamTopic,
@@ -124,6 +125,28 @@ describe('Topics', () => {
     });
   });
 
+  describe('STATUS_TOPICS', () => {
+    it('should generate correct thinking topic', () => {
+      expect(STATUS_TOPICS.thinking('session-123')).toBe('nachos.status.session-123.thinking');
+    });
+
+    it('should generate correct tool topic', () => {
+      expect(STATUS_TOPICS.tool('session-abc')).toBe('nachos.status.session-abc.tool');
+    });
+
+    it('should generate correct done topic', () => {
+      expect(STATUS_TOPICS.done('session-123')).toBe('nachos.status.session-123.done');
+    });
+
+    it('should generate correct error topic', () => {
+      expect(STATUS_TOPICS.error('session-123')).toBe('nachos.status.session-123.error');
+    });
+
+    it('should generate correct wildcard topic', () => {
+      expect(STATUS_TOPICS.all('session-123')).toBe('nachos.status.session-123.*');
+    });
+  });
+
   describe('TOPICS namespace', () => {
     it('should contain all topic groups', () => {
       expect(TOPICS.channel).toBe(CHANNEL_TOPICS);
@@ -134,6 +157,7 @@ describe('Topics', () => {
       expect(TOPICS.health).toBe(HEALTH_TOPICS);
       expect(TOPICS.gateway).toBe(GATEWAY_TOPICS);
       expect(TOPICS.config).toBe(CONFIG_TOPICS);
+      expect(TOPICS.status).toBe(STATUS_TOPICS);
     });
   });
 
