@@ -29,6 +29,7 @@ import {
 } from '@nachos/types';
 import {
   MemorySearchToolSchema,
+  MemoryGetToolSchema,
   executeMemorySearch,
   executeMemoryGet,
 } from './tools/memory-tools.js';
@@ -1557,12 +1558,11 @@ export class Gateway {
         parameters: this.sanitizeToolSchema(MemorySearchToolSchema),
       });
       
-      // memory_get disabled for now - needs filesystem integration
-      // tools.push({
-      //   name: 'memory_get',
-      //   description: 'Read specific memory file sections (MEMORY.md, daily logs)',
-      //   parameters: this.sanitizeToolSchema(MemoryGetToolSchema),
-      // });
+      tools.push({
+        name: 'memory_get',
+        description: 'Read specific memory file sections (MEMORY.md, memory/YYYY-MM-DD.md, AGENTS.md, etc.). Use when you need full file content or specific line ranges. Complements memory_search for detailed context.',
+        parameters: this.sanitizeToolSchema(MemoryGetToolSchema),
+      });
     }
 
     // Browser automation tools disabled temporarily — not needed for chat

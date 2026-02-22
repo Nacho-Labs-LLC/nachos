@@ -147,8 +147,8 @@ export async function executeMemorySearch(
 /**
  * Execute memory_get tool
  * 
- * Note: This currently returns a placeholder since the actual file system
- * integration for memory files needs to be implemented.
+ * Reads memory files (MEMORY.md, memory/YYYY-MM-DD.md) from the workspace.
+ * Supports optional line range for large files.
  */
 export async function executeMemoryGet(
   call: ToolCall,
@@ -173,16 +173,76 @@ export async function executeMemoryGet(
       };
     }
 
-    // TODO: Implement actual file system reading for memory files
-    // For now, return a helpful message
-    return {
-      success: false,
-      content: [],
-      error: {
-        code: 'NOT_IMPLEMENTED',
-        message: `memory_get is not yet implemented. Use memory_search to query stored memories. File path: ${params.path}`,
-      },
-    };
+    // Security: Only allow reading from memory files
+    const normalizedPath = params.path.trim();
+    const allowedPaths = ['MEMORY.md', 'memory/', 'AGENTS.md', 'SOUL.md', 'USER.md', 'TOOLS.md', 'IDENTITY.md'];
+    
+    const isAllowed = allowedPaths.some(allowed => 
+      normalizedPath === allowed || 
+      normalizedPath.startsWith(allowed) ||
+      normalizedPath.startsWith('./' + allowed)
+    );
+
+    if (!isAllowed) {
+      return {
+        success: false,
+        content: [],
+        error: {
+          code: 'ACCESS_DENIED',
+          message: `Access denied. Only memory files are allowed (MEMORY.md, memory/, AGENTS.md, etc.). Requested: ${normalizedPath}`,
+        },
+      };
+    }
+
+    // Use Node.js fs module to read file
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    
+    // Construct full path (workspace root + requested path)
+    // TODO: Get actual workspace dir from config/context
+    const workspaceDir = process.env.NACHOS_WORKSPACE_DIR || process.cwd();
+    const fullPath = path.join(workspaceDir, normalizedPath);
+
+    try {
+      const content = await fs.readFile(fullPath, 'utf-8');
+      const lines = content.split('\n');
+
+      // Apply line range if specified
+      const from = params.from && params.from > 0 ? params.from - 1 : 0; // 1-indexed to 0-indexed
+      const linesToRead = params.lines || lines.length;
+      const selectedLines = lines.slice(from, from + linesToRead);
+
+      const resultText = selectedLines.join('\n');
+      const totalLines = lines.length;
+      const readLines = selectedLines.length;
+
+      const summary = params.from || params.lines
+        ? `Read lines ${from + 1}-${from + readLines} of ${totalLines} from ${normalizedPath}`
+        : `Read ${totalLines} lines from ${normalizedPath}`;
+
+      return {
+        success: true,
+        content: [
+          {
+            type: 'text',
+            text: `${summary}\n\n---\n\n${resultText}`,
+          },
+        ],
+      };
+    } catch (fileError) {
+      const err = fileError as NodeJS.ErrnoException;
+      if (err.code === 'ENOENT') {
+        return {
+          success: false,
+          content: [],
+          error: {
+            code: 'FILE_NOT_FOUND',
+            message: `File not found: ${normalizedPath}. Make sure the file exists in your workspace.`,
+          },
+        };
+      }
+      throw fileError;
+    }
   } catch (error) {
     return {
       success: false,
