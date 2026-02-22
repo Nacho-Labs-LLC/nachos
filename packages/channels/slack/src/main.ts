@@ -72,7 +72,8 @@ async function main(): Promise<void> {
   process.on('SIGINT', () => void shutdown());
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// tsx watch compat: always run main
+{
   main().catch((error) => {
     console.error('Slack channel startup failed:', error);
     process.exit(1);

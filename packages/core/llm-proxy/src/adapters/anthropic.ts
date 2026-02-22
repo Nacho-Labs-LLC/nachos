@@ -86,6 +86,18 @@ function extractText(content: AnthropicContentBlock[] | undefined): string {
 
 const DEFAULT_TIMEOUT_MS = 120_000;
 
+/** Detect OAuth / setup tokens (sk-ant-oat-*) */
+function isOAuthToken(key: string): boolean {
+  return key.startsWith('sk-ant-oat');
+}
+
+/** Claude Code identity headers required for OAuth token auth */
+const OAUTH_HEADERS: Record<string, string> = {
+  'anthropic-beta': 'claude-code-20250219,oauth-2025-04-20',
+  'user-agent': 'claude-cli/2.1.2 (external, cli)',
+  'x-app': 'cli',
+};
+
 export class AnthropicAdapter {
   public readonly name = 'anthropic';
   public readonly type = 'anthropic' as const;
@@ -103,7 +115,20 @@ export class AnthropicAdapter {
         const firstKey = this.clientCache.keys().next().value as string;
         this.clientCache.delete(firstKey);
       }
-      client = new Anthropic({ apiKey, baseURL: this.baseUrl });
+
+      if (isOAuthToken(apiKey)) {
+        // OAuth token: use Bearer auth + Claude Code identity headers
+        // Must set apiKey to null so SDK uses authToken for Bearer auth
+        client = new Anthropic({
+          apiKey: null,
+          authToken: apiKey,
+          baseURL: this.baseUrl,
+          defaultHeaders: OAUTH_HEADERS,
+        });
+      } else {
+        client = new Anthropic({ apiKey, baseURL: this.baseUrl });
+      }
+
       this.clientCache.set(apiKey, client);
     }
     return client;
@@ -111,6 +136,7 @@ export class AnthropicAdapter {
 
   async send(request: LLMRequestType, options: AdapterSendOptions): Promise<AdapterResponse> {
     const { apiKey, profileName } = this.resolveApiKey(options);
+    console.log(`[Anthropic] send() keyType=${isOAuthToken(apiKey) ? 'oauth' : 'api'} keyPrefix=${apiKey.slice(0, 15)}... model=${options.model}`);
     try {
       const client = this.getClient(apiKey);
       const response = await client.messages.create(
@@ -248,6 +274,7 @@ export class AnthropicAdapter {
   }
 
   private mapError(error: unknown): ProviderError {
+    console.error('[Anthropic] Raw error:', error);
     if (error && typeof error === 'object' && 'status' in error) {
       const status = (error as { status?: number }).status ?? 0;
       if (status === 401 || status === 403) {

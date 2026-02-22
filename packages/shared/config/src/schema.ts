@@ -124,6 +124,10 @@ export interface DiscordChannelConfig extends BaseChannelConfig {
   commands?: ChannelCommandsConfig;
   dm?: ChannelDMConfig;
   servers?: ChannelServerConfig[];
+  /** Allow messages from bot accounts (default: false). Useful for bot-to-bot testing. */
+  allow_bots?: boolean;
+  /** If allow_bots is true, optionally restrict to these bot user IDs only. */
+  bot_allowlist?: string[];
 }
 
 /**
