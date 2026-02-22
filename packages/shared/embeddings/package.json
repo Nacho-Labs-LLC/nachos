@@ -1,0 +1,33 @@
+{
+  "name": "@nachos/embeddings",
+  "version": "0.0.1",
+  "description": "Vector embeddings and semantic search for Nachos",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@xenova/transformers": "^2.17.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  },
+  "keywords": [
+    "embeddings",
+    "vector-search",
+    "semantic-search",
+    "transformers",
+    "ml"
+  ],
+  "license": "MIT"
+}
