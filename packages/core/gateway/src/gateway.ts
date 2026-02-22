@@ -23,13 +23,15 @@ import {
 const logger = createLogger('gateway');
 import { TOPICS } from '@nachos/bus';
 import {
-  BootstrapToolSchema,
-  MemoryToolSchema,
   SessionsSpawnToolSchema,
   SubagentsToolSchema,
-  UserProfileToolSchema,
   validateChannelInboundMessage,
 } from '@nachos/types';
+import {
+  MemorySearchToolSchema,
+  executeMemorySearch,
+  executeMemoryGet,
+} from './tools/memory-tools.js';
 import type {
   AuditConfig,
   ContextManagementCommandsConfig,
@@ -148,8 +150,9 @@ const DEFAULT_TOOL_GROUPS: Record<string, string[]> = {
 /**
  * Browser tool definitions exposed to the LLM.
  * These map to @playwright/mcp tools and are executed locally in the gateway.
+ * Disabled for now - uncomment when browser tools are ready
  */
-const BROWSER_TOOL_DEFINITIONS: Array<{
+/* const BROWSER_TOOL_DEFINITIONS: Array<{
   name: string;
   description: string;
   parameters: Record<string, unknown>;
@@ -349,7 +352,7 @@ const BROWSER_TOOL_DEFINITIONS: Array<{
       properties: {},
     },
   },
-];
+]; */
 
 type ResolvedContextCommandConfig = {
   enabled: boolean;
@@ -1043,22 +1046,64 @@ export class Gateway {
     await this.router.getBus().publish('nachos.gateway.processed', processedEnvelope);
 
     // Request LLM response and send back to channel
-    if (this.options.streamingPassthrough) {
-      this.streamingSessions.set(session.id, {
-        inbound: message,
-        buffer: '',
-        lastSentAt: 0,
-        lastSentLength: 0,
-        createdAt: Date.now(),
+    try {
+      if (this.options.streamingPassthrough) {
+        this.streamingSessions.set(session.id, {
+          inbound: message,
+          buffer: '',
+          lastSentAt: 0,
+          lastSentLength: 0,
+          createdAt: Date.now(),
+        });
+      }
+
+      const response = await this.requestLLMResponse(
+        session.id,
+        [],
+        this.options.streamingPassthrough ?? false
+      );
+      await this.sendLLMResponse(message, session.id, response);
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      const isTimeout = errMsg.includes('timed out') || errMsg.includes('timeout');
+      logger.error({ err: error, sessionId: session.id }, 'Failed to process inbound message');
+
+      // Send error feedback to the user instead of silent failure
+      const errorOutbound: ChannelOutboundMessage = {
+        channel: message.channel,
+        conversationId: message.conversation.id,
+        replyToMessageId: this.getReplyToMessageId(message),
+        sessionId: session.id,
+        content: {
+          text: isTimeout
+            ? '⚠️ The request timed out. Please try again in a moment.'
+            : '⚠️ Something went wrong processing your message. Please try again.',
+          format: 'markdown',
+        },
+      };
+
+      try {
+        await this.router.sendToChannel(errorOutbound);
+      } catch (sendError) {
+        logger.error({ err: sendError }, 'Failed to send error response to channel');
+      }
+
+      // Audit the failure
+      void this.logAuditEvent({
+        id: randomUUID(),
+        timestamp: new Date().toISOString(),
+        instanceId: this.instanceId,
+        userId: message.sender.id,
+        sessionId: session.id,
+        channel: message.channel,
+        eventType: 'llm_request',
+        action: 'llm.request.error',
+        resource: message.channel,
+        outcome: 'error',
+        reason: errMsg,
+        securityMode: this.options.policyConfig?.securityMode ?? 'standard',
       });
     }
-
-    const response = await this.requestLLMResponse(
-      session.id,
-      [],
-      this.options.streamingPassthrough ?? false
-    );
-    await this.sendLLMResponse(message, session.id, response);
   }
 
   private resolveContextCommandConfig(): ResolvedContextCommandConfig {
@@ -1412,6 +1457,7 @@ export class Gateway {
           memoryFacts: memory.facts,
           sessionState,
           skills: this.skillsPrompt,
+          includeMemoryInstructions: true, // Add memory recall instructions
         });
 
         prompt = assembled.prompt;
@@ -1502,31 +1548,25 @@ export class Gateway {
       });
     }
 
-    if (this.stateLayer) {
+    // Memory tools - re-enabled with usage gating
+    // These tools allow the LLM to query stored memories
+    if (this.stateLayer && !bootstrapLocked) {
       tools.push({
-        name: 'memory',
-        description:
-          'Internal state tool: query and curate durable memory entries and facts for the current user and agent.',
-        parameters: this.sanitizeToolSchema(MemoryToolSchema),
+        name: 'memory_search',
+        description: 'Search stored memories (past decisions, preferences, facts, tasks). Use ONLY when answering questions about prior work, user preferences, past decisions, or context from previous sessions. DO NOT use for current conversation context or general knowledge.',
+        parameters: this.sanitizeToolSchema(MemorySearchToolSchema),
       });
-      if (this.toolsConfig?.bootstrap?.enabled !== false && !bootstrapLocked) {
-        tools.push({
-          name: 'bootstrap',
-          description:
-            'Internal state tool: read or update bootstrap blocks for the current agent.',
-          parameters: this.sanitizeToolSchema(BootstrapToolSchema),
-        });
-      }
-      tools.push({
-        name: 'user_profile',
-        description:
-          'Internal state tool: read or update the curated profile for the current user (for personalization).',
-        parameters: this.sanitizeToolSchema(UserProfileToolSchema),
-      });
+      
+      // memory_get disabled for now - needs filesystem integration
+      // tools.push({
+      //   name: 'memory_get',
+      //   description: 'Read specific memory file sections (MEMORY.md, daily logs)',
+      //   parameters: this.sanitizeToolSchema(MemoryGetToolSchema),
+      // });
     }
 
-    // Browser automation tools (powered by @playwright/mcp)
-    tools.push(...BROWSER_TOOL_DEFINITIONS);
+    // Browser automation tools disabled temporarily — not needed for chat
+    // tools.push(...BROWSER_TOOL_DEFINITIONS);
 
     return tools.length > 0 ? tools : undefined;
   }
@@ -1594,6 +1634,7 @@ export class Gateway {
     sessionId: string,
     toolCalls: Array<{ id: string; name: string; arguments: string }>
   ): Promise<LLMRequestType['messages']> {
+    logger.info({ sessionId, tools: toolCalls.map(tc => tc.name) }, 'Executing tool calls');
     if (!this.toolCoordinator) {
       throw createInvalidStateError('Tool coordinator not initialized', { component: 'gateway' });
     }
@@ -1902,6 +1943,28 @@ export class Gateway {
 
     if (call.tool === 'memory') {
       return this.executeMemoryToolCall(call, session);
+    }
+
+    if (call.tool === 'memory_search') {
+      if (!this.stateLayer) {
+        return this.formatToolError('STATE_LAYER_DISABLED', 'Memory is not configured');
+      }
+      if (!session) {
+        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found for memory search');
+      }
+      const context = { ...this.buildStateContext(session), internalTool: true };
+      return executeMemorySearch(call, this.stateLayer, context);
+    }
+
+    if (call.tool === 'memory_get') {
+      if (!this.stateLayer) {
+        return this.formatToolError('STATE_LAYER_DISABLED', 'Memory is not configured');
+      }
+      if (!session) {
+        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found for memory get');
+      }
+      const context = { ...this.buildStateContext(session), internalTool: true };
+      return executeMemoryGet(call, this.stateLayer, context);
     }
 
     if (call.tool === 'bootstrap') {
@@ -2659,27 +2722,38 @@ export class Gateway {
   private readTimeoutMs(value: unknown) { return readTimeoutMs(value); }
   private readCleanup(value: unknown) { return readCleanup(value); }
 
+  private static readonly MAX_TOOL_ITERATIONS = 10;
+
   private async sendLLMResponse(
     inbound: ChannelInboundMessage,
     sessionId: string,
-    response: LLMResponseType
+    response: LLMResponseType,
+    toolIteration = 0
   ): Promise<void> {
     const content = response.success ? response.message?.content : response.error?.message;
     const securityMode = this.options.policyConfig?.securityMode ?? 'standard';
-    const responseText = this.coerceLLMContentText(content);
+    let responseText = this.coerceLLMContentText(content);
     const toolCalls = response.success ? response.toolCalls : undefined;
 
     if (toolCalls && toolCalls.length > 0) {
-      this.sessionManager.addMessage(sessionId, {
-        role: 'assistant',
-        content: responseText,
-        toolCalls,
-      });
+      if (toolIteration >= Gateway.MAX_TOOL_ITERATIONS) {
+        logger.warn({ sessionId, toolIteration }, 'Max tool iterations reached, forcing text response');
+        if (!responseText) {
+          responseText = 'I got caught in a loop processing your request. Could you try rephrasing?';
+        }
+        // Fall through to send responseText
+      } else {
+        this.sessionManager.addMessage(sessionId, {
+          role: 'assistant',
+          content: responseText,
+          toolCalls,
+        });
 
-      const toolMessages = await this.executeToolCalls(sessionId, toolCalls);
-      const followUp = await this.requestLLMResponse(sessionId, toolMessages);
-      await this.sendLLMResponse(inbound, sessionId, followUp);
-      return;
+        const toolMessages = await this.executeToolCalls(sessionId, toolCalls);
+        const followUp = await this.requestLLMResponse(sessionId, toolMessages);
+        await this.sendLLMResponse(inbound, sessionId, followUp, toolIteration + 1);
+        return;
+      }
     }
 
     if (this.cheese) {

@@ -24,6 +24,14 @@ import type {
 } from '@nachos/types';
 import { shouldAllowDm, shouldAllowGroupMessage } from '@nachos/utils';
 import { randomUUID } from 'node:crypto';
+// Status reactions ready for integration (gateway events needed)
+// Uncomment when gateway emits status events
+// import {
+//   createDiscordStatusReactionController,
+//   resolveToolStatusEmoji,
+//   DISCORD_STATUS_EMOJIS,
+//   type StatusReactionController,
+// } from './status-reactions.js';
 
 export class DiscordChannelAdapter implements ChannelAdapter {
   readonly channelId = 'discord';
@@ -175,8 +183,25 @@ export class DiscordChannelAdapter implements ChannelAdapter {
   }
 
   private async handleMessage(message: Message): Promise<void> {
-    if (!this.config) return;
-    if (message.author?.bot) return;
+    console.log(`[Discord] handleMessage from=${message.author?.tag} bot=${message.author?.bot} content="${(message.content ?? '').slice(0, 80)}"`);
+    if (!this.config) { console.log('[Discord] handleMessage: no config, dropping'); return; }
+
+    // Bot message filtering: drop by default, allow if configured
+    if (message.author?.bot) {
+      const channelCfg =
+        this.channelConfig ?? ((this.config.config ?? {}) as DiscordChannelConfig);
+      if (!channelCfg.allow_bots) return;
+      // If bot_allowlist is set, only allow listed bot IDs
+      if (
+        channelCfg.bot_allowlist &&
+        channelCfg.bot_allowlist.length > 0 &&
+        !channelCfg.bot_allowlist.includes(message.author.id)
+      ) {
+        return;
+      }
+      // Prevent self-reply loops: always ignore own messages
+      if (message.author.id === this.botUserId) return;
+    }
 
     const channelConfig =
       this.channelConfig ?? ((this.config.config ?? {}) as DiscordChannelConfig);
@@ -238,6 +263,7 @@ export class DiscordChannelAdapter implements ChannelAdapter {
       if (!allowed) return;
     }
 
+    console.log(`[Discord] Message passed filters, publishing inbound from ${userId}`);
     const inbound = {
       channel: this.channelId,
       channelMessageId: message.id,

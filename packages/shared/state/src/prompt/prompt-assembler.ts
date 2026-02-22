@@ -26,6 +26,7 @@ export interface PromptAssemblyParams {
   memoryFacts?: MemoryFact[];
   sessionState?: SessionStateRecord | null;
   skills?: string | null; // Formatted skills documentation
+  includeMemoryInstructions?: boolean; // Whether to include memory tool usage instructions
 }
 
 export class PromptAssembler {
@@ -51,6 +52,15 @@ export class PromptAssembler {
         name: 'base',
         content: params.basePrompt.trim(),
         source: 'assistant.system_prompt',
+      });
+    }
+
+    // Add memory recall instructions if requested
+    if (params.includeMemoryInstructions) {
+      sections.push({
+        name: 'memory_instructions',
+        content: this.formatMemoryInstructions(),
+        source: 'prompt-assembler',
       });
     }
 
@@ -197,6 +207,48 @@ export class PromptAssembler {
 
   private formatUserProfile(profile: UserProfile): string {
     return ['User Profile:', profile.profile.trim()].join('\n');
+  }
+
+  private formatMemoryInstructions(): string {
+    return `## Memory Recall
+
+The \`memory_search\` tool allows you to query your stored memories from previous sessions.
+
+**When to Use:**
+- User asks about past conversations, decisions, or work
+- User references something you should remember (preferences, facts, decisions)
+- User asks "do you remember..." or "what did we discuss..."
+- Checking for previous decisions before making new ones
+- Retrieving context from earlier sessions
+
+**When NOT to Use:**
+- Current conversation context (it's already visible in messages)
+- General knowledge questions (use your training data)
+- Real-time information (use web search instead)
+- Simple greetings or casual chat
+
+**Usage Pattern:**
+1. Run memory_search with relevant keywords
+2. Review the results
+3. If helpful information is found, reference it in your response
+4. Keep searches focused and specific
+
+**Example:**
+If user asks "What was that Python library we discussed last week?", use:
+\`\`\`json
+{
+  "tool": "memory_search",
+  "parameters": {
+    "query": "Python library",
+    "limit": 5
+  }
+}
+\`\`\`
+
+**Limits:**
+- Maximum 1-2 memory searches per response
+- Only search when genuinely needed (don't search "just in case")
+- If no relevant memories found, acknowledge that clearly`;
   }
 
   private formatSessionState(record: SessionStateRecord): string {
