@@ -25,6 +25,8 @@ import { TOPICS } from '@nachos/bus';
 import {
   SessionsSpawnToolSchema,
   SubagentsToolSchema,
+  BootstrapToolSchema,
+  UserProfileToolSchema,
   validateChannelInboundMessage,
 } from '@nachos/types';
 import {
@@ -1562,6 +1564,24 @@ export class Gateway {
         name: 'memory_get',
         description: 'Read specific memory file sections (MEMORY.md, memory/YYYY-MM-DD.md, AGENTS.md, etc.). Use when you need full file content or specific line ranges. Complements memory_search for detailed context.',
         parameters: this.sanitizeToolSchema(MemoryGetToolSchema),
+      });
+    }
+
+    // User profile tool - manage per-user preferences and settings
+    if (this.stateLayer) {
+      tools.push({
+        name: 'user_profile',
+        description: 'Manage user-specific preferences and settings. Get, set, or delete user profile data for personalization.',
+        parameters: this.sanitizeToolSchema(UserProfileToolSchema),
+      });
+    }
+
+    // Bootstrap tool - manage agent onboarding and identity
+    if (this.stateLayer && this.toolsConfig?.bootstrap?.enabled !== false && !bootstrapLocked) {
+      tools.push({
+        name: 'bootstrap',
+        description: 'Manage agent onboarding and identity configuration. Used during initial setup to gather agent information.',
+        parameters: this.sanitizeToolSchema(BootstrapToolSchema),
       });
     }
 
