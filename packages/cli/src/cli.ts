@@ -6,11 +6,47 @@ import { Command } from 'commander';
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
+import { CLIError } from './core/errors.js';
 
 // Get CLI version from package.json
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const packageJson = JSON.parse(readFileSync(join(__dirname, '../package.json'), 'utf-8'));
+
+const ROOT_HELP_EXAMPLES = `
+Examples:
+  nachos init
+  nachos up --wait
+  nachos status --json
+  nachos logs gateway -f
+  nachos config validate
+
+Use "nachos <command> --help" for command-specific examples.
+`;
+
+const COMPLETION_HELP = `
+Installation:
+  # Bash (Linux)
+  nachos completion bash | sudo tee /etc/bash_completion.d/nachos > /dev/null
+
+  # Bash (macOS with Homebrew)
+  nachos completion bash > "$(brew --prefix)/etc/bash_completion.d/nachos"
+
+  # Zsh
+  mkdir -p ~/.zsh/completion
+  nachos completion zsh > ~/.zsh/completion/_nachos
+  echo 'fpath=(~/.zsh/completion $fpath)' >> ~/.zshrc
+
+  # Fish
+  nachos completion fish > ~/.config/fish/completions/nachos.fish
+
+  # PowerShell
+  nachos completion powershell | Out-String | Invoke-Expression
+
+Examples:
+  nachos completion zsh > ~/.zsh/completion/_nachos
+  nachos completion powershell | Out-String | Invoke-Expression
+`;
 
 export function createProgram(): Command {
   const program = new Command();
@@ -49,15 +85,25 @@ export function createProgram(): Command {
       if (opts.config) {
         const resolved = resolve(opts.config);
         if (!existsSync(resolved)) {
-          console.error(`Error: Config file not found: ${resolved}`);
+          console.error('Error: Config file not found');
+          console.error();
+          console.error(`  Path: ${resolved}`);
+          console.error(`  Current directory: ${process.cwd()}`);
+          console.error();
+          console.error('Possible solutions:');
+          console.error('  1. Run "nachos init" to create a new configuration');
+          console.error('  2. Provide a valid path with --config <path>');
+          console.error('  3. Remove --config to use automatic config discovery');
           process.exit(2);
         }
         process.env.NACHOS_CONFIG_PATH = resolved;
       }
     });
 
+  program.addHelpText('after', ROOT_HELP_EXAMPLES);
+
   // Config subcommands
-  const configCmd = program.command('config').description('Configuration management');
+  const configCmd = program.command('config').alias('cfg').description('Configuration management');
 
   configCmd
     .command('validate')
@@ -66,6 +112,15 @@ export function createProgram(): Command {
       const { validateCommand } = await import('./commands/config/validate.js');
       await validateCommand(program.opts());
     });
+
+  configCmd.addHelpText(
+    'after',
+    `
+Examples:
+  nachos config validate
+  nachos cfg validate --json
+`
+  );
 
   // Policy subcommands
   const policyCmd = program.command('policy').description('Policy management');
@@ -77,6 +132,15 @@ export function createProgram(): Command {
       const { validateCommand } = await import('./commands/policy/validate.js');
       await validateCommand(program.opts());
     });
+
+  policyCmd.addHelpText(
+    'after',
+    `
+Examples:
+  nachos policy validate
+  nachos policy validate --json
+`
+  );
 
   // Auth subcommands
   const authCmd = program.command('auth').description('Authentication helpers');
@@ -95,8 +159,113 @@ export function createProgram(): Command {
       await setupTokenCommand({ ...program.opts(), ...options });
     });
 
+  authCmd.addHelpText(
+    'after',
+    `
+Examples:
+  nachos auth setup-token
+  nachos auth setup-token --provider anthropic --profile anthropic-subscription
+`
+  );
+
   // Add subcommands
   const addCmd = program.command('add').description('Add modules to configuration');
+
+  addCmd
+    .option('-i, --interactive', 'Interactive guided setup')
+    .action(async (options, command) => {
+      if (!options.interactive) {
+        if (process.env.NACHOS_NO_INPUT === '1' || !process.stdin.isTTY) {
+          throw new CLIError(
+            'Interactive input is unavailable and no add target was provided',
+            'MISSING_ARGUMENT',
+            2,
+            'Use one of: nachos add channel <name> or nachos add tool <name>'
+          );
+        }
+        command.help();
+        return;
+      }
+
+      if (program.opts().json) {
+        throw new CLIError(
+          'Interactive setup cannot be used with --json',
+          'INVALID_ARGUMENT',
+          2,
+          'Remove --json or run non-interactive: nachos add channel <name> / nachos add tool <name>'
+        );
+      }
+
+      if (process.env.NACHOS_NO_INPUT === '1' || !process.stdin.isTTY) {
+        throw new CLIError(
+          'Interactive setup requires an interactive terminal',
+          'INPUT_REQUIRED',
+          1,
+          'Remove --no-input or run non-interactive: nachos add channel <name> / nachos add tool <name>'
+        );
+      }
+
+      const prompts = (await import('prompts')).default;
+
+      const typeResponse = await prompts({
+        type: 'select',
+        name: 'type',
+        message: 'What would you like to add?',
+        choices: [
+          { title: 'Channel', value: 'channel' },
+          { title: 'Tool', value: 'tool' },
+        ],
+      });
+
+      if (!typeResponse.type) {
+        return;
+      }
+
+      if (typeResponse.type === 'channel') {
+        const channelResponse = await prompts({
+          type: 'select',
+          name: 'name',
+          message: 'Which channel?',
+          choices: [
+            { title: 'Discord', value: 'discord' },
+            { title: 'Slack', value: 'slack' },
+            { title: 'Telegram', value: 'telegram' },
+            { title: 'WhatsApp', value: 'whatsapp' },
+            { title: 'Webchat', value: 'webchat' },
+          ],
+        });
+
+        if (!channelResponse.name) {
+          return;
+        }
+
+        const { addChannelCommand } = await import('./commands/add/channel.js');
+        await addChannelCommand(channelResponse.name, { ...program.opts() });
+        return;
+      }
+
+      const toolResponse = await prompts({
+        type: 'select',
+        name: 'name',
+        message: 'Which tool?',
+        choices: [
+          { title: 'Filesystem', value: 'filesystem' },
+          { title: 'Browser', value: 'browser' },
+          { title: 'Code Runner', value: 'code_runner' },
+          { title: 'Shell', value: 'shell' },
+          { title: 'Web Search', value: 'web_search' },
+          { title: 'Bootstrap', value: 'bootstrap' },
+          { title: 'Claude Code MCP', value: 'claude_code_mcp' },
+        ],
+      });
+
+      if (!toolResponse.name) {
+        return;
+      }
+
+      const { addToolCommand } = await import('./commands/add/tool.js');
+      await addToolCommand(toolResponse.name, { ...program.opts() });
+    });
 
   addCmd
     .command('channel <name>')
@@ -124,6 +293,17 @@ export function createProgram(): Command {
       const { addToolCommand } = await import('./commands/add/tool.js');
       await addToolCommand(name, { ...program.opts(), ...options });
     });
+
+  addCmd.addHelpText(
+    'after',
+    `
+Examples:
+  nachos add --interactive
+  nachos add channel discord
+  nachos add channel slack --mode socket
+  nachos add tool filesystem --paths ./workspace,./data
+`
+  );
 
   // Subagent commands
   const subagentsCmd = program.command('subagents').description('Subagent management');
@@ -223,6 +403,16 @@ export function createProgram(): Command {
       });
     });
 
+  subagentsCmd.addHelpText(
+    'after',
+    `
+Examples:
+  nachos subagents spawn "Summarize this repo" --label summary
+  nachos subagents list --limit 10
+  nachos subagents log run_123 --limit 20
+`
+  );
+
   // Sandbox commands
   const sandboxCmd = program.command('sandbox').description('Sandbox management');
 
@@ -251,8 +441,18 @@ export function createProgram(): Command {
       await sandboxRecreateCommand({ ...program.opts(), ...options });
     });
 
+  sandboxCmd.addHelpText(
+    'after',
+    `
+Examples:
+  nachos sandbox explain
+  nachos sandbox list
+  nachos sandbox recreate --force
+`
+  );
+
   // Memory commands
-  const memoryCmd = program.command('memory').description('Memory store operations');
+  const memoryCmd = program.command('memory').alias('mem').description('Memory store operations');
 
   memoryCmd
     .command('query')
@@ -316,6 +516,16 @@ export function createProgram(): Command {
       await memoryDeleteCommand({ ...program.opts(), ...options });
     });
 
+  memoryCmd.addHelpText(
+    'after',
+    `
+Examples:
+  nachos memory append-entry --agent-id my-bot --kind preference --content "User likes tacos"
+  nachos memory query --agent-id my-bot --text tacos --limit 5
+  nachos memory append-fact --agent-id my-bot --subject User --predicate prefers --object tacos
+`
+  );
+
   // User profile commands
   const userProfileCmd = program.command('user-profile').description('User profile operations');
 
@@ -355,6 +565,16 @@ export function createProgram(): Command {
       await userProfileDeleteCommand({ ...program.opts(), ...options });
     });
 
+  userProfileCmd.addHelpText(
+    'after',
+    `
+Examples:
+  nachos user-profile get --agent-id my-bot --user-id user-1
+  nachos user-profile set --agent-id my-bot --user-id user-1 --profile "Prefers concise replies"
+  nachos user-profile delete --agent-id my-bot --user-id user-1
+`
+  );
+
   // Top-level commands
   program
     .command('init')
@@ -365,6 +585,18 @@ export function createProgram(): Command {
       const { initCommand } = await import('./commands/init.js');
       await initCommand({ ...program.opts(), ...options });
     });
+
+  program.commands
+    .find((command) => command.name() === 'init')
+    ?.addHelpText(
+      'after',
+      `
+Examples:
+  nachos init
+  nachos init --defaults
+  nachos init --force
+`
+    );
 
   program
     .command('up')
@@ -378,8 +610,21 @@ export function createProgram(): Command {
       await upCommand({ ...program.opts(), ...options });
     });
 
+  program.commands
+    .find((command) => command.name() === 'up')
+    ?.addHelpText(
+      'after',
+      `
+Examples:
+  nachos up
+  nachos up --wait --timeout 90
+  nachos up --only gateway,bus
+`
+    );
+
   program
     .command('down')
+    .alias('d')
     .description('Stop the Nachos stack')
     .option('--volumes', 'Remove volumes')
     .option('--force', 'Skip confirmation when removing volumes')
@@ -388,8 +633,20 @@ export function createProgram(): Command {
       await downCommand({ ...program.opts(), ...options });
     });
 
+  program.commands
+    .find((command) => command.name() === 'down')
+    ?.addHelpText(
+      'after',
+      `
+Examples:
+  nachos down
+  nachos down --volumes --force
+`
+    );
+
   program
     .command('restart')
+    .alias('r')
     .description('Restart the Nachos stack')
     .option('--build', 'Build images before starting')
     .option('--wait', 'Wait for services to be healthy')
@@ -398,8 +655,20 @@ export function createProgram(): Command {
       await restartCommand({ ...program.opts(), ...options });
     });
 
+  program.commands
+    .find((command) => command.name() === 'restart')
+    ?.addHelpText(
+      'after',
+      `
+Examples:
+  nachos restart
+  nachos restart --build --wait
+`
+    );
+
   program
     .command('logs')
+    .alias('l')
     .description('View service logs')
     .argument('[service]', 'Service name (optional)')
     .option('-f, --follow', 'Follow log output')
@@ -410,13 +679,37 @@ export function createProgram(): Command {
       await logsCommand(service, { ...program.opts(), ...options });
     });
 
+  program.commands
+    .find((command) => command.name() === 'logs')
+    ?.addHelpText(
+      'after',
+      `
+Examples:
+  nachos logs
+  nachos logs gateway -f
+  nachos logs bus --tail 200 --timestamps
+`
+    );
+
   program
     .command('status')
+    .alias('s')
     .description('Show stack status')
     .action(async () => {
       const { statusCommand } = await import('./commands/status.js');
       await statusCommand(program.opts());
     });
+
+  program.commands
+    .find((command) => command.name() === 'status')
+    ?.addHelpText(
+      'after',
+      `
+Examples:
+  nachos status
+  nachos s --json
+`
+    );
 
   program
     .command('list')
@@ -426,15 +719,57 @@ export function createProgram(): Command {
       await listCommand(program.opts());
     });
 
+  program.commands
+    .find((command) => command.name() === 'list')
+    ?.addHelpText(
+      'after',
+      `
+Examples:
+  nachos list
+  nachos list --json
+`
+    );
+
   program
     .command('ui')
-    .alias('open')
     .description('Open the Admin UI in the browser')
     .option('-p, --port <port>', 'Admin UI port (default: 8082)', parseInt)
     .action(async (options) => {
       const { uiCommand } = await import('./commands/ui.js');
       await uiCommand({ ...program.opts(), ...options });
     });
+
+  program.commands
+    .find((command) => command.name() === 'ui')
+    ?.addHelpText(
+      'after',
+      `
+Examples:
+  nachos ui
+  nachos ui --port 8082
+`
+    );
+
+  program
+    .command('open <service>')
+    .description('Open a service endpoint in the browser (admin, webchat, gateway, nats, docs)')
+    .option('-p, --port <port>', 'Override port for selected service')
+    .action(async (service: string, options) => {
+      const { openCommand } = await import('./commands/open.js');
+      await openCommand(service, { ...program.opts(), ...options });
+    });
+
+  program.commands
+    .find((command) => command.name() === 'open')
+    ?.addHelpText(
+      'after',
+      `
+Examples:
+  nachos open admin
+  nachos open webchat
+  nachos open nats
+`
+    );
 
   program
     .command('doctor')
@@ -444,6 +779,17 @@ export function createProgram(): Command {
       await doctorCommand(program.opts());
     });
 
+  program.commands
+    .find((command) => command.name() === 'doctor')
+    ?.addHelpText(
+      'after',
+      `
+Examples:
+  nachos doctor
+  nachos doctor --json
+`
+    );
+
   program
     .command('debug')
     .description('Show debug information')
@@ -451,6 +797,36 @@ export function createProgram(): Command {
       const { debugCommand } = await import('./commands/debug.js');
       await debugCommand(program.opts());
     });
+
+  program.commands
+    .find((command) => command.name() === 'debug')
+    ?.addHelpText(
+      'after',
+      `
+Examples:
+  nachos debug
+  nachos debug --json
+`
+    );
+
+  program
+    .command('validate')
+    .description('Run aggregate validation (config + policy + doctor checks)')
+    .action(async () => {
+      const { validateAllCommand } = await import('./commands/validate.js');
+      await validateAllCommand(program.opts());
+    });
+
+  program.commands
+    .find((command) => command.name() === 'validate')
+    ?.addHelpText(
+      'after',
+      `
+Examples:
+  nachos validate
+  nachos validate --json
+`
+    );
 
   program
     .command('remove <type> <name>')
@@ -462,6 +838,18 @@ export function createProgram(): Command {
       await removeCommand(type, name, { ...program.opts(), ...options });
     });
 
+  program.commands
+    .find((command) => command.name() === 'remove')
+    ?.addHelpText(
+      'after',
+      `
+Examples:
+  nachos remove channel discord
+  nachos remove tool browser --dry-run
+  nachos remove channel discord --force
+`
+    );
+
   program
     .command('completion <shell>')
     .description('Generate shell completion script (bash, zsh, fish, powershell)')
@@ -469,6 +857,10 @@ export function createProgram(): Command {
       const { completionCommand } = await import('./commands/completion.js');
       await completionCommand(shell, program, program.opts());
     });
+
+  program.commands
+    .find((command) => command.name() === 'completion')
+    ?.addHelpText('after', COMPLETION_HELP);
 
   return program;
 }

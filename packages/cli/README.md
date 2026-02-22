@@ -25,8 +25,21 @@ nachos [command] [options]
 
 - `--json` - Output results as JSON (all commands)
 - `--verbose` - Enable verbose output
+- `-q, --quiet` - Suppress non-essential output
+- `-c, --config <path>` - Override config file path
+- `--no-input` - Disable interactive prompts
+- `--no-color` - Disable colored output
 - `--help` - Show help for a command
 - `--version` - Show CLI version
+
+### Aliases
+
+- `nachos s` → `nachos status`
+- `nachos l` → `nachos logs`
+- `nachos r` → `nachos restart`
+- `nachos d` → `nachos down`
+- `nachos cfg` → `nachos config`
+- `nachos mem` → `nachos memory`
 
 ## Commands
 
@@ -45,6 +58,7 @@ Options:
 ```
 
 Creates:
+
 - `nachos.toml` - Main configuration file
 - `.env` - Environment variables (API keys)
 - `policies/` - Security policy files
@@ -64,6 +78,7 @@ Options:
 ```
 
 This command:
+
 1. Validates configuration
 2. Generates `docker-compose.generated.yml`
 3. Starts all services using Docker Compose
@@ -99,6 +114,7 @@ nachos status
 ```
 
 Displays:
+
 - Container states (running/stopped)
 - Health status
 - Service URLs
@@ -117,6 +133,7 @@ Options:
 ```
 
 Examples:
+
 ```bash
 # View all logs
 nachos logs
@@ -130,6 +147,20 @@ nachos logs -f bus
 # Last 100 lines of webchat logs
 nachos logs webchat --tail 100
 ```
+
+#### `nachos validate`
+
+Run aggregate validation checks in one command.
+
+```bash
+nachos validate [--json]
+```
+
+Runs:
+
+1. `nachos config validate`
+2. `nachos policy validate`
+3. `nachos doctor`
 
 ### Configuration
 
@@ -153,6 +184,21 @@ Checks all `.yaml` and `.yml` files in the `policies/` directory.
 
 ### Module Management
 
+#### `nachos add --interactive`
+
+Run a guided interactive flow to choose and configure either a channel or tool.
+
+```bash
+nachos add --interactive
+```
+
+Non-interactive usage in CI should use explicit commands:
+
+```bash
+nachos add channel <name>
+nachos add tool <name>
+```
+
 #### `nachos add channel <name>`
 
 Add a channel configuration stub to `nachos.toml`.
@@ -169,11 +215,13 @@ Valid channels:
 ```
 
 Example:
+
 ```bash
 nachos add channel slack
 ```
 
 This adds a commented configuration stub. You'll need to:
+
 1. Edit `nachos.toml` to set `enabled = true`
 2. Configure channel-specific settings
 3. Add required secrets to `.env`
@@ -195,8 +243,36 @@ Valid tools:
 ```
 
 Example:
+
 ```bash
 nachos add tool browser
+```
+
+#### `nachos open <service>`
+
+Open a known service endpoint in your browser.
+
+```bash
+nachos open <service> [options]
+
+Services:
+  - admin
+  - webchat
+  - gateway
+  - nats
+  - docs
+
+Options:
+  -p, --port <port>    Override port for local services
+```
+
+Examples:
+
+```bash
+nachos open admin
+nachos open webchat
+nachos open gateway --port 3000
+nachos open docs
 ```
 
 ### Memory and Profiles
@@ -387,6 +463,7 @@ Options:
 ```
 
 Examples:
+
 ```bash
 # Remove slack channel (with confirmation)
 nachos remove channel slack
@@ -404,6 +481,7 @@ nachos list
 ```
 
 Shows:
+
 - Enabled/disabled channels
 - Enabled/disabled tools
 - Enabled/disabled skills
@@ -419,6 +497,7 @@ nachos doctor
 ```
 
 Checks:
+
 - ✓ Docker installed and running
 - ✓ Docker Compose V2 available
 - ✓ Node.js 22+ installed
@@ -433,8 +512,31 @@ Checks:
 - ✓ Container health (if running)
 
 Exit codes:
+
 - `0` - All checks passed
 - `1` - One or more checks failed
+
+### Completion
+
+Generate shell completion scripts:
+
+```bash
+nachos completion <bash|zsh|fish|powershell>
+```
+
+Install examples:
+
+```bash
+# Bash (Linux)
+nachos completion bash | sudo tee /etc/bash_completion.d/nachos > /dev/null
+
+# Zsh
+mkdir -p ~/.zsh/completion
+nachos completion zsh > ~/.zsh/completion/_nachos
+
+# PowerShell
+nachos completion powershell | Out-String | Invoke-Expression
+```
 
 #### `nachos debug`
 
@@ -445,6 +547,7 @@ nachos debug
 ```
 
 Displays:
+
 - CLI version
 - Node.js version
 - Platform and architecture
@@ -461,6 +564,7 @@ nachos status --json
 ```
 
 Output format:
+
 ```json
 {
   "ok": true,
@@ -480,6 +584,7 @@ Output format:
 ```
 
 Error format:
+
 ```json
 {
   "ok": false,
@@ -694,9 +799,10 @@ pnpm dev
 - **`core/output.ts`** - Output formatting (pretty + JSON)
 - **`core/errors.ts`** - Custom error types
 
-### Commands
+### Command Architecture
 
 All commands follow a consistent pattern:
+
 1. Accept options (including `--json`)
 2. Create `OutputFormatter`
 3. Perform operation
@@ -706,6 +812,7 @@ All commands follow a consistent pattern:
 ### Doctor Checks
 
 The `doctor` command runs modular health checks:
+
 - `checks/docker.ts` - Docker availability
 - `checks/config.ts` - Configuration validation
 - `checks/dependencies.ts` - Node.js, pnpm versions

@@ -19,8 +19,8 @@ async function load() {
 }
 
 function statusColor(status: string): string {
-  if (status === 'active') return 'var(--green)';
-  if (status === 'denied') return 'var(--red)';
+  if (status === 'active') return 'var(--ok)';
+  if (status === 'denied') return 'var(--danger)';
   if (status === 'disabled') return 'var(--text-muted)';
   return 'var(--text-muted)';
 }
@@ -31,7 +31,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="page">
+  <div class="page skills-page">
     <header class="page-header">
       <div>
         <h1 class="page-title">Skills</h1>
@@ -55,7 +55,7 @@ onMounted(() => {
         <div
           v-for="skill in data.skills"
           :key="skill.name"
-          class="card"
+          class="card skill-card"
           :class="{ 'card-disabled': skill.status !== 'active' }"
         >
           <div class="card-top">
@@ -76,7 +76,7 @@ onMounted(() => {
             target="_blank"
             rel="noopener"
           >
-            Homepage \u2197
+            Homepage ↗
           </a>
         </div>
       </div>
@@ -85,62 +85,15 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.page {
-  padding: 28px 32px;
+.skills-page {
   max-width: 1100px;
 }
 
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 28px;
-}
-
-.page-title { font-size: 20px; font-weight: 700; letter-spacing: -0.4px; }
-.page-sub { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
-
-.btn-ghost {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  padding: 6px 12px;
-  border-radius: var(--radius);
-  font-size: 13px;
-  transition: color 0.1s, border-color 0.1s;
-}
-.btn-ghost:hover { color: var(--text); border-color: var(--text-muted); }
-.btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
-
-.alert-error {
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  color: var(--red);
-  padding: 10px 14px;
-  border-radius: var(--radius);
-  margin-bottom: 20px;
-  font-size: 13px;
-}
-
-.loading, .empty { color: var(--text-muted); font-size: 13px; }
-
-.card-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px;
+.skill-card {
   min-width: 220px;
   flex: 1;
   max-width: 340px;
 }
-
-.card-disabled { opacity: 0.5; }
 
 .card-top {
   display: flex;
@@ -152,36 +105,30 @@ onMounted(() => {
 .card-name {
   font-size: 14px;
   font-weight: 600;
-}
-
-.status-chip {
-  display: inline-block;
-  font-size: 11px;
-  font-family: var(--font-mono);
-  padding: 2px 6px;
-  border-radius: 3px;
-  border: 1px solid;
-  white-space: nowrap;
+  color: var(--text-strong);
 }
 
 .card-desc {
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--text-muted);
   line-height: 1.4;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
 .card-reason {
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--text-faint);
   font-style: italic;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
 .card-link {
   font-size: 12px;
   color: var(--accent);
-  transition: opacity 0.1s;
+  transition: opacity var(--duration-fast) var(--ease-out);
 }
-.card-link:hover { opacity: 0.8; }
+
+.card-link:hover {
+  opacity: 0.8;
+}
 </style>

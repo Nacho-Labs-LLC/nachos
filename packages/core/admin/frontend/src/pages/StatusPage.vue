@@ -28,16 +28,16 @@ onUnmounted(() => {
 });
 
 function statusColor(status: string): string {
-  if (status === 'healthy') return 'var(--green)';
-  if (status === 'degraded') return 'var(--yellow)';
+  if (status === 'healthy') return 'var(--ok)';
+  if (status === 'degraded') return 'var(--warn)';
   if (status === 'unreachable') return 'var(--text-muted)';
-  return 'var(--red)';
+  return 'var(--danger)';
 }
 
 function modeColor(mode?: string): string {
-  if (mode === 'strict') return 'var(--red)';
-  if (mode === 'permissive') return 'var(--yellow)';
-  return 'var(--green)';
+  if (mode === 'strict') return 'var(--danger)';
+  if (mode === 'permissive') return 'var(--warn)';
+  return 'var(--ok)';
 }
 
 function formatUptime(seconds?: number): string {
@@ -54,7 +54,7 @@ function formatUptime(seconds?: number): string {
 </script>
 
 <template>
-  <div class="page">
+  <div class="page status-page">
     <header class="page-header">
       <div>
         <h1 class="page-title">System Status</h1>
@@ -125,7 +125,7 @@ function formatUptime(seconds?: number): string {
             <div class="card-label">LLM</div>
             <template v-if="data.config?.llm">
               <div class="status-text">{{ data.config.llm.provider ?? '—' }}</div>
-              <div class="text-muted mono">{{ data.config.llm.model ?? '' }}</div>
+              <div class="text-muted mono" style="font-size: 12px;">{{ data.config.llm.model ?? '' }}</div>
             </template>
             <div v-else class="text-muted">No config</div>
           </div>
@@ -146,7 +146,7 @@ function formatUptime(seconds?: number): string {
             <div class="status-row">
               <span
                 class="status-dot"
-                :style="{ background: ch.enabled ? 'var(--green)' : 'var(--text-muted)' }"
+                :style="{ background: ch.enabled ? 'var(--ok)' : 'var(--text-muted)' }"
               />
               <span>{{ ch.enabled ? 'enabled' : 'disabled' }}</span>
             </div>
@@ -168,7 +168,7 @@ function formatUptime(seconds?: number): string {
             <div class="status-row">
               <span
                 class="status-dot"
-                :style="{ background: tool.enabled ? 'var(--green)' : 'var(--text-muted)' }"
+                :style="{ background: tool.enabled ? 'var(--ok)' : 'var(--text-muted)' }"
               />
               <span>{{ tool.enabled ? 'enabled' : 'disabled' }}</span>
             </div>
@@ -180,55 +180,13 @@ function formatUptime(seconds?: number): string {
 </template>
 
 <style scoped>
-.page {
-  padding: 28px 32px;
+.status-page {
   max-width: 1100px;
 }
 
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 28px;
+.section {
+  margin-bottom: 32px;
 }
-
-.page-title {
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.4px;
-}
-
-.page-sub {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-top: 3px;
-}
-
-.btn-ghost {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  padding: 6px 12px;
-  border-radius: var(--radius);
-  font-size: 13px;
-  transition: color 0.1s, border-color 0.1s;
-}
-.btn-ghost:hover { color: var(--text); border-color: var(--text-muted); }
-.btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
-
-.alert-error {
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  color: var(--red);
-  padding: 10px 14px;
-  border-radius: var(--radius);
-  margin-bottom: 20px;
-  font-size: 13px;
-}
-
-.loading { color: var(--text-muted); font-size: 13px; }
-
-.section { margin-bottom: 32px; }
 
 .section-title {
   font-size: 11px;
@@ -239,85 +197,36 @@ function formatUptime(seconds?: number): string {
   margin-bottom: 12px;
 }
 
-.card-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
+.top-cards .card {
+  min-width: 200px;
+  flex: 1;
 }
 
-.top-cards .card { min-width: 200px; flex: 1; }
-
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px;
-}
-
-.card-sm { min-width: 130px; }
-
-.card-disabled { opacity: 0.5; }
-
-.card-label {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  margin-bottom: 10px;
-}
-
-.status-row {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 14px;
+.status-text {
   font-weight: 500;
-  margin-bottom: 8px;
 }
-
-.status-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.status-text { font-weight: 500; }
-
-.text-muted { color: var(--text-muted); }
-.mono { font-family: var(--font-mono); font-size: 12px; }
-
-.meta-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-top: 8px;
-}
-
-.meta-list div {
-  display: flex;
-  gap: 8px;
-  font-size: 12px;
-}
-
-.meta-list dt { color: var(--text-muted); min-width: 50px; }
-.meta-list dd { font-family: var(--font-mono); }
 
 .checks {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  margin-top: 10px;
+  margin-top: 12px;
 }
 
 .check-chip {
   font-size: 11px;
   font-family: var(--font-mono);
-  padding: 2px 6px;
-  border-radius: 3px;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
 }
 
-.check-ok { background: rgba(34, 197, 94, 0.12); color: var(--green); }
-.check-err { background: rgba(239, 68, 68, 0.12); color: var(--red); }
+.check-ok {
+  background: var(--ok-subtle);
+  color: var(--ok);
+}
+
+.check-err {
+  background: var(--danger-subtle);
+  color: var(--danger);
+}
 </style>

@@ -1,9 +1,29 @@
 <script setup lang="ts">
 import { RouterView, RouterLink, useRoute } from 'vue-router';
-import { computed } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 
 const route = useRoute();
 const currentPath = computed(() => route.path);
+
+const theme = ref<'dark' | 'light'>('dark');
+
+function toggleTheme() {
+  theme.value = theme.value === 'dark' ? 'light' : 'dark';
+  if (theme.value === 'light') {
+    document.documentElement.setAttribute('data-theme', 'light');
+  } else {
+    document.documentElement.removeAttribute('data-theme');
+  }
+  localStorage.setItem('nachos-theme', theme.value);
+}
+
+onMounted(() => {
+  const saved = localStorage.getItem('nachos-theme') as 'dark' | 'light' | null;
+  if (saved === 'light') {
+    theme.value = 'light';
+    document.documentElement.setAttribute('data-theme', 'light');
+  }
+});
 </script>
 
 <template>
@@ -89,6 +109,9 @@ const currentPath = computed(() => route.path);
       </ul>
 
       <div class="sidebar-footer">
+        <button class="theme-btn" @click="toggleTheme" :title="theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'">
+          {{ theme === 'dark' ? '☀' : '☾' }}
+        </button>
         <a href="https://github.com/nachos-dev" class="doc-link" target="_blank" rel="noopener">
           Docs ↗
         </a>
@@ -115,19 +138,18 @@ const currentPath = computed(() => route.path);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  padding: 0;
 }
 
 .brand {
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  gap: 8px;
   padding: 20px 16px 16px;
   border-bottom: 1px solid var(--border);
 }
 
 .brand-icon { font-size: 16px; }
-.brand-name { font-weight: 700; font-size: 15px; letter-spacing: -0.3px; }
+.brand-name { font-weight: 700; font-size: 15px; letter-spacing: -0.3px; color: var(--text-strong); }
 .brand-label {
   font-size: 10px;
   font-weight: 600;
@@ -135,8 +157,8 @@ const currentPath = computed(() => route.path);
   text-transform: uppercase;
   color: var(--accent);
   background: var(--accent-dim);
-  padding: 1px 5px;
-  border-radius: 3px;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
 }
 
 .nav-list {
@@ -152,31 +174,74 @@ const currentPath = computed(() => route.path);
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 10px;
+  padding: 8px 12px;
   border-radius: var(--radius);
   color: var(--text-muted);
   font-size: 13px;
   font-weight: 500;
-  transition: color 0.1s, background 0.1s;
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out);
 }
 
-.nav-link:hover { color: var(--text); background: var(--surface-2); }
-.nav-link.active { color: var(--text); background: var(--surface-2); }
-.nav-link.active .nav-icon { color: var(--accent); }
+.nav-link:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
 
-.nav-icon { font-size: 12px; color: var(--text-muted); }
+.nav-link.active {
+  color: var(--text-strong);
+  background: var(--surface-2);
+}
+
+.nav-link.active .nav-icon {
+  color: var(--accent);
+}
+
+.nav-icon {
+  font-size: 12px;
+  color: var(--text-faint);
+}
 
 .sidebar-footer {
   padding: 12px 16px;
   border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.theme-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
+}
+
+.theme-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .doc-link {
   font-size: 12px;
   color: var(--text-muted);
-  transition: color 0.1s;
+  transition: color var(--duration-fast) var(--ease-out);
 }
-.doc-link:hover { color: var(--text); }
+
+.doc-link:hover {
+  color: var(--text);
+}
 
 .content {
   flex: 1;

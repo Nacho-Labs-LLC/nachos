@@ -43,7 +43,6 @@ function connect(service: ServiceName) {
   source.onmessage = (event: MessageEvent<string>) => {
     const line = (event.data as string).replace(/\\n/g, '\n');
     lines.value.push(line);
-    // Trim to max line limit
     if (lines.value.length > MAX_LINES) {
       lines.value = lines.value.slice(lines.value.length - MAX_LINES);
     }
@@ -51,7 +50,7 @@ function connect(service: ServiceName) {
   };
 
   source.onerror = () => {
-    // EventSource will auto-reconnect; no action needed
+    // EventSource will auto-reconnect
   };
 
   es = source;
@@ -77,7 +76,6 @@ function clearLog() {
   lines.value = [];
 }
 
-// Reconnect when service changes
 watch(selectedService, (svc) => {
   lines.value = [];
   if (!paused.value) {
@@ -95,7 +93,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="page">
+  <div class="page logs-page">
     <header class="page-header">
       <div>
         <h1 class="page-title">Logs</h1>
@@ -118,7 +116,7 @@ onUnmounted(() => {
       <button
         v-for="svc in SERVICES"
         :key="svc"
-        class="tab-btn"
+        class="svc-tab"
         :class="{ active: selectedService === svc }"
         @click="selectedService = svc"
       >
@@ -144,34 +142,25 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.page { padding: 28px 32px; display: flex; flex-direction: column; height: 100%; box-sizing: border-box; }
-
-.page-header {
+.logs-page {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 16px;
+  flex-direction: column;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.logs-page .page-header {
   flex-shrink: 0;
 }
 
-.page-title { font-size: 20px; font-weight: 700; letter-spacing: -0.4px; }
-.page-sub { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
-
-.header-actions { display: flex; gap: 8px; align-items: center; }
-
-.btn-ghost {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  padding: 6px 12px;
-  border-radius: var(--radius);
-  font-size: 13px;
-  cursor: pointer;
-  transition: color 0.1s, border-color 0.1s;
+.btn-paused {
+  color: var(--accent);
+  border-color: var(--accent);
 }
-.btn-ghost:hover { color: var(--text); border-color: var(--text-muted); }
-.btn-paused { color: var(--accent); border-color: var(--accent); }
-.btn-paused:hover { color: var(--accent); }
+
+.btn-paused:hover {
+  color: var(--accent);
+}
 
 .service-tabs {
   display: flex;
@@ -181,19 +170,27 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
-.tab-btn {
+.svc-tab {
   background: transparent;
   border: 1px solid var(--border);
   color: var(--text-muted);
-  padding: 5px 11px;
+  padding: 6px 12px;
   border-radius: var(--radius);
   font-size: 12px;
   font-family: var(--font-mono);
   cursor: pointer;
-  transition: color 0.1s, background 0.1s, border-color 0.1s;
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
 }
-.tab-btn:hover { color: var(--text); background: var(--surface); }
-.tab-btn.active {
+
+.svc-tab:hover {
+  color: var(--text);
+  background: var(--bg-hover);
+}
+
+.svc-tab.active {
   color: var(--accent);
   border-color: var(--accent);
   background: var(--accent-dim);
@@ -207,22 +204,25 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
-.status-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  flex-shrink: 0;
+.dot-live {
+  background: var(--ok);
+  box-shadow: 0 0 6px var(--ok);
 }
-.dot-live { background: var(--green); box-shadow: 0 0 4px var(--green); }
-.dot-paused { background: var(--text-muted); }
 
-.status-label { font-size: 12px; color: var(--text-muted); }
+.dot-paused {
+  background: var(--text-muted);
+}
+
+.status-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
 
 .line-count {
   margin-left: auto;
   font-size: 11px;
   font-family: var(--font-mono);
-  color: var(--text-muted);
+  color: var(--text-faint);
 }
 
 .log-output {
@@ -234,11 +234,12 @@ onUnmounted(() => {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 10px 14px;
+  padding: 12px 16px;
   font-family: var(--font-mono);
   font-size: 12px;
   line-height: 1.55;
   color: var(--text);
+  box-shadow: var(--shadow-inset);
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
 }
@@ -254,5 +255,7 @@ onUnmounted(() => {
   padding: 1px 0;
 }
 
-.log-line:hover { background: rgba(255,255,255,0.03); }
+.log-line:hover {
+  background: var(--bg-hover);
+}
 </style>

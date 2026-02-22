@@ -138,11 +138,8 @@ async function save() {
 }
 
 function buildToml(): string {
-  // Parse the current raw TOML, merge form values in, then stringify.
-  // Unknown fields and structure are preserved; comments are not (TOML limitation).
   const parsed = TOML.parse(editorContent.value) as Record<string, unknown>;
 
-  // LLM
   if (!parsed['llm']) parsed['llm'] = {};
   const llmObj = parsed['llm'] as Record<string, unknown>;
   Object.assign(llmObj, {
@@ -152,7 +149,6 @@ function buildToml(): string {
     max_tokens: form.llm.max_tokens,
   });
 
-  // LLM fallback_order
   const fallbackArr = form.llm.fallback_order
     .split(',')
     .map((s: string) => s.trim())
@@ -163,7 +159,6 @@ function buildToml(): string {
     delete llmObj['fallback_order'];
   }
 
-  // LLM retry
   if (!llmObj['retry']) llmObj['retry'] = {};
   Object.assign(llmObj['retry'] as object, {
     attempts: form.llm.retry.attempts,
@@ -171,12 +166,10 @@ function buildToml(): string {
     max_delay_ms: form.llm.retry.max_delay_ms,
   });
 
-  // Security — only overwrite mode; preserve other security fields
   if (!parsed['security']) parsed['security'] = {};
   const secObj = parsed['security'] as Record<string, unknown>;
   secObj['mode'] = form.security.mode;
 
-  // DLP
   if (!secObj['dlp']) secObj['dlp'] = {};
   const dlpPatterns = form.dlp.patterns
     .split('\n')
@@ -188,7 +181,6 @@ function buildToml(): string {
     patterns: dlpPatterns,
   });
 
-  // Rate limits — only write non-zero fields
   if (!secObj['rate_limits']) secObj['rate_limits'] = {};
   const rlObj = secObj['rate_limits'] as Record<string, unknown>;
   if (form.rateLimits.messages_per_minute > 0) {
@@ -207,7 +199,6 @@ function buildToml(): string {
     delete rlObj['llm_requests_per_minute'];
   }
 
-  // Audit settings
   if (!secObj['audit']) secObj['audit'] = {};
   Object.assign(secObj['audit'] as object, {
     enabled: form.auditSettings.enabled,
@@ -218,7 +209,6 @@ function buildToml(): string {
     provider: form.auditSettings.provider,
   });
 
-  // Channels — only set enabled flag; preserve tokens and other channel fields
   if (!parsed['channels']) parsed['channels'] = {};
   const channels = parsed['channels'] as Record<string, Record<string, unknown>>;
   for (const ch of CHANNELS) {
@@ -226,7 +216,6 @@ function buildToml(): string {
     channels[ch]['enabled'] = form.channels[ch]?.enabled ?? false;
   }
 
-  // Tools — only set enabled flag; preserve per-tool settings
   if (!parsed['tools']) parsed['tools'] = {};
   const tools = parsed['tools'] as Record<string, Record<string, unknown>>;
   for (const { key } of TOOLS) {
@@ -234,7 +223,6 @@ function buildToml(): string {
     tools[key]['enabled'] = form.tools[key]?.enabled ?? false;
   }
 
-  // Assistant
   if (!parsed['assistant']) parsed['assistant'] = {};
   Object.assign(parsed['assistant'] as object, {
     name: form.assistant.name,
@@ -260,7 +248,6 @@ const tabs: { key: Tab; label: string }[] = [
   { key: 'assistant', label: 'Assistant' },
 ];
 
-// Security mode description
 const modeDesc = computed(() => {
   if (form.security.mode === 'strict') return 'All tools disabled; allowlist DMs; full audit.';
   if (form.security.mode === 'permissive') return 'Full access. Requires explicit opt-in.';
@@ -271,7 +258,7 @@ onMounted(() => void load());
 </script>
 
 <template>
-  <div class="page">
+  <div class="page config-page">
     <header class="page-header">
       <div>
         <h1 class="page-title">Configuration</h1>
@@ -304,7 +291,6 @@ onMounted(() => void load());
     </div>
 
     <template v-else>
-      <!-- Tab bar -->
       <nav class="tab-bar">
         <button
           v-for="tab in tabs"
@@ -548,30 +534,20 @@ onMounted(() => void load());
 </template>
 
 <style scoped>
-.page { padding: 28px 32px; max-width: 760px; }
-
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 24px;
+.config-page {
+  max-width: 760px;
 }
-
-.page-title { font-size: 20px; font-weight: 700; letter-spacing: -0.4px; }
-.page-sub { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
-
-.header-actions { display: flex; align-items: center; gap: 12px; }
 
 .toggle-group {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 3px;
+  gap: 4px;
 }
 
 .toggle-hint {
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--text-faint);
   max-width: 220px;
   text-align: right;
   line-height: 1.4;
@@ -580,38 +556,20 @@ onMounted(() => void load());
 .toggle-label {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   font-size: 13px;
   color: var(--text-muted);
   cursor: pointer;
 }
-.toggle-label input { cursor: pointer; }
 
-.btn-primary {
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  padding: 7px 16px;
-  border-radius: var(--radius);
-  font-size: 13px;
-  font-weight: 600;
-  transition: opacity 0.1s;
+.toggle-label input {
+  cursor: pointer;
+  accent-color: var(--accent);
 }
-.btn-primary:hover { opacity: 0.85; }
-.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
 
-.toast {
-  padding: 10px 14px;
-  border-radius: var(--radius);
-  font-size: 13px;
-  margin-bottom: 16px;
+.raw-editor {
+  height: calc(100vh - 160px);
 }
-.toast-ok { background: rgba(34, 197, 94, 0.12); color: var(--green); border: 1px solid rgba(34, 197, 94, 0.25); }
-.toast-err { background: rgba(239, 68, 68, 0.1); color: var(--red); border: 1px solid rgba(239, 68, 68, 0.25); }
-
-.loading { color: var(--text-muted); font-size: 13px; }
-
-.raw-editor { height: calc(100vh - 160px); }
 
 .toml-editor {
   width: 100%;
@@ -627,150 +585,23 @@ onMounted(() => void load());
   resize: none;
   outline: none;
   tab-size: 2;
-}
-.toml-editor:focus { border-color: var(--accent); }
-
-.tab-bar {
-  display: flex;
-  gap: 2px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 24px;
+  transition: border-color var(--duration-fast) var(--ease-out);
 }
 
-.tab-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  padding: 8px 14px;
-  font-size: 13px;
-  font-weight: 500;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  transition: color 0.1s, border-color 0.1s;
-}
-.tab-btn:hover { color: var(--text); }
-.tab-btn.active { color: var(--text); border-bottom-color: var(--accent); }
-
-.form-section { display: flex; flex-direction: column; gap: 20px; }
-
-.section-hint { font-size: 12px; color: var(--text-muted); }
-
-.subsection-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-muted);
-  padding-top: 8px;
-  border-top: 1px solid var(--border);
-  margin: 0;
+.toml-editor:focus {
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring);
 }
 
-.field { display: flex; flex-direction: column; gap: 8px; }
+.range-input {
+  width: 100%;
+  accent-color: var(--accent);
+}
 
-.field-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-muted);
+.range-labels {
   display: flex;
   justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-faint);
 }
-
-.field-value { font-family: var(--font-mono); color: var(--text); }
-
-.field-hint { font-size: 12px; color: var(--text-muted); }
-
-.field-input {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  color: var(--text);
-  padding: 8px 10px;
-  font-size: 13px;
-  outline: none;
-  transition: border-color 0.1s;
-}
-.field-input:focus { border-color: var(--accent); }
-
-.field-textarea {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  color: var(--text);
-  padding: 10px;
-  font-size: 13px;
-  line-height: 1.5;
-  resize: vertical;
-  outline: none;
-}
-.field-textarea:focus { border-color: var(--accent); }
-
-.range-input { width: 100%; accent-color: var(--accent); }
-.range-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); }
-
-.toggle-list { display: flex; flex-direction: column; gap: 2px; }
-
-.toggle-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 14px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-}
-
-.toggle-info { display: flex; align-items: center; gap: 8px; }
-.toggle-name { font-size: 13px; font-weight: 500; }
-
-.badge-warn {
-  font-size: 10px;
-  padding: 1px 5px;
-  border-radius: 3px;
-  background: rgba(234, 179, 8, 0.12);
-  color: var(--yellow);
-}
-
-/* Toggle switch */
-.switch { position: relative; cursor: pointer; }
-.switch input { display: none; }
-
-.switch-track {
-  display: block;
-  width: 36px;
-  height: 20px;
-  border-radius: 10px;
-  background: var(--border);
-  transition: background 0.2s;
-  position: relative;
-}
-
-.switch-track::after {
-  content: '';
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--text-muted);
-  transition: transform 0.2s, background 0.2s;
-}
-
-.switch input:checked + .switch-track { background: var(--accent); }
-.switch input:checked + .switch-track::after { transform: translateX(16px); background: #fff; }
-
-.radio-group { display: flex; gap: 8px; }
-
-.radio-option {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  cursor: pointer;
-  transition: border-color 0.1s, background 0.1s;
-}
-.radio-option input { display: none; }
-.radio-option.selected { border-color: var(--accent); background: var(--accent-dim); }
-.radio-label { font-size: 13px; font-weight: 500; }
 </style>

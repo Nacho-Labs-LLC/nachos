@@ -4,6 +4,7 @@
  */
 
 import chalk from 'chalk';
+import ora from 'ora';
 import { runDoctorChecks } from '../lib/doctor/index.js';
 import { OutputFormatter, prettyOutput } from '../core/output.js';
 import { getVersion } from '../cli.js';
@@ -22,7 +23,9 @@ export async function doctorCommand(options: DoctorOptions): Promise<void> {
     }
 
     // Run all checks
+    const spinner = !options.json ? ora('Running health checks...').start() : null;
     const result = await runDoctorChecks();
+    spinner?.succeed(`Completed ${result.summary.total} health checks`);
 
     // Display results
     if (options.json) {

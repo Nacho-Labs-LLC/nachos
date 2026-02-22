@@ -6,7 +6,7 @@
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { getProjectRoot } from '../core/config-discovery.js';
-import { OutputFormatter } from '../core/output.js';
+import { OutputFormatter, prettyOutput } from '../core/output.js';
 import { DockerClient } from '../core/docker-client.js';
 import { getVersion } from '../cli.js';
 import {
@@ -52,6 +52,14 @@ export async function logsCommand(
         1,
         'Run "nachos up" to start the stack.'
       );
+    }
+
+    if (!options.json) {
+      prettyOutput.brandedHeader('Nachos Logs');
+      prettyOutput.keyValue('Service', service ?? 'all');
+      prettyOutput.keyValue('Follow', options.follow ? 'yes' : 'no');
+      prettyOutput.keyValue('Tail', options.tail ?? 'all');
+      prettyOutput.blank();
     }
 
     // Stream logs (this will block until user interrupts)

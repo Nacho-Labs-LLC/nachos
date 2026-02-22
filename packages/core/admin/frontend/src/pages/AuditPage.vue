@@ -40,9 +40,9 @@ function resetPage() {
 }
 
 function outcomeColor(outcome: string): string {
-  if (outcome === 'allow') return 'var(--green)';
-  if (outcome === 'block' || outcome === 'error') return 'var(--red)';
-  if (outcome === 'warn') return 'var(--yellow)';
+  if (outcome === 'allow') return 'var(--ok)';
+  if (outcome === 'block' || outcome === 'error') return 'var(--danger)';
+  if (outcome === 'warn') return 'var(--warn)';
   return 'var(--text-muted)';
 }
 
@@ -113,7 +113,7 @@ watch(() => [filters.value.event_type, filters.value.channel, filters.value.outc
       </div>
 
       <div v-else class="table-wrap">
-        <table class="audit-table">
+        <table class="data-table">
           <thead>
             <tr>
               <th>Timestamp</th>
@@ -126,14 +126,14 @@ watch(() => [filters.value.event_type, filters.value.channel, filters.value.outc
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in data.events" :key="row.id" class="audit-row">
+            <tr v-for="row in data.events" :key="row.id">
               <td class="mono td-time">{{ fmt(row.timestamp) }}</td>
               <td class="mono td-type">{{ row.event_type }}</td>
               <td class="td-action">{{ truncate(row.action, 40) }}</td>
               <td class="mono">{{ row.channel || '—' }}</td>
               <td class="mono">{{ truncate(row.user_id, 16) }}</td>
               <td>
-                <span class="outcome-chip" :style="{ color: outcomeColor(row.outcome), borderColor: outcomeColor(row.outcome) }">
+                <span class="status-chip" :style="{ color: outcomeColor(row.outcome), borderColor: outcomeColor(row.outcome) }">
                   {{ row.outcome }}
                 </span>
               </td>
@@ -166,123 +166,7 @@ watch(() => [filters.value.event_type, filters.value.channel, filters.value.outc
 </template>
 
 <style scoped>
-.page { padding: 28px 32px; }
-
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 20px;
-}
-
-.page-title { font-size: 20px; font-weight: 700; letter-spacing: -0.4px; }
-.page-sub { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
-
-.btn-ghost {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  padding: 6px 12px;
-  border-radius: var(--radius);
-  font-size: 13px;
-  transition: color 0.1s, border-color 0.1s;
-}
-.btn-ghost:hover { color: var(--text); border-color: var(--text-muted); }
-.btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
-
-.filter-bar {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
-}
-
-.filter-input {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  color: var(--text);
-  padding: 6px 10px;
-  font-size: 13px;
-  outline: none;
-  min-width: 160px;
-  transition: border-color 0.1s;
-}
-.filter-input:focus { border-color: var(--accent); }
-
-.alert-error {
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  color: var(--red);
-  padding: 10px 14px;
-  border-radius: var(--radius);
-  margin-bottom: 16px;
-  font-size: 13px;
-}
-
-.loading, .empty { color: var(--text-muted); font-size: 13px; }
-
-.table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
-
-.audit-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12.5px;
-}
-
-.audit-table th {
-  text-align: left;
-  padding: 9px 12px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  white-space: nowrap;
-}
-
-.audit-row { border-bottom: 1px solid var(--border); transition: background 0.1s; }
-.audit-row:last-child { border-bottom: none; }
-.audit-row:hover { background: var(--surface); }
-
-.audit-row td { padding: 8px 12px; vertical-align: top; }
-
-.mono { font-family: var(--font-mono); }
 .td-time { white-space: nowrap; color: var(--text-muted); }
-.td-type { color: var(--blue); white-space: nowrap; }
+.td-type { color: var(--info); white-space: nowrap; }
 .td-action, .td-reason { max-width: 200px; word-break: break-all; }
-
-.outcome-chip {
-  display: inline-block;
-  font-size: 11px;
-  font-family: var(--font-mono);
-  padding: 2px 6px;
-  border-radius: 3px;
-  border: 1px solid;
-  white-space: nowrap;
-}
-
-.pagination {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 16px;
-  justify-content: center;
-}
-
-.page-btn {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  padding: 5px 12px;
-  border-radius: var(--radius);
-  font-size: 12px;
-  transition: color 0.1s;
-}
-.page-btn:hover:not(:disabled) { color: var(--text); }
-.page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-
-.page-info { font-size: 12px; color: var(--text-muted); }
 </style>

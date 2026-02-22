@@ -248,11 +248,14 @@ nachos status        # Show status
 nachos doctor        # Health check
 
 nachos restart       # Restart the stack
+nachos validate      # Run config + policy + doctor checks
 nachos config validate  # Validate nachos.toml
 nachos policy validate  # Validate policies/
 
+nachos add --interactive
 nachos add channel <name>
 nachos add tool <name>
+nachos open <service>   # Open admin/webchat/gateway/nats/docs
 ```
 
 For now, use Docker Compose directly:

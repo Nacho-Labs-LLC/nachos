@@ -13,7 +13,7 @@ const data = ref<ServicesResponse | null>(null);
 const loading = ref(true);
 const error = ref<string | null>(null);
 const actionError = ref<string | null>(null);
-const pendingAction = ref<string | null>(null); // "name:action"
+const pendingAction = ref<string | null>(null);
 let interval: ReturnType<typeof setInterval> | null = null;
 
 async function load() {
@@ -29,16 +29,16 @@ async function load() {
 }
 
 function stateColor(state: string): string {
-  if (state === 'running') return 'var(--green)';
-  if (state === 'paused') return 'var(--yellow)';
-  if (state === 'restarting') return 'var(--yellow)';
-  return 'var(--red)';
+  if (state === 'running') return 'var(--ok)';
+  if (state === 'paused') return 'var(--warn)';
+  if (state === 'restarting') return 'var(--warn)';
+  return 'var(--danger)';
 }
 
 function healthColor(health: string): string {
-  if (health === 'healthy') return 'var(--green)';
-  if (health === 'unhealthy') return 'var(--red)';
-  if (health === 'starting') return 'var(--yellow)';
+  if (health === 'healthy') return 'var(--ok)';
+  if (health === 'unhealthy') return 'var(--danger)';
+  if (health === 'starting') return 'var(--warn)';
   return 'var(--text-muted)';
 }
 
@@ -126,7 +126,7 @@ onUnmounted(() => {
       </div>
 
       <div v-else class="table-wrap">
-        <table class="services-table">
+        <table class="data-table">
           <thead>
             <tr>
               <th>Name</th>
@@ -138,11 +138,11 @@ onUnmounted(() => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="svc in data.services" :key="svc.name" class="service-row">
+            <tr v-for="svc in data.services" :key="svc.name">
               <td class="mono td-name">{{ svc.name }}</td>
               <td>
                 <span
-                  class="state-chip"
+                  class="status-chip"
                   :style="{ color: stateColor(svc.state), borderColor: stateColor(svc.state) }"
                 >
                   {{ svc.state }}
@@ -151,7 +151,7 @@ onUnmounted(() => {
               <td>
                 <span
                   v-if="svc.health !== 'none'"
-                  class="state-chip"
+                  class="status-chip"
                   :style="{ color: healthColor(svc.health), borderColor: healthColor(svc.health) }"
                 >
                   {{ svc.health }}
@@ -197,100 +197,12 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.page { padding: 28px 32px; }
-
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 20px;
-}
-
-.page-title { font-size: 20px; font-weight: 700; letter-spacing: -0.4px; }
-.page-sub { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
-
-.btn-ghost {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  padding: 6px 12px;
-  border-radius: var(--radius);
-  font-size: 13px;
-  transition: color 0.1s, border-color 0.1s;
-}
-.btn-ghost:hover { color: var(--text); border-color: var(--text-muted); }
-.btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
-
-.alert-error {
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  color: var(--red);
-  padding: 10px 14px;
-  border-radius: var(--radius);
-  margin-bottom: 16px;
-  font-size: 13px;
-}
-
-.loading, .empty { color: var(--text-muted); font-size: 13px; }
-
-.table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
-
-.services-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12.5px;
-}
-
-.services-table th {
-  text-align: left;
-  padding: 9px 12px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  white-space: nowrap;
-}
-
-.service-row { border-bottom: 1px solid var(--border); transition: background 0.1s; }
-.service-row:last-child { border-bottom: none; }
-.service-row:hover { background: var(--surface); }
-.service-row td { padding: 8px 12px; vertical-align: middle; }
-
-.mono { font-family: var(--font-mono); }
 .td-name { font-weight: 600; }
 .td-uptime { color: var(--text-muted); white-space: nowrap; }
 .td-image { color: var(--text-muted); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.td-actions { display: flex; gap: 6px; align-items: center; }
-.text-muted { color: var(--text-muted); }
-
-.state-chip {
-  display: inline-block;
-  font-size: 11px;
-  font-family: var(--font-mono);
-  padding: 2px 6px;
-  border-radius: 3px;
-  border: 1px solid;
-  white-space: nowrap;
-}
-
-.btn-action {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  padding: 3px 9px;
-  border-radius: var(--radius);
-  font-size: 11px;
-  cursor: pointer;
-  transition: color 0.1s, border-color 0.1s, background 0.1s;
-  white-space: nowrap;
-}
-.btn-action:disabled { opacity: 0.35; cursor: not-allowed; }
-.btn-action.loading { opacity: 0.6; }
+.td-actions { display: flex; gap: 8px; align-items: center; }
 
 .btn-restart:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
-.btn-stop:hover:not(:disabled) { color: var(--red); border-color: var(--red); background: rgba(239, 68, 68, 0.08); }
-.btn-start:hover:not(:disabled) { color: var(--green); border-color: var(--green); background: rgba(34, 197, 94, 0.08); }
+.btn-stop:hover:not(:disabled) { color: var(--danger); border-color: var(--danger); background: var(--danger-subtle); }
+.btn-start:hover:not(:disabled) { color: var(--ok); border-color: var(--ok); background: var(--ok-subtle); }
 </style>
