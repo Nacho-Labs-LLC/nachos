@@ -176,6 +176,44 @@ export const GATEWAY_TOPICS = {
 } as const;
 
 /**
+ * Status event topics for real-time operation feedback
+ */
+export const STATUS_TOPICS = {
+  /**
+   * Thinking/reasoning status for a session
+   * Publisher: Gateway
+   * Subscriber: Channel adapters
+   */
+  thinking: (sessionId: string) => `${TOPIC_PREFIX}.status.${sessionId}.thinking`,
+
+  /**
+   * Tool execution status for a session
+   * Publisher: Gateway
+   * Subscriber: Channel adapters
+   */
+  tool: (sessionId: string) => `${TOPIC_PREFIX}.status.${sessionId}.tool`,
+
+  /**
+   * Successful completion status for a session
+   * Publisher: Gateway
+   * Subscriber: Channel adapters
+   */
+  done: (sessionId: string) => `${TOPIC_PREFIX}.status.${sessionId}.done`,
+
+  /**
+   * Error status for a session
+   * Publisher: Gateway
+   * Subscriber: Channel adapters
+   */
+  error: (sessionId: string) => `${TOPIC_PREFIX}.status.${sessionId}.error`,
+
+  /**
+   * Wildcard for all status events for a session
+   */
+  all: (sessionId: string) => `${TOPIC_PREFIX}.status.${sessionId}.*`,
+} as const;
+
+/**
  * Configuration topics
  */
 export const CONFIG_TOPICS = {
@@ -252,6 +290,7 @@ export const TOPICS = {
   gateway: GATEWAY_TOPICS,
   context: CONTEXT_TOPICS,
   config: CONFIG_TOPICS,
+  status: STATUS_TOPICS,
 } as const;
 
 /**

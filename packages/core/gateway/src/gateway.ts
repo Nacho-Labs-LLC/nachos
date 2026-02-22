@@ -1058,6 +1058,8 @@ export class Gateway {
         });
       }
 
+      void this.publishStatusEvent(session.id, 'thinking', message.conversation.id, message.channelMessageId ?? undefined);
+
       const response = await this.requestLLMResponse(
         session.id,
         [],
@@ -1068,6 +1070,8 @@ export class Gateway {
       const errMsg = error instanceof Error ? error.message : String(error);
       const isTimeout = errMsg.includes('timed out') || errMsg.includes('timeout');
       logger.error({ err: error, sessionId: session.id }, 'Failed to process inbound message');
+
+      void this.publishStatusEvent(session.id, 'error', message.conversation.id, message.channelMessageId ?? undefined);
 
       // Send error feedback to the user instead of silent failure
       const errorOutbound: ChannelOutboundMessage = {
@@ -1632,7 +1636,8 @@ export class Gateway {
 
   private async executeToolCalls(
     sessionId: string,
-    toolCalls: Array<{ id: string; name: string; arguments: string }>
+    toolCalls: Array<{ id: string; name: string; arguments: string }>,
+    statusMeta?: { channelId: string; channelMessageId?: string }
   ): Promise<LLMRequestType['messages']> {
     logger.info({ sessionId, tools: toolCalls.map(tc => tc.name) }, 'Executing tool calls');
     if (!this.toolCoordinator) {
@@ -1763,6 +1768,9 @@ export class Gateway {
 
       const localResult = await this.executeLocalToolCall(call, session);
       if (localResult) {
+        if (statusMeta) {
+          void this.publishStatusEvent(sessionId, 'tool', statusMeta.channelId, statusMeta.channelMessageId, call.tool);
+        }
         localResults.push({ index: i, result: localResult });
         continue;
       }
@@ -1774,6 +1782,9 @@ export class Gateway {
         }
       }
 
+      if (statusMeta) {
+        void this.publishStatusEvent(sessionId, 'tool', statusMeta.channelId, statusMeta.channelMessageId, call.tool);
+      }
       allowedCalls.push({ index: i, call });
     }
 
@@ -2749,7 +2760,10 @@ export class Gateway {
           toolCalls,
         });
 
-        const toolMessages = await this.executeToolCalls(sessionId, toolCalls);
+        const toolMessages = await this.executeToolCalls(sessionId, toolCalls, {
+          channelId: inbound.conversation.id,
+          channelMessageId: inbound.channelMessageId ?? undefined,
+        });
         const followUp = await this.requestLLMResponse(sessionId, toolMessages);
         await this.sendLLMResponse(inbound, sessionId, followUp, toolIteration + 1);
         return;
@@ -2818,10 +2832,28 @@ export class Gateway {
     };
 
     await this.router.sendToChannel(outbound);
+    void this.publishStatusEvent(sessionId, 'done', inbound.conversation.id, inbound.channelMessageId ?? undefined);
   }
 
   private stringifyToolParameters(parameters: Record<string, unknown>) { return stringifyToolParameters(parameters); }
   private coerceLLMContentText(content: unknown) { return coerceLLMContentText(content); }
+
+  private async publishStatusEvent(
+    sessionId: string,
+    status: 'thinking' | 'tool' | 'done' | 'error',
+    channelId: string,
+    channelMessageId?: string,
+    toolName?: string
+  ): Promise<void> {
+    try {
+      const payload = { sessionId, status, channelId, channelMessageId, toolName };
+      const envelope = createEnvelope('gateway', `status.${status}`, payload);
+      await this.router.getBus().publish(TOPICS.status[status](sessionId), envelope);
+    } catch (err) {
+      // Status events are best-effort; do not let failures affect message processing
+      logger.debug({ err, sessionId, status }, 'Failed to publish status event');
+    }
+  }
 
   private getReplyToMessageId(message: ChannelInboundMessage): string | undefined {
     const metadata = message.metadata as { thread_ts?: string } | undefined;

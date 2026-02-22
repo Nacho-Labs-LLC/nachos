@@ -24,14 +24,20 @@ import type {
 } from '@nachos/types';
 import { shouldAllowDm, shouldAllowGroupMessage } from '@nachos/utils';
 import { randomUUID } from 'node:crypto';
-// Status reactions ready for integration (gateway events needed)
-// Uncomment when gateway emits status events
-// import {
-//   createDiscordStatusReactionController,
-//   resolveToolStatusEmoji,
-//   DISCORD_STATUS_EMOJIS,
-//   type StatusReactionController,
-// } from './status-reactions.js';
+import {
+  createDiscordStatusReactionController,
+  resolveToolStatusEmoji,
+  DISCORD_STATUS_EMOJIS,
+  type StatusReactionController,
+} from './status-reactions.js';
+
+interface StatusEvent {
+  sessionId: string;
+  status: 'thinking' | 'tool' | 'done' | 'error';
+  channelId: string;
+  channelMessageId?: string;
+  toolName?: string;
+}
 
 export class DiscordChannelAdapter implements ChannelAdapter {
   readonly channelId = 'discord';
@@ -45,6 +51,7 @@ export class DiscordChannelAdapter implements ChannelAdapter {
     stateDir: process.env.RUNTIME_STATE_DIR ?? process.env.NACHOS_STATE_DIR,
   });
   private pairingToken = process.env.NACHOS_PAIRING_TOKEN;
+  private statusControllers: Map<string, StatusReactionController> = new Map();
 
   async initialize(config: ChannelAdapterConfig): Promise<void> {
     this.config = config;
@@ -90,6 +97,48 @@ export class DiscordChannelAdapter implements ChannelAdapter {
     await this.config.bus.subscribe(TOPICS.channel.outbound(this.channelId), async (payload) => {
       await this.sendMessage(payload as OutboundMessage);
     });
+
+    if (this.channelConfig?.status_emojis?.enabled) {
+      await this.subscribeToStatusEvents();
+    }
+  }
+
+  private async subscribeToStatusEvents(): Promise<void> {
+    if (!this.config) return;
+    // Subscribe to all sessions using '*' wildcard — controllers are keyed by channelMessageId
+    // so each message's reactions are managed independently regardless of sessionId.
+    const handler = async (event: unknown) => this.handleStatusEvent(event as StatusEvent);
+    await this.config.bus.subscribe(TOPICS.status.thinking('*'), handler);
+    await this.config.bus.subscribe(TOPICS.status.tool('*'), handler);
+    await this.config.bus.subscribe(TOPICS.status.done('*'), handler);
+    await this.config.bus.subscribe(TOPICS.status.error('*'), handler);
+  }
+
+  private async handleStatusEvent(event: StatusEvent): Promise<void> {
+    if (!event.channelMessageId || !event.channelId || !this.client) return;
+
+    let controller = this.statusControllers.get(event.channelMessageId);
+    if (!controller) {
+      controller = createDiscordStatusReactionController({
+        enabled: true,
+        channelId: event.channelId,
+        messageId: event.channelMessageId,
+        client: this.client,
+      });
+      this.statusControllers.set(event.channelMessageId, controller);
+    }
+
+    if (event.status === 'thinking') {
+      await controller.setPhase(DISCORD_STATUS_EMOJIS.THINKING);
+    } else if (event.status === 'tool') {
+      await controller.setPhase(resolveToolStatusEmoji(event.toolName));
+    } else if (event.status === 'done') {
+      await controller.setTerminal(DISCORD_STATUS_EMOJIS.DONE);
+      this.statusControllers.delete(event.channelMessageId);
+    } else if (event.status === 'error') {
+      await controller.setTerminal(DISCORD_STATUS_EMOJIS.ERROR);
+      this.statusControllers.delete(event.channelMessageId);
+    }
   }
 
   private resolveDiscordToken(channelConfig: DiscordChannelConfig): string | undefined {
