@@ -38,6 +38,16 @@ export const MemorySearchToolSchema = {
       description: 'Maximum results to return (default: 10)',
       default: 10,
     },
+    semantic: {
+      type: 'boolean',
+      description: 'Use semantic search instead of text matching (finds similar meanings, not just exact words). Default: false',
+      default: false,
+    },
+    minSimilarity: {
+      type: 'number',
+      description: 'Minimum similarity score for semantic search (0-1). Default: 0.7',
+      default: 0.7,
+    },
   },
   required: ['query'],
 };
@@ -80,6 +90,8 @@ export async function executeMemorySearch(
       kinds?: string[];
       tags?: string[];
       limit?: number;
+      semantic?: boolean;
+      minSimilarity?: number;
     };
 
     if (!params.query || typeof params.query !== 'string') {
@@ -102,15 +114,20 @@ export async function executeMemorySearch(
       kinds: params.kinds as MemoryKind[] | undefined,
       tags: params.tags,
       limit: params.limit ?? 10,
+      semantic: params.semantic ?? false,
+      minSimilarity: params.minSimilarity ?? 0.7,
     };
 
     const result = await stateLayer.queryMemory(memoryQuery, context);
 
     // Format results for LLM
+    const searchType = params.semantic ? 'semantic' : 'text';
     const entriesText = result.entries.map((entry, idx) => {
       const tagsStr = entry.tags && entry.tags.length > 0 ? ` [tags: ${entry.tags.join(', ')}]` : '';
-      const confidence = entry.confidence ? ` (confidence: ${entry.confidence})` : '';
-      return `${idx + 1}. [${entry.kind}]${tagsStr}${confidence}\n   ${entry.content}`;
+      const confidenceStr = entry.confidence 
+        ? ` (${params.semantic ? 'similarity' : 'confidence'}: ${entry.confidence.toFixed(2)})`
+        : '';
+      return `${idx + 1}. [${entry.kind}]${tagsStr}${confidenceStr}\n   ${entry.content}`;
     }).join('\n\n');
 
     const factsText = result.facts && result.facts.length > 0
@@ -121,7 +138,7 @@ export async function executeMemorySearch(
 
     const summary = `Found ${result.entries.length} memory entries` +
       (result.facts ? ` and ${result.facts.length} facts` : '') +
-      ` for query: "${params.query}"`;
+      ` (${searchType} search) for query: "${params.query}"`;
 
     return {
       success: true,

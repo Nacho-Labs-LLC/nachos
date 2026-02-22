@@ -444,6 +444,9 @@ importers:
       '@nachos/context-manager':
         specifier: workspace:*
         version: link:../context-manager
+      '@nachos/embeddings':
+        specifier: workspace:*
+        version: link:../embeddings
       '@nachos/types':
         specifier: workspace:*
         version: link:../types

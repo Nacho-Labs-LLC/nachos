@@ -86,6 +86,17 @@ export class StateLayer {
     }
   }
 
+  /**
+   * Initialize the state layer (e.g., semantic search if enabled)
+   * Call this after creating the StateLayer instance
+   */
+  async init(): Promise<void> {
+    // Initialize memory store if it supports semantic search
+    if ('init' in this.memoryStore && typeof this.memoryStore.init === 'function') {
+      await this.memoryStore.init();
+    }
+  }
+
   async getIdentity(
     agentId: string,
     context: StateOperationContext
@@ -470,7 +481,13 @@ function createMemoryStore(
   if (!dir) {
     throw createConfigError('Filesystem memory store requires dir', { component: 'gateway' });
   }
-  return new FilesystemMemoryStore(dir);
+  
+  return new FilesystemMemoryStore({
+    baseDir: dir,
+    enableSemantic: config.memory.semantic?.enabled ?? false,
+    semanticModel: config.memory.semantic?.model,
+    semanticCacheDir: config.memory.semantic?.cacheDir,
+  });
 }
 
 function createUserProfileStore(

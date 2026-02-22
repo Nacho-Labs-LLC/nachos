@@ -11,13 +11,80 @@ import type {
   MemoryQueryResult,
   MemoryStore,
 } from '@nachos/types';
+import { SemanticSearch } from '@nachos/embeddings';
+
+export interface FilesystemMemoryStoreConfig {
+  baseDir: string;
+  enableSemantic?: boolean;
+  semanticModel?: string;
+  semanticCacheDir?: string;
+}
 
 export class FilesystemMemoryStore implements MemoryStore {
-  constructor(private baseDir: string) {}
+  private semanticSearch?: SemanticSearch<MemoryEntry>;
+  private semanticEnabled: boolean;
+  private initPromise?: Promise<void>;
+
+  constructor(config: string | FilesystemMemoryStoreConfig) {
+    if (typeof config === 'string') {
+      this.baseDir = config;
+      this.semanticEnabled = false;
+    } else {
+      this.baseDir = config.baseDir;
+      this.semanticEnabled = config.enableSemantic ?? false;
+
+      if (this.semanticEnabled) {
+        this.semanticSearch = new SemanticSearch<MemoryEntry>({
+          model: config.semanticModel,
+          cacheDir: config.semanticCacheDir,
+          minSimilarity: 0.7,
+        });
+      }
+    }
+  }
+
+  private baseDir: string;
+
+  /**
+   * Initialize semantic search if enabled
+   * Must be called before using semantic search features
+   */
+  async init(): Promise<void> {
+    if (!this.initPromise && this.semanticEnabled && this.semanticSearch) {
+      this.initPromise = (async () => {
+        await this.semanticSearch!.init();
+
+        // Index existing entries
+        // Note: This could be slow for large datasets, consider lazy indexing
+        const agentDirs = await this.listAgentDirs();
+        for (const agentId of agentDirs) {
+          const entries = await this.readEntries(agentId);
+          for (const entry of entries) {
+            await this.semanticSearch!.addDocument({
+              id: entry.id,
+              text: entry.content,
+              metadata: entry,
+            });
+          }
+        }
+      })();
+    }
+    return this.initPromise;
+  }
 
   async appendEntry(entry: MemoryEntry): Promise<MemoryEntry> {
     await this.ensureDir(entry.agentId);
     await fs.appendFile(this.entriesPath(entry.agentId), `${JSON.stringify(entry)}\n`, 'utf-8');
+
+    // Add to semantic index if enabled
+    if (this.semanticEnabled && this.semanticSearch?.isInitialized()) {
+      await this.semanticSearch.addDocument({
+        id: entry.id,
+        text: entry.content,
+        metadata: entry,
+      });
+    }
+
     return entry;
   }
 
@@ -31,6 +98,12 @@ export class FilesystemMemoryStore implements MemoryStore {
   }
 
   async query(query: MemoryQuery): Promise<MemoryQueryResult> {
+    // Use semantic search if enabled and requested
+    if (query.semantic && query.text && this.semanticEnabled && this.semanticSearch?.isInitialized()) {
+      return this.querySemantic(query);
+    }
+
+    // Standard text-based search
     const entries = await this.readEntries(query.agentId);
     let filtered = entries;
 
@@ -62,14 +135,72 @@ export class FilesystemMemoryStore implements MemoryStore {
     };
   }
 
+  private async querySemantic(query: MemoryQuery): Promise<MemoryQueryResult> {
+    if (!this.semanticSearch || !query.text) {
+      return { entries: [], facts: [] };
+    }
+
+    const results = await this.semanticSearch.search(query.text, {
+      limit: query.limit ?? 10,
+      minSimilarity: query.minSimilarity ?? 0.7,
+      filter: (metadata) => {
+        if (!metadata) return false;
+
+        // Filter by agentId
+        if (metadata.agentId !== query.agentId) return false;
+
+        // Filter by kinds
+        if (query.kinds && !query.kinds.includes(metadata.kind)) return false;
+
+        // Filter by tags
+        if (query.tags && metadata.tags) {
+          if (!query.tags.some((tag) => metadata.tags?.includes(tag))) {
+            return false;
+          }
+        }
+
+        return true;
+      },
+    });
+
+    // Add similarity scores as confidence
+    const entries = results.map((result) => ({
+      ...result.metadata!,
+      confidence: result.similarity,
+    }));
+
+    // Note: semantic search doesn't search facts (yet)
+    return {
+      entries,
+      facts: [],
+    };
+  }
+
   async deleteEntry(id: string, agentId: string): Promise<void> {
     const entries = await this.readEntries(agentId);
     const remaining = entries.filter((entry) => entry.id !== id);
     await fs.writeFile(this.entriesPath(agentId), this.serializeJsonl(remaining), 'utf-8');
+
+    // Remove from semantic index if enabled
+    if (this.semanticEnabled && this.semanticSearch?.isInitialized()) {
+      this.semanticSearch.remove(id);
+    }
   }
 
   private async ensureDir(agentId: string): Promise<void> {
     await fs.mkdir(path.join(this.baseDir, agentId), { recursive: true });
+  }
+
+  private async listAgentDirs(): Promise<string[]> {
+    try {
+      const entries = await fs.readdir(this.baseDir, { withFileTypes: true });
+      return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return [];
+      }
+      throw error;
+    }
   }
 
   private entriesPath(agentId: string): string {
