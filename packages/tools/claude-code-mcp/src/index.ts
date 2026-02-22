@@ -29,7 +29,8 @@ async function main(): Promise<void> {
   await tool.start(config);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// tsx watch compat: always run main
+{
   main().catch((error) => {
     console.error('Fatal error:', error);
     process.exit(1);

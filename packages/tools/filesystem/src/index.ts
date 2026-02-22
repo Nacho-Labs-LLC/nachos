@@ -81,7 +81,8 @@ async function main() {
 }
 
 // Run if this is the main module
-if (import.meta.url === `file://${process.argv[1]}`) {
+// tsx watch compat: always run main
+{
   main().catch((error) => {
     console.error('Fatal error:', error);
     process.exit(1);

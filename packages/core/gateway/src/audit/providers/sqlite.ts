@@ -86,7 +86,7 @@ export class SQLiteAuditProvider implements AuditProvider {
         security_mode,
         policy_matched,
         details
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING
     `);
 
     const insert = this.db.transaction((entries: AuditEvent[]) => {

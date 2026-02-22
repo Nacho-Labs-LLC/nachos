@@ -23,6 +23,7 @@ function buildSecrets(): Record<string, string> {
 }
 
 async function main(): Promise<void> {
+  console.log('[Discord] main() called');
   if (!process.env.DISCORD_BOT_TOKEN) {
     console.warn(
       '[Discord] DISCORD_BOT_TOKEN not configured — channel disabled. Set the env var and restart to enable.'
@@ -54,7 +55,9 @@ async function main(): Promise<void> {
   };
 
   await adapter.initialize(adapterConfig);
+  console.log('[Discord] Starting adapter...');
   await adapter.start();
+  console.log('[Discord] Adapter started — bot should be online!');
 
   const shutdown = async () => {
     await adapter.stop();
@@ -66,9 +69,8 @@ async function main(): Promise<void> {
   process.on('SIGINT', () => void shutdown());
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch((error) => {
-    console.error('Discord channel startup failed:', error);
-    process.exit(1);
-  });
-}
+// Always run main — tsx watch doesn't set argv[1] in a way that matches import.meta.url
+main().catch((error) => {
+  console.error('Discord channel startup failed:', error);
+  process.exit(1);
+});

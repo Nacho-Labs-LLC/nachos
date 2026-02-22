@@ -60,6 +60,8 @@ const CONFIG_SHAPE: SchemaNode = {
     discord: {
       enabled: true,
       token: true,
+      allow_bots: true,
+      bot_allowlist: true,
       commands: { enabled: true, admin_allowlist: true },
       dm: { user_allowlist: true, pairing: true },
       servers: {
