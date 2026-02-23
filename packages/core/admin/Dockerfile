@@ -36,9 +36,14 @@ RUN pnpm build:backend
 # ─── Stage 3: Runtime ────────────────────────────────────────────────────────
 FROM node:22-alpine AS runtime
 
-# Create non-root user first
+# Install Docker CLI for container management (services + logs pages)
+RUN apk add --no-cache docker-cli
+
+# Create non-root user and add to docker group for socket access
+# Docker socket GID varies by host — use DOCKER_GID build arg (default 999)
+ARG DOCKER_GID=999
 RUN addgroup -g 1001 nachos && adduser -D -u 1001 -G nachos nachos \
- && (addgroup -g 999 docker 2>/dev/null || true) \
+ && (addgroup -g ${DOCKER_GID} docker 2>/dev/null || true) \
  && (adduser nachos docker 2>/dev/null || true)
 
 WORKDIR /app
