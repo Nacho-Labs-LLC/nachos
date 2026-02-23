@@ -646,6 +646,12 @@ export class Gateway {
     let messageText = message.content.text ?? '';
     const securityMode = this.options.policyConfig?.securityMode ?? 'standard';
 
+    // --- Early intercept: approval commands work from ANY channel/session ---
+    if (this.approvalManager && messageText) {
+      const handled = await this.handleApprovalCommand(message, messageText);
+      if (handled) return;
+    }
+
     if (this.rateLimiter) {
       const limitResult = await this.rateLimiter.check(message.sender.id ?? 'anonymous', 'message');
 
@@ -887,157 +893,8 @@ export class Gateway {
       });
     }
 
-    const approvalText = message.content.text?.trim();
-    if (approvalText && this.approvalManager) {
-      const approveMatch = approvalText.match(/^\/approve\s+(\S+)$/i);
-      const denyMatch = approvalText.match(/^\/deny\s+(\S+)(?:\s+(.+))?$/i);
-
-      if (approveMatch) {
-        const requestId = approveMatch[1];
-        if (!requestId) {
-          return;
-        }
-
-        const pending = this.approvalManager.getPendingRequest(requestId);
-        if (!pending) {
-          const outbound: ChannelOutboundMessage = {
-            channel: message.channel,
-            conversationId: message.conversation.id,
-            replyToMessageId: message.channelMessageId,
-            sessionId: session.id,
-            content: {
-              text: `⚠️ No pending approval found for ${requestId}.`,
-              format: 'markdown',
-            },
-          };
-          await this.router.sendToChannel(outbound);
-          return;
-        }
-
-        if (pending.requesterUserId && pending.requesterUserId !== message.sender.id) {
-          if (this.approvalAllowlist.has(message.sender.id ?? '')) {
-            const approved = this.approvalManager.approve(requestId, message.sender.id);
-            const outbound: ChannelOutboundMessage = {
-              channel: message.channel,
-              conversationId: message.conversation.id,
-              replyToMessageId: message.channelMessageId,
-              sessionId: session.id,
-              content: {
-                text: approved
-                  ? `✅ Approved request ${requestId}.`
-                  : `⚠️ No pending approval found for ${requestId}.`,
-                format: 'markdown',
-              },
-            };
-            await this.router.sendToChannel(outbound);
-            return;
-          }
-
-          const outbound: ChannelOutboundMessage = {
-            channel: message.channel,
-            conversationId: message.conversation.id,
-            replyToMessageId: message.channelMessageId,
-            sessionId: session.id,
-            content: {
-              text: `⛔ You are not allowed to approve request ${requestId}.`,
-              format: 'markdown',
-            },
-          };
-          await this.router.sendToChannel(outbound);
-          return;
-        }
-
-        const approved = this.approvalManager.approve(requestId, message.sender.id);
-        const outbound: ChannelOutboundMessage = {
-          channel: message.channel,
-          conversationId: message.conversation.id,
-          replyToMessageId: message.channelMessageId,
-          sessionId: session.id,
-          content: {
-            text: approved
-              ? `✅ Approved request ${requestId}.`
-              : `⚠️ No pending approval found for ${requestId}.`,
-            format: 'markdown',
-          },
-        };
-        await this.router.sendToChannel(outbound);
-        return;
-      }
-
-      if (denyMatch) {
-        const requestId = denyMatch[1];
-        if (!requestId) {
-          return;
-        }
-
-        const pending = this.approvalManager.getPendingRequest(requestId);
-        if (!pending) {
-          const outbound: ChannelOutboundMessage = {
-            channel: message.channel,
-            conversationId: message.conversation.id,
-            replyToMessageId: message.channelMessageId,
-            sessionId: session.id,
-            content: {
-              text: `⚠️ No pending approval found for ${requestId}.`,
-              format: 'markdown',
-            },
-          };
-          await this.router.sendToChannel(outbound);
-          return;
-        }
-
-        if (pending.requesterUserId && pending.requesterUserId !== message.sender.id) {
-          if (this.approvalAllowlist.has(message.sender.id ?? '')) {
-            const reason = denyMatch[2] ?? 'Denied by approver';
-            const denied = this.approvalManager.deny(requestId, reason, message.sender.id);
-            const outbound: ChannelOutboundMessage = {
-              channel: message.channel,
-              conversationId: message.conversation.id,
-              replyToMessageId: message.channelMessageId,
-              sessionId: session.id,
-              content: {
-                text: denied
-                  ? `⛔ Denied request ${requestId}.`
-                  : `⚠️ No pending approval found for ${requestId}.`,
-                format: 'markdown',
-              },
-            };
-            await this.router.sendToChannel(outbound);
-            return;
-          }
-
-          const outbound: ChannelOutboundMessage = {
-            channel: message.channel,
-            conversationId: message.conversation.id,
-            replyToMessageId: message.channelMessageId,
-            sessionId: session.id,
-            content: {
-              text: `⛔ You are not allowed to deny request ${requestId}.`,
-              format: 'markdown',
-            },
-          };
-          await this.router.sendToChannel(outbound);
-          return;
-        }
-
-        const reason = denyMatch[2] ?? 'Denied by user';
-        const denied = this.approvalManager.deny(requestId, reason, message.sender.id);
-        const outbound: ChannelOutboundMessage = {
-          channel: message.channel,
-          conversationId: message.conversation.id,
-          replyToMessageId: message.channelMessageId,
-          sessionId: session.id,
-          content: {
-            text: denied
-              ? `⛔ Denied request ${requestId}.`
-              : `⚠️ No pending approval found for ${requestId}.`,
-            format: 'markdown',
-          },
-        };
-        await this.router.sendToChannel(outbound);
-        return;
-      }
-    }
+    // NOTE: /approve, /deny, /approve-all are handled early in handleInboundMessage
+    // before session creation — see handleApprovalCommand()
 
     // Emit a processed message envelope
     const processedEnvelope = createEnvelope(
@@ -2924,6 +2781,95 @@ export class Gateway {
 
   private stringifyToolParameters(parameters: Record<string, unknown>) { return stringifyToolParameters(parameters); }
   private coerceLLMContentText(content: unknown) { return coerceLLMContentText(content); }
+
+  /**
+   * Handle /approve, /deny, and /approve-all commands from any channel.
+   * Returns true if the message was an approval command (handled), false otherwise.
+   */
+  private async handleApprovalCommand(
+    message: ChannelInboundMessage,
+    text: string
+  ): Promise<boolean> {
+    if (!this.approvalManager) return false;
+
+    const trimmed = text.trim();
+    const approveMatch = trimmed.match(/^\/approve\s+(\S+)$/i);
+    const approveAllMatch = trimmed.match(/^\/approve-all$/i);
+    const denyMatch = trimmed.match(/^\/deny\s+(\S+)(?:\s+(.+))?$/i);
+
+    if (!approveMatch && !approveAllMatch && !denyMatch) return false;
+
+    const senderId = message.sender.id ?? '';
+    const isOwner = this.approvalAllowlist.has(senderId);
+
+    const reply = async (replyText: string) => {
+      const outbound: ChannelOutboundMessage = {
+        channel: message.channel,
+        conversationId: message.conversation.id,
+        replyToMessageId: message.channelMessageId,
+        sessionId: undefined,
+        content: { text: replyText, format: 'markdown' },
+      };
+      await this.router.sendToChannel(outbound);
+    };
+
+    // /approve-all — approve all pending requests (owner only)
+    if (approveAllMatch) {
+      if (!isOwner) {
+        await reply('⛔ Only bot owners can use `/approve-all`.');
+        return true;
+      }
+      const allPending = this.approvalManager.getAllPendingRequests();
+      if (allPending.length === 0) {
+        await reply('ℹ️ No pending approval requests.');
+        return true;
+      }
+      let approved = 0;
+      for (const req of allPending) {
+        if (this.approvalManager.approve(req.id, senderId)) approved++;
+      }
+      await reply(`✅ Approved ${approved} pending request(s).`);
+      return true;
+    }
+
+    // /approve <id>
+    if (approveMatch) {
+      const requestId = approveMatch[1]!;
+      const pending = this.approvalManager.getPendingRequest(requestId);
+      if (!pending) {
+        await reply(`⚠️ No pending approval found for \`${requestId}\`.`);
+        return true;
+      }
+      // Owner can approve any request; requester can approve their own
+      if (!isOwner && pending.requesterUserId && pending.requesterUserId !== senderId) {
+        await reply(`⛔ You are not authorized to approve request \`${requestId}\`.`);
+        return true;
+      }
+      const result = this.approvalManager.approve(requestId, senderId);
+      await reply(result ? `✅ Approved request \`${requestId}\`.` : `⚠️ Request already resolved.`);
+      return true;
+    }
+
+    // /deny <id> [reason]
+    if (denyMatch) {
+      const requestId = denyMatch[1]!;
+      const reason = denyMatch[2] ?? 'Denied by user';
+      const pending = this.approvalManager.getPendingRequest(requestId);
+      if (!pending) {
+        await reply(`⚠️ No pending approval found for \`${requestId}\`.`);
+        return true;
+      }
+      if (!isOwner && pending.requesterUserId && pending.requesterUserId !== senderId) {
+        await reply(`⛔ You are not authorized to deny request \`${requestId}\`.`);
+        return true;
+      }
+      const result = this.approvalManager.deny(requestId, reason, senderId);
+      await reply(result ? `⛔ Denied request \`${requestId}\`.` : `⚠️ Request already resolved.`);
+      return true;
+    }
+
+    return false;
+  }
 
   private async publishStatusEvent(
     sessionId: string,

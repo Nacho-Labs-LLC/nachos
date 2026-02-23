@@ -158,6 +158,13 @@ export class ApprovalManager extends EventEmitter {
   }
 
   /**
+   * Get all pending requests
+   */
+  getAllPendingRequests(): ApprovalRequest[] {
+    return Array.from(this.pendingRequests.values());
+  }
+
+  /**
    * Get all pending requests for a session
    */
   getPendingRequestsForSession(sessionId: string): ApprovalRequest[] {

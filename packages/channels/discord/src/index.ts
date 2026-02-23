@@ -417,6 +417,57 @@ export class DiscordChannelAdapter implements ChannelAdapter {
               },
             ],
           },
+          {
+            type: 2,
+            name: 'approve',
+            description: 'Tool approval commands',
+            options: [
+              {
+                type: 1,
+                name: 'id',
+                description: 'Approve a specific tool request by ID',
+                options: [
+                  {
+                    type: 3,
+                    name: 'request_id',
+                    description: 'The approval request ID',
+                    required: true,
+                  },
+                ],
+              },
+              {
+                type: 1,
+                name: 'all',
+                description: 'Approve all pending tool requests',
+              },
+            ],
+          },
+          {
+            type: 2,
+            name: 'deny',
+            description: 'Deny a tool request',
+            options: [
+              {
+                type: 1,
+                name: 'id',
+                description: 'Deny a specific tool request by ID',
+                options: [
+                  {
+                    type: 3,
+                    name: 'request_id',
+                    description: 'The approval request ID',
+                    required: true,
+                  },
+                  {
+                    type: 3,
+                    name: 'reason',
+                    description: 'Reason for denial',
+                    required: false,
+                  },
+                ],
+              },
+            ],
+          },
         ],
       },
     ];
@@ -523,6 +574,58 @@ export class DiscordChannelAdapter implements ChannelAdapter {
       return;
     }
 
+    // /nachos approve id <request_id> or /nachos approve all
+    if (commandName === 'approve.id' || commandName === 'approve.all') {
+      let commandText: string;
+      if (commandName === 'approve.all') {
+        commandText = '/approve-all';
+      } else {
+        const requestId = interaction.options.getString('request_id', true);
+        commandText = `/approve ${requestId}`;
+      }
+      await this.dispatchCommandMessage({
+        text: commandText,
+        userId: interaction.user.id,
+        conversationId: interaction.channelId,
+        isDm,
+        guildId: interaction.guildId ?? undefined,
+      });
+      await this.logCommandAudit({
+        command: commandName,
+        userId: interaction.user.id,
+        scope: isDm ? 'dm' : 'channel',
+        serverId: interaction.guildId ?? undefined,
+        conversationId: interaction.channelId,
+        outcome: 'allowed',
+      });
+      await interaction.reply({ content: '✅ Approval command sent.', ephemeral: true });
+      return;
+    }
+
+    // /nachos deny id <request_id> [reason]
+    if (commandName === 'deny.id') {
+      const requestId = interaction.options.getString('request_id', true);
+      const reason = interaction.options.getString('reason') ?? '';
+      const commandText = reason ? `/deny ${requestId} ${reason}` : `/deny ${requestId}`;
+      await this.dispatchCommandMessage({
+        text: commandText,
+        userId: interaction.user.id,
+        conversationId: interaction.channelId,
+        isDm,
+        guildId: interaction.guildId ?? undefined,
+      });
+      await this.logCommandAudit({
+        command: commandName,
+        userId: interaction.user.id,
+        scope: isDm ? 'dm' : 'channel',
+        serverId: interaction.guildId ?? undefined,
+        conversationId: interaction.channelId,
+        outcome: 'allowed',
+      });
+      await interaction.reply({ content: '✅ Deny command sent.', ephemeral: true });
+      return;
+    }
+
     const responseText = this.buildCommandResponse(
       commandName,
       isDm,
@@ -546,6 +649,8 @@ export class DiscordChannelAdapter implements ChannelAdapter {
     if (group === 'config' && sub === 'show') return 'config.show';
     if (group === 'session' && sub === 'reset') return 'session.reset';
     if (group === 'context' && sub) return `context.${sub.toLowerCase()}`;
+    if (group === 'approve' && sub) return `approve.${sub.toLowerCase()}`;
+    if (group === 'deny' && sub) return `deny.${sub.toLowerCase()}`;
     if (sub) return sub.toLowerCase();
     return 'help';
   }
@@ -557,6 +662,10 @@ export class DiscordChannelAdapter implements ChannelAdapter {
     }
     if (command === 'session.reset') {
       return enabled.includes('session.reset') || enabled.includes('session');
+    }
+    // approve/deny commands are always enabled when any commands are enabled
+    if (command.startsWith('approve.') || command.startsWith('deny.')) {
+      return true;
     }
     return false;
   }
