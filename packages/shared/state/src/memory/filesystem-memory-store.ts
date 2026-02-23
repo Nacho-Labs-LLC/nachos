@@ -11,7 +11,8 @@ import type {
   MemoryQueryResult,
   MemoryStore,
 } from '@nachos/types';
-import { SemanticSearch } from '@nacho-labs/nachos-embeddings';
+// Lazy import to avoid crashing on platforms without glibc (e.g., Alpine)
+type SemanticSearchType = import('@nacho-labs/nachos-embeddings').SemanticSearch<MemoryEntry>;
 
 export interface FilesystemMemoryStoreConfig {
   baseDir: string;
@@ -21,8 +22,9 @@ export interface FilesystemMemoryStoreConfig {
 }
 
 export class FilesystemMemoryStore implements MemoryStore {
-  private semanticSearch?: SemanticSearch<MemoryEntry>;
+  private semanticSearch?: SemanticSearchType;
   private semanticEnabled: boolean;
+  private semanticConfig?: { model?: string; cacheDir?: string };
   private initPromise?: Promise<void>;
 
   constructor(config: string | FilesystemMemoryStoreConfig) {
@@ -34,11 +36,10 @@ export class FilesystemMemoryStore implements MemoryStore {
       this.semanticEnabled = config.enableSemantic ?? false;
 
       if (this.semanticEnabled) {
-        this.semanticSearch = new SemanticSearch<MemoryEntry>({
+        this.semanticConfig = {
           model: config.semanticModel,
           cacheDir: config.semanticCacheDir,
-          minSimilarity: 0.7,
-        });
+        };
       }
     }
   }
@@ -50,9 +51,21 @@ export class FilesystemMemoryStore implements MemoryStore {
    * Must be called before using semantic search features
    */
   async init(): Promise<void> {
-    if (!this.initPromise && this.semanticEnabled && this.semanticSearch) {
+    if (!this.initPromise && this.semanticEnabled && this.semanticConfig) {
       this.initPromise = (async () => {
-        await this.semanticSearch!.init();
+        try {
+          const { SemanticSearch } = await import('@nacho-labs/nachos-embeddings');
+          this.semanticSearch = new SemanticSearch<MemoryEntry>({
+            model: this.semanticConfig!.model,
+            cacheDir: this.semanticConfig!.cacheDir,
+            minSimilarity: 0.7,
+          });
+          await this.semanticSearch.init();
+        } catch (err) {
+          console.warn('[FilesystemMemoryStore] Semantic search unavailable:', (err as Error).message);
+          this.semanticEnabled = false;
+          return;
+        }
 
         // Index existing entries
         // Note: This could be slow for large datasets, consider lazy indexing

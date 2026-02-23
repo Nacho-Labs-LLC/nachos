@@ -174,7 +174,7 @@ rules:
     conditions:
       - field: "metadata.path"
         operator: "starts_with"
-        value: "./workspace"
+        value: "/workspace"
     effect: "allow"
 
   - id: "standard-tool-filesystem-read-deny-outside"
@@ -184,7 +184,7 @@ rules:
       resource: "tool"
       resourceId: "filesystem_read"
     effect: "deny"
-    reason: "Filesystem read is restricted to ./workspace directory"
+    reason: "Filesystem read is restricted to /workspace directory"
 
   # Filesystem Write - Elevated tier, workspace only
   - id: "standard-tool-filesystem-write"
@@ -196,7 +196,7 @@ rules:
     conditions:
       - field: "metadata.path"
         operator: "starts_with"
-        value: "./workspace"
+        value: "/workspace"
     effect: "allow"
 
   - id: "standard-tool-filesystem-write-deny-outside"
@@ -206,7 +206,7 @@ rules:
       resource: "tool"
       resourceId: "filesystem_write"
     effect: "deny"
-    reason: "Filesystem write is restricted to ./workspace directory"
+    reason: "Filesystem write is restricted to /workspace directory"
 
   # Filesystem Edit - Elevated tier, workspace only
   - id: "standard-tool-filesystem-edit"
@@ -218,7 +218,7 @@ rules:
     conditions:
       - field: "metadata.path"
         operator: "starts_with"
-        value: "./workspace"
+        value: "/workspace"
     effect: "allow"
 
   - id: "standard-tool-filesystem-edit-deny-outside"
@@ -228,7 +228,7 @@ rules:
       resource: "tool"
       resourceId: "filesystem_edit"
     effect: "deny"
-    reason: "Filesystem edit is restricted to ./workspace directory"
+    reason: "Filesystem edit is restricted to /workspace directory"
 
   # Filesystem Patch - Elevated tier, workspace only
   - id: "standard-tool-filesystem-patch"
@@ -240,7 +240,7 @@ rules:
     conditions:
       - field: "metadata.path"
         operator: "starts_with"
-        value: "./workspace"
+        value: "/workspace"
     effect: "allow"
 
   - id: "standard-tool-filesystem-patch-deny-outside"
@@ -250,7 +250,7 @@ rules:
       resource: "tool"
       resourceId: "filesystem_patch"
     effect: "deny"
-    reason: "Filesystem patch is restricted to ./workspace directory"
+    reason: "Filesystem patch is restricted to /workspace directory"
 
   # Code Runner Python - Restricted tier
   # NOTE: require_approval is enforced at the gateway layer via SecurityTier,

@@ -1,0 +1,2 @@
+Hello from Nachos! This file lives in the shared workspace.
+If you can read this, tool calling is working end-to-end.

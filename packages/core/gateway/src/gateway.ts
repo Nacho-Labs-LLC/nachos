@@ -35,6 +35,7 @@ import {
   executeMemorySearch,
   executeMemoryGet,
 } from './tools/memory-tools.js';
+import { getExternalToolDefinitions } from './tools/external-tool-definitions.js';
 import type {
   AuditConfig,
   ContextManagementCommandsConfig,
@@ -1595,6 +1596,17 @@ export class Gateway {
 
     // Browser automation tools disabled temporarily — not needed for chat
     // tools.push(...BROWSER_TOOL_DEFINITIONS);
+
+    // External container-based tools (filesystem, web_fetch, code_runner)
+    // These are executed via NATS request/reply to their respective containers
+    const externalTools = getExternalToolDefinitions(this.toolsConfig);
+    for (const extTool of externalTools) {
+      tools.push({
+        name: extTool.name,
+        description: extTool.description,
+        parameters: extTool.parameters,
+      });
+    }
 
     return tools.length > 0 ? tools : undefined;
   }
