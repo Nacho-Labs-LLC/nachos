@@ -46,58 +46,53 @@ RUN go install github.com/steipete/goplaces/cmd/goplaces@latest && \
 # Install Node-based skill CLI tools
 RUN npm install -g @steipete/summarize
 
-# Add Go binaries to PATH
-ENV PATH="/root/go/bin:${PATH}"
-
-# Create non-root user
+# Create non-root user BEFORE any file copies
 RUN addgroup -g 1001 -S nachos && \
     adduser -S nachos -u 1001 -G nachos
 
-# Copy Go binaries to a location accessible by nachos user
+# Copy Go binaries to a shared location
 RUN mkdir -p /usr/local/bin/skills && \
     cp /root/go/bin/* /usr/local/bin/skills/ 2>/dev/null || true && \
-    chmod +x /usr/local/bin/skills/* && \
-    chown -R nachos:nachos /usr/local/bin/skills
+    chmod +x /usr/local/bin/skills/*
 
 # Update PATH for nachos user
 ENV PATH="/usr/local/bin/skills:${PATH}"
 
 WORKDIR /app
+RUN chown nachos:nachos /app
 
-# Install pnpm
+# Install pnpm (as root, it's a global tool)
 RUN corepack enable && corepack prepare pnpm@10.28.2 --activate
 
-# Copy workspace config
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY tsconfig.base.json tsconfig.json ./
+# Switch to nachos user — all subsequent COPY/RUN happen as nachos
+USER nachos
+
+# Copy workspace config (--chown avoids expensive chown -R later)
+COPY --chown=nachos:nachos package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY --chown=nachos:nachos tsconfig.base.json tsconfig.json ./
 
 # Copy shared packages
-COPY packages/shared ./packages/shared
+COPY --chown=nachos:nachos packages/shared ./packages/shared
 
 # Copy core packages used by gateway
-COPY packages/core/bus ./packages/core/bus
-COPY packages/core/gateway ./packages/core/gateway
+COPY --chown=nachos:nachos packages/core/bus ./packages/core/bus
+COPY --chown=nachos:nachos packages/core/gateway ./packages/core/gateway
 
-# Install dependencies
+# Install dependencies (runs as nachos, files created with correct ownership)
 RUN pnpm install --frozen-lockfile
 
-# Copy source code
-COPY . .
+# Copy remaining source code
+COPY --chown=nachos:nachos . .
 
 # Copy prebuilt config dist from shared builder
-COPY --from=config /app/packages/shared/config/dist ./packages/shared/config/dist
-
-# Change ownership
-RUN chown -R nachos:nachos /app
-
-USER nachos
+COPY --from=config --chown=nachos:nachos /app/packages/shared/config/dist ./packages/shared/config/dist
 
 # Expose port (gateway will listen on this)
 EXPOSE 3000
 
-# Health check
+# Health check — use port 3000 (health server)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD node -e "fetch('http://localhost:8081/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+    CMD node -e "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 # Start in development mode with tsx watch for hot-reload
 WORKDIR /app/packages/core/gateway

@@ -1,63 +1,39 @@
 FROM node:22-alpine AS config
 
 WORKDIR /app
-
-# Install pnpm
 RUN corepack enable && corepack prepare pnpm@10.28.2 --activate
 
-# Copy workspace config
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY tsconfig.base.json tsconfig.json ./
-
-# Copy shared config package
 COPY packages/shared/config ./packages/shared/config
 COPY packages/shared/types ./packages/shared/types
 COPY packages/shared/utils ./packages/shared/utils
 
-# Install dependencies
 RUN pnpm install --frozen-lockfile
-
-# Build config package
 RUN pnpm --filter @nachos/config build
 
 FROM node:22-alpine AS development
 
-# Create non-root user
 RUN addgroup -g 1001 -S nachos && \
     adduser -S nachos -u 1001 -G nachos
 
 WORKDIR /app
-
-# Install pnpm
+RUN chown nachos:nachos /app
 RUN corepack enable && corepack prepare pnpm@10.28.2 --activate
-
-# Copy workspace config
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY tsconfig.base.json tsconfig.json ./
-
-# Copy shared packages and dependencies
-COPY packages/shared ./packages/shared
-COPY packages/core/bus ./packages/core/bus
-COPY packages/channels/base ./packages/channels/base
-COPY packages/channels/slack ./packages/channels/slack
-
-# Install dependencies
-RUN pnpm install --frozen-lockfile
-
-# Copy source code
-COPY . .
-
-# Copy prebuilt config dist from shared builder
-COPY --from=config /app/packages/shared/config/dist ./packages/shared/config/dist
-
-# Change ownership
-RUN chown -R nachos:nachos /app
 
 USER nachos
 
-# Expose HTTP port for Slack events (if using http mode)
-EXPOSE 3005
+COPY --chown=nachos:nachos package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY --chown=nachos:nachos tsconfig.base.json tsconfig.json ./
+COPY --chown=nachos:nachos packages/shared ./packages/shared
+COPY --chown=nachos:nachos packages/core/bus ./packages/core/bus
+COPY --chown=nachos:nachos packages/channels/base ./packages/channels/base
+COPY --chown=nachos:nachos packages/channels/slack ./packages/channels/slack
 
-# Start in development mode with tsx watch for hot-reload
+RUN pnpm install --frozen-lockfile
+
+COPY --chown=nachos:nachos . .
+COPY --from=config --chown=nachos:nachos /app/packages/shared/config/dist ./packages/shared/config/dist
+
 WORKDIR /app/packages/channels/slack
 CMD ["npx", "tsx", "watch", "src/main.ts"]
