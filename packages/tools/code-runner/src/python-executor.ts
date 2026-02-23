@@ -251,8 +251,8 @@ export class PythonExecutor extends ToolService {
           PYTHONDONTWRITEBYTECODE: '1', // Don't create .pyc files
           PYTHONUNBUFFERED: '1', // Disable output buffering
         },
-        uid: 1000,
-        gid: 1000,
+        // uid/gid omitted — container already runs as non-root (nachos:1001)
+        // Setting uid/gid requires root privileges → EPERM in non-root containers
       });
 
       let stdout = '';

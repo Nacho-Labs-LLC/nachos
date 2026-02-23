@@ -82,6 +82,8 @@ rules:
           - "learn.microsoft.com"
           - "developer.apple.com"
           - "stackoverflow.com"
+          - "httpbin.org"
+          - "example.com"
     effect: "allow"
 
   - id: "standard-tool-web-fetch-deny"

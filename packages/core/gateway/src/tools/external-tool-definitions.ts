@@ -51,6 +51,12 @@ const FILESYSTEM_WRITE: ExternalToolDefinition = {
   parameters: {
     type: 'object',
     properties: {
+      action: {
+        type: 'string',
+        description: 'Write action to perform',
+        enum: ['write', 'create', 'delete', 'mkdir'],
+        default: 'write',
+      },
       path: {
         type: 'string',
         description: 'File path to write',
@@ -63,10 +69,6 @@ const FILESYSTEM_WRITE: ExternalToolDefinition = {
         type: 'string',
         description: 'File encoding',
         enum: ['utf-8', 'utf8', 'ascii', 'base64'],
-      },
-      create_dirs: {
-        type: 'boolean',
-        description: 'Create parent directories if they do not exist',
       },
     },
     required: ['path', 'content'],
