@@ -98,7 +98,8 @@ describe('SubagentOrchestrator', () => {
     const run = await orchestrator.enqueue(request);
 
     expect(run).toBeDefined();
-    expect(run.status).toBe('queued');
+    // With slots available, drainQueue runs synchronously so status is 'running'
+    expect(['queued', 'running']).toContain(run.status);
     expect(run.task).toBe('Research quantum computing');
     expect(run.label).toBe('research-task');
     expect(run.childSessionId).toBeDefined();
@@ -108,8 +109,7 @@ describe('SubagentOrchestrator', () => {
 
     const updatedRun = orchestrator.getRun(run.runId);
     expect(updatedRun).toBeDefined();
-    // Status should eventually become 'completed' or 'running'
-    expect(['queued', 'running', 'completed']).toContain(updatedRun!.status);
+    expect(['running', 'completed']).toContain(updatedRun!.status);
   });
 
   it('should list all runs', async () => {
@@ -141,6 +141,11 @@ describe('SubagentOrchestrator', () => {
   });
 
   it('should stop a queued run', async () => {
+    // Fill both concurrency slots (maxConcurrent: 2) so next enqueue stays queued
+    deps.subagentManager.run = vi.fn(() => new Promise(() => {})); // never resolves
+    await orchestrator.enqueue({ task: 'Blocker 1', requester: { sessionId: 's', channel: 'discord', conversationId: 'c' } });
+    await orchestrator.enqueue({ task: 'Blocker 2', requester: { sessionId: 's', channel: 'discord', conversationId: 'c' } });
+
     const request: SubagentRunRequest = {
       task: 'Long running task',
       requester: {
@@ -239,6 +244,11 @@ describe('SubagentOrchestrator', () => {
   });
 
   it('should not steer a queued subagent', async () => {
+    // Fill both concurrency slots so next enqueue stays queued
+    deps.subagentManager.run = vi.fn(() => new Promise(() => {}));
+    await orchestrator.enqueue({ task: 'Blocker 1', requester: { sessionId: 's', channel: 'discord', conversationId: 'c' } });
+    await orchestrator.enqueue({ task: 'Blocker 2', requester: { sessionId: 's', channel: 'discord', conversationId: 'c' } });
+
     const request: SubagentRunRequest = {
       task: 'Task',
       requester: {

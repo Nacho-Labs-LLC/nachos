@@ -171,14 +171,17 @@ export class SubagentOrchestrator {
         continue;
       }
 
+      // Claim the slot synchronously before the async executeRun starts,
+      // otherwise the while loop can over-schedule.
+      entry.record.status = 'running';
+      entry.record.startedAt = new Date().toISOString();
+      this.runningCount += 1;
+
       void this.executeRun(entry);
     }
   }
 
   private async executeRun(entry: SubagentRunEntry): Promise<void> {
-    entry.record.status = 'running';
-    entry.record.startedAt = new Date().toISOString();
-    this.runningCount += 1;
 
     try {
       const request = entry.request;
