@@ -1349,7 +1349,24 @@ export class Gateway {
     }
 
     for (const message of session.messages) {
-      messages.push({ role: message.role, content: message.content });
+      if (message.role === 'assistant' && message.toolCalls && Array.isArray(message.toolCalls) && message.toolCalls.length > 0) {
+        // Include tool_use blocks so the LLM adapter can reconstruct the full assistant turn
+        const contentBlocks: unknown[] = [];
+        if (message.content) {
+          contentBlocks.push({ type: 'text', text: message.content });
+        }
+        for (const tc of message.toolCalls as Array<{ id: string; name: string; arguments: string }>) {
+          contentBlocks.push({
+            type: 'tool_use',
+            id: tc.id,
+            name: tc.name,
+            input: typeof tc.arguments === 'string' ? JSON.parse(tc.arguments) : tc.arguments,
+          });
+        }
+        messages.push({ role: 'assistant', content: contentBlocks as unknown as string });
+      } else {
+        messages.push({ role: message.role, content: message.content });
+      }
     }
 
     if (extraMessages.length > 0) {
