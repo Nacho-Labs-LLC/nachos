@@ -648,8 +648,12 @@ export class Gateway {
 
     // --- Early intercept: approval commands work from ANY channel/session ---
     if (this.approvalManager && messageText) {
+      logger.info({ messageText: messageText.slice(0, 100), senderId: message.sender.id }, 'Checking for approval command');
       const handled = await this.handleApprovalCommand(message, messageText);
-      if (handled) return;
+      if (handled) {
+        logger.info('Approval command handled');
+        return;
+      }
     }
 
     if (this.rateLimiter) {
@@ -1364,6 +1368,15 @@ export class Gateway {
           });
         }
         messages.push({ role: 'assistant', content: contentBlocks as unknown as string });
+      } else if (message.role === 'tool') {
+        // Tool result messages: parse stored JSON content back to structured blocks
+        let parsedContent: unknown;
+        try {
+          parsedContent = JSON.parse(message.content);
+        } catch {
+          parsedContent = message.content;
+        }
+        messages.push({ role: 'tool', content: parsedContent as string });
       } else {
         messages.push({ role: message.role, content: message.content });
       }
@@ -2725,7 +2738,18 @@ export class Gateway {
           channelId: inbound.conversation.id,
           channelMessageId: inbound.channelMessageId ?? undefined,
         });
-        const followUp = await this.requestLLMResponse(sessionId, toolMessages);
+
+        // Store tool result messages in session so multi-turn history is complete
+        // (tool_use blocks need matching tool_result blocks in subsequent requests)
+        for (const toolMsg of toolMessages) {
+          this.sessionManager.addMessage(sessionId, {
+            role: 'tool',
+            content: typeof toolMsg.content === 'string' ? toolMsg.content : JSON.stringify(toolMsg.content),
+          });
+        }
+
+        // Tool results are now in session history; no extraMessages needed
+        const followUp = await this.requestLLMResponse(sessionId);
         await this.sendLLMResponse(inbound, sessionId, followUp, toolIteration + 1);
         return;
       }
@@ -2809,7 +2833,10 @@ export class Gateway {
   ): Promise<boolean> {
     if (!this.approvalManager) return false;
 
-    const trimmed = text.trim();
+    // Strip leading mention patterns (e.g. <@123456>) so approval commands work
+    // even when users need to mention the bot to pass mention gating
+    const trimmed = text.trim().replace(/^(<@!?\d+>\s*)+/, '').trim();
+    logger.info({ originalText: text.slice(0, 100), trimmedText: trimmed.slice(0, 100) }, 'Approval command parsing');
     const approveMatch = trimmed.match(/^\/approve\s+(\S+)$/i);
     const approveAllMatch = trimmed.match(/^\/approve-all$/i);
     const denyMatch = trimmed.match(/^\/deny\s+(\S+)(?:\s+(.+))?$/i);

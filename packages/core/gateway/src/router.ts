@@ -138,7 +138,12 @@ export class NatsBusAdapter implements MessageBus {
         correlationId: msg.correlationId,
         payload: msg.payload,
       };
-      await handler(envelope);
+      // Don't await — allow concurrent message processing
+      // (critical for approval flow: approve commands must be received
+      //  while tool execution is blocked waiting for approval)
+      handler(envelope).catch((err) => {
+        console.error('[Router] Handler error:', err);
+      });
     });
     this.subscriptions.set(topic, subscription);
   }
