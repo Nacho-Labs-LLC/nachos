@@ -21,6 +21,8 @@ export interface PolicyLoaderConfig {
   policiesPath: string;
   /** Enable file watching for hot-reload */
   enableHotReload: boolean;
+  /** Only load policies matching this security mode (filters by metadata.mode) */
+  securityMode?: string;
   /** Callback when policies are reloaded */
   onReload?: (policies: PolicyDocument[], errors: PolicyValidationError[]) => void;
   /** Callback on reload error */
@@ -91,8 +93,24 @@ export class PolicyLoader {
       }
     }
 
-    this.policies = policies;
-    return [policies, errors];
+    // Filter by security mode if configured
+    const filtered = this.config.securityMode
+      ? policies.filter((p) => {
+          const docMode = (p.metadata as Record<string, unknown>)?.mode as string | undefined;
+          // Load if no mode specified (universal) or mode matches
+          return !docMode || docMode === this.config.securityMode;
+        })
+      : policies;
+
+    if (filtered.length < policies.length) {
+      logger.info(
+        { loaded: filtered.length, skipped: policies.length - filtered.length, mode: this.config.securityMode },
+        'Filtered policy documents by security mode'
+      );
+    }
+
+    this.policies = filtered;
+    return [filtered, errors];
   }
 
   /**

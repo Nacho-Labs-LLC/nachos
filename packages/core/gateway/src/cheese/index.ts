@@ -39,6 +39,7 @@ export class Cheese {
     this.loader = new PolicyLoader({
       policiesPath: config.policiesPath,
       enableHotReload: config.enableHotReload,
+      securityMode: config.securityMode,
       onReload: (policies, errors) => this.handleReload(policies, errors),
       onError: (error) => this.handleError(error),
     });

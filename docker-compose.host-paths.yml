@@ -1,0 +1,38 @@
+# Override for running Nachos from inside the Claw container
+# Maps container paths to host paths for Docker volume mounts
+# Usage: docker compose -f docker-compose.dev.yml -f docker-compose.host-paths.yml up
+
+x-host-base: &host-base /mnt/cache/data/claw/workspace/nachos-workspace/nachos
+
+services:
+  bus:
+    volumes:
+      - nats-data:/data
+      - /mnt/cache/data/claw/workspace/nachos-workspace/nachos/docker/nats/nats-server.conf:/etc/nats/nats-server.conf:ro
+
+  gateway:
+    volumes:
+      - /mnt/cache/data/claw/workspace/nachos-workspace/nachos/nachos.toml:/app/nachos.toml:ro
+      - /mnt/cache/data/claw/workspace/nachos-workspace/nachos/policies:/app/policies:ro
+      - /mnt/cache/data/claw/workspace/nachos-workspace/nachos/data/gateway:/app/data
+
+  discord:
+    volumes:
+      - /mnt/cache/data/claw/workspace/nachos-workspace/nachos/nachos.toml:/app/nachos.toml:ro
+      - /mnt/cache/data/claw/workspace/nachos-workspace/nachos/data/channels:/app/state
+
+  filesystem-read:
+    volumes:
+      - /mnt/cache/data/claw/workspace/nachos-workspace/nachos/workspace:/workspace:ro
+    environment:
+      ALLOWED_PATHS: /workspace
+
+  filesystem-readwrite:
+    volumes:
+      - /mnt/cache/data/claw/workspace/nachos-workspace/nachos/workspace:/workspace
+    environment:
+      ALLOWED_PATHS: /workspace
+
+  llm-proxy:
+    volumes:
+      - /mnt/cache/data/claw/workspace/nachos-workspace/nachos/nachos.toml:/app/nachos.toml:ro

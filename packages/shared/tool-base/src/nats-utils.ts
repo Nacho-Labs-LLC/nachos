@@ -13,11 +13,14 @@ import type { MessageEnvelope } from '@nachos/types';
 export async function connectToNats(url?: string): Promise<NatsConnection> {
   const natsUrl = url ?? process.env.NATS_URL ?? 'nats://localhost:4222';
 
+  const token = process.env.NATS_TOKEN;
+
   const options: ConnectionOptions = {
     servers: natsUrl,
     name: `tool-${process.env.TOOL_ID ?? 'unknown'}`,
     maxReconnectAttempts: -1, // Reconnect indefinitely
     reconnectTimeWait: 1000, // Wait 1 second between reconnect attempts
+    ...(token ? { token } : {}),
   };
 
   console.log(`Connecting to NATS at ${natsUrl}...`);
