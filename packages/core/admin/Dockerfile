@@ -51,13 +51,20 @@ USER nachos
 COPY --chown=nachos:nachos package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY --chown=nachos:nachos tsconfig.base.json ./
 COPY --chown=nachos:nachos packages/core/admin/package.json ./packages/core/admin/
+COPY --chown=nachos:nachos packages/shared/config/package.json ./packages/shared/config/
+COPY --chown=nachos:nachos packages/shared/types/package.json ./packages/shared/types/
+COPY --chown=nachos:nachos packages/core/bus/package.json ./packages/core/bus/
 
-# Production deps only
-RUN pnpm install --frozen-lockfile --prod --filter @nachos/admin
+# Production deps for admin + its workspace dependencies
+RUN pnpm install --frozen-lockfile --prod --filter @nachos/admin...
 
 # Copy built artifacts (already correct ownership via --chown)
 COPY --from=backend-builder --chown=nachos:nachos /build/packages/core/admin/dist/ ./packages/core/admin/dist/
 COPY --from=frontend-builder --chown=nachos:nachos /build/packages/core/admin/dist/public/ ./packages/core/admin/dist/public/
+# Copy compiled workspace dependencies
+COPY --from=backend-builder --chown=nachos:nachos /build/packages/shared/config/dist/ ./packages/shared/config/dist/
+COPY --from=backend-builder --chown=nachos:nachos /build/packages/shared/types/dist/ ./packages/shared/types/dist/
+COPY --from=backend-builder --chown=nachos:nachos /build/packages/core/bus/dist/ ./packages/core/bus/dist/
 
 EXPOSE 8082
 
