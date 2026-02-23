@@ -450,7 +450,19 @@ async function start(): Promise<void> {
       return;
     }
 
-    const response = await handleRequest(request);
+    let response;
+    try {
+      response = await handleRequest(request);
+    } catch (err) {
+      logger.error({ err }, 'LLM request handler failed');
+      const errorResponse = {
+        sessionId: request.sessionId,
+        success: false,
+        error: { code: 'NACHOS_ERR_LLM_FAILED', message: String(err) },
+      };
+      meta.respond?.(errorResponse);
+      return;
+    }
     meta.respond?.(response);
     bus.publish(TOPICS.llm.response, response, {
       type: 'llm.response',

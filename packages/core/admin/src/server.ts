@@ -33,7 +33,10 @@ app.use(
       if (!origin) return null;
       try {
         const { hostname } = new URL(origin);
-        return hostname === 'localhost' || hostname === '127.0.0.1' ? origin : null;
+        // Allow localhost, 127.0.0.1, and private network IPs (LAN access)
+        if (hostname === 'localhost' || hostname === '127.0.0.1') return origin;
+        if (/^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.)/.test(hostname)) return origin;
+        return null;
       } catch {
         return null;
       }

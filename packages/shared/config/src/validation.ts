@@ -63,6 +63,7 @@ const CONFIG_SHAPE: SchemaNode = {
       allow_bots: true,
       bot_allowlist: true,
       commands: { enabled: true, admin_allowlist: true },
+      status_emojis: { enabled: true },
       dm: { user_allowlist: true, pairing: true },
       servers: {
         __array: {

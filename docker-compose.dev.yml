@@ -135,7 +135,7 @@ services:
         - action: rebuild
           path: ./packages/shared
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:8081/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
       timeout: 3s
       retries: 3
@@ -240,9 +240,11 @@ services:
     environment:
       NODE_ENV: development
       PORT: "8082"
+      NATS_URL: nats://bus:4222
+      NATS_TOKEN: ${NATS_TOKEN:-nachos-dev-token}
       NACHOS_CONFIG_PATH: /app/nachos.toml
       NACHOS_STATE_DIR: /app/state
-      GATEWAY_HEALTH_URL: http://gateway:8081/health
+      GATEWAY_HEALTH_URL: http://gateway:3000/health
       NACHOS_ADMIN_TOKEN: ${NACHOS_ADMIN_TOKEN:-}
     volumes:
       - ./nachos.toml:/app/nachos.toml:rw
