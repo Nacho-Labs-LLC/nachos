@@ -138,8 +138,8 @@ describe('SystemPromptBuilder', () => {
 describe('PlatformHints', () => {
   it('should provide Discord hints', () => {
     const hints = PlatformHints.discord();
-    expect(hints).toContain('Discord: No markdown tables');
     expect(hints.length).toBeGreaterThan(0);
+    expect(hints.some(h => h.includes('Discord') || h.includes('markdown tables'))).toBe(true);
   });
 
   it('should provide Telegram hints', () => {

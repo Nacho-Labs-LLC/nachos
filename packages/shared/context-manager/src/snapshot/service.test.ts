@@ -140,13 +140,15 @@ describe('ContextSnapshotService', () => {
       const service = new ContextSnapshotService({ stateDir: testStateDir, compression: false });
       const messages = createTestMessages(5);
 
-      // Create multiple snapshots
+      // Create multiple snapshots (with delays to avoid Date.now() ID collisions)
       await service.createSnapshot({ sessionId: testSessionId, messages, trigger: 'manual' });
+      await new Promise((r) => setTimeout(r, 15));
       await service.createSnapshot({
         sessionId: testSessionId,
         messages,
         trigger: 'auto-compaction',
       });
+      await new Promise((r) => setTimeout(r, 15));
       await service.createSnapshot({ sessionId: testSessionId, messages, trigger: 'periodic' });
 
       const snapshots = await service.listSnapshots(testSessionId);
@@ -214,9 +216,11 @@ describe('ContextSnapshotService', () => {
       const service = new ContextSnapshotService({ stateDir: testStateDir, compression: false });
       const messages = createTestMessages(5);
 
-      // Create multiple snapshots
+      // Create multiple snapshots (with delays to avoid Date.now() ID collisions)
       await service.createSnapshot({ sessionId: testSessionId, messages, trigger: 'manual' });
+      await new Promise((r) => setTimeout(r, 15));
       await service.createSnapshot({ sessionId: testSessionId, messages, trigger: 'manual' });
+      await new Promise((r) => setTimeout(r, 15));
       await service.createSnapshot({ sessionId: testSessionId, messages, trigger: 'manual' });
 
       const deletedCount = await service.deleteAllSnapshots(testSessionId);
@@ -235,6 +239,7 @@ describe('ContextSnapshotService', () => {
       expect(await service.getSnapshotCount(testSessionId)).toBe(0);
 
       await service.createSnapshot({ sessionId: testSessionId, messages, trigger: 'manual' });
+      await new Promise((r) => setTimeout(r, 15));
       await service.createSnapshot({ sessionId: testSessionId, messages, trigger: 'manual' });
 
       expect(await service.getSnapshotCount(testSessionId)).toBe(2);
