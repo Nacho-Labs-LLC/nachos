@@ -462,13 +462,8 @@ export class ToolCoordinator {
 
     const tool = call.tool.toLowerCase();
 
-    if (tool === 'copilot') {
+    if (tool.includes('code_runner') || tool.includes('code-runner') || tool === 'copilot') {
       return SecurityTier.RESTRICTED;
-    }
-
-    // Code runners: ELEVATED in dev, override to RESTRICTED in production via config
-    if (tool.includes('code_runner') || tool.includes('code-runner')) {
-      return SecurityTier.ELEVATED;
     }
 
     if (
