@@ -251,8 +251,6 @@ export class JavaScriptExecutor extends ToolService {
           NODE_ENV: 'production',
           NODE_OPTIONS: this.buildNodeOptions(), // Suppress warnings + memory cap
         },
-        // uid/gid omitted — container already runs as non-root (nachos:1001)
-        // Setting uid/gid requires root privileges → EPERM in non-root containers
       });
 
       let stdout = '';
