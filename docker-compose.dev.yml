@@ -240,6 +240,8 @@ services:
     environment:
       NODE_ENV: development
       PORT: "8082"
+      NATS_URL: nats://bus:4222
+      NATS_TOKEN: ${NATS_TOKEN:-nachos-dev-token}
       NACHOS_CONFIG_PATH: /app/nachos.toml
       NACHOS_STATE_DIR: /app/state
       GATEWAY_HEALTH_URL: http://gateway:3000/health

@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
-import { connect, type NatsConnection } from 'nats';
-import { TOPICS } from '@nachos/bus';
+import { createBusClient, TOPICS } from '@nachos/bus';
+import type { NachosBusClient } from '@nachos/bus';
 import type { 
   ChannelInboundMessageType as ChannelInboundMessage,
   ChannelOutboundMessageType as ChannelOutboundMessage 
@@ -9,18 +9,24 @@ import type {
 import { randomUUID } from 'node:crypto';
 
 const NATS_URL = process.env['NATS_URL'] ?? 'nats://localhost:4222';
-const CHANNEL_ID = 'web';
+const NATS_TOKEN = process.env['NATS_TOKEN'] ?? '';
+const CHANNEL_ID = 'webchat';
 
 export const chatRouter = new Hono();
 
-// Get or create NATS connection
-let natsConnection: NatsConnection | null = null;
+// Get or create bus client connection
+let busClient: NachosBusClient | null = null;
 
-async function getNatsConnection(): Promise<NatsConnection> {
-  if (!natsConnection || natsConnection.isClosed()) {
-    natsConnection = await connect({ servers: NATS_URL });
+async function getBusClient(): Promise<NachosBusClient> {
+  if (!busClient) {
+    busClient = createBusClient({
+      servers: [NATS_URL],
+      name: 'admin-chat',
+      token: NATS_TOKEN || undefined,
+    });
+    await busClient.connect();
   }
-  return natsConnection;
+  return busClient;
 }
 
 // Session store (in-memory for now, could be moved to DB)
@@ -36,7 +42,7 @@ chatRouter.post('/send', async (c) => {
       return c.json({ error: 'Message is required' }, 400);
     }
 
-    const nc = await getNatsConnection();
+    const bus = await getBusClient();
 
     // Get or create session
     let session = clientSessionId ? sessions.get(clientSessionId) : null;
@@ -50,7 +56,7 @@ chatRouter.post('/send', async (c) => {
       sessions.set(newSessionId, session);
     }
 
-    // Publish message to gateway via NATS
+    // Publish message to gateway via bus client (auto-wraps in envelope)
     const inboundMsg: ChannelInboundMessage = {
       channel: CHANNEL_ID,
       channelMessageId: randomUUID(),
@@ -71,7 +77,7 @@ chatRouter.post('/send', async (c) => {
     };
 
     const topic = TOPICS.channel.inbound(CHANNEL_ID);
-    nc.publish(topic, JSON.stringify(inboundMsg));
+    bus.publish(topic, inboundMsg, { type: 'channel.inbound' });
 
     return c.json({
       ok: true,
@@ -115,76 +121,33 @@ chatRouter.get('/stream', async (c) => {
 
   return streamSSE(c, async (stream) => {
     try {
-      const nc = await getNatsConnection();
+      const bus = await getBusClient();
 
       // Subscribe to outbound messages for this channel
       const outboundTopic = TOPICS.channel.outbound(CHANNEL_ID);
-      const outboundSub = nc.subscribe(outboundTopic);
-
-      // Subscribe to status topics for this session
-      const statusTopics = [
-        TOPICS.status.thinking(session.sessionId),
-        TOPICS.status.tool(session.sessionId),
-        TOPICS.status.done(session.sessionId),
-        TOPICS.status.error(session.sessionId),
-      ];
-
-      const statusSubs = await Promise.all(
-        statusTopics.map((topic) => nc.subscribe(topic))
-      );
+      await bus.subscribe<ChannelOutboundMessage>(outboundTopic, async (envelope) => {
+        try {
+          const outbound = envelope.payload;
+          if (outbound?.conversationId === session.conversationId) {
+            await stream.writeSSE({
+              data: JSON.stringify({
+                type: 'message',
+                text: outbound.content.text,
+                timestamp: new Date().toISOString(),
+              }),
+              event: 'message',
+            });
+          }
+        } catch (err) {
+          console.error('[chat] Error processing outbound message:', err);
+        }
+      });
 
       // Send initial connection event
       await stream.writeSSE({
         data: JSON.stringify({ type: 'connected', sessionId }),
         event: 'status',
       });
-
-      // Process outbound messages
-      (async () => {
-        for await (const msg of outboundSub) {
-          try {
-            const outbound: ChannelOutboundMessage = JSON.parse(msg.string());
-            if (outbound.conversationId === session.conversationId) {
-              await stream.writeSSE({
-                data: JSON.stringify({
-                  type: 'message',
-                  text: outbound.content.text,
-                  timestamp: new Date().toISOString(),
-                }),
-                event: 'message',
-              });
-            }
-          } catch (err) {
-            console.error('[chat] Error processing outbound message:', err);
-          }
-        }
-      })();
-
-      // Process status updates
-      for (const statusSub of statusSubs) {
-        (async () => {
-          for await (const msg of statusSub) {
-            try {
-              const data = JSON.parse(msg.string());
-              const topic = msg.subject;
-
-              let type: string;
-              if (topic.includes('.thinking')) type = 'thinking';
-              else if (topic.includes('.tool')) type = 'tool';
-              else if (topic.includes('.done')) type = 'done';
-              else if (topic.includes('.error')) type = 'error';
-              else continue;
-
-              await stream.writeSSE({
-                data: JSON.stringify({ type, ...data }),
-                event: 'status',
-              });
-            } catch (err) {
-              console.error('[chat] Error processing status message:', err);
-            }
-          }
-        })();
-      }
 
       // Keep connection alive
       const keepAlive = setInterval(async () => {
@@ -193,16 +156,17 @@ chatRouter.get('/stream', async (c) => {
             data: JSON.stringify({ type: 'ping' }),
             event: 'ping',
           });
-        } catch (err) {
+        } catch {
           clearInterval(keepAlive);
         }
       }, 30000);
 
       // Wait for client disconnect
-      await stream.onAbort(() => {
-        clearInterval(keepAlive);
-        outboundSub.unsubscribe();
-        statusSubs.forEach((sub) => sub.unsubscribe());
+      await new Promise<void>((resolve) => {
+        stream.onAbort(() => {
+          clearInterval(keepAlive);
+          resolve();
+        });
       });
     } catch (err) {
       console.error('[chat] SSE stream error:', err);

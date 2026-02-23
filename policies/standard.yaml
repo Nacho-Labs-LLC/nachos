@@ -51,6 +51,25 @@ rules:
     reason: "DM access requires pairing. User must complete pairing process."
 
   # ============================================================================
+  # DM Receive - Always allow inbound DMs (filtering is done upstream)
+  # ============================================================================
+  - id: "standard-dm-receive-allow"
+    description: "Allow receiving DMs (inbound processing)"
+    priority: 901
+    match:
+      resource: "dm"
+      action: "receive"
+    effect: "allow"
+
+  - id: "standard-dm-send-allow"
+    description: "Allow sending DM responses (outbound)"
+    priority: 901
+    match:
+      resource: "dm"
+      action: "send"
+    effect: "allow"
+
+  # ============================================================================
   # Channel Messages - Allow
   # ============================================================================
   - id: "standard-channel-allow"
