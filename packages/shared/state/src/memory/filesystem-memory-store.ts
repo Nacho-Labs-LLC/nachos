@@ -11,7 +11,7 @@ import type {
   MemoryQueryResult,
   MemoryStore,
 } from '@nachos/types';
-import { SemanticSearch } from '@nachos/embeddings';
+import { SemanticSearch } from '@nacho-labs/nachos-embeddings';
 
 export interface FilesystemMemoryStoreConfig {
   baseDir: string;

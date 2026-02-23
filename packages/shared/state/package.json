@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@nachos/context-manager": "workspace:*",
-    "@nachos/embeddings": "workspace:*",
+    "@nacho-labs/nachos-embeddings": "^0.1.0",
     "@nachos/types": "workspace:*",
     "pg": "^8.13.1",
     "redis": "^4.7.0"
