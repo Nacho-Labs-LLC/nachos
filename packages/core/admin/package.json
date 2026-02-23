@@ -17,13 +17,18 @@
   "dependencies": {
     "@hono/node-server": "^1.13.0",
     "@iarna/toml": "^2.2.5",
+    "@nachos/bus": "workspace:*",
     "@nachos/config": "workspace:*",
+    "@nachos/types": "workspace:*",
     "better-sqlite3": "^12.6.2",
-    "hono": "^4.6.0"
+    "hono": "^4.6.0",
+    "markdown-it": "^14.1.0",
+    "nats": "^2.29.3"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/iarna__toml": "^2.0.5",
+    "@types/markdown-it": "^14.1.2",
     "@types/node": "^22.10.5",
     "@vitejs/plugin-vue": "^5.2.1",
     "tsx": "^4.19.2",

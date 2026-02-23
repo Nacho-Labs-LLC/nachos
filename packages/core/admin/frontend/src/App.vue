@@ -106,6 +106,16 @@ onMounted(() => {
             Logs
           </RouterLink>
         </li>
+        <li>
+          <RouterLink
+            to="/chat"
+            class="nav-link"
+            :class="{ active: currentPath === '/chat' }"
+          >
+            <span class="nav-icon">💬</span>
+            Chat
+          </RouterLink>
+        </li>
       </ul>
 
       <div class="sidebar-footer">

@@ -11,6 +11,7 @@ import { sessionsRouter } from './routes/sessions.js';
 import { skillsRouter } from './routes/skills.js';
 import { servicesRouter } from './routes/services.js';
 import { logsRouter } from './routes/logs.js';
+import { chatRouter } from './routes/chat.js';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -49,6 +50,7 @@ app.route('/api/sessions', sessionsRouter);
 app.route('/api/skills', skillsRouter);
 app.route('/api/services', servicesRouter);
 app.route('/api/logs', logsRouter);
+app.route('/api/chat', chatRouter);
 
 app.get('/api/health', (c) =>
   c.json({ status: 'ok', service: 'nachos-admin', timestamp: new Date().toISOString() })

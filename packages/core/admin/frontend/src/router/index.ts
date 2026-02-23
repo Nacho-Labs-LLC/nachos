@@ -6,6 +6,7 @@ import SessionsPage from '../pages/SessionsPage.vue';
 import SkillsPage from '../pages/SkillsPage.vue';
 import ServicesPage from '../pages/ServicesPage.vue';
 import LogsPage from '../pages/LogsPage.vue';
+import ChatPage from '../pages/ChatPage.vue';
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -18,5 +19,6 @@ export const router = createRouter({
     { path: '/skills', component: SkillsPage },
     { path: '/services', component: ServicesPage },
     { path: '/logs', component: LogsPage },
+    { path: '/chat', component: ChatPage },
   ],
 });
