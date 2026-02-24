@@ -630,6 +630,26 @@ export interface AdminConfig {
 }
 
 /**
+ * Scheduler configuration
+ */
+export interface SchedulerConfig {
+  enabled?: boolean;
+  check_interval_seconds?: number;
+  max_concurrent_jobs?: number;
+  run_missed_on_startup?: boolean;
+}
+
+/**
+ * Heartbeat configuration
+ */
+export interface HeartbeatConfig {
+  enabled?: boolean;
+  interval_minutes?: number;
+  prompt?: string;
+  channel?: string;
+}
+
+/**
  * Complete Nachos configuration
  */
 export interface NachosConfig {
@@ -642,6 +662,8 @@ export interface NachosConfig {
   assistant?: AssistantConfig;
   skills?: SkillsConfig;
   admin?: AdminConfig;
+  scheduler?: SchedulerConfig;
+  heartbeat?: HeartbeatConfig;
 }
 
 /**
