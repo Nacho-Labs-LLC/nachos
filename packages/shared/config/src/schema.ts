@@ -218,6 +218,10 @@ export interface ShellToolConfig {
  */
 export interface WebSearchToolConfig {
   enabled: boolean;
+  api_key_env?: string;
+  default_country?: string;
+  safe_search?: 'off' | 'moderate' | 'strict';
+  max_results?: number;
 }
 
 /**
@@ -238,7 +242,9 @@ export interface FirecrawlConfig {
 export interface WebFetchToolConfig {
   enabled: boolean;
   allowed_domains?: string[];
+  domain_allowlist?: string[];
   max_chars?: number;
+  timeout_ms?: number;
   timeout_seconds?: number;
   max_redirects?: number;
   user_agent?: string;
@@ -281,6 +287,16 @@ export interface ClaudeCodeMcpToolConfig {
 }
 
 /**
+ * Composio tool configuration
+ */
+export interface ComposioToolConfig {
+  enabled: boolean;
+  api_key_env?: string;
+  entity_id?: string;
+  allowed_apps?: string[];
+}
+
+/**
  * GitHub tool configuration
  */
 export interface GitHubToolConfig {
@@ -303,6 +319,7 @@ export interface ToolsConfig {
   bootstrap?: BootstrapToolConfig;
   copilot?: CopilotToolConfig;
   claude_code_mcp?: ClaudeCodeMcpToolConfig;
+  composio?: ComposioToolConfig;
   github?: GitHubToolConfig;
   groups?: Record<string, ToolGroupConfig>;
 }

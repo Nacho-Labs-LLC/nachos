@@ -21,6 +21,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@composio/core": "^0.6.3",
     "@nacho-labs/nachos-dlp": "^1.0.0",
     "@nachos/bus": "workspace:*",
     "@nachos/config": "workspace:*",

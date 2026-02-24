@@ -36,6 +36,11 @@ import {
   executeMemoryGet,
 } from './tools/memory-tools.js';
 import {
+  ComposioToolSchema,
+  executeComposio,
+  initComposioClient,
+} from './tools/composio-tools.js';
+import {
   GitHubToolSchema,
   executeGitHub,
   type GitHubConfig,
@@ -618,6 +623,26 @@ export class Gateway {
         config: options.subagentOrchestratorConfig,
         workspaceRoot: this.subagentWorkspaceRoot,
       });
+    }
+
+    // Initialize Composio client if enabled
+    if (options.toolsConfig?.composio?.enabled) {
+      const apiKeyEnv = options.toolsConfig.composio.api_key_env ?? 'COMPOSIO_API_KEY';
+      const apiKey = process.env[apiKeyEnv];
+      
+      if (!apiKey) {
+        logger.warn(`Composio enabled but ${apiKeyEnv} not set in environment`);
+      } else {
+        const entityId = options.toolsConfig.composio.entity_id ?? 'default';
+        const allowedApps = options.toolsConfig.composio.allowed_apps;
+        
+        initComposioClient({
+          apiKey,
+          entityId,
+          allowedApps,
+        });
+        logger.info('Composio client initialized', { entityId, allowedApps });
+      }
     }
 
     // Register default handlers
@@ -1577,6 +1602,15 @@ export class Gateway {
         name: 'bootstrap',
         description: 'Manage agent onboarding and identity configuration. Used during initial setup to gather agent information.',
         parameters: this.sanitizeToolSchema(BootstrapToolSchema),
+      });
+    }
+
+    // Composio tool - execute actions on integrated apps (Gmail, Calendar, Docs, etc.)
+    if (this.toolsConfig?.composio?.enabled && !bootstrapLocked) {
+      tools.push({
+        name: 'composio',
+        description: 'Execute actions on integrated productivity apps via Composio. Supports Gmail (send/read/search emails), Google Calendar (create/manage events), Google Docs (create/edit documents), Google Meet (schedule meetings), Google Drive (manage files), and LinkedIn (post updates). Use this when you need to interact with these external services.',
+        parameters: this.sanitizeToolSchema(ComposioToolSchema),
       });
     }
 
