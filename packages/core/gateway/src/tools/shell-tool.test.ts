@@ -241,10 +241,10 @@ describe('ShellTool', () => {
       }
 
       expect(mockLogger.info).toHaveBeenCalledWith(
-        expect.stringContaining('Executing command'),
         expect.objectContaining({
           toolGroup: 'media',
-        })
+        }),
+        expect.stringContaining('Executing command')
       );
     });
   });

@@ -19,12 +19,15 @@ import type { ToolCall, ToolResult, ContentBlock } from '@nachos/types';
 import { SSRFProtection, type SSRFProtectionConfig } from './ssrf-protection.js';
 
 /**
- * Logger interface (minimal subset needed)
+ * Logger interface (pino-compatible)
  */
 interface Logger {
-  info(message: string, ...args: unknown[]): void;
-  warn(message: string, ...args: unknown[]): void;
-  error(message: string, ...args: unknown[]): void;
+  info(msg: string): void;
+  info(obj: object, msg?: string): void;
+  warn(msg: string): void;
+  warn(obj: object, msg?: string): void;
+  error(msg: string): void;
+  error(obj: object, msg?: string): void;
 }
 
 /**
@@ -199,7 +202,7 @@ export class BrowserLocalTool {
         metadata: { duration: Date.now() - startTime },
       };
     } catch (error) {
-      this.logger.error('Browser tool execution error:', error);
+      this.logger.error({ error: error instanceof Error ? error.message : error }, 'Browser tool execution error');
       return {
         success: false,
         content: [],
@@ -230,7 +233,7 @@ export class BrowserLocalTool {
   }
 
   private async initialize(): Promise<void> {
-    this.logger.info('Initializing browser tool (Playwright MCP)...');
+    this.logger.info('Initializing browser tool (Playwright MCP)');
 
     const { createConnection } = await import('@playwright/mcp');
 
@@ -253,11 +256,11 @@ export class BrowserLocalTool {
       },
     })) as unknown as MCPServer;
 
-    this.logger.info('Browser tool initialized successfully', {
+    this.logger.info({
       headless: this.headless,
       executablePath: executablePath ?? 'default',
       allowedDomains: this.ssrfProtection.getAllowedDomains(),
-    });
+    }, 'Browser tool initialized successfully');
   }
 
   /**
@@ -268,7 +271,7 @@ export class BrowserLocalTool {
       try {
         await this.mcpServer.close();
       } catch (error) {
-        this.logger.warn('Error closing browser MCP server:', error);
+        this.logger.warn({ error: error instanceof Error ? error.message : error }, 'Error closing browser MCP server');
       }
       this.mcpServer = null;
     }

@@ -43,9 +43,12 @@ import { createValidationError, createPermissionDeniedError } from '@nachos/type
  * Logger interface (minimal subset needed)
  */
 interface Logger {
-  info(message: string, ...args: unknown[]): void;
-  warn(message: string, ...args: unknown[]): void;
-  error(message: string, ...args: unknown[]): void;
+  info(msg: string): void;
+  info(obj: object, msg?: string): void;
+  warn(msg: string): void;
+  warn(obj: object, msg?: string): void;
+  error(msg: string): void;
+  error(obj: object, msg?: string): void;
 }
 
 /**
@@ -202,11 +205,12 @@ export class ShellTool {
       }
     }
 
-    this.logger.info(`Executing command: ${binaries.join(' ')}`, {
+    this.logger.info({
       command: options.command,
+      binaries: binaries.join(' '),
       toolGroup: this.getToolGroup(options.command),
       timeout,
-    });
+    }, 'Executing command');
 
     return await this.spawnProcess({
       ...options,
@@ -411,7 +415,7 @@ export class ShellTool {
       // Handle errors
       child.on('error', (error) => {
         clearTimeout(timeoutHandle);
-        this.logger.error('Command execution error:', error);
+        this.logger.error({ error: error.message }, 'Command execution error');
         resolve({
           exitCode: null,
           signal: null,
@@ -428,7 +432,7 @@ export class ShellTool {
         clearTimeout(timeoutHandle);
         const duration = Date.now() - startTime;
 
-        this.logger.info('Command completed', {
+        this.logger.info({
           exitCode,
           signal,
           duration,
@@ -436,7 +440,7 @@ export class ShellTool {
           stderrLength: stderr.length,
           timedOut,
           truncated,
-        });
+        }, 'Command completed');
 
         resolve({
           exitCode,
@@ -557,7 +561,7 @@ export class ShellTool {
       // Handle errors on any child
       for (const child of children) {
         child.on('error', (error) => {
-          this.logger.error('Pipe chain execution error:', error);
+          this.logger.error({ error: error.message }, 'Pipe chain execution error');
           stderr += (stderr ? '\n' : '') + error.message;
         });
       }
@@ -567,7 +571,7 @@ export class ShellTool {
         clearTimeout(timeoutHandle);
         const duration = Date.now() - startTime;
 
-        this.logger.info('Pipe chain completed', {
+        this.logger.info({
           exitCode,
           signal,
           duration,
@@ -576,7 +580,7 @@ export class ShellTool {
           timedOut,
           truncated,
           pipeLength: children.length,
-        });
+        }, 'Pipe chain completed');
 
         resolve({
           exitCode,
