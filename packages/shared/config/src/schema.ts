@@ -114,6 +114,10 @@ export interface SlackChannelConfig extends BaseChannelConfig {
   commands?: ChannelCommandsConfig;
   dm?: ChannelDMConfig;
   servers?: ChannelServerConfig[];
+  /** Show typing indicator while bot is processing (default: true).
+   * Note: Slack bots cannot show typing indicators in regular channels due to API limitations.
+   * Status events are subscribed for future use and for assistant threads. */
+  typing_indicators?: boolean;
 }
 
 /**
@@ -133,6 +137,8 @@ export interface DiscordChannelConfig extends BaseChannelConfig {
     /** Enable status emoji reactions on messages (default: false). */
     enabled?: boolean;
   };
+  /** Show typing indicator while bot is processing (default: true). */
+  typing_indicators?: boolean;
 }
 
 /**
@@ -212,6 +218,10 @@ export interface ShellToolConfig {
  */
 export interface WebSearchToolConfig {
   enabled: boolean;
+  api_key_env?: string;
+  default_country?: string;
+  safe_search?: 'off' | 'moderate' | 'strict';
+  max_results?: number;
 }
 
 /**
@@ -232,7 +242,9 @@ export interface FirecrawlConfig {
 export interface WebFetchToolConfig {
   enabled: boolean;
   allowed_domains?: string[];
+  domain_allowlist?: string[];
   max_chars?: number;
+  timeout_ms?: number;
   timeout_seconds?: number;
   max_redirects?: number;
   user_agent?: string;
@@ -298,6 +310,16 @@ export interface ComposioToolConfig {
 }
 
 /**
+ * GitHub tool configuration
+ */
+export interface GitHubToolConfig {
+  enabled: boolean;
+  default_repo?: string;
+  token_env?: string;
+  repo_allowlist?: string[];
+}
+
+/**
  * All tool configurations
  */
 export interface ToolsConfig {
@@ -312,6 +334,7 @@ export interface ToolsConfig {
   claude_code_mcp?: ClaudeCodeMcpToolConfig;
   bitbucket?: BitbucketToolConfig;
   composio?: ComposioToolConfig;
+  github?: GitHubToolConfig;
   groups?: Record<string, ToolGroupConfig>;
 }
 
@@ -644,6 +667,10 @@ export interface SkillsConfig {
   deny?: string[];
   /** Per-skill configuration overrides. */
   entries?: Record<string, SkillEntryConfig>;
+  /** Enable hot reload of skills when files change (default: true in dev, false in production) */
+  hot_reload?: boolean;
+  /** Debounce delay in milliseconds for skill reloads (default: 500) */
+  debounce_ms?: number;
 }
 
 /**
@@ -652,6 +679,26 @@ export interface SkillsConfig {
 export interface AdminConfig {
   enabled?: boolean;
   port?: number;
+}
+
+/**
+ * Scheduler configuration
+ */
+export interface SchedulerConfig {
+  enabled?: boolean;
+  check_interval_seconds?: number;
+  max_concurrent_jobs?: number;
+  run_missed_on_startup?: boolean;
+}
+
+/**
+ * Heartbeat configuration
+ */
+export interface HeartbeatConfig {
+  enabled?: boolean;
+  interval_minutes?: number;
+  prompt?: string;
+  channel?: string;
 }
 
 /**
@@ -667,6 +714,8 @@ export interface NachosConfig {
   assistant?: AssistantConfig;
   skills?: SkillsConfig;
   admin?: AdminConfig;
+  scheduler?: SchedulerConfig;
+  heartbeat?: HeartbeatConfig;
 }
 
 /**

@@ -107,6 +107,26 @@ async function start(): Promise<void> {
 
   const busAdapter = new NatsBusAdapter(busClient);
 
+  const schedulerConfig = nachosConfig.scheduler?.enabled
+    ? {
+        enabled: true,
+        checkIntervalSeconds: nachosConfig.scheduler.check_interval_seconds ?? 15,
+        maxConcurrentJobs: nachosConfig.scheduler.max_concurrent_jobs ?? 5,
+        runMissedOnStartup: nachosConfig.scheduler.run_missed_on_startup ?? true,
+      }
+    : undefined;
+
+  const heartbeatConfig = nachosConfig.heartbeat?.enabled
+    ? {
+        enabled: true,
+        intervalMinutes: nachosConfig.heartbeat.interval_minutes ?? 30,
+        prompt:
+          nachosConfig.heartbeat.prompt ??
+          'Read HEARTBEAT.md if it exists (workspace context). Follow it strictly. Do not infer or repeat old tasks from prior chats. If nothing needs attention, reply HEARTBEAT_OK.',
+        channel: nachosConfig.heartbeat.channel,
+      }
+    : undefined;
+
   const gateway = new Gateway({
     dbPath: gatewayConfig.dbPath,
     healthPort: gatewayConfig.healthPort,
@@ -139,6 +159,8 @@ async function start(): Promise<void> {
     toolsConfig: nachosConfig.tools,
     skillsConfig: nachosConfig.skills,
     nachosConfig,
+    schedulerConfig,
+    heartbeatConfig,
   });
 
   const shutdown = async (signal: string) => {

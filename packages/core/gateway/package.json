@@ -21,24 +21,27 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@composio/core": "^0.6.3",
     "@nacho-labs/nachos-dlp": "^1.0.0",
     "@nachos/bus": "workspace:*",
     "@nachos/config": "workspace:*",
     "@nachos/context-manager": "workspace:*",
     "@nachos/state": "workspace:*",
     "@nachos/types": "workspace:*",
+    "@playwright/mcp": "^0.0.45",
     "better-sqlite3": "^12.6.2",
     "dockerode": "^4.0.2",
+    "luxon": "^3.7.2",
     "pg": "^8.13.1",
+    "playwright-core": "^1.50.0",
     "redis": "^4.7.0",
     "uuid": "^13.0.0",
-    "yaml": "^2.8.2",
-    "@playwright/mcp": "^0.0.45",
-    "playwright-core": "^1.50.0"
+    "yaml": "^2.8.2"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/dockerode": "^3.3.27",
+    "@types/luxon": "^3.7.1",
     "@types/node": "^22.10.5",
     "@types/pg": "^8.11.11",
     "@types/uuid": "^11.0.0",

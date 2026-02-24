@@ -174,10 +174,19 @@ rules:
   # Web fetch native tool - Standard tier, allows fetching URLs directly
   - id: "permissive-tool-web-fetch-native"
     description: "Allow web fetch native tool (SecurityTier: STANDARD)"
-    priority: 785
+    priority: 780
     match:
       resource: "tool"
       resourceId: "web_fetch_native"
+    effect: "allow"
+      
+  # GitHub tool - Full access (SecurityTier: STANDARD)
+  - id: "permissive-tool-github"
+    description: "Allow GitHub tool in permissive mode"
+    priority: 795
+    match:
+      resource: "tool"
+      resourceId: "github"
     effect: "allow"
 
   # Filesystem Read - Broader access, deny only sensitive system paths
