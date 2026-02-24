@@ -11,6 +11,7 @@ import type {
   SessionWithMessages,
 } from '@nachos/types';
 import { v4 as uuid } from 'uuid';
+import { SCHEDULER_SCHEMA } from './scheduler/schema.js';
 
 /**
  * Schema initialization SQL
@@ -114,6 +115,7 @@ export class StateStorage {
     this.db = new Database(dbPath);
     this.db.pragma('journal_mode = WAL');
     this.db.exec(INIT_SCHEMA);
+    this.db.exec(SCHEDULER_SCHEMA);
   }
 
   /**
@@ -489,6 +491,14 @@ export class StateStorage {
     });
 
     return transaction(sessionId, messages);
+  }
+
+  /**
+   * Get the underlying database instance
+   * Used by scheduler and other subsystems
+   */
+  getDatabase(): Database.Database {
+    return this.db;
   }
 
   /**
