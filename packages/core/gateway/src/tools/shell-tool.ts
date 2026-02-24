@@ -37,6 +37,8 @@
  */
 
 import { spawn, type ChildProcess } from 'child_process';
+import { appendFile, mkdir } from 'fs/promises';
+import { dirname } from 'path';
 import { createValidationError, createPermissionDeniedError } from '@nachos/types';
 
 /**
@@ -122,6 +124,10 @@ export interface ShellToolConfig {
   maxTimeout?: number;
   /** Allowed skill-based tools */
   allowedTools?: SkillToolConfig[];
+  /** Path to audit log file (default: /var/log/nachos/shell-audit.log) */
+  auditLogPath?: string;
+  /** Enable audit logging (default: true) */
+  enableAuditLog?: boolean;
 }
 
 /**
@@ -245,12 +251,16 @@ export class ShellTool {
   private defaultTimeout: number;
   private maxTimeout: number;
   private allowedTools: Map<string, SkillToolConfig>;
+  private auditLogPath: string;
+  private enableAuditLog: boolean;
 
   constructor(config: ShellToolConfig) {
     this.logger = config.logger;
     this.maxOutputSize = config.maxOutputSize ?? 100 * 1024; // 100KB
     this.defaultTimeout = config.defaultTimeout ?? 30000; // 30s
     this.maxTimeout = config.maxTimeout ?? 300000; // 5min
+    this.auditLogPath = config.auditLogPath ?? '/var/log/nachos/shell-audit.log';
+    this.enableAuditLog = config.enableAuditLog ?? true;
 
     // Build allowed tools map
     const tools = config.allowedTools ?? DEFAULT_SKILL_TOOLS;
@@ -258,10 +268,51 @@ export class ShellTool {
   }
 
   /**
+   * Write audit log entry
+   */
+  private async auditLog(entry: {
+    timestamp: number;
+    command: string;
+    binaries: string[];
+    toolGroup: string | undefined;
+    exitCode: number | null;
+    duration: number;
+    timedOut?: boolean;
+    truncated?: boolean;
+    stdoutLength?: number;
+    stderrLength?: number;
+    error?: string;
+  }): Promise<void> {
+    if (!this.enableAuditLog) {
+      return;
+    }
+
+    try {
+      // Ensure directory exists
+      const logDir = dirname(this.auditLogPath);
+      await mkdir(logDir, { recursive: true });
+
+      // Append JSON line to audit log
+      await appendFile(
+        this.auditLogPath,
+        JSON.stringify(entry) + '\n',
+        'utf8'
+      );
+    } catch (error) {
+      // Don't fail command execution if audit log fails
+      this.logger.warn({
+        error: error instanceof Error ? error.message : String(error),
+        auditLogPath: this.auditLogPath,
+      }, 'Failed to write audit log');
+    }
+  }
+
+  /**
    * Execute a command
    */
   async execute(options: ExecOptions): Promise<ExecResult> {
     const timeout = Math.min(options.timeout ?? this.defaultTimeout, this.maxTimeout);
+    const startTime = Date.now();
 
     if (!options.command.trim()) {
       throw createValidationError('Empty command', { component: 'gateway' });
@@ -300,10 +351,41 @@ export class ShellTool {
       timeout,
     }, 'Executing command');
 
-    return await this.spawnProcess({
-      ...options,
-      timeout,
-    });
+    try {
+      const result = await this.spawnProcess({
+        ...options,
+        timeout,
+      });
+
+      // Audit log: successful execution
+      this.auditLog({
+        timestamp: Date.now(),
+        command: options.command,
+        binaries,
+        toolGroup: this.getToolGroup(options.command),
+        exitCode: result.exitCode,
+        duration: Date.now() - startTime,
+        timedOut: result.timedOut,
+        truncated: result.truncated,
+        stdoutLength: result.stdout.length,
+        stderrLength: result.stderr.length,
+      });
+
+      return result;
+    } catch (error) {
+      // Audit log: failed execution
+      this.auditLog({
+        timestamp: Date.now(),
+        command: options.command,
+        binaries,
+        toolGroup: this.getToolGroup(options.command),
+        exitCode: null,
+        duration: Date.now() - startTime,
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      throw error;
+    }
   }
 
   /**

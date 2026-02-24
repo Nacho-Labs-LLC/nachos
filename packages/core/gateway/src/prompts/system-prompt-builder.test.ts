@@ -8,17 +8,18 @@ import { SystemPromptBuilder, PlatformHints } from './system-prompt-builder.js';
 describe('SystemPromptBuilder', () => {
   it('should build a minimal prompt with just identity', () => {
     const builder = new SystemPromptBuilder();
-    const prompt = builder.build({
+    const result = builder.build({
       identity: 'You are a helpful assistant.',
       promptMode: 'none',
     });
 
-    expect(prompt).toBe('You are a helpful assistant.');
+    expect(result.prompt).toBe('You are a helpful assistant.');
+    expect(result.estimatedTokens).toBeGreaterThan(0);
   });
 
   it('should include runtime section in minimal mode', () => {
     const builder = new SystemPromptBuilder();
-    const prompt = builder.build({
+    const result = builder.build({
       identity: 'You are a helpful assistant.',
       runtimeInfo: {
         model: 'claude-sonnet-4',
@@ -27,16 +28,16 @@ describe('SystemPromptBuilder', () => {
       promptMode: 'minimal',
     });
 
-    expect(prompt).toContain('You are a helpful assistant.');
-    expect(prompt).toContain('## Runtime');
-    expect(prompt).toContain('claude-sonnet-4');
-    expect(prompt).toContain('/workspace');
-    expect(prompt).not.toContain('## Memory Recall');
+    expect(result.prompt).toContain('You are a helpful assistant.');
+    expect(result.prompt).toContain('## Runtime');
+    expect(result.prompt).toContain('claude-sonnet-4');
+    expect(result.prompt).toContain('/workspace');
+    expect(result.prompt).not.toContain('## Memory Recall');
   });
 
   it('should build full prompt with all sections', () => {
     const builder = new SystemPromptBuilder();
-    const prompt = builder.build({
+    const result = builder.build({
       identity: 'You are a test assistant.',
       toolNames: ['exec', 'memory_search'],
       hasMemoryTools: true,
@@ -52,6 +53,8 @@ describe('SystemPromptBuilder', () => {
       messageChannelOptions: 'discord|telegram',
       silentReplyToken: 'NO_REPLY',
     });
+
+    const prompt = result.prompt;
 
     // Check for all major sections
     expect(prompt).toContain('You are a test assistant.');
@@ -75,52 +78,52 @@ describe('SystemPromptBuilder', () => {
 
   it('should skip memory section if no memory tools', () => {
     const builder = new SystemPromptBuilder();
-    const prompt = builder.build({
+    const result = builder.build({
       identity: 'Test',
       hasMemoryTools: false,
     });
 
-    expect(prompt).not.toContain('## Memory Recall');
+    expect(result.prompt).not.toContain('## Memory Recall');
   });
 
   it('should skip messaging section if no messaging tools', () => {
     const builder = new SystemPromptBuilder();
-    const prompt = builder.build({
+    const result = builder.build({
       identity: 'Test',
       hasMessagingTools: false,
     });
 
-    expect(prompt).not.toContain('## Messaging');
+    expect(result.prompt).not.toContain('## Messaging');
   });
 
   it('should include platform hints when provided', () => {
     const builder = new SystemPromptBuilder();
-    const prompt = builder.build({
+    const result = builder.build({
       identity: 'Test',
       platformHints: ['Discord: No markdown tables', 'Use emojis sparingly'],
     });
 
-    expect(prompt).toContain('## Platform Formatting');
-    expect(prompt).toContain('Discord: No markdown tables');
-    expect(prompt).toContain('Use emojis sparingly');
+    expect(result.prompt).toContain('## Platform Formatting');
+    expect(result.prompt).toContain('Discord: No markdown tables');
+    expect(result.prompt).toContain('Use emojis sparingly');
   });
 
   it('should include workspace notes when provided', () => {
     const builder = new SystemPromptBuilder();
-    const prompt = builder.build({
+    const result = builder.build({
       identity: 'Test',
       runtimeInfo: { workspaceDir: '/test' },
       workspaceNotes: ['Project uses pnpm', 'Config in /config'],
     });
 
-    expect(prompt).toContain('## Workspace');
-    expect(prompt).toContain('Project uses pnpm');
-    expect(prompt).toContain('Config in /config');
+    expect(result.prompt).toContain('## Workspace');
+    expect(result.prompt).toContain('Project uses pnpm');
+    expect(result.prompt).toContain('Config in /config');
   });
 
   it('should include tool summaries when provided', () => {
     const builder = new SystemPromptBuilder();
-    const prompt = builder.build({
+    const result = builder.build({
       identity: 'Test',
       toolNames: ['exec', 'web_search'],
       toolSummaries: {
@@ -129,9 +132,9 @@ describe('SystemPromptBuilder', () => {
       },
     });
 
-    expect(prompt).toContain('## Tooling');
-    expect(prompt).toContain('Run shell commands');
-    expect(prompt).toContain('Search the web');
+    expect(result.prompt).toContain('## Tooling');
+    expect(result.prompt).toContain('Run shell commands');
+    expect(result.prompt).toContain('Search the web');
   });
 });
 
