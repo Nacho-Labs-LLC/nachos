@@ -36,6 +36,11 @@ import {
   executeMemoryGet,
 } from './tools/memory-tools.js';
 import {
+  GitHubToolSchema,
+  executeGitHub,
+  type GitHubConfig,
+} from './tools/github-tools.js';
+import {
   CronAddToolSchema,
   CronListToolSchema,
   CronRemoveToolSchema,
@@ -1512,6 +1517,15 @@ export class Gateway {
       });
     }
 
+    // GitHub tool - interact with GitHub via gh CLI
+    if (this.toolsConfig?.github?.enabled && !bootstrapLocked) {
+      tools.push({
+        name: 'github',
+        description: 'Interact with GitHub: list/view/create issues and PRs, view CI status, search code, and more. All actions use the gh CLI.',
+        parameters: this.sanitizeToolSchema(GitHubToolSchema),
+      });
+    }
+    
     // Cron scheduler tools - manage scheduled tasks
     if (this.scheduler && !bootstrapLocked) {
       tools.push({
@@ -2001,6 +2015,21 @@ export class Gateway {
 
       const context = { ...this.buildStateContext(session), internalTool: true };
       return executeMemoryGet(call, this.stateLayer, context);
+    }
+
+    // GitHub tool
+    if (call.tool === 'github') {
+      if (!this.toolsConfig?.github?.enabled) {
+        return this.formatToolError('GITHUB_DISABLED', 'GitHub tool is not enabled');
+      }
+      
+      const githubConfig: GitHubConfig = {
+        enabled: true,
+        default_repo: this.toolsConfig.github.default_repo,
+        token_env: this.toolsConfig.github.token_env || 'GITHUB_TOKEN',
+        repo_allowlist: this.toolsConfig.github.repo_allowlist,
+      };
+      return executeGitHub(call, githubConfig, session.userId);
     }
 
     // Cron scheduler tools

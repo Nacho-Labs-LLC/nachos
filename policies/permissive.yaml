@@ -153,6 +153,15 @@ rules:
       resourceId: "browser"
     effect: "allow"
 
+  # GitHub tool - Full access (SecurityTier: STANDARD)
+  - id: "permissive-tool-github"
+    description: "Allow GitHub tool in permissive mode"
+    priority: 795
+    match:
+      resource: "tool"
+      resourceId: "github"
+    effect: "allow"
+
   # Filesystem Read - Broader access, deny only sensitive system paths
   # Each system path gets its own deny rule since the evaluator does not
   # support a "not_starts_with_any" operator.

@@ -275,6 +275,16 @@ export interface ClaudeCodeMcpToolConfig {
 }
 
 /**
+ * GitHub tool configuration
+ */
+export interface GitHubToolConfig {
+  enabled: boolean;
+  default_repo?: string;
+  token_env?: string;
+  repo_allowlist?: string[];
+}
+
+/**
  * All tool configurations
  */
 export interface ToolsConfig {
@@ -287,6 +297,7 @@ export interface ToolsConfig {
   bootstrap?: BootstrapToolConfig;
   copilot?: CopilotToolConfig;
   claude_code_mcp?: ClaudeCodeMcpToolConfig;
+  github?: GitHubToolConfig;
   groups?: Record<string, ToolGroupConfig>;
 }
 
