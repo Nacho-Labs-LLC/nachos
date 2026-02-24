@@ -35,6 +35,11 @@ import {
   executeMemorySearch,
   executeMemoryGet,
 } from './tools/memory-tools.js';
+import {
+  GitHubToolSchema,
+  executeGitHub,
+  type GitHubConfig,
+} from './tools/github-tools.js';
 import { getExternalToolDefinitions } from './tools/external-tool-definitions.js';
 import type {
   AuditConfig,
@@ -1476,6 +1481,15 @@ export class Gateway {
       });
     }
 
+    // GitHub tool - interact with GitHub via gh CLI
+    if (this.toolsConfig?.github?.enabled && !bootstrapLocked) {
+      tools.push({
+        name: 'github',
+        description: 'Interact with GitHub: list/view/create issues and PRs, view CI status, search code, and more. All actions use the gh CLI.',
+        parameters: this.sanitizeToolSchema(GitHubToolSchema),
+      });
+    }
+
     // User profile tool - manage per-user preferences and settings
     if (this.stateLayer) {
       tools.push({
@@ -1932,6 +1946,23 @@ export class Gateway {
 
       const context = { ...this.buildStateContext(session), internalTool: true };
       return executeMemoryGet(call, this.stateLayer, context);
+    }
+
+    // GitHub tool
+    if (call.tool === 'github') {
+      if (!this.toolsConfig?.github?.enabled) {
+        return this.formatToolError('GITHUB_DISABLED', 'GitHub tool is not enabled');
+      }
+      if (!session) {
+        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found');
+      }
+      const githubConfig: GitHubConfig = {
+        enabled: true,
+        default_repo: this.toolsConfig.github.default_repo,
+        token_env: this.toolsConfig.github.token_env || 'GITHUB_TOKEN',
+        repo_allowlist: this.toolsConfig.github.repo_allowlist,
+      };
+      return executeGitHub(call, githubConfig, session.userId);
     }
 
     if (call.tool === 'bootstrap') {

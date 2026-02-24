@@ -275,6 +275,16 @@ export interface ClaudeCodeMcpToolConfig {
 }
 
 /**
+ * GitHub tool configuration
+ */
+export interface GitHubToolConfig {
+  enabled: boolean;
+  default_repo?: string;
+  token_env?: string;
+  repo_allowlist?: string[];
+}
+
+/**
  * All tool configurations
  */
 export interface ToolsConfig {
@@ -287,6 +297,7 @@ export interface ToolsConfig {
   bootstrap?: BootstrapToolConfig;
   copilot?: CopilotToolConfig;
   claude_code_mcp?: ClaudeCodeMcpToolConfig;
+  github?: GitHubToolConfig;
   groups?: Record<string, ToolGroupConfig>;
 }
 
@@ -630,6 +641,26 @@ export interface AdminConfig {
 }
 
 /**
+ * Scheduler configuration
+ */
+export interface SchedulerConfig {
+  enabled?: boolean;
+  check_interval_seconds?: number;
+  max_concurrent_jobs?: number;
+  run_missed_on_startup?: boolean;
+}
+
+/**
+ * Heartbeat configuration
+ */
+export interface HeartbeatConfig {
+  enabled?: boolean;
+  interval_minutes?: number;
+  prompt?: string;
+  channel?: string;
+}
+
+/**
  * Complete Nachos configuration
  */
 export interface NachosConfig {
@@ -642,6 +673,8 @@ export interface NachosConfig {
   assistant?: AssistantConfig;
   skills?: SkillsConfig;
   admin?: AdminConfig;
+  scheduler?: SchedulerConfig;
+  heartbeat?: HeartbeatConfig;
 }
 
 /**
