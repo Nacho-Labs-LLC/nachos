@@ -164,7 +164,11 @@ enabled = false                           # Disabled by default - high risk
 
 [tools.web_search]
 enabled = false
-# Requires: SERP_API_KEY or similar in .env
+# Requires: BRAVE_API_KEY in .env
+# api_key_env = "BRAVE_API_KEY"
+# default_country = "US"
+# safe_search = "moderate"  # "off" | "moderate" | "strict"
+# max_results = 10
 
 [tools.web_fetch]
 enabled = true
@@ -181,6 +185,31 @@ enabled = false
 only_main_content = true
 max_age_ms = 86400000
 timeout_seconds = 60
+
+[tools.github]
+enabled = false
+# Requires: GITHUB_TOKEN in .env (or use gh CLI authentication)
+# default_repo = "owner/repo"
+# token_env = "GITHUB_TOKEN"
+# repo_allowlist = ["owner/repo1", "owner/repo2"]
+
+[tools.bitbucket]
+enabled = false
+# Requires: BITBUCKET credentials in .env
+# default_workspace = "my-workspace"
+# auth_type = "app_password"  # "app_password" | "oauth"
+# username_env = "BITBUCKET_USERNAME"
+# password_env = "BITBUCKET_APP_PASSWORD"
+# token_env = "BITBUCKET_TOKEN"  # For OAuth
+# workspace_allowlist = ["workspace1", "workspace2"]
+
+[tools.composio]
+enabled = false
+# Requires: COMPOSIO_API_KEY in .env
+# Composio provides OAuth-based integrations for Gmail, Calendar, Docs, Meet, Drive, LinkedIn, etc.
+# api_key_env = "COMPOSIO_API_KEY"
+# entity_id = "default"
+# allowed_apps = ["gmail", "googlecalendar", "googledocs", "googlemeet", "googledrive", "linkedin"]
 
 # Tool groups (policy defaults). Users can override per-tool policies if needed.
 [tools.groups.lookup]
@@ -413,6 +442,13 @@ Be concise, helpful, and security-conscious.
 
 [skills]
 enabled = []                              # ["researcher", "coder", "writer"]
+# allow = ["goplaces", "gifgrep"]         # Optional allowlist (only these load)
+# deny = ["gog"]                          # Optional denylist
+# hot_reload = true                       # Auto-reload skills when files change (default: true in dev, false in prod)
+# debounce_ms = 500                       # Delay before reloading after file change (default: 500ms)
+
+# [skills.entries.goplaces]
+# enabled = true
 
 # Skills are pre-configured bundles that enable specific tools and prompts.
 # Browse available skills: nachos search skills
