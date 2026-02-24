@@ -114,11 +114,19 @@ const CONFIG_SHAPE: SchemaNode = {
     browser: { enabled: true, allowed_domains: true, headless: true, timeout: true },
     code_runner: { enabled: true, runtime: true, languages: true, timeout: true, max_memory: true },
     shell: { enabled: true },
-    web_search: { enabled: true },
+    web_search: {
+      enabled: true,
+      api_key_env: true,
+      default_country: true,
+      safe_search: true,
+      max_results: true,
+    },
     web_fetch: {
       enabled: true,
       allowed_domains: true,
+      domain_allowlist: true,
       max_chars: true,
+      timeout_ms: true,
       timeout_seconds: true,
       max_redirects: true,
       user_agent: true,
@@ -132,6 +140,27 @@ const CONFIG_SHAPE: SchemaNode = {
       },
     },
     bootstrap: { enabled: true },
+    github: {
+      enabled: true,
+      default_repo: true,
+      token_env: true,
+      repo_allowlist: true,
+    },
+    bitbucket: {
+      enabled: true,
+      default_workspace: true,
+      auth_type: true,
+      username_env: true,
+      password_env: true,
+      token_env: true,
+      workspace_allowlist: true,
+    },
+    composio: {
+      enabled: true,
+      api_key_env: true,
+      entity_id: true,
+      allowed_apps: true,
+    },
     overrides: true,
     copilot: {
       enabled: true,
@@ -332,7 +361,27 @@ const CONFIG_SHAPE: SchemaNode = {
     },
   },
   assistant: { name: true, system_prompt: true, context_files: true },
-  skills: { enabled: true, allow: true, deny: true, entries: true },
+  skills: {
+    enabled: true,
+    allow: true,
+    deny: true,
+    entries: true,
+    hot_reload: true,
+    debounce_ms: true,
+  },
+  admin: { enabled: true, port: true },
+  scheduler: {
+    enabled: true,
+    check_interval_seconds: true,
+    max_concurrent_jobs: true,
+    run_missed_on_startup: true,
+  },
+  heartbeat: {
+    enabled: true,
+    interval_minutes: true,
+    prompt: true,
+    channel: true,
+  },
 };
 
 function validateNoUnknownKeys(
