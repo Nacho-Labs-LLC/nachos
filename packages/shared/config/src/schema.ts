@@ -114,6 +114,10 @@ export interface SlackChannelConfig extends BaseChannelConfig {
   commands?: ChannelCommandsConfig;
   dm?: ChannelDMConfig;
   servers?: ChannelServerConfig[];
+  /** Show typing indicator while bot is processing (default: true).
+   * Note: Slack bots cannot show typing indicators in regular channels due to API limitations.
+   * Status events are subscribed for future use and for assistant threads. */
+  typing_indicators?: boolean;
 }
 
 /**
@@ -133,6 +137,8 @@ export interface DiscordChannelConfig extends BaseChannelConfig {
     /** Enable status emoji reactions on messages (default: false). */
     enabled?: boolean;
   };
+  /** Show typing indicator while bot is processing (default: true). */
+  typing_indicators?: boolean;
 }
 
 /**
