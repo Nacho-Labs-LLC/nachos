@@ -233,6 +233,18 @@ export const CONFIG_TOPICS = {
 } as const;
 
 /**
+ * Skills topics
+ */
+export const SKILLS_TOPICS = {
+  /**
+   * Skills reloaded event
+   * Publisher: Gateway
+   * Subscriber: Admin UI, monitoring services
+   */
+  reloaded: `${TOPIC_PREFIX}.skills.reloaded`,
+} as const;
+
+/**
  * Context management topics
  */
 export const CONTEXT_TOPICS = {
@@ -343,6 +355,7 @@ export const TOPICS = {
   context: CONTEXT_TOPICS,
   config: CONFIG_TOPICS,
   status: STATUS_TOPICS,
+  skills: SKILLS_TOPICS,
   scheduler: SCHEDULER_TOPICS,
 } as const;
 
