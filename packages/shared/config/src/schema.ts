@@ -619,6 +619,10 @@ export interface SkillsConfig {
   deny?: string[];
   /** Per-skill configuration overrides. */
   entries?: Record<string, SkillEntryConfig>;
+  /** Enable hot reload of skills when files change (default: true in dev, false in production) */
+  hot_reload?: boolean;
+  /** Debounce delay in milliseconds for skill reloads (default: 500) */
+  debounce_ms?: number;
 }
 
 /**

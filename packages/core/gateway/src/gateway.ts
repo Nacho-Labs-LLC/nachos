@@ -484,6 +484,9 @@ export class Gateway {
   private approvalAllowlist: Set<string>;
   private toolGroupMap: Map<string, string>;
   private skillsPrompt: string | null = null;
+  private skillsDir: string | null = null;
+  private currentSkills: Skill[] = [];
+  private skillWatcher: any = null;
   private toolsConfig?: ToolsConfig;
   private skillsConfig?: SkillsConfig;
   private nachosConfig?: NachosConfig;
@@ -3179,8 +3182,7 @@ export class Gateway {
     // Load skills for system prompt and exec allowlist
     let skillToolConfigs: SkillToolConfig[] = [];
     try {
-      const { loadSkills, formatSkillsForPrompt, filterSkillsForPrompt } =
-        await import('./skills/skill-loader.js');
+      const { formatSkillsForPrompt } = await import('./skills/skill-loader.js');
       const { join } = await import('path');
       const { fileURLToPath } = await import('url');
       const { dirname } = await import('path');
@@ -3188,17 +3190,11 @@ export class Gateway {
       // Resolve skills directory (relative to gateway package)
       const currentDir = dirname(fileURLToPath(import.meta.url));
       const skillsDir = join(currentDir, '..', '..', '..', '..', 'skills');
+      this.skillsDir = skillsDir;
 
-      const skills = loadSkills({ skillsDir });
-      const shellEnabled = this.toolsConfig?.shell?.enabled !== false;
-      const allowlist = this.skillsConfig?.allow ?? this.skillsConfig?.enabled;
-      const filtered = filterSkillsForPrompt(skills, {
-        allow: allowlist,
-        deny: this.skillsConfig?.deny,
-        entries: this.skillsConfig?.entries,
-        config: this.nachosConfig,
-      });
-      const skillsForPrompt = shellEnabled ? filtered : [];
+      // Initial skill load
+      const skillsForPrompt = await this.loadAndFilterSkills();
+      this.currentSkills = skillsForPrompt;
 
       if (skillsForPrompt.length > 0) {
         this.skillsPrompt = formatSkillsForPrompt(skillsForPrompt);
@@ -3207,7 +3203,20 @@ export class Gateway {
         logger.warn('No skills loaded');
       }
 
-      skillToolConfigs = shellEnabled ? this.buildSkillToolConfigs(skillsForPrompt) : [];
+      skillToolConfigs = this.buildSkillToolConfigs(skillsForPrompt);
+
+      // Start skill watcher if hot reload is enabled
+      const hotReloadEnabled = this.skillsConfig?.hot_reload ?? (process.env.NODE_ENV !== 'production');
+      if (hotReloadEnabled) {
+        const { SkillWatcher } = await import('./skills/skill-watcher.js');
+        this.skillWatcher = new SkillWatcher({
+          skillsDir,
+          debounceMs: this.skillsConfig?.debounce_ms ?? 500,
+          onReload: async () => this.handleSkillReload(),
+        });
+        this.skillWatcher.start();
+        logger.info('Skill hot reload enabled');
+      }
     } catch (error) {
       logger.error({ err: error }, 'Failed to load skills');
     }
@@ -3533,8 +3542,100 @@ export class Gateway {
       await this.localToolHandler.close();
     }
 
+    if (this.skillWatcher) {
+      this.skillWatcher.stop();
+      this.skillWatcher = null;
+    }
+
     this.storage.close();
     logger.info('Gateway stopped');
+  }
+
+  /**
+   * Load and filter skills for the system prompt
+   */
+  private async loadAndFilterSkills(): Promise<Skill[]> {
+    if (!this.skillsDir) {
+      return [];
+    }
+
+    const { loadSkills, filterSkillsForPrompt } = await import('./skills/skill-loader.js');
+    const skills = loadSkills({ skillsDir: this.skillsDir });
+    const shellEnabled = this.toolsConfig?.shell?.enabled !== false;
+    const allowlist = this.skillsConfig?.allow ?? this.skillsConfig?.enabled;
+    const filtered = filterSkillsForPrompt(skills, {
+      allow: allowlist,
+      deny: this.skillsConfig?.deny,
+      entries: this.skillsConfig?.entries,
+      config: this.nachosConfig,
+    });
+
+    return shellEnabled ? filtered : [];
+  }
+
+  /**
+   * Handle skill reload from watcher
+   */
+  private async handleSkillReload(): Promise<{
+    previous: Skill[];
+    current: Skill[];
+  }> {
+    const previous = this.currentSkills;
+    const current = await this.loadAndFilterSkills();
+
+    // Update skills prompt
+    const { formatSkillsForPrompt } = await import('./skills/skill-loader.js');
+    this.skillsPrompt = current.length > 0 ? formatSkillsForPrompt(current) : null;
+    this.currentSkills = current;
+
+    // Detect changes
+    const prevMap = new Map(previous.map((s) => [s.name, s]));
+    const currMap = new Map(current.map((s) => [s.name, s]));
+
+    const added: string[] = [];
+    const removed: string[] = [];
+    const modified: string[] = [];
+
+    for (const [name, skill] of currMap) {
+      const prevSkill = prevMap.get(name);
+      if (!prevSkill) {
+        added.push(name);
+      } else if (prevSkill.content !== skill.content) {
+        modified.push(name);
+      }
+    }
+
+    for (const name of prevMap.keys()) {
+      if (!currMap.has(name)) {
+        removed.push(name);
+      }
+    }
+
+    logger.info(
+      {
+        added,
+        removed,
+        modified,
+        total: current.length,
+      },
+      'Skills reloaded'
+    );
+
+    // Publish NATS event
+    try {
+      await this.router.getBus().publish(TOPICS.skills.reloaded, {
+        event: 'skills.reloaded',
+        added,
+        removed,
+        modified,
+        total: current.length,
+        timestamp: Date.now(),
+      });
+    } catch (error) {
+      logger.error({ err: error }, 'Failed to publish skills.reloaded event');
+    }
+
+    return { previous, current };
   }
 
   /**
