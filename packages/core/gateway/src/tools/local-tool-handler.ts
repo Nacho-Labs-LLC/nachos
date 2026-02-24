@@ -14,12 +14,15 @@ import { ShellTool, type ShellToolConfig } from './shell-tool.js';
 import { BrowserLocalTool, type BrowserToolConfig } from './browser-local.js';
 
 /**
- * Logger interface (minimal subset needed)
+ * Logger interface (pino-compatible)
  */
 interface Logger {
-  info(message: string, ...args: unknown[]): void;
-  warn(message: string, ...args: unknown[]): void;
-  error(message: string, ...args: unknown[]): void;
+  info(msg: string): void;
+  info(obj: object, msg?: string): void;
+  warn(msg: string): void;
+  warn(obj: object, msg?: string): void;
+  error(msg: string): void;
+  error(obj: object, msg?: string): void;
 }
 
 /**
@@ -91,7 +94,7 @@ export class LocalToolHandler {
         },
       };
     } catch (error) {
-      this.logger.error('Local tool execution error:', error);
+      this.logger.error({ error: error instanceof Error ? error.message : error }, 'Local tool execution error');
       return {
         success: false,
         content: [],

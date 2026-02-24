@@ -656,7 +656,7 @@ export class Gateway {
           entityId,
           allowedApps,
         });
-        logger.info('Composio client initialized', { entityId, allowedApps });
+        logger.info({ entityId, allowedApps }, 'Composio client initialized');
       }
     }
 
@@ -2100,6 +2100,9 @@ export class Gateway {
     if (call.tool === 'github') {
       if (!this.toolsConfig?.github?.enabled) {
         return this.formatToolError('GITHUB_DISABLED', 'GitHub tool is not enabled');
+      }
+      if (!session) {
+        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found');
       }
       
       const githubConfig: GitHubConfig = {
@@ -3614,11 +3617,7 @@ export class Gateway {
     const { LocalToolHandler } = await import('./tools/local-tool-handler.js');
     const localToolsLogger = createLogger('local-tools');
     const localToolHandler = new LocalToolHandler({
-      logger: {
-        info: (...args: unknown[]) => localToolsLogger.info(args[0] as string),
-        warn: (...args: unknown[]) => localToolsLogger.warn(args[0] as string),
-        error: (...args: unknown[]) => localToolsLogger.error(args[0] as string),
-      },
+      logger: localToolsLogger,
       shellConfig: {
         allowedTools: skillToolConfigs,
       },

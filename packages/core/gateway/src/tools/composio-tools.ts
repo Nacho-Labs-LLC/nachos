@@ -1,21 +1,13 @@
 /**
- * Composio tool schemas for LLM tool calling
- * 
- * These tools enable the LLM to execute actions via Composio's SDK
- * for various productivity and communication apps.
+ * Composio tool for LLM tool calling via REST API
  */
 
 import type { ToolCall, ToolResult } from '@nachos/types';
 import type { StateLayer, StateOperationContext } from '@nachos/state';
-import { Composio } from '@composio/core';
 import { createLogger } from '@nachos/types';
 
 const logger = createLogger('composio-tools');
 
-/**
- * Allowed apps for Composio integration
- * Matches the configuration schema
- */
 const DEFAULT_ALLOWED_APPS = [
   'gmail',
   'googlecalendar',
@@ -25,10 +17,6 @@ const DEFAULT_ALLOWED_APPS = [
   'linkedin',
 ];
 
-/**
- * composio tool schema
- * Executes actions via Composio SDK
- */
 export const ComposioToolSchema = {
   $id: 'composio',
   type: 'object',
@@ -51,19 +39,12 @@ export const ComposioToolSchema = {
   required: ['action', 'app', 'params'],
 };
 
-/**
- * Composio client singleton
- */
-let composioClient: Composio | null = null;
 let composioConfig: {
   apiKey: string;
   entityId: string;
   allowedApps: string[];
 } | null = null;
 
-/**
- * Initialize Composio client with config
- */
 export function initComposioClient(config: {
   apiKey: string;
   entityId: string;
@@ -75,31 +56,12 @@ export function initComposioClient(config: {
     allowedApps: config.allowedApps ?? DEFAULT_ALLOWED_APPS,
   };
 
-  composioClient = new Composio({
-    apiKey: config.apiKey,
-  });
-
-  logger.info('Composio client initialized', {
+  logger.info({
     entityId: config.entityId,
     allowedApps: composioConfig.allowedApps,
-  });
+  }, 'Composio client initialized');
 }
 
-/**
- * Get the Composio client instance
- */
-function getComposioClient(): Composio {
-  if (!composioClient || !composioConfig) {
-    throw new Error(
-      'Composio client not initialized. Set COMPOSIO_API_KEY in environment and enable in config.'
-    );
-  }
-  return composioClient;
-}
-
-/**
- * Get Composio configuration
- */
 function getComposioConfig() {
   if (!composioConfig) {
     throw new Error('Composio not configured');
@@ -107,11 +69,6 @@ function getComposioConfig() {
   return composioConfig;
 }
 
-/**
- * Execute composio tool
- * 
- * Executes a Composio action via the SDK
- */
 export async function executeComposio(
   call: ToolCall,
   _stateLayer: StateLayer,
@@ -124,7 +81,6 @@ export async function executeComposio(
       params?: Record<string, unknown>;
     };
 
-    // Validate required parameters
     if (!params.action || typeof params.action !== 'string') {
       return {
         success: false,
@@ -160,7 +116,6 @@ export async function executeComposio(
 
     const config = getComposioConfig();
 
-    // Validate app is in allowed list
     if (!config.allowedApps.includes(params.app)) {
       return {
         success: false,
@@ -172,29 +127,53 @@ export async function executeComposio(
       };
     }
 
-    const client = getComposioClient();
-
-    logger.info('Executing Composio action', {
+    logger.info({
       action: params.action,
       app: params.app,
       entityId: config.entityId,
       userId: context.userId,
-    });
+    }, 'Executing Composio action');
 
-    // Execute the action via Composio SDK
     try {
-      const result = await client.actions.execute({
-        actionName: params.action,
-        params: params.params,
-        entityId: config.entityId,
+      const response = await fetch('https://backend.composio.dev/api/v1/actions/execute', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': config.apiKey,
+        },
+        body: JSON.stringify({
+          actionName: params.action,
+          params: params.params,
+          entityId: config.entityId,
+        }),
       });
 
-      logger.info('Composio action executed successfully', {
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger.error({
+          action: params.action,
+          app: params.app,
+          status: response.status,
+          error: errorText,
+        }, 'Composio action execution failed');
+
+        return {
+          success: false,
+          content: [],
+          error: {
+            code: 'COMPOSIO_EXECUTION_FAILED',
+            message: `Failed to execute ${params.action}: HTTP ${response.status} - ${errorText}`,
+          },
+        };
+      }
+
+      const result = await response.json();
+
+      logger.info({
         action: params.action,
         app: params.app,
-      });
+      }, 'Composio action executed successfully');
 
-      // Format the result for the LLM
       const resultText = typeof result === 'string'
         ? result
         : JSON.stringify(result, null, 2);
@@ -210,11 +189,11 @@ export async function executeComposio(
       };
     } catch (execError) {
       const error = execError as Error;
-      logger.error('Composio action execution failed', {
+      logger.error({
         action: params.action,
         app: params.app,
         error: error.message,
-      });
+      }, 'Composio action execution failed');
 
       return {
         success: false,
@@ -226,9 +205,9 @@ export async function executeComposio(
       };
     }
   } catch (error) {
-    logger.error('Composio tool error', {
+    logger.error({
       error: error instanceof Error ? error.message : 'Unknown error',
-    });
+    }, 'Composio tool error');
 
     return {
       success: false,
