@@ -302,6 +302,15 @@ rules:
       resourceId: "copilot"
     effect: "allow"
 
+  # Composio - Elevated tier (OAuth-based external service access)
+  - id: "standard-tool-composio"
+    description: "Allow Composio integration tool (SecurityTier: ELEVATED)"
+    priority: 670
+    match:
+      resource: "tool"
+      resourceId: "composio"
+    effect: "allow"
+
   # ============================================================================
   # Network Access - Limited egress
   # ============================================================================
