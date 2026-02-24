@@ -40,7 +40,25 @@ import {
   executeComposio,
   initComposioClient,
 } from './tools/composio-tools.js';
+import {
+  GitHubToolSchema,
+  executeGitHub,
+  type GitHubConfig,
+} from './tools/github-tools.js';
+import {
+  CronAddToolSchema,
+  CronListToolSchema,
+  CronRemoveToolSchema,
+  CronUpdateToolSchema,
+  CronRunToolSchema,
+  executeCronAdd,
+  executeCronList,
+  executeCronRemove,
+  executeCronUpdate,
+  executeCronRun,
+} from './tools/cron-tools.js';
 import { getExternalToolDefinitions } from './tools/external-tool-definitions.js';
+import { Scheduler, HeartbeatManager, type SchedulerConfig, type HeartbeatConfig } from './scheduler/index.js';
 import type {
   AuditConfig,
   ContextManagementCommandsConfig,
@@ -442,6 +460,10 @@ export interface GatewayOptions {
   skillsConfig?: SkillsConfig;
   /** Full Nachos config (for skills gating) */
   nachosConfig?: NachosConfig;
+  /** Scheduler configuration */
+  schedulerConfig?: SchedulerConfig;
+  /** Heartbeat configuration */
+  heartbeatConfig?: HeartbeatConfig;
 }
 
 /**
@@ -489,11 +511,18 @@ export class Gateway {
   private approvalAllowlist: Set<string>;
   private toolGroupMap: Map<string, string>;
   private skillsPrompt: string | null = null;
+  private skillsDir: string | null = null;
+  private currentSkills: Skill[] = [];
+  private skillWatcher: any = null;
   private toolsConfig?: ToolsConfig;
   private skillsConfig?: SkillsConfig;
   private nachosConfig?: NachosConfig;
   // H2: Memory tool rate limiting (10 calls per minute per session)
   private memoryToolCalls: Map<string, number[]> = new Map();
+  private scheduler?: Scheduler;
+  private heartbeatManager?: HeartbeatManager;
+  private schedulerConfig?: SchedulerConfig;
+  private heartbeatConfig?: HeartbeatConfig;
 
   constructor(options: GatewayOptions = {}) {
     this.options = options;
@@ -519,6 +548,21 @@ export class Gateway {
 
     // Initialize session manager
     this.sessionManager = new SessionManager(this.storage);
+
+    // Initialize scheduler
+    this.schedulerConfig = options.schedulerConfig;
+    this.heartbeatConfig = options.heartbeatConfig;
+    if (this.schedulerConfig?.enabled) {
+      this.scheduler = new Scheduler(
+        this.storage.getDatabase(),
+        this.schedulerConfig,
+        this.createJobExecutor()
+      );
+      
+      if (this.heartbeatConfig?.enabled) {
+        this.heartbeatManager = new HeartbeatManager(this.scheduler, this.heartbeatConfig);
+      }
+    }
 
     // Initialize rate limiter
     if (options.rateLimiterConfig?.enabled !== false) {
@@ -1501,6 +1545,48 @@ export class Gateway {
       });
     }
 
+    // GitHub tool - interact with GitHub via gh CLI
+    if (this.toolsConfig?.github?.enabled && !bootstrapLocked) {
+      tools.push({
+        name: 'github',
+        description: 'Interact with GitHub: list/view/create issues and PRs, view CI status, search code, and more. All actions use the gh CLI.',
+        parameters: this.sanitizeToolSchema(GitHubToolSchema),
+      });
+    }
+    
+    // Cron scheduler tools - manage scheduled tasks
+    if (this.scheduler && !bootstrapLocked) {
+      tools.push({
+        name: 'nachos_cron_add',
+        description: 'Create a new scheduled task. Supports one-shot (at), interval (every), and cron expressions.',
+        parameters: this.sanitizeToolSchema(CronAddToolSchema),
+      });
+      
+      tools.push({
+        name: 'nachos_cron_list',
+        description: 'List scheduled tasks for this session or user.',
+        parameters: this.sanitizeToolSchema(CronListToolSchema),
+      });
+      
+      tools.push({
+        name: 'nachos_cron_remove',
+        description: 'Delete a scheduled task by ID.',
+        parameters: this.sanitizeToolSchema(CronRemoveToolSchema),
+      });
+      
+      tools.push({
+        name: 'nachos_cron_update',
+        description: 'Update an existing scheduled task.',
+        parameters: this.sanitizeToolSchema(CronUpdateToolSchema),
+      });
+      
+      tools.push({
+        name: 'nachos_cron_run',
+        description: 'Manually trigger a scheduled task immediately.',
+        parameters: this.sanitizeToolSchema(CronRunToolSchema),
+      });
+    }
+
     // User profile tool - manage per-user preferences and settings
     if (this.stateLayer) {
       tools.push({
@@ -1966,6 +2052,72 @@ export class Gateway {
 
       const context = { ...this.buildStateContext(session), internalTool: true };
       return executeMemoryGet(call, this.stateLayer, context);
+    }
+
+    // GitHub tool
+    if (call.tool === 'github') {
+      if (!this.toolsConfig?.github?.enabled) {
+        return this.formatToolError('GITHUB_DISABLED', 'GitHub tool is not enabled');
+      }
+      
+      const githubConfig: GitHubConfig = {
+        enabled: true,
+        default_repo: this.toolsConfig.github.default_repo,
+        token_env: this.toolsConfig.github.token_env || 'GITHUB_TOKEN',
+        repo_allowlist: this.toolsConfig.github.repo_allowlist,
+      };
+      return executeGitHub(call, githubConfig, session.userId);
+    }
+
+    // Cron scheduler tools
+    if (call.tool === 'nachos_cron_add') {
+      if (!this.scheduler) {
+        return this.formatToolError('SCHEDULER_DISABLED', 'Scheduler is not enabled');
+      }
+      if (!session) {
+        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found');
+      }
+      return executeCronAdd(call, this.scheduler, session.userId, session.id);
+    }
+
+    if (call.tool === 'nachos_cron_list') {
+      if (!this.scheduler) {
+        return this.formatToolError('SCHEDULER_DISABLED', 'Scheduler is not enabled');
+      }
+      if (!session) {
+        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found');
+      }
+      return executeCronList(call, this.scheduler, session.userId, session.id);
+    }
+
+    if (call.tool === 'nachos_cron_remove') {
+      if (!this.scheduler) {
+        return this.formatToolError('SCHEDULER_DISABLED', 'Scheduler is not enabled');
+      }
+      if (!session) {
+        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found');
+      }
+      return executeCronRemove(call, this.scheduler, session.userId);
+    }
+
+    if (call.tool === 'nachos_cron_update') {
+      if (!this.scheduler) {
+        return this.formatToolError('SCHEDULER_DISABLED', 'Scheduler is not enabled');
+      }
+      if (!session) {
+        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found');
+      }
+      return executeCronUpdate(call, this.scheduler, session.userId);
+    }
+
+    if (call.tool === 'nachos_cron_run') {
+      if (!this.scheduler) {
+        return this.formatToolError('SCHEDULER_DISABLED', 'Scheduler is not enabled');
+      }
+      if (!session) {
+        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found');
+      }
+      return executeCronRun(call, this.scheduler, session.userId);
     }
 
     if (call.tool === 'bootstrap') {
@@ -2491,6 +2643,95 @@ export class Gateway {
 
   private normalizeToolName(tool: string): string {
     return tool.trim().toLowerCase();
+  }
+
+  /**
+   * Create job executor for scheduler
+   */
+  private createJobExecutor() {
+    return async (job: import('./scheduler/types.js').CronJob) => {
+      try {
+        logger.info({ jobId: job.id, actionType: job.actionType }, 'Executing scheduled job');
+
+        if (job.actionType === 'systemEvent') {
+          const actionData = job.actionData as import('./scheduler/types.js').SystemEventAction;
+          
+          // Inject system event into the configured channel
+          if (job.deliveryChannel) {
+            const message: ChannelInboundMessage = {
+              channel: job.deliveryChannel,
+              channelMessageId: randomUUID(),
+              sender: {
+                id: job.userId,
+                name: 'Scheduler',
+                isAllowed: true,
+              },
+              conversation: {
+                id: job.sessionId ?? `scheduler-${job.id}`,
+                type: 'channel',
+              },
+              content: {
+                text: actionData.text,
+              },
+            };
+
+            // Publish to channel inbound topic
+            const envelope = createEnvelope(this.instanceId, 'channel-inbound', message);
+            await this.router.getBus().publish(
+              TOPICS.channel.inbound(job.deliveryChannel),
+              envelope
+            );
+
+            return { success: true, result: 'System event injected' };
+          }
+
+          return { success: false, error: 'No delivery channel specified' };
+        }
+
+        if (job.actionType === 'agentTurn') {
+          const actionData = job.actionData as import('./scheduler/types.js').AgentTurnAction;
+          
+          // Create an isolated agent turn (similar to how subagents work)
+          // For now, inject as a system event - can be enhanced later for true isolated turns
+          if (job.deliveryChannel) {
+            const message: ChannelInboundMessage = {
+              channel: job.deliveryChannel,
+              channelMessageId: randomUUID(),
+              sender: {
+                id: job.userId,
+                name: 'Scheduler',
+                isAllowed: true,
+              },
+              conversation: {
+                id: job.sessionId ?? `scheduler-${job.id}`,
+                type: 'channel',
+              },
+              content: {
+                text: actionData.prompt,
+              },
+            };
+
+            const envelope = createEnvelope(this.instanceId, 'channel-inbound', message);
+            await this.router.getBus().publish(
+              TOPICS.channel.inbound(job.deliveryChannel),
+              envelope
+            );
+
+            return { success: true, result: 'Agent turn scheduled' };
+          }
+
+          return { success: false, error: 'No delivery channel specified' };
+        }
+
+        return { success: false, error: `Unknown action type: ${job.actionType}` };
+      } catch (error) {
+        logger.error({ jobId: job.id, error }, 'Job execution failed');
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        };
+      }
+    };
   }
 
   private buildToolGroupMap(groups?: Record<string, ToolGroupConfig>): Map<string, string> {
@@ -3213,8 +3454,7 @@ export class Gateway {
     // Load skills for system prompt and exec allowlist
     let skillToolConfigs: SkillToolConfig[] = [];
     try {
-      const { loadSkills, formatSkillsForPrompt, filterSkillsForPrompt } =
-        await import('./skills/skill-loader.js');
+      const { formatSkillsForPrompt } = await import('./skills/skill-loader.js');
       const { join } = await import('path');
       const { fileURLToPath } = await import('url');
       const { dirname } = await import('path');
@@ -3222,17 +3462,11 @@ export class Gateway {
       // Resolve skills directory (relative to gateway package)
       const currentDir = dirname(fileURLToPath(import.meta.url));
       const skillsDir = join(currentDir, '..', '..', '..', '..', 'skills');
+      this.skillsDir = skillsDir;
 
-      const skills = loadSkills({ skillsDir });
-      const shellEnabled = this.toolsConfig?.shell?.enabled !== false;
-      const allowlist = this.skillsConfig?.allow ?? this.skillsConfig?.enabled;
-      const filtered = filterSkillsForPrompt(skills, {
-        allow: allowlist,
-        deny: this.skillsConfig?.deny,
-        entries: this.skillsConfig?.entries,
-        config: this.nachosConfig,
-      });
-      const skillsForPrompt = shellEnabled ? filtered : [];
+      // Initial skill load
+      const skillsForPrompt = await this.loadAndFilterSkills();
+      this.currentSkills = skillsForPrompt;
 
       if (skillsForPrompt.length > 0) {
         this.skillsPrompt = formatSkillsForPrompt(skillsForPrompt);
@@ -3241,7 +3475,20 @@ export class Gateway {
         logger.warn('No skills loaded');
       }
 
-      skillToolConfigs = shellEnabled ? this.buildSkillToolConfigs(skillsForPrompt) : [];
+      skillToolConfigs = this.buildSkillToolConfigs(skillsForPrompt);
+
+      // Start skill watcher if hot reload is enabled
+      const hotReloadEnabled = this.skillsConfig?.hot_reload ?? (process.env.NODE_ENV !== 'production');
+      if (hotReloadEnabled) {
+        const { SkillWatcher } = await import('./skills/skill-watcher.js');
+        this.skillWatcher = new SkillWatcher({
+          skillsDir,
+          debounceMs: this.skillsConfig?.debounce_ms ?? 500,
+          onReload: async () => this.handleSkillReload(),
+        });
+        this.skillWatcher.start();
+        logger.info('Skill hot reload enabled');
+      }
     } catch (error) {
       logger.error({ err: error }, 'Failed to load skills');
     }
@@ -3379,6 +3626,18 @@ export class Gateway {
     if (this.options.channels) {
       for (const channel of this.options.channels) {
         await this.router.subscribeToChannel(channel);
+      }
+    }
+
+    // Start scheduler if enabled
+    if (this.scheduler) {
+      this.scheduler.setMessageBus(this.router.getBus());
+      await this.scheduler.start();
+      logger.info('Scheduler started');
+      
+      if (this.heartbeatManager) {
+        await this.heartbeatManager.start();
+        logger.info('Heartbeat manager started');
       }
     }
 
@@ -3567,8 +3826,110 @@ export class Gateway {
       await this.localToolHandler.close();
     }
 
+    if (this.skillWatcher) {
+      this.skillWatcher.stop();
+      this.skillWatcher = null;
+    }
+
+    if (this.heartbeatManager) {
+      await this.heartbeatManager.stop();
+      logger.info('Heartbeat manager stopped');
+    }
+
+    if (this.scheduler) {
+      await this.scheduler.stop();
+      logger.info('Scheduler stopped');
+    }
+
     this.storage.close();
     logger.info('Gateway stopped');
+  }
+
+  /**
+   * Load and filter skills for the system prompt
+   */
+  private async loadAndFilterSkills(): Promise<Skill[]> {
+    if (!this.skillsDir) {
+      return [];
+    }
+
+    const { loadSkills, filterSkillsForPrompt } = await import('./skills/skill-loader.js');
+    const skills = loadSkills({ skillsDir: this.skillsDir });
+    const shellEnabled = this.toolsConfig?.shell?.enabled !== false;
+    const allowlist = this.skillsConfig?.allow ?? this.skillsConfig?.enabled;
+    const filtered = filterSkillsForPrompt(skills, {
+      allow: allowlist,
+      deny: this.skillsConfig?.deny,
+      entries: this.skillsConfig?.entries,
+      config: this.nachosConfig,
+    });
+
+    return shellEnabled ? filtered : [];
+  }
+
+  /**
+   * Handle skill reload from watcher
+   */
+  private async handleSkillReload(): Promise<{
+    previous: Skill[];
+    current: Skill[];
+  }> {
+    const previous = this.currentSkills;
+    const current = await this.loadAndFilterSkills();
+
+    // Update skills prompt
+    const { formatSkillsForPrompt } = await import('./skills/skill-loader.js');
+    this.skillsPrompt = current.length > 0 ? formatSkillsForPrompt(current) : null;
+    this.currentSkills = current;
+
+    // Detect changes
+    const prevMap = new Map(previous.map((s) => [s.name, s]));
+    const currMap = new Map(current.map((s) => [s.name, s]));
+
+    const added: string[] = [];
+    const removed: string[] = [];
+    const modified: string[] = [];
+
+    for (const [name, skill] of currMap) {
+      const prevSkill = prevMap.get(name);
+      if (!prevSkill) {
+        added.push(name);
+      } else if (prevSkill.content !== skill.content) {
+        modified.push(name);
+      }
+    }
+
+    for (const name of prevMap.keys()) {
+      if (!currMap.has(name)) {
+        removed.push(name);
+      }
+    }
+
+    logger.info(
+      {
+        added,
+        removed,
+        modified,
+        total: current.length,
+      },
+      'Skills reloaded'
+    );
+
+    // Publish NATS event
+    try {
+      await this.router.getBus().publish(TOPICS.skills.reloaded, {
+        event: 'skills.reloaded',
+        added,
+        removed,
+        modified,
+        total: current.length,
+        timestamp: Date.now(),
+      });
+    } catch (error) {
+      logger.error({ err: error }, 'Failed to publish skills.reloaded event');
+    }
+
+    return { previous, current };
   }
 
   /**

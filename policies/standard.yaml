@@ -185,6 +185,15 @@ rules:
       resourceId: "browser"
     effect: "allow"
 
+  # GitHub tool - Standard tier, allows interaction with GitHub via gh CLI
+  - id: "standard-tool-github"
+    description: "Allow GitHub tool (SecurityTier: STANDARD)"
+    priority: 795
+    match:
+      resource: "tool"
+      resourceId: "github"
+    effect: "allow"
+
   # Filesystem Read - Safe tier, workspace only
   - id: "standard-tool-filesystem-read"
     description: "Allow filesystem read tool (SecurityTier: SAFE) in workspace"

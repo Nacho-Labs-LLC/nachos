@@ -19,6 +19,14 @@ import { validateChannelInboundMessage } from '@nachos/types';
 import { shouldAllowDm, shouldAllowGroupMessage } from '@nachos/utils';
 import { randomUUID } from 'node:crypto';
 
+interface StatusEvent {
+  sessionId: string;
+  status: 'thinking' | 'tool' | 'done' | 'error';
+  channelId: string;
+  channelMessageId?: string;
+  toolName?: string;
+}
+
 type SlackEventMessage = {
   type: string;
   user?: string;
@@ -122,6 +130,38 @@ export class SlackChannelAdapter implements ChannelAdapter {
       await this.config.bus.subscribe(TOPICS.channel.outbound(this.channelId), async (payload) => {
         await this.sendMessage(payload as OutboundMessage);
       });
+
+      // Subscribe to status events (for future use and consistency with Discord)
+      // Note: Slack bots cannot show typing indicators in regular channels due to API limitations
+      if (this.channelConfig?.typing_indicators !== false) {
+        await this.subscribeToStatusEvents();
+      }
+    }
+  }
+
+  private async subscribeToStatusEvents(): Promise<void> {
+    if (!this.config) return;
+    
+    // Subscribe to all status events using '*' wildcard
+    // Note: Slack bots cannot show typing indicators in regular channels.
+    // This subscription is for future use (e.g., assistant threads with assistant.threads.setStatus)
+    // and for consistency with Discord adapter.
+    const handler = async (event: unknown) => this.handleStatusEvent(event as StatusEvent);
+    await this.config.bus.subscribe(TOPICS.status.thinking('*'), handler);
+    await this.config.bus.subscribe(TOPICS.status.tool('*'), handler);
+    await this.config.bus.subscribe(TOPICS.status.done('*'), handler);
+    await this.config.bus.subscribe(TOPICS.status.error('*'), handler);
+  }
+
+  private async handleStatusEvent(event: StatusEvent): Promise<void> {
+    // Slack bots cannot show typing indicators in regular channels due to API limitations.
+    // For assistant threads, the @slack/bolt library supports assistant.threads.setStatus,
+    // but that requires the assistant API which is not yet implemented.
+    // This handler is a placeholder for future implementation.
+    
+    // Log status events for debugging (can be removed in production)
+    if (event.status === 'thinking') {
+      console.debug(`[Slack] Status event: thinking in channel ${event.channelId}`);
     }
   }
 
