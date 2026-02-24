@@ -103,7 +103,7 @@ describe('LocalToolHandler', () => {
         id: 'test-6',
         tool: 'exec',
         parameters: {
-          command: 'curl https://example.com',
+          command: 'rm -rf /test', // rm is not in allowlist
         },
       };
 
