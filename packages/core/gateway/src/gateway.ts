@@ -35,6 +35,26 @@ import {
   executeMemorySearch,
   executeMemoryGet,
 } from './tools/memory-tools.js';
+import {
+  WebSearchToolSchema,
+  executeWebSearch,
+  type WebSearchConfig,
+} from './tools/web-search-tools.js';
+import {
+  WebFetchNativeToolSchema,
+  executeWebFetchNative,
+  type WebFetchConfig,
+} from './tools/web-fetch-tools.js';
+import {
+  BitbucketToolSchema,
+  executeBitbucket,
+  type BitbucketConfig,
+} from './tools/bitbucket-tools.js';
+import {
+  ComposioToolSchema,
+  executeComposio,
+  initComposioClient,
+} from './tools/composio-tools.js';
 import { getExternalToolDefinitions } from './tools/external-tool-definitions.js';
 import type {
   AuditConfig,
@@ -574,6 +594,26 @@ export class Gateway {
         config: options.subagentOrchestratorConfig,
         workspaceRoot: this.subagentWorkspaceRoot,
       });
+    }
+
+    // Initialize Composio client if enabled
+    if (options.toolsConfig?.composio?.enabled) {
+      const apiKeyEnv = options.toolsConfig.composio.api_key_env ?? 'COMPOSIO_API_KEY';
+      const apiKey = process.env[apiKeyEnv];
+      
+      if (!apiKey) {
+        logger.warn(`Composio enabled but ${apiKeyEnv} not set in environment`);
+      } else {
+        const entityId = options.toolsConfig.composio.entity_id ?? 'default';
+        const allowedApps = options.toolsConfig.composio.allowed_apps;
+        
+        initComposioClient({
+          apiKey,
+          entityId,
+          allowedApps,
+        });
+        logger.info('Composio client initialized', { entityId, allowedApps });
+      }
     }
 
     // Register default handlers
@@ -1494,6 +1534,42 @@ export class Gateway {
       });
     }
 
+    // Bitbucket tool - interact with Bitbucket repositories via REST API
+    if (this.toolsConfig?.bitbucket?.enabled && !bootstrapLocked) {
+      tools.push({
+        name: 'bitbucket',
+        description: 'Interact with Bitbucket: list/view/create issues and PRs, view pipeline status, search code, and more. All actions use the Bitbucket REST API v2.0.',
+        parameters: this.sanitizeToolSchema(BitbucketToolSchema),
+      });
+    }
+
+    // Composio tool - execute actions on integrated apps (Gmail, Calendar, Docs, etc.)
+    if (this.toolsConfig?.composio?.enabled && !bootstrapLocked) {
+      tools.push({
+        name: 'composio',
+        description: 'Execute actions on integrated productivity apps via Composio. Supports Gmail (send/read/search emails), Google Calendar (create/manage events), Google Docs (create/edit documents), Google Meet (schedule meetings), Google Drive (manage files), and LinkedIn (post updates). Use this when you need to interact with these external services.',
+        parameters: this.sanitizeToolSchema(ComposioToolSchema),
+      });
+    }
+
+    // Web search tool - native Brave Search API integration
+    if (this.toolsConfig?.web_search?.enabled && !bootstrapLocked) {
+      tools.push({
+        name: 'web_search',
+        description: 'Search the web using Brave Search API. Returns titles, URLs, and snippets. Use for finding information, news, documentation, or current events.',
+        parameters: this.sanitizeToolSchema(WebSearchToolSchema),
+      });
+    }
+
+    // Web fetch native tool - lightweight URL fetching without Docker
+    if (this.toolsConfig?.web_fetch?.enabled && !bootstrapLocked) {
+      tools.push({
+        name: 'web_fetch_native',
+        description: 'Fetch and extract readable content from a URL. Converts HTML to markdown or plain text. Lighter alternative to the Docker-based web_fetch tool.',
+        parameters: this.sanitizeToolSchema(WebFetchNativeToolSchema),
+      });
+    }
+
     // Browser automation tools disabled temporarily — not needed for chat
     // tools.push(...BROWSER_TOOL_DEFINITIONS);
 
@@ -1940,6 +2016,81 @@ export class Gateway {
 
     if (call.tool === 'user_profile') {
       return this.executeUserProfileToolCall(call, session);
+    }
+
+    if (call.tool === 'bitbucket') {
+      if (!this.toolsConfig?.bitbucket?.enabled) {
+        return this.formatToolError('BITBUCKET_DISABLED', 'Bitbucket tool is not enabled');
+      }
+      if (!session) {
+        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found');
+      }
+      const bitbucketConfig: BitbucketConfig = {
+        enabled: true,
+        default_workspace: this.toolsConfig.bitbucket.default_workspace,
+        auth_type: this.toolsConfig.bitbucket.auth_type || 'app_password',
+        username_env: this.toolsConfig.bitbucket.username_env || 'BITBUCKET_USERNAME',
+        password_env: this.toolsConfig.bitbucket.password_env || 'BITBUCKET_APP_PASSWORD',
+        token_env: this.toolsConfig.bitbucket.token_env || 'BITBUCKET_TOKEN',
+        workspace_allowlist: this.toolsConfig.bitbucket.workspace_allowlist,
+      };
+      return executeBitbucket(call, bitbucketConfig, session.userId);
+    }
+
+    if (call.tool === 'composio') {
+      if (!this.toolsConfig?.composio?.enabled) {
+        return this.formatToolError('COMPOSIO_DISABLED', 'Composio tool is not enabled');
+      }
+      if (!session) {
+        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found for Composio tool');
+      }
+
+      const context = { ...this.buildStateContext(session), internalTool: false };
+      return executeComposio(call, this.stateLayer!, context);
+    }
+
+    if (call.tool === 'web_search') {
+      if (!this.toolsConfig?.web_search?.enabled) {
+        return this.formatToolError('WEB_SEARCH_DISABLED', 'Web search tool is not enabled');
+      }
+      if (!session) {
+        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found');
+      }
+
+      const apiKeyEnv = this.toolsConfig.web_search.api_key_env || 'BRAVE_API_KEY';
+      const apiKey = process.env[apiKeyEnv];
+      if (!apiKey) {
+        return this.formatToolError(
+          'API_KEY_MISSING',
+          `Brave Search API key not found in environment variable: ${apiKeyEnv}`
+        );
+      }
+
+      const webSearchConfig: WebSearchConfig = {
+        api_key: apiKey,
+        default_country: this.toolsConfig.web_search.default_country,
+        safe_search: this.toolsConfig.web_search.safe_search,
+        max_results: this.toolsConfig.web_search.max_results,
+      };
+
+      return executeWebSearch(call, webSearchConfig, session.userId);
+    }
+
+    if (call.tool === 'web_fetch_native') {
+      if (!this.toolsConfig?.web_fetch?.enabled) {
+        return this.formatToolError('WEB_FETCH_DISABLED', 'Web fetch tool is not enabled');
+      }
+      if (!session) {
+        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found');
+      }
+
+      const webFetchConfig: WebFetchConfig = {
+        timeout_ms: this.toolsConfig.web_fetch.timeout_ms,
+        max_chars: this.toolsConfig.web_fetch.max_chars,
+        domain_allowlist: this.toolsConfig.web_fetch.domain_allowlist,
+      };
+
+      return executeWebFetchNative(call, webFetchConfig, session.userId);
     }
 
     return null;

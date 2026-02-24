@@ -185,6 +185,33 @@ rules:
       resourceId: "browser"
     effect: "allow"
 
+  # Bitbucket tool - Standard tier, allows interaction with Bitbucket via REST API
+  - id: "standard-tool-bitbucket"
+    description: "Allow Bitbucket tool (SecurityTier: STANDARD)"
+    priority: 795
+    match:
+      resource: "tool"
+      resourceId: "bitbucket"
+    effect: "allow"
+
+  # Web search tool - Standard tier, allows searching the web via Brave Search API
+  - id: "standard-tool-web-search"
+    description: "Allow web search tool (SecurityTier: STANDARD)"
+    priority: 790
+    match:
+      resource: "tool"
+      resourceId: "web_search"
+    effect: "allow"
+
+  # Web fetch native tool - Standard tier, allows fetching URLs directly
+  - id: "standard-tool-web-fetch-native"
+    description: "Allow web fetch native tool (SecurityTier: STANDARD)"
+    priority: 785
+    match:
+      resource: "tool"
+      resourceId: "web_fetch_native"
+    effect: "allow"
+
   # Filesystem Read - Safe tier, workspace only
   - id: "standard-tool-filesystem-read"
     description: "Allow filesystem read tool (SecurityTier: SAFE) in workspace"
@@ -300,6 +327,15 @@ rules:
     match:
       resource: "tool"
       resourceId: "copilot"
+    effect: "allow"
+
+  # Composio - Elevated tier (OAuth-based external service access)
+  - id: "standard-tool-composio"
+    description: "Allow Composio integration tool (SecurityTier: ELEVATED)"
+    priority: 670
+    match:
+      resource: "tool"
+      resourceId: "composio"
     effect: "allow"
 
   # ============================================================================
