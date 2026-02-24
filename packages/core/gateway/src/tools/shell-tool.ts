@@ -92,6 +92,12 @@ export interface SkillToolConfig {
   requiredEnv?: string[];
   /** Default timeout in ms */
   defaultTimeout?: number;
+  /** Read-only tool (no destructive operations) */
+  readonly?: boolean;
+  /** Allowed subcommands (for git, docker, etc.) */
+  allowedSubcommands?: string[];
+  /** Blocked subcommands (explicitly forbidden) */
+  blockedSubcommands?: string[];
 }
 
 /**
@@ -122,6 +128,7 @@ export interface ShellToolConfig {
  * Default skill-based CLI tools
  */
 const DEFAULT_SKILL_TOOLS: SkillToolConfig[] = [
+  // Skill-based tools
   {
     bin: 'goplaces',
     group: 'lookup',
@@ -146,6 +153,87 @@ const DEFAULT_SKILL_TOOLS: SkillToolConfig[] = [
     requiredEnv: [], // OAuth handled by gog itself
     defaultTimeout: 45000,
   },
+  
+  // File inspection (read-only)
+  { bin: 'ls', group: 'file-inspection', readonly: true },
+  { bin: 'cat', group: 'file-inspection', readonly: true },
+  { bin: 'head', group: 'file-inspection', readonly: true },
+  { bin: 'tail', group: 'file-inspection', readonly: true },
+  { bin: 'file', group: 'file-inspection', readonly: true },
+  { bin: 'stat', group: 'file-inspection', readonly: true },
+  { bin: 'wc', group: 'file-inspection', readonly: true },
+  { bin: 'find', group: 'file-inspection', readonly: true, defaultTimeout: 60000 },
+  
+  // Text processing
+  { bin: 'grep', group: 'text-processing', readonly: true },
+  { bin: 'sed', group: 'text-processing', readonly: true },
+  { bin: 'awk', group: 'text-processing', readonly: true },
+  { bin: 'cut', group: 'text-processing', readonly: true },
+  { bin: 'sort', group: 'text-processing', readonly: true },
+  { bin: 'uniq', group: 'text-processing', readonly: true },
+  { bin: 'tr', group: 'text-processing', readonly: true },
+  { bin: 'diff', group: 'text-processing', readonly: true },
+  
+  // Process inspection
+  { bin: 'ps', group: 'process-inspection', readonly: true },
+  { bin: 'pgrep', group: 'process-inspection', readonly: true },
+  { bin: 'top', group: 'process-inspection', readonly: true, defaultTimeout: 5000 },
+  { bin: 'htop', group: 'process-inspection', readonly: true, defaultTimeout: 5000 },
+  
+  // Network info (read-only inspection)
+  { bin: 'netstat', group: 'network-info', readonly: true },
+  { bin: 'ss', group: 'network-info', readonly: true },
+  { bin: 'lsof', group: 'network-info', readonly: true },
+  { bin: 'ip', group: 'network-info', readonly: true, allowedSubcommands: ['addr', 'route', 'link'] },
+  
+  // Network debugging
+  { bin: 'ping', group: 'network-debug', readonly: true, defaultTimeout: 10000 },
+  { bin: 'curl', group: 'network-debug', readonly: true, defaultTimeout: 30000 },
+  { bin: 'wget', group: 'network-debug', readonly: true, defaultTimeout: 30000 },
+  { bin: 'dig', group: 'network-debug', readonly: true },
+  { bin: 'nslookup', group: 'network-debug', readonly: true },
+  
+  // System info
+  { bin: 'uname', group: 'system-info', readonly: true },
+  { bin: 'hostname', group: 'system-info', readonly: true },
+  { bin: 'whoami', group: 'system-info', readonly: true },
+  { bin: 'pwd', group: 'system-info', readonly: true },
+  { bin: 'env', group: 'system-info', readonly: true },
+  { bin: 'date', group: 'system-info', readonly: true },
+  { bin: 'uptime', group: 'system-info', readonly: true },
+  { bin: 'free', group: 'system-info', readonly: true },
+  { bin: 'df', group: 'system-info', readonly: true },
+  { bin: 'du', group: 'system-info', readonly: true, defaultTimeout: 60000 },
+  
+  // Data processing
+  { bin: 'jq', group: 'data-processing', readonly: true },
+  { bin: 'yq', group: 'data-processing', readonly: true },
+  { bin: 'json', group: 'data-processing', readonly: true },
+  
+  // Git (read-only operations)
+  {
+    bin: 'git',
+    group: 'git',
+    readonly: true,
+    allowedSubcommands: ['status', 'log', 'diff', 'show', 'branch', 'remote', 'config', 'rev-parse', 'describe'],
+    blockedSubcommands: ['push', 'commit', 'add', 'rm', 'reset', 'rebase', 'merge', 'pull', 'fetch', 'clone'],
+  },
+  
+  // Docker (read-only inspection)
+  {
+    bin: 'docker',
+    group: 'docker-inspect',
+    readonly: true,
+    allowedSubcommands: ['ps', 'logs', 'inspect', 'images', 'stats', 'version', 'info'],
+    blockedSubcommands: ['rm', 'rmi', 'stop', 'kill', 'run', 'exec', 'build', 'push', 'pull'],
+    defaultTimeout: 30000,
+  },
+  
+  // Archive operations (read-only: list/extract)
+  { bin: 'tar', group: 'archive', readonly: true },
+  { bin: 'unzip', group: 'archive', readonly: true },
+  { bin: 'gunzip', group: 'archive', readonly: true },
+  { bin: 'bunzip2', group: 'archive', readonly: true },
 ];
 
 /**
@@ -330,6 +418,39 @@ export class ShellTool {
   }
 
   /**
+   * Validate subcommand against allowed/blocked lists
+   */
+  private validateSubcommand(bin: string, args: string[]): boolean {
+    const config = this.allowedTools.get(bin);
+    if (!config) return false;
+
+    // If no subcommands configured, allow all args
+    if (!config.allowedSubcommands && !config.blockedSubcommands) {
+      return true;
+    }
+
+    // If no args, nothing to validate
+    if (args.length === 0) {
+      return true;
+    }
+
+    const subcommand = args[0]!;
+
+    // Check blocked list first (explicit deny)
+    if (config.blockedSubcommands && config.blockedSubcommands.includes(subcommand)) {
+      return false;
+    }
+
+    // Check allowed list (explicit allow)
+    if (config.allowedSubcommands) {
+      return config.allowedSubcommands.includes(subcommand);
+    }
+
+    // No allowed list but has blocked list - allow by default
+    return true;
+  }
+
+  /**
    * Spawn a single command without shell
    */
   private spawnSingleProcess(
@@ -351,6 +472,22 @@ export class ShellTool {
 
     const binary = tokens[0]!;
     const args = tokens.slice(1);
+
+    // Validate subcommand
+    if (!this.validateSubcommand(binary, args)) {
+      const config = this.allowedTools.get(binary);
+      const subcommand = args[0] ?? '';
+      this.logger.warn({ binary, subcommand, args }, 'Blocked subcommand');
+      return Promise.resolve({
+        exitCode: 1,
+        signal: null,
+        stdout: '',
+        stderr: `Subcommand '${subcommand}' not allowed for '${binary}'. Allowed: ${config?.allowedSubcommands?.join(', ') ?? 'none'}`,
+        timedOut: false,
+        truncated: false,
+        duration: 0,
+      });
+    }
 
     const env: NodeJS.ProcessEnv = {
       ...process.env,
