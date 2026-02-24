@@ -320,6 +320,24 @@ rules:
       resourceId: "composio"
     effect: "allow"
 
+  # Web search tool - Standard tier, allows searching the web via Brave Search API
+  - id: "standard-tool-web-search"
+    description: "Allow web search tool (SecurityTier: STANDARD)"
+    priority: 660
+    match:
+      resource: "tool"
+      resourceId: "web_search"
+    effect: "allow"
+
+  # Web fetch native tool - Standard tier, allows fetching URLs directly
+  - id: "standard-tool-web-fetch-native"
+    description: "Allow web fetch native tool (SecurityTier: STANDARD)"
+    priority: 650
+    match:
+      resource: "tool"
+      resourceId: "web_fetch_native"
+    effect: "allow"
+
   # ============================================================================
   # Network Access - Limited egress
   # ============================================================================

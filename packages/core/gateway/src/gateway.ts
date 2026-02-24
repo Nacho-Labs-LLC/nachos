@@ -36,6 +36,16 @@ import {
   executeMemoryGet,
 } from './tools/memory-tools.js';
 import {
+  WebSearchToolSchema,
+  executeWebSearch,
+  type WebSearchConfig,
+} from './tools/web-search-tools.js';
+import {
+  WebFetchNativeToolSchema,
+  executeWebFetchNative,
+  type WebFetchConfig,
+} from './tools/web-fetch-tools.js';
+import {
   ComposioToolSchema,
   executeComposio,
   initComposioClient,
@@ -1614,6 +1624,24 @@ export class Gateway {
       });
     }
 
+    // Web search tool - native Brave Search API integration
+    if (this.toolsConfig?.web_search?.enabled && !bootstrapLocked) {
+      tools.push({
+        name: 'web_search',
+        description: 'Search the web using Brave Search API. Returns titles, URLs, and snippets. Use for finding information, news, documentation, or current events.',
+        parameters: this.sanitizeToolSchema(WebSearchToolSchema),
+      });
+    }
+
+    // Web fetch native tool - lightweight URL fetching without Docker
+    if (this.toolsConfig?.web_fetch?.enabled && !bootstrapLocked) {
+      tools.push({
+        name: 'web_fetch_native',
+        description: 'Fetch and extract readable content from a URL. Converts HTML to markdown or plain text. Lighter alternative to the Docker-based web_fetch tool.',
+        parameters: this.sanitizeToolSchema(WebFetchNativeToolSchema),
+      });
+    }
+
     // Browser automation tools disabled temporarily — not needed for chat
     // tools.push(...BROWSER_TOOL_DEFINITIONS);
 
@@ -2126,6 +2154,50 @@ export class Gateway {
 
     if (call.tool === 'user_profile') {
       return this.executeUserProfileToolCall(call, session);
+    }
+
+    if (call.tool === 'web_search') {
+      if (!this.toolsConfig?.web_search?.enabled) {
+        return this.formatToolError('WEB_SEARCH_DISABLED', 'Web search tool is not enabled');
+      }
+      if (!session) {
+        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found');
+      }
+
+      const apiKeyEnv = this.toolsConfig.web_search.api_key_env || 'BRAVE_API_KEY';
+      const apiKey = process.env[apiKeyEnv];
+      if (!apiKey) {
+        return this.formatToolError(
+          'API_KEY_MISSING',
+          `Brave Search API key not found in environment variable: ${apiKeyEnv}`
+        );
+      }
+
+      const webSearchConfig: WebSearchConfig = {
+        api_key: apiKey,
+        default_country: this.toolsConfig.web_search.default_country,
+        safe_search: this.toolsConfig.web_search.safe_search,
+        max_results: this.toolsConfig.web_search.max_results,
+      };
+
+      return executeWebSearch(call, webSearchConfig, session.userId);
+    }
+
+    if (call.tool === 'web_fetch_native') {
+      if (!this.toolsConfig?.web_fetch?.enabled) {
+        return this.formatToolError('WEB_FETCH_DISABLED', 'Web fetch tool is not enabled');
+      }
+      if (!session) {
+        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found');
+      }
+
+      const webFetchConfig: WebFetchConfig = {
+        timeout_ms: this.toolsConfig.web_fetch.timeout_ms,
+        max_chars: this.toolsConfig.web_fetch.max_chars,
+        domain_allowlist: this.toolsConfig.web_fetch.domain_allowlist,
+      };
+
+      return executeWebFetchNative(call, webFetchConfig, session.userId);
     }
 
     return null;

@@ -153,6 +153,23 @@ rules:
       resourceId: "browser"
     effect: "allow"
 
+  # Web search tool - Standard tier, allows searching the web via Brave Search API
+  - id: "permissive-tool-web-search"
+    description: "Allow web search tool (SecurityTier: STANDARD)"
+    priority: 790
+    match:
+      resource: "tool"
+      resourceId: "web_search"
+    effect: "allow"
+
+  # Web fetch native tool - Standard tier, allows fetching URLs directly
+  - id: "permissive-tool-web-fetch-native"
+    description: "Allow web fetch native tool (SecurityTier: STANDARD)"
+    priority: 780
+    match:
+      resource: "tool"
+      resourceId: "web_fetch_native"
+      
   # GitHub tool - Full access (SecurityTier: STANDARD)
   - id: "permissive-tool-github"
     description: "Allow GitHub tool in permissive mode"
