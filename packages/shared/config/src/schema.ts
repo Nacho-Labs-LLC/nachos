@@ -17,14 +17,14 @@ export interface NachosSection {
  */
 export interface LLMAuthProfileConfig {
   name: string;
-  provider: 'anthropic' | 'openai' | 'ollama' | 'custom';
+  provider: 'anthropic' | 'openai' | 'ollama' | 'bedrock' | 'custom';
   api_key_env: string;
   base_url?: string;
 }
 
 export interface LLMProviderConfig {
   name: string;
-  type: 'anthropic' | 'openai' | 'ollama' | 'custom';
+  type: 'anthropic' | 'openai' | 'ollama' | 'bedrock' | 'custom';
   base_url?: string;
   models?: string[];
   profiles?: string[];
@@ -46,7 +46,7 @@ export interface LLMCooldownConfig {
 }
 
 export interface LLMConfig {
-  provider: 'anthropic' | 'openai' | 'ollama' | 'custom';
+  provider: 'anthropic' | 'openai' | 'ollama' | 'bedrock' | 'custom';
   model: string;
   fallback_order?: string[];
   providers?: LLMProviderConfig[];
