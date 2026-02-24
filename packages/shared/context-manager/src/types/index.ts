@@ -291,6 +291,12 @@ export interface ContextSnapshot {
   messageCount: number;
   messages: ContextMessage[];
   metadata?: Record<string, unknown>;
+  // C1: Cross-channel isolation
+  channel?: string;
+  userId?: string;
+  // H4: Differential snapshots - reference to previous snapshot
+  baseSnapshotId?: string;
+  isIncremental?: boolean;
 }
 
 // ============================================================================
@@ -464,28 +470,32 @@ export interface IContextSnapshotService {
     messages: ContextMessage[];
     trigger: 'manual' | 'auto-compaction' | 'auto-threshold' | 'periodic';
     metadata?: Record<string, unknown>;
+    channel?: string; // C1: Cross-channel isolation
+    userId?: string; // C1: Cross-channel isolation
   }): Promise<ContextSnapshot>;
 
   /** Get snapshot by ID */
-  getSnapshot(sessionId: string, snapshotId: string): Promise<ContextSnapshot | null>;
+  getSnapshot(sessionId: string, snapshotId: string, channel?: string, userId?: string): Promise<ContextSnapshot | null>;
 
   /** List all snapshots for session */
   listSnapshots(
     sessionId: string,
-    options?: { limit?: number; offset?: number }
+    options?: { limit?: number; offset?: number },
+    channel?: string,
+    userId?: string
   ): Promise<ContextSnapshot[]>;
 
   /** Get latest snapshot for session */
-  getLatestSnapshot(sessionId: string): Promise<ContextSnapshot | null>;
+  getLatestSnapshot(sessionId: string, channel?: string, userId?: string): Promise<ContextSnapshot | null>;
 
   /** Delete snapshot */
-  deleteSnapshot(sessionId: string, snapshotId: string): Promise<boolean>;
+  deleteSnapshot(sessionId: string, snapshotId: string, channel?: string, userId?: string): Promise<boolean>;
 
   /** Delete all snapshots for session */
-  deleteAllSnapshots(sessionId: string): Promise<number>;
+  deleteAllSnapshots(sessionId: string, channel?: string, userId?: string): Promise<number>;
 
   /** Get snapshot count */
-  getSnapshotCount(sessionId: string): Promise<number>;
+  getSnapshotCount(sessionId: string, channel?: string, userId?: string): Promise<number>;
 }
 
 // ============================================================================

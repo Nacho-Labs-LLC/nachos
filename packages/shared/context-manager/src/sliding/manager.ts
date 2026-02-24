@@ -71,6 +71,7 @@ export class SlidingWindowManager implements ISlidingWindowManager {
 
   /**
    * Execute sliding window operation
+   * M4: Preserve important tool results during sliding
    */
   slide(params: {
     messages: ContextMessage[];
@@ -84,8 +85,24 @@ export class SlidingWindowManager implements ISlidingWindowManager {
 
     // Split messages into kept and dropped
     const splitIndex = Math.max(0, messages.length - keepRecent);
-    const messagesDropped = messages.slice(0, splitIndex);
-    const messagesKept = messages.slice(splitIndex);
+    let messagesDropped = messages.slice(0, splitIndex);
+    let messagesKept = messages.slice(splitIndex);
+
+    // M4: Preserve important tool results from dropped messages
+    const preservedMessages = this.preserveImportantMessages(messagesDropped, action);
+    if (preservedMessages.length > 0) {
+      // Add preserved messages to kept messages
+      messagesKept = [...preservedMessages, ...messagesKept];
+      
+      // Remove preserved messages from dropped list
+      const preservedIds = new Set(preservedMessages.map(m => m.id || m.timestamp));
+      messagesDropped = messagesDropped.filter(m => {
+        const id = m.id || m.timestamp;
+        return id === undefined || !preservedIds.has(id);
+      });
+
+      console.log(`[SlidingManager] Preserved ${preservedMessages.length} important tool results`);
+    }
 
     // Calculate tokens removed
     const tokensRemoved = tokenEstimator.estimateMessages(messagesDropped);
@@ -355,6 +372,129 @@ export class SlidingWindowManager implements ISlidingWindowManager {
         return 5;
       case 'compact-aggressive':
         return 8;
+      case 'compact-light':
+        return 10;
+      case 'prune':
+        return 15;
+      default:
+        return 10;
+    }
+  }
+
+  /**
+   * M4: Preserve important tool results from dropped messages
+   * 
+   * Identifies and extracts important tool results (file operations, searches)
+   * to prevent loss of critical context during sliding.
+   * 
+   * Returns the N most important messages to preserve.
+   */
+  private preserveImportantMessages(
+    messages: ContextMessage[],
+    action: SlidingAction
+  ): ContextMessage[] {
+    // Determine how many important messages to preserve based on action severity
+    const maxToPreserve = this.getMaxPreservableMessages(action);
+    
+    if (maxToPreserve === 0) {
+      return [];
+    }
+
+    // Score messages by importance
+    const scoredMessages = messages
+      .map(msg => ({
+        message: msg,
+        score: this.getMessageImportance(msg),
+      }))
+      .filter(item => item.score > 0) // Only consider messages with importance
+      .sort((a, b) => b.score - a.score); // Highest score first
+
+    // Take top N most important
+    return scoredMessages
+      .slice(0, maxToPreserve)
+      .map(item => item.message);
+  }
+
+  /**
+   * M4: Calculate importance score for a message
+   * 
+   * Scores based on content type and patterns:
+   * - File operations (read, write, edit): 100
+   * - Search results: 80
+   * - Error messages: 70
+   * - Tool results with significant content: 50
+   * - Regular messages: 0
+   */
+  private getMessageImportance(message: ContextMessage): number {
+    // Only assistant and tool messages can be important
+    if (message.role === 'user') {
+      return 0;
+    }
+
+    const content = typeof message.content === 'string'
+      ? message.content
+      : message.content
+          .map(block => {
+            if (block.type === 'text') return block.text || block.content || '';
+            if (block.type === 'tool_result') return block.content || '';
+            return '';
+          })
+          .join(' ');
+
+    const lowerContent = content.toLowerCase();
+
+    // File operations (highest priority)
+    if (
+      /\b(read|wrote|edited|created|deleted|moved|renamed)\s+(file|directory)/i.test(content) ||
+      /file_path|filepath|file path/i.test(content) ||
+      lowerContent.includes('successfully wrote') ||
+      lowerContent.includes('successfully read') ||
+      lowerContent.includes('successfully edited')
+    ) {
+      return 100;
+    }
+
+    // Search results
+    if (
+      lowerContent.includes('search result') ||
+      lowerContent.includes('found') && lowerContent.includes('match') ||
+      /\d+\s+(result|match|hit)s?\s+found/i.test(content)
+    ) {
+      return 80;
+    }
+
+    // Error messages
+    if (
+      lowerContent.includes('error:') ||
+      lowerContent.includes('failed') ||
+      lowerContent.includes('exception') ||
+      /\berror\b/i.test(content) && content.length < 1000
+    ) {
+      return 70;
+    }
+
+    // Tool results with significant content
+    if (message.role === 'tool' && content.length > 200) {
+      return 50;
+    }
+
+    // Assistant messages with code blocks
+    if (message.role === 'assistant' && /```[\s\S]+```/.test(content)) {
+      return 40;
+    }
+
+    return 0;
+  }
+
+  /**
+   * M4: Get maximum preservable messages based on action severity
+   */
+  private getMaxPreservableMessages(action: SlidingAction): number {
+    switch (action.type) {
+      case 'compact-emergency':
+        return 3; // Preserve only top 3 critical items
+      case 'compact-aggressive':
+        return 5;
       case 'compact-light':
         return 10;
       case 'prune':

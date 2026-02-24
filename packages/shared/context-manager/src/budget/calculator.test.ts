@@ -61,8 +61,11 @@ describe('ContextBudgetCalculator', () => {
       const systemPromptTokens = 0;
       const reserveTokens = 0;
 
+      // Note: Token estimator now uses 1.1x safety buffer, so effective tokens per message ~= 114
+      // (100 base + 4 overhead) * 1.1 = 114 tokens per message
+
       // Green zone (0-60%)
-      let messages = createMessages(500, 100); // ~50k tokens = 50%
+      let messages = createMessages(500, 100); // ~57k tokens = 57%
       let budget = calculator.calculate({
         messages,
         systemPromptTokens,
@@ -72,22 +75,22 @@ describe('ContextBudgetCalculator', () => {
       expect(budget.zone).toBe('green');
 
       // Yellow zone (60-75%)
-      messages = createMessages(650, 100); // ~65k tokens = 65%
+      messages = createMessages(600, 100); // ~68k tokens = 68%
       budget = calculator.calculate({ messages, systemPromptTokens, contextWindow, reserveTokens });
       expect(budget.zone).toBe('yellow');
 
       // Orange zone (75-85%)
-      messages = createMessages(800, 100); // ~80k tokens = 80%
+      messages = createMessages(700, 100); // ~80k tokens = 80%
       budget = calculator.calculate({ messages, systemPromptTokens, contextWindow, reserveTokens });
       expect(budget.zone).toBe('orange');
 
-      // Red zone (85-95%)
-      messages = createMessages(900, 100); // ~90k tokens = 90%
+      // Red zone (85-90%)
+      messages = createMessages(760, 100); // ~87k tokens = 87%
       budget = calculator.calculate({ messages, systemPromptTokens, contextWindow, reserveTokens });
       expect(budget.zone).toBe('red');
 
-      // Critical zone (95%+)
-      messages = createMessages(970, 100); // ~97k tokens = 97%
+      // Critical zone (90%+) - Changed from 95% to 90% for safety buffer
+      messages = createMessages(810, 100); // ~92k tokens = 92%
       budget = calculator.calculate({ messages, systemPromptTokens, contextWindow, reserveTokens });
       expect(budget.zone).toBe('critical');
     });
