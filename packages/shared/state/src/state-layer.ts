@@ -12,6 +12,7 @@ import type {
   IdentityStore,
   BootstrapProfile,
   BootstrapStore,
+  BootstrapBlockMap,
   MemoryEntry,
   MemoryFact,
   MemoryQuery,
@@ -29,6 +30,7 @@ import { PostgresIdentityStore } from './identity/postgres-identity-store.js';
 import { FilesystemBootstrapStore } from './bootstrap/filesystem-bootstrap-store.js';
 import { PostgresBootstrapStore } from './bootstrap/postgres-bootstrap-store.js';
 import { createDefaultBootstrapBlocks } from './bootstrap/bootstrap-templates.js';
+import { sanitizeBootstrapContent } from './bootstrap/sanitizer.js';
 import { FilesystemMemoryStore } from './memory/filesystem-memory-store.js';
 import { PostgresMemoryStore } from './memory/postgres-memory-store.js';
 import { FilesystemUserProfileStore } from './user-profile/filesystem-user-profile-store.js';
@@ -112,6 +114,20 @@ export class StateLayer {
     context: StateOperationContext
   ): Promise<IdentityProfile> {
     await this.ensureAllowed('state.identity.write', context, profile.agentId);
+
+    // M1: Validate identity fields when identityCompleted is true
+    if (profile.identityCompleted) {
+      const soul = profile.soul?.trim();
+      const identity = profile.identity?.trim();
+      
+      if (!soul || !identity) {
+        throw createConfigError(
+          'Cannot mark identity as completed with empty soul or identity fields',
+          { component: 'state-layer' }
+        );
+      }
+    }
+
     const stored = await this.identityStore.put(profile);
     await this.auditAllowed('state.identity.write', context, profile.agentId);
     return stored;
@@ -136,6 +152,27 @@ export class StateLayer {
         profile = null;
       }
     }
+
+    // Sanitize bootstrap content to prevent prompt injection
+    if (profile && profile.content) {
+      const sanitizedContent: BootstrapBlockMap = {};
+      for (const [key, value] of Object.entries(profile.content)) {
+        if (typeof value === 'string') {
+          const { sanitized, hasInjection } = sanitizeBootstrapContent(value);
+          if (hasInjection) {
+            logger.warn(
+              { agentId, section: key },
+              'Potential prompt injection detected in bootstrap content'
+            );
+          }
+          sanitizedContent[key] = sanitized;
+        } else {
+          sanitizedContent[key] = value;
+        }
+      }
+      profile = { ...profile, content: sanitizedContent };
+    }
+
     await this.auditAllowed('state.bootstrap.read', context, agentId);
     return profile;
   }

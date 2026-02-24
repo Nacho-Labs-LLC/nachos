@@ -9,7 +9,10 @@ import type {
   Message,
   MessageRole,
 } from '@nachos/types';
+import { createLogger } from '@nachos/types';
 import { StateStorage, type CreateSessionData } from './state.js';
+
+const logger = createLogger('session-manager');
 
 /**
  * Options for creating a session
@@ -37,33 +40,22 @@ export interface AddMessageOptions {
  */
 export class SessionManager {
   private storage: StateStorage;
+  private maxMessagesPerSession: number;
+  private messageWarningThreshold: number;
 
-  constructor(storage: StateStorage) {
+  constructor(storage: StateStorage, options?: { maxMessagesPerSession?: number }) {
     this.storage = storage;
+    // M2: Configurable max message limit (default: 10000)
+    this.maxMessagesPerSession = options?.maxMessagesPerSession ?? 10000;
+    // Warn when reaching 90% of max
+    this.messageWarningThreshold = Math.floor(this.maxMessagesPerSession * 0.9);
   }
 
   /**
    * Create a new session or return existing one for the conversation
+   * C2: Uses atomic transaction to prevent race conditions
    */
   getOrCreateSession(options: CreateSessionOptions): Session {
-    // Check if session already exists for this conversation
-    const existing = this.storage.getSessionByConversation(options.channel, options.conversationId);
-
-    if (existing && existing.status === 'active') {
-      return existing;
-    }
-
-    // If session exists but is not active, reactivate it
-    if (existing) {
-      const updated = this.storage.updateSession(existing.id, {
-        status: 'active',
-      });
-      if (updated) {
-        return updated;
-      }
-    }
-
-    // Create new session
     const createData: CreateSessionData = {
       channel: options.channel,
       conversationId: options.conversationId,
@@ -73,7 +65,9 @@ export class SessionManager {
       metadata: options.metadata,
     };
 
-    return this.storage.createSession(createData);
+    // Use atomic transaction to prevent TOCTOU race
+    const { session } = this.storage.getOrCreateSessionAtomic(createData);
+    return session;
   }
 
   /**
@@ -225,6 +219,7 @@ export class SessionManager {
 
   /**
    * Add a message to a session
+   * M2: Logs warning when approaching message limit
    */
   addMessage(sessionId: string, options: AddMessageOptions): Message | null {
     const session = this.getSession(sessionId);
@@ -234,6 +229,24 @@ export class SessionManager {
 
     if (session.status !== 'active') {
       return null;
+    }
+
+    // M2: Check message count and warn if approaching limit
+    const currentCount = this.storage.getMessageCount(sessionId);
+    
+    if (currentCount >= this.maxMessagesPerSession) {
+      logger.warn(
+        { sessionId, messageCount: currentCount, maxMessages: this.maxMessagesPerSession },
+        'Session has reached maximum message limit'
+      );
+      return null;
+    }
+
+    if (currentCount >= this.messageWarningThreshold) {
+      logger.warn(
+        { sessionId, messageCount: currentCount, maxMessages: this.maxMessagesPerSession },
+        'Session is approaching maximum message limit'
+      );
     }
 
     return this.storage.addMessage({

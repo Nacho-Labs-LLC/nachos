@@ -187,6 +187,74 @@ export class StateStorage {
   }
 
   /**
+   * Get or create a session atomically (C2: Race condition fix)
+   * Uses a transaction to prevent TOCTOU race conditions
+   */
+  getOrCreateSessionAtomic(data: CreateSessionData): { session: Session; created: boolean } {
+    const transaction = this.db.transaction((data: CreateSessionData) => {
+      // Try to get existing session
+      const getStmt = this.db.prepare(
+        'SELECT * FROM sessions WHERE channel = ? AND conversation_id = ?'
+      );
+      const existingRow = getStmt.get(data.channel, data.conversationId) as SessionRow | undefined;
+
+      if (existingRow && existingRow.status === 'active') {
+        return { session: this.rowToSession(existingRow), created: false };
+      }
+
+      // If session exists but is not active, reactivate it
+      if (existingRow) {
+        const now = new Date().toISOString();
+        const updateStmt = this.db.prepare(
+          'UPDATE sessions SET status = ?, updated_at = ? WHERE id = ?'
+        );
+        updateStmt.run('active', now, existingRow.id);
+        
+        const updated = this.getSession(existingRow.id);
+        return { session: updated!, created: false };
+      }
+
+      // Create new session
+      const now = new Date().toISOString();
+      const id = uuid();
+
+      const insertStmt = this.db.prepare(`
+        INSERT INTO sessions (id, channel, conversation_id, user_id, status, system_prompt, config, metadata, created_at, updated_at)
+        VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)
+      `);
+
+      insertStmt.run(
+        id,
+        data.channel,
+        data.conversationId,
+        data.userId,
+        data.systemPrompt ?? null,
+        data.config ? JSON.stringify(data.config) : null,
+        data.metadata ? JSON.stringify(data.metadata) : null,
+        now,
+        now
+      );
+
+      const session: Session = {
+        id,
+        channel: data.channel,
+        conversationId: data.conversationId,
+        userId: data.userId,
+        status: 'active',
+        systemPrompt: data.systemPrompt,
+        config: data.config ?? {},
+        metadata: data.metadata ?? {},
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      return { session, created: true };
+    });
+
+    return transaction(data);
+  }
+
+  /**
    * Get a session by ID
    */
   getSession(id: string): Session | null {

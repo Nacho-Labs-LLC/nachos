@@ -5,6 +5,8 @@
  * AI assistant behavior and clearer guidance.
  */
 
+import { tokenEstimator } from '@nachos/context-manager';
+
 // Logger for future use
 // import { createLogger } from '@nachos/types';
 // const logger = createLogger('prompt-builder');
@@ -75,8 +77,13 @@ export interface PromptBuilderParams {
   promptMode?: 'full' | 'minimal' | 'none';
 }
 
+export interface SystemPromptBuildResult {
+  prompt: string;
+  estimatedTokens: number;
+}
+
 export class SystemPromptBuilder {
-  build(params: PromptBuilderParams): string {
+  build(params: PromptBuilderParams): SystemPromptBuildResult {
     const sections: string[] = [];
     const mode = params.promptMode ?? 'full';
 
@@ -85,7 +92,11 @@ export class SystemPromptBuilder {
       if (params.identity) {
         sections.push(params.identity.trim());
       }
-      return sections.join('\n\n');
+      const prompt = sections.join('\n\n');
+      return {
+        prompt,
+        estimatedTokens: tokenEstimator.estimate(prompt),
+      };
     }
 
     // Core identity (always included)
@@ -151,7 +162,13 @@ export class SystemPromptBuilder {
       sections.push(params.skills);
     }
 
-    return sections.join('\n\n');
+    const prompt = sections.join('\n\n');
+    
+    // H3: Return both prompt and estimated token count
+    return {
+      prompt,
+      estimatedTokens: tokenEstimator.estimate(prompt),
+    };
   }
 
   private buildIdentitySection(identity: string): string {

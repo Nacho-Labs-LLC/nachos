@@ -487,6 +487,8 @@ export class Gateway {
   private toolsConfig?: ToolsConfig;
   private skillsConfig?: SkillsConfig;
   private nachosConfig?: NachosConfig;
+  // H2: Memory tool rate limiting (10 calls per minute per session)
+  private memoryToolCalls: Map<string, number[]> = new Map();
 
   constructor(options: GatewayOptions = {}) {
     this.options = options;
@@ -1142,6 +1144,17 @@ export class Gateway {
       }
 
       if (['reset', 'clear', 'restart'].includes(action)) {
+        // H1: Admin allowlist check for identity reset
+        const allowlist = config.adminAllowlist.size > 0 ? config.adminAllowlist : this.approvalAllowlist;
+        const senderId = message.sender.id ?? '';
+        
+        if (allowlist.size > 0 && !allowlist.has(senderId)) {
+          return {
+            handled: true,
+            replyText: '⛔ You are not authorized to reset identity. This action is restricted to administrators.',
+          };
+        }
+
         await this.resetIdentityForCommand(session);
         return {
           handled: true,
@@ -1886,6 +1899,16 @@ export class Gateway {
       if (!session) {
         return this.formatToolError('SESSION_NOT_FOUND', 'Session not found for memory search');
       }
+
+      // H2: Rate limit memory_search calls (10 per minute per session)
+      const rateLimitResult = this.checkMemoryToolRateLimit(session.id);
+      if (!rateLimitResult.allowed) {
+        return this.formatToolError(
+          'RATE_LIMIT_EXCEEDED',
+          `Memory tool rate limit exceeded. Try again in ${rateLimitResult.retryAfterSeconds} seconds.`
+        );
+      }
+
       const context = { ...this.buildStateContext(session), internalTool: true };
       return executeMemorySearch(call, this.stateLayer, context);
     }
@@ -1897,6 +1920,16 @@ export class Gateway {
       if (!session) {
         return this.formatToolError('SESSION_NOT_FOUND', 'Session not found for memory get');
       }
+
+      // H2: Rate limit memory_get calls (10 per minute per session)
+      const rateLimitResult = this.checkMemoryToolRateLimit(session.id);
+      if (!rateLimitResult.allowed) {
+        return this.formatToolError(
+          'RATE_LIMIT_EXCEEDED',
+          `Memory tool rate limit exceeded. Try again in ${rateLimitResult.retryAfterSeconds} seconds.`
+        );
+      }
+
       const context = { ...this.buildStateContext(session), internalTool: true };
       return executeMemoryGet(call, this.stateLayer, context);
     }
@@ -2937,6 +2970,34 @@ export class Gateway {
     return metadata?.thread_ts ?? message.channelMessageId;
   }
 
+  /**
+   * H2: Check memory tool rate limit (10 calls per minute per session)
+   */
+  private checkMemoryToolRateLimit(sessionId: string): { allowed: boolean; retryAfterSeconds?: number } {
+    const now = Date.now();
+    const windowMs = 60 * 1000; // 1 minute
+    const maxCalls = 10;
+
+    // Get or initialize call timestamps for this session
+    const calls = this.memoryToolCalls.get(sessionId) ?? [];
+    
+    // Remove timestamps older than 1 minute
+    const recentCalls = calls.filter(timestamp => now - timestamp < windowMs);
+    
+    // Check if limit exceeded
+    if (recentCalls.length >= maxCalls) {
+      const oldestCall = Math.min(...recentCalls);
+      const retryAfterSeconds = Math.ceil((oldestCall + windowMs - now) / 1000);
+      return { allowed: false, retryAfterSeconds };
+    }
+
+    // Add current call and update map
+    recentCalls.push(now);
+    this.memoryToolCalls.set(sessionId, recentCalls);
+
+    return { allowed: true };
+  }
+
   private scanToolResult(
     result: ToolResult,
     session: Session | null,
@@ -2956,12 +3017,9 @@ export class Gateway {
     let blockReason: string | undefined;
 
     for (const block of result.content) {
-      if (block.type !== 'text') {
-        redactedContent.push(block);
-        continue;
-      }
-
-      const scanResult = this.dlp.scan(block.text, session?.channel);
+      // M4: Scan text content
+      if (block.type === 'text') {
+        const scanResult = this.dlp.scan(block.text, session?.channel);
       if (!scanResult.allowed) {
         blocked = true;
         blockReason = scanResult.reason;
@@ -2995,26 +3053,81 @@ export class Gateway {
         redactedContent.push(block);
       }
 
-      if (scanResult.action === 'alert') {
-        void this.logAuditEvent({
-          id: `dlp-tool-result-alert-${Date.now()}`,
-          timestamp: new Date().toISOString(),
-          instanceId: this.instanceId,
-          userId: session?.userId ?? 'unknown',
-          sessionId: session?.id ?? 'unknown',
-          channel: session?.channel ?? 'unknown',
-          eventType: 'dlp_scan',
-          action: 'dlp.alert.tool_output',
-          resource: tool,
-          outcome: 'allowed',
-          reason: scanResult.reason,
-          securityMode,
-          details: {
-            findingsCount: scanResult.findings.length,
-            action: scanResult.action,
-          },
-        });
+        if (scanResult.action === 'alert') {
+          void this.logAuditEvent({
+            id: `dlp-tool-result-alert-${Date.now()}`,
+            timestamp: new Date().toISOString(),
+            instanceId: this.instanceId,
+            userId: session?.userId ?? 'unknown',
+            sessionId: session?.id ?? 'unknown',
+            channel: session?.channel ?? 'unknown',
+            eventType: 'dlp_scan',
+            action: 'dlp.alert.tool_output',
+            resource: tool,
+            outcome: 'allowed',
+            reason: scanResult.reason,
+            securityMode,
+            details: {
+              findingsCount: scanResult.findings.length,
+              action: scanResult.action,
+            },
+          });
+        }
+        continue;
       }
+
+      // M4: Scan non-text content for metadata, paths, and structured data
+      const structuredText: string[] = [];
+      
+      // Extract scannable strings from structured content
+      if (typeof block === 'object' && block !== null) {
+        const extractStrings = (obj: unknown, depth = 0): void => {
+          if (depth > 5) return; // Prevent deep recursion
+          
+          if (typeof obj === 'string' && obj.length > 0) {
+            structuredText.push(obj);
+          } else if (Array.isArray(obj)) {
+            obj.forEach(item => extractStrings(item, depth + 1));
+          } else if (typeof obj === 'object' && obj !== null) {
+            Object.values(obj).forEach(value => extractStrings(value, depth + 1));
+          }
+        };
+        
+        extractStrings(block);
+      }
+
+      // Scan extracted strings
+      for (const text of structuredText) {
+        const scanResult = this.dlp.scan(text, session?.channel);
+        if (!scanResult.allowed) {
+          blocked = true;
+          blockReason = scanResult.reason;
+          void this.logAuditEvent({
+            id: `dlp-tool-result-structured-${Date.now()}`,
+            timestamp: new Date().toISOString(),
+            instanceId: this.instanceId,
+            userId: session?.userId ?? 'unknown',
+            sessionId: session?.id ?? 'unknown',
+            channel: session?.channel ?? 'unknown',
+            eventType: 'dlp_block',
+            action: 'dlp.block.tool_output.structured',
+            resource: tool,
+            outcome: 'blocked',
+            reason: scanResult.reason,
+            securityMode,
+            details: {
+              findingsCount: scanResult.findings.length,
+              action: scanResult.action,
+              contentType: block.type,
+            },
+          });
+          break;
+        }
+      }
+
+      if (blocked) break;
+      
+      redactedContent.push(block);
     }
 
     if (blocked) {
