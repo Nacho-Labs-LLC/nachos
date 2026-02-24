@@ -290,6 +290,58 @@ export const CONTEXT_TOPICS = {
 } as const;
 
 /**
+ * Scheduler topics for cron jobs and heartbeat
+ */
+export const SCHEDULER_TOPICS = {
+  /**
+   * Job created event
+   * Publisher: Gateway
+   * Subscriber: Monitoring, Audit
+   */
+  jobCreated: `${TOPIC_PREFIX}.scheduler.job.created`,
+
+  /**
+   * Job updated event
+   * Publisher: Gateway
+   * Subscriber: Monitoring, Audit
+   */
+  jobUpdated: `${TOPIC_PREFIX}.scheduler.job.updated`,
+
+  /**
+   * Job deleted event
+   * Publisher: Gateway
+   * Subscriber: Monitoring, Audit
+   */
+  jobDeleted: `${TOPIC_PREFIX}.scheduler.job.deleted`,
+
+  /**
+   * Job fired event
+   * Publisher: Gateway (Scheduler)
+   * Subscriber: Monitoring
+   */
+  jobFired: `${TOPIC_PREFIX}.scheduler.job.fired`,
+
+  /**
+   * Job completed event
+   * Publisher: Gateway (Scheduler)
+   * Subscriber: Monitoring, Audit
+   */
+  jobCompleted: `${TOPIC_PREFIX}.scheduler.job.completed`,
+
+  /**
+   * Heartbeat event
+   * Publisher: Gateway (Scheduler)
+   * Subscriber: Gateway (Session Manager)
+   */
+  heartbeat: `${TOPIC_PREFIX}.scheduler.heartbeat`,
+
+  /**
+   * Wildcard for all scheduler events
+   */
+  all: `${TOPIC_PREFIX}.scheduler.*`,
+} as const;
+
+/**
  * All topic namespaces aggregated for convenience
  */
 export const TOPICS = {
@@ -304,6 +356,7 @@ export const TOPICS = {
   config: CONFIG_TOPICS,
   status: STATUS_TOPICS,
   skills: SKILLS_TOPICS,
+  scheduler: SCHEDULER_TOPICS,
 } as const;
 
 /**
