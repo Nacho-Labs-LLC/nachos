@@ -287,6 +287,19 @@ export interface ClaudeCodeMcpToolConfig {
 }
 
 /**
+ * Bitbucket tool configuration
+ */
+export interface BitbucketToolConfig {
+  enabled: boolean;
+  default_workspace?: string;
+  auth_type?: 'app_password' | 'oauth';
+  username_env?: string;
+  password_env?: string;
+  token_env?: string;
+  workspace_allowlist?: string[];
+}
+
+/**
  * Composio tool configuration
  */
 export interface ComposioToolConfig {
@@ -319,6 +332,7 @@ export interface ToolsConfig {
   bootstrap?: BootstrapToolConfig;
   copilot?: CopilotToolConfig;
   claude_code_mcp?: ClaudeCodeMcpToolConfig;
+  bitbucket?: BitbucketToolConfig;
   composio?: ComposioToolConfig;
   github?: GitHubToolConfig;
   groups?: Record<string, ToolGroupConfig>;

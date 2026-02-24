@@ -46,6 +46,11 @@ import {
   type WebFetchConfig,
 } from './tools/web-fetch-tools.js';
 import {
+  BitbucketToolSchema,
+  executeBitbucket,
+  type BitbucketConfig,
+} from './tools/bitbucket-tools.js';
+import {
   ComposioToolSchema,
   executeComposio,
   initComposioClient,
@@ -1615,6 +1620,15 @@ export class Gateway {
       });
     }
 
+    // Bitbucket tool - interact with Bitbucket repositories via REST API
+    if (this.toolsConfig?.bitbucket?.enabled && !bootstrapLocked) {
+      tools.push({
+        name: 'bitbucket',
+        description: 'Interact with Bitbucket: list/view/create issues and PRs, view pipeline status, search code, and more. All actions use the Bitbucket REST API v2.0.',
+        parameters: this.sanitizeToolSchema(BitbucketToolSchema),
+      });
+    }
+
     // Composio tool - execute actions on integrated apps (Gmail, Calendar, Docs, etc.)
     if (this.toolsConfig?.composio?.enabled && !bootstrapLocked) {
       tools.push({
@@ -2154,6 +2168,37 @@ export class Gateway {
 
     if (call.tool === 'user_profile') {
       return this.executeUserProfileToolCall(call, session);
+    }
+
+    if (call.tool === 'bitbucket') {
+      if (!this.toolsConfig?.bitbucket?.enabled) {
+        return this.formatToolError('BITBUCKET_DISABLED', 'Bitbucket tool is not enabled');
+      }
+      if (!session) {
+        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found');
+      }
+      const bitbucketConfig: BitbucketConfig = {
+        enabled: true,
+        default_workspace: this.toolsConfig.bitbucket.default_workspace,
+        auth_type: this.toolsConfig.bitbucket.auth_type || 'app_password',
+        username_env: this.toolsConfig.bitbucket.username_env || 'BITBUCKET_USERNAME',
+        password_env: this.toolsConfig.bitbucket.password_env || 'BITBUCKET_APP_PASSWORD',
+        token_env: this.toolsConfig.bitbucket.token_env || 'BITBUCKET_TOKEN',
+        workspace_allowlist: this.toolsConfig.bitbucket.workspace_allowlist,
+      };
+      return executeBitbucket(call, bitbucketConfig, session.userId);
+    }
+
+    if (call.tool === 'composio') {
+      if (!this.toolsConfig?.composio?.enabled) {
+        return this.formatToolError('COMPOSIO_DISABLED', 'Composio tool is not enabled');
+      }
+      if (!session) {
+        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found for Composio tool');
+      }
+
+      const context = { ...this.buildStateContext(session), internalTool: false };
+      return executeComposio(call, this.stateLayer!, context);
     }
 
     if (call.tool === 'web_search') {
