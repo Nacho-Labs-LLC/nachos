@@ -229,4 +229,152 @@ describe('DiscordChannelAdapter', () => {
       })
     );
   });
+
+  describe('Typing Indicators', () => {
+    it('starts typing interval on thinking status event', async () => {
+      const adapter = new DiscordChannelAdapter();
+      const sendTyping = vi.fn().mockResolvedValue(undefined);
+      const fetch = vi.fn().mockResolvedValue({ sendTyping });
+
+      vi.useFakeTimers();
+
+      await adapter.initialize({
+        config: { typing_indicators: true },
+        secrets: {},
+        bus: {
+          publish: async () => {},
+          subscribe: async () => {},
+        },
+        securityMode: 'standard',
+      } as ChannelAdapterConfig);
+
+      (adapter as unknown as { client?: unknown }).client = {
+        channels: { fetch },
+      } as unknown;
+
+      // Simulate thinking status event
+      await (
+        adapter as unknown as { handleStatusEvent: (event: unknown) => Promise<void> }
+      ).handleStatusEvent({
+        sessionId: 'session-1',
+        status: 'thinking',
+        channelId: 'channel-1',
+      });
+
+      // Should send typing immediately
+      expect(sendTyping).toHaveBeenCalledTimes(1);
+
+      // Advance time by 8 seconds
+      vi.advanceTimersByTime(8000);
+      await Promise.resolve(); // Let promises settle
+
+      // Should send typing again
+      expect(sendTyping).toHaveBeenCalledTimes(2);
+
+      vi.useRealTimers();
+    });
+
+    it('stops typing interval on done status event', async () => {
+      const adapter = new DiscordChannelAdapter();
+      const sendTyping = vi.fn().mockResolvedValue(undefined);
+      const fetch = vi.fn().mockResolvedValue({ sendTyping });
+
+      vi.useFakeTimers();
+
+      await adapter.initialize({
+        config: { typing_indicators: true },
+        secrets: {},
+        bus: {
+          publish: async () => {},
+          subscribe: async () => {},
+        },
+        securityMode: 'standard',
+      } as ChannelAdapterConfig);
+
+      (adapter as unknown as { client?: unknown }).client = {
+        channels: { fetch },
+      } as unknown;
+
+      // Start typing
+      await (
+        adapter as unknown as { handleStatusEvent: (event: unknown) => Promise<void> }
+      ).handleStatusEvent({
+        sessionId: 'session-1',
+        status: 'thinking',
+        channelId: 'channel-1',
+      });
+
+      expect(sendTyping).toHaveBeenCalledTimes(1);
+
+      // Stop typing
+      await (
+        adapter as unknown as { handleStatusEvent: (event: unknown) => Promise<void> }
+      ).handleStatusEvent({
+        sessionId: 'session-1',
+        status: 'done',
+        channelId: 'channel-1',
+      });
+
+      // Advance time - should not send typing again
+      vi.advanceTimersByTime(8000);
+      await Promise.resolve();
+
+      expect(sendTyping).toHaveBeenCalledTimes(1);
+
+      vi.useRealTimers();
+    });
+
+    it('cleans up typing intervals on shutdown', async () => {
+      const adapter = new DiscordChannelAdapter();
+      const sendTyping = vi.fn().mockResolvedValue(undefined);
+      const fetch = vi.fn().mockResolvedValue({ sendTyping });
+      const destroy = vi.fn().mockResolvedValue(undefined);
+
+      vi.useFakeTimers();
+
+      await adapter.initialize({
+        config: { typing_indicators: true },
+        secrets: {},
+        bus: {
+          publish: async () => {},
+          subscribe: async () => {},
+        },
+        securityMode: 'standard',
+      } as ChannelAdapterConfig);
+
+      (adapter as unknown as { client?: unknown }).client = {
+        channels: { fetch },
+        destroy,
+      } as unknown;
+
+      // Start typing for multiple channels
+      await (
+        adapter as unknown as { handleStatusEvent: (event: unknown) => Promise<void> }
+      ).handleStatusEvent({
+        sessionId: 'session-1',
+        status: 'thinking',
+        channelId: 'channel-1',
+      });
+
+      await (
+        adapter as unknown as { handleStatusEvent: (event: unknown) => Promise<void> }
+      ).handleStatusEvent({
+        sessionId: 'session-2',
+        status: 'thinking',
+        channelId: 'channel-2',
+      });
+
+      // Stop adapter
+      await adapter.stop();
+
+      // Advance time - should not send typing anymore
+      vi.advanceTimersByTime(8000);
+      await Promise.resolve();
+
+      // Should only have been called once per channel initially
+      expect(sendTyping).toHaveBeenCalledTimes(2);
+
+      vi.useRealTimers();
+    });
+  });
 });

@@ -31,6 +31,7 @@
     "@playwright/mcp": "^0.0.45",
     "better-sqlite3": "^12.6.2",
     "dockerode": "^4.0.2",
+    "luxon": "^3.7.2",
     "pg": "^8.13.1",
     "playwright-core": "^1.50.0",
     "redis": "^4.7.0",
@@ -40,6 +41,7 @@
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/dockerode": "^3.3.27",
+    "@types/luxon": "^3.7.1",
     "@types/node": "^22.10.5",
     "@types/pg": "^8.11.11",
     "@types/uuid": "^11.0.0",

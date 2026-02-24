@@ -169,6 +169,14 @@ rules:
     match:
       resource: "tool"
       resourceId: "web_fetch_native"
+      
+  # GitHub tool - Full access (SecurityTier: STANDARD)
+  - id: "permissive-tool-github"
+    description: "Allow GitHub tool in permissive mode"
+    priority: 795
+    match:
+      resource: "tool"
+      resourceId: "github"
     effect: "allow"
 
   # Filesystem Read - Broader access, deny only sensitive system paths

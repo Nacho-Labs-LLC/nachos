@@ -52,6 +52,7 @@ export class DiscordChannelAdapter implements ChannelAdapter {
   });
   private pairingToken = process.env.NACHOS_PAIRING_TOKEN;
   private statusControllers: Map<string, StatusReactionController> = new Map();
+  private typingIntervals: Map<string, NodeJS.Timeout> = new Map();
 
   async initialize(config: ChannelAdapterConfig): Promise<void> {
     this.config = config;
@@ -115,7 +116,15 @@ export class DiscordChannelAdapter implements ChannelAdapter {
   }
 
   private async handleStatusEvent(event: StatusEvent): Promise<void> {
-    if (!event.channelMessageId || !event.channelId || !this.client) return;
+    if (!event.channelId || !this.client) return;
+
+    // Handle typing indicators
+    if (this.channelConfig?.typing_indicators !== false) {
+      await this.handleTypingIndicator(event);
+    }
+
+    // Handle status emoji reactions
+    if (!event.channelMessageId || !this.channelConfig?.status_emojis?.enabled) return;
 
     let controller = this.statusControllers.get(event.channelMessageId);
     if (!controller) {
@@ -141,6 +150,61 @@ export class DiscordChannelAdapter implements ChannelAdapter {
     }
   }
 
+  private async handleTypingIndicator(event: StatusEvent): Promise<void> {
+    if (!this.client || !event.channelId) return;
+
+    const channelId = event.channelId;
+
+    if (event.status === 'thinking') {
+      // Start typing indicator
+      await this.startTypingIndicator(channelId);
+    } else if (event.status === 'done' || event.status === 'error') {
+      // Stop typing indicator
+      this.stopTypingIndicator(channelId);
+    }
+  }
+
+  private async startTypingIndicator(channelId: string): Promise<void> {
+    if (!this.client) return;
+
+    // If already typing, don't restart
+    if (this.typingIntervals.has(channelId)) return;
+
+    // Send initial typing indicator
+    await this.sendTyping(channelId);
+
+    // Set up interval to re-send typing every 8 seconds (Discord typing lasts 10 seconds)
+    const interval = setInterval(() => {
+      void this.sendTyping(channelId);
+    }, 8000);
+
+    this.typingIntervals.set(channelId, interval);
+  }
+
+  private stopTypingIndicator(channelId: string): void {
+    const interval = this.typingIntervals.get(channelId);
+    if (interval) {
+      clearInterval(interval);
+      this.typingIntervals.delete(channelId);
+    }
+  }
+
+  private async sendTyping(channelId: string): Promise<void> {
+    if (!this.client) return;
+
+    try {
+      const channel = await this.client.channels.fetch(channelId);
+      if (channel && 'sendTyping' in channel && typeof channel.sendTyping === 'function') {
+        await channel.sendTyping();
+      }
+    } catch (error) {
+      // Gracefully handle errors (permissions, deleted channel, etc.)
+      // Stop the typing interval for this channel to avoid repeated errors
+      this.stopTypingIndicator(channelId);
+      console.warn(`[Discord] Failed to send typing indicator for channel ${channelId}:`, error);
+    }
+  }
+
   private resolveDiscordToken(channelConfig: DiscordChannelConfig): string | undefined {
     const tokenFromConfig = channelConfig.token?.trim();
     if (tokenFromConfig) {
@@ -155,6 +219,12 @@ export class DiscordChannelAdapter implements ChannelAdapter {
   }
 
   async stop(): Promise<void> {
+    // Clean up all typing intervals
+    for (const interval of this.typingIntervals.values()) {
+      clearInterval(interval);
+    }
+    this.typingIntervals.clear();
+
     if (this.client) {
       await this.client.destroy();
     }
