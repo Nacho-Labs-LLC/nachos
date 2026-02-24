@@ -169,11 +169,14 @@ describe('ContextSnapshotService', () => {
 
     it('should support pagination', async () => {
       const service = new ContextSnapshotService({ stateDir: testStateDir, compression: false });
-      const messages = createTestMessages(5);
-
-      // Create 5 snapshots
+      
+      // Create 5 snapshots with different messages to ensure they're all stored
+      // (differential snapshots would skip identical messages)
       for (let i = 0; i < 5; i++) {
+        const messages = createTestMessages(5 + i); // Different message count each time
         await service.createSnapshot({ sessionId: testSessionId, messages, trigger: 'manual' });
+        // Small delay to ensure timestamps differ
+        await new Promise((r) => setTimeout(r, 5));
       }
 
       const page1 = await service.listSnapshots(testSessionId, { limit: 2, offset: 0 });

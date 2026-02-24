@@ -19,6 +19,7 @@ const __dirname = path.dirname(__filename);
 export class DLPExtractionAdapter {
   private scanner: Scanner;
   private patternFile: string;
+  private minConfidence: number; // M2: Configurable confidence threshold
 
   constructor(config?: ProactiveHistoryConfig) {
     // Default to bundled extraction patterns
@@ -26,11 +27,14 @@ export class DLPExtractionAdapter {
       config?.customPatternFiles?.[0] ||
       path.join(__dirname, '../../patterns/extraction-patterns.yaml');
 
+    // M2: Use higher confidence threshold (0.6) for quality control
+    this.minConfidence = 0.6;
+
     // Initialize scanner with extraction patterns
     this.scanner = new Scanner({
       customPatternFiles: [this.patternFile],
       patterns: [], // Don't use built-in secret patterns
-      minConfidence: 0.5,
+      minConfidence: this.minConfidence,
     });
   }
 
@@ -61,6 +65,11 @@ export class DLPExtractionAdapter {
 
       // Categorize findings
       for (const finding of findings) {
+        // M2: Filter by confidence threshold
+        if (finding.confidence && finding.confidence < this.minConfidence) {
+          continue; // Skip low-confidence extractions
+        }
+
         const item = this.findingToExtractedItem(finding, message);
 
         // Route to appropriate category based on pattern ID
@@ -78,13 +87,13 @@ export class DLPExtractionAdapter {
       }
     }
 
-    // Deduplicate items in each category
+    // M2: Deduplicate items in each category with semantic similarity
     return {
-      decisions: this.deduplicateItems(results.decisions),
-      facts: this.deduplicateItems(results.facts),
-      tasks: this.deduplicateItems(results.tasks),
-      issues: this.deduplicateItems(results.issues),
-      files: this.deduplicateItems(results.files),
+      decisions: this.deduplicateItemsSemantic(results.decisions),
+      facts: this.deduplicateItemsSemantic(results.facts),
+      tasks: this.deduplicateItemsSemantic(results.tasks),
+      issues: this.deduplicateItemsSemantic(results.issues),
+      files: this.deduplicateItems(results.files), // Exact dedup for file paths
     };
   }
 
@@ -164,7 +173,7 @@ export class DLPExtractionAdapter {
   }
 
   /**
-   * Deduplicate extracted items by content
+   * Deduplicate extracted items by content (exact match)
    */
   private deduplicateItems(items: ExtractedItem[]): ExtractedItem[] {
     const seen = new Set<string>();
@@ -181,6 +190,74 @@ export class DLPExtractionAdapter {
     }
 
     return unique;
+  }
+
+  /**
+   * M2: Deduplicate extracted items using semantic similarity
+   * 
+   * Uses a simple character-based similarity metric (Jaccard similarity on words).
+   * Items with >80% similarity are considered duplicates.
+   */
+  private deduplicateItemsSemantic(items: ExtractedItem[]): ExtractedItem[] {
+    if (items.length === 0) {
+      return items;
+    }
+
+    const unique: ExtractedItem[] = [];
+    const similarityThreshold = 0.8;
+
+    for (const item of items) {
+      let isDuplicate = false;
+
+      // Compare with existing unique items
+      for (const existingItem of unique) {
+        const similarity = this.calculateTextSimilarity(item.content, existingItem.content);
+        
+        if (similarity >= similarityThreshold) {
+          isDuplicate = true;
+          // Keep the item with higher confidence
+          const itemConfidence = (item.metadata?.confidence as number) ?? 0;
+          const existingConfidence = (existingItem.metadata?.confidence as number) ?? 0;
+          
+          if (itemConfidence > existingConfidence) {
+            // Replace existing with higher confidence item
+            const index = unique.indexOf(existingItem);
+            unique[index] = item;
+          }
+          break;
+        }
+      }
+
+      if (!isDuplicate) {
+        unique.push(item);
+      }
+    }
+
+    return unique;
+  }
+
+  /**
+   * M2: Calculate semantic similarity between two text strings
+   * 
+   * Uses Jaccard similarity on word sets (simple but effective)
+   * Returns a score from 0.0 (completely different) to 1.0 (identical)
+   */
+  private calculateTextSimilarity(text1: string, text2: string): number {
+    // Normalize and tokenize
+    const normalize = (text: string) => text.toLowerCase().trim().split(/\s+/);
+    
+    const words1 = new Set(normalize(text1));
+    const words2 = new Set(normalize(text2));
+
+    // Calculate Jaccard similarity
+    const intersection = new Set([...words1].filter(w => words2.has(w)));
+    const union = new Set([...words1, ...words2]);
+
+    if (union.size === 0) {
+      return 0;
+    }
+
+    return intersection.size / union.size;
   }
 
   /**

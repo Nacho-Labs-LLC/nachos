@@ -22,6 +22,9 @@ export interface CreateSnapshotOptions {
   messages: ContextMessage[];
   trigger: 'manual' | 'auto-compaction' | 'auto-threshold' | 'periodic';
   metadata?: Record<string, unknown>;
+  // C1: Cross-channel isolation - store with composite keys
+  channel?: string;
+  userId?: string;
 }
 
 /**
@@ -74,13 +77,47 @@ export class ContextSnapshotService implements IContextSnapshotService {
 
   /**
    * Create a snapshot of the current session state
+   * 
+   * H4: Implements differential snapshots - stores only new messages since last snapshot
+   * C1: Includes channel and userId for cross-channel isolation
    */
   async createSnapshot(options: CreateSnapshotOptions): Promise<ContextSnapshot> {
-    const { sessionId, messages, trigger, metadata = {} } = options;
+    const { sessionId, messages, trigger, metadata = {}, channel, userId } = options;
 
     // Generate snapshot ID (timestamp-based for chronological ordering)
     const timestamp = new Date().toISOString();
     const snapshotId = `snapshot-${Date.now()}`;
+
+    // H4: Check for previous snapshot to implement differential storage
+    const previousSnapshot = await this.getLatestSnapshot(sessionId, channel, userId);
+    let messagesToStore = messages;
+    let baseSnapshotId: string | undefined;
+    let isIncremental = false;
+
+    if (previousSnapshot && previousSnapshot.messages.length > 0) {
+      // Find the index where new messages start
+      // Compare message IDs or timestamps to identify new messages
+      const lastPreviousMessageId = previousSnapshot.messages[previousSnapshot.messages.length - 1]?.id;
+      const lastPreviousMessageTimestamp = previousSnapshot.messages[previousSnapshot.messages.length - 1]?.timestamp;
+
+      let newMessagesStartIndex = messages.length;
+      for (let i = 0; i < messages.length; i++) {
+        const msg = messages[i];
+        if (msg?.id === lastPreviousMessageId || 
+            (lastPreviousMessageTimestamp && msg?.timestamp === lastPreviousMessageTimestamp)) {
+          newMessagesStartIndex = i + 1;
+          break;
+        }
+      }
+
+      // Only store new messages if we found the split point and have new messages
+      if (newMessagesStartIndex < messages.length && newMessagesStartIndex > 0) {
+        messagesToStore = messages.slice(newMessagesStartIndex);
+        baseSnapshotId = previousSnapshot.id;
+        isIncremental = true;
+        console.log(`[SnapshotService] Differential snapshot: storing ${messagesToStore.length} new messages (base: ${baseSnapshotId})`);
+      }
+    }
 
     // Create snapshot object
     const snapshot: ContextSnapshot = {
@@ -88,34 +125,53 @@ export class ContextSnapshotService implements IContextSnapshotService {
       sessionId,
       timestamp,
       trigger,
-      messageCount: messages.length,
-      messages,
+      messageCount: messages.length, // Total count, not just what we store
+      messages: messagesToStore, // May be differential (new messages only)
       metadata,
+      // C1: Cross-channel isolation
+      channel,
+      userId,
+      // H4: Differential snapshot support
+      baseSnapshotId,
+      isIncremental,
     };
 
     // Ensure snapshot directory exists
-    const snapshotDir = this.getSnapshotDirectory(sessionId);
+    const snapshotDir = this.getSnapshotDirectory(sessionId, channel, userId);
     await fs.mkdir(snapshotDir, { recursive: true });
 
     // Write snapshot to disk
     await this.writeSnapshot(snapshotDir, snapshotId, snapshot);
 
     // Rotate old snapshots if needed
-    await this.rotateSnapshots(sessionId);
+    await this.rotateSnapshots(sessionId, channel, userId);
 
     return snapshot;
   }
 
   /**
    * Get a specific snapshot
+   * C1: Support channel and userId for cross-channel isolation validation
    */
-  async getSnapshot(sessionId: string, snapshotId: string): Promise<ContextSnapshot | null> {
-    const snapshotDir = this.getSnapshotDirectory(sessionId);
+  async getSnapshot(sessionId: string, snapshotId: string, channel?: string, userId?: string): Promise<ContextSnapshot | null> {
+    const snapshotDir = this.getSnapshotDirectory(sessionId, channel, userId);
     const filename = this.getSnapshotFilename(snapshotId);
     const filepath = join(snapshotDir, filename);
 
     try {
-      return await this.readSnapshot(filepath);
+      const snapshot = await this.readSnapshot(filepath);
+      
+      // C1: Validate channel and userId match if provided
+      if (snapshot && channel && snapshot.channel && snapshot.channel !== channel) {
+        console.warn(`[SnapshotService] Channel mismatch: requested ${channel}, got ${snapshot.channel}`);
+        return null;
+      }
+      if (snapshot && userId && snapshot.userId && snapshot.userId !== userId) {
+        console.warn(`[SnapshotService] UserId mismatch: requested ${userId}, got ${snapshot.userId}`);
+        return null;
+      }
+      
+      return snapshot;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         return null;
@@ -126,12 +182,15 @@ export class ContextSnapshotService implements IContextSnapshotService {
 
   /**
    * List snapshots for a session
+   * C1: Support channel and userId for cross-channel isolation
    */
   async listSnapshots(
     sessionId: string,
-    options?: ListSnapshotsOptions
+    options?: ListSnapshotsOptions,
+    channel?: string,
+    userId?: string
   ): Promise<ContextSnapshot[]> {
-    const snapshotDir = this.getSnapshotDirectory(sessionId);
+    const snapshotDir = this.getSnapshotDirectory(sessionId, channel, userId);
 
     try {
       const files = await fs.readdir(snapshotDir);
@@ -173,9 +232,10 @@ export class ContextSnapshotService implements IContextSnapshotService {
 
   /**
    * Delete a specific snapshot
+   * C1: Support channel and userId for cross-channel isolation
    */
-  async deleteSnapshot(sessionId: string, snapshotId: string): Promise<boolean> {
-    const snapshotDir = this.getSnapshotDirectory(sessionId);
+  async deleteSnapshot(sessionId: string, snapshotId: string, channel?: string, userId?: string): Promise<boolean> {
+    const snapshotDir = this.getSnapshotDirectory(sessionId, channel, userId);
     const filename = this.getSnapshotFilename(snapshotId);
     const filepath = join(snapshotDir, filename);
 
@@ -192,13 +252,14 @@ export class ContextSnapshotService implements IContextSnapshotService {
 
   /**
    * Delete all snapshots for a session
+   * C1: Support channel and userId for cross-channel isolation
    */
-  async deleteAllSnapshots(sessionId: string): Promise<number> {
-    const snapshots = await this.listSnapshots(sessionId);
+  async deleteAllSnapshots(sessionId: string, channel?: string, userId?: string): Promise<number> {
+    const snapshots = await this.listSnapshots(sessionId, undefined, channel, userId);
     let deletedCount = 0;
 
     for (const snapshot of snapshots) {
-      const deleted = await this.deleteSnapshot(sessionId, snapshot.id);
+      const deleted = await this.deleteSnapshot(sessionId, snapshot.id, channel, userId);
       if (deleted) {
         deletedCount++;
       }
@@ -209,25 +270,28 @@ export class ContextSnapshotService implements IContextSnapshotService {
 
   /**
    * Get snapshot count for a session
+   * C1: Support channel and userId for cross-channel isolation
    */
-  async getSnapshotCount(sessionId: string): Promise<number> {
-    const snapshots = await this.listSnapshots(sessionId);
+  async getSnapshotCount(sessionId: string, channel?: string, userId?: string): Promise<number> {
+    const snapshots = await this.listSnapshots(sessionId, undefined, channel, userId);
     return snapshots.length;
   }
 
   /**
    * Get the most recent snapshot
+   * C1: Support channel and userId for cross-channel isolation
    */
-  async getLatestSnapshot(sessionId: string): Promise<ContextSnapshot | null> {
-    const snapshots = await this.listSnapshots(sessionId, { limit: 1 });
+  async getLatestSnapshot(sessionId: string, channel?: string, userId?: string): Promise<ContextSnapshot | null> {
+    const snapshots = await this.listSnapshots(sessionId, { limit: 1 }, channel, userId);
     return snapshots[0] ?? null;
   }
 
   /**
    * Rotate snapshots - keep only the most recent N snapshots
+   * C1: Support channel and userId for cross-channel isolation
    */
-  private async rotateSnapshots(sessionId: string): Promise<void> {
-    const snapshots = await this.listSnapshots(sessionId);
+  private async rotateSnapshots(sessionId: string, channel?: string, userId?: string): Promise<void> {
+    const snapshots = await this.listSnapshots(sessionId, undefined, channel, userId);
 
     // If we're under the limit, no rotation needed
     if (snapshots.length <= this.maxSnapshots) {
@@ -243,9 +307,22 @@ export class ContextSnapshotService implements IContextSnapshotService {
 
   /**
    * Get the snapshot directory path for a session
+   * C1: Creates composite path with channel and userId for cross-channel isolation
    */
-  private getSnapshotDirectory(sessionId: string): string {
-    return join(this.stateDir, 'sessions', sessionId, 'snapshots');
+  private getSnapshotDirectory(sessionId: string, channel?: string, userId?: string): string {
+    // Build path with channel and userId for isolation
+    const parts = [this.stateDir, 'sessions'];
+    
+    if (channel) {
+      parts.push('channels', channel);
+    }
+    if (userId) {
+      parts.push('users', userId);
+    }
+    
+    parts.push(sessionId, 'snapshots');
+    
+    return join(...parts);
   }
 
   /**
@@ -299,9 +376,10 @@ export class ContextSnapshotService implements IContextSnapshotService {
 
   /**
    * Calculate the total disk space used by snapshots for a session
+   * C1: Support channel and userId for cross-channel isolation
    */
-  async getSnapshotDiskUsage(sessionId: string): Promise<number> {
-    const snapshotDir = this.getSnapshotDirectory(sessionId);
+  async getSnapshotDiskUsage(sessionId: string, channel?: string, userId?: string): Promise<number> {
+    const snapshotDir = this.getSnapshotDirectory(sessionId, channel, userId);
     try {
       const files = await fs.readdir(snapshotDir);
       let totalBytes = 0;
