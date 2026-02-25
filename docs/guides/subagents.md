@@ -1,7 +1,7 @@
 # Subagents Guide
 
-**Version:** 1.0  
-**Last Updated:** 2026-02-22
+**Version:** 2.0  
+**Last Updated:** 2026-02-24
 
 ---
 
@@ -10,10 +10,14 @@
 1. [What are Subagents?](#what-are-subagents)
 2. [When to Use Subagents](#when-to-use-subagents)
 3. [Spawning a Subagent](#spawning-a-subagent)
-4. [Monitoring Subagents](#monitoring-subagents)
-5. [Managing Subagents](#managing-subagents)
-6. [Configuration](#configuration)
-7. [Troubleshooting](#troubleshooting)
+4. [Model Selection](#model-selection)
+5. [Progress Reporting](#progress-reporting)
+6. [Streaming Results](#streaming-results)
+7. [Workflow Orchestration](#workflow-orchestration)
+8. [Monitoring Subagents](#monitoring-subagents)
+9. [Managing Subagents](#managing-subagents)
+10. [Configuration](#configuration)
+11. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -119,6 +123,708 @@ The main bot automatically decides when to spawn subagents, but you can explicit
 > - Code quality review (run-003)
 >
 > Running in parallel...
+
+---
+
+## Model Selection
+
+**New in v2.0** - Choose the right model for each task to optimize cost and performance.
+
+### Why Model Selection Matters
+
+Different tasks require different levels of intelligence:
+- **Simple tasks** (syntax checks, basic summaries) → Haiku (fast & cheap)
+- **Medium tasks** (code reviews, research) → Sonnet (balanced)
+- **Complex tasks** (architecture design, deep analysis) → Opus (thorough)
+
+**Cost comparison:**
+- Haiku: $1 input / $5 output per MTok (baseline)
+- Sonnet: 3× more expensive than Haiku
+- Opus: 5× more expensive than Haiku
+
+### Explicit Model Selection
+
+Specify the exact model you want:
+
+**User:**
+> Run a quick syntax check on main.py using Haiku
+
+**Bot (calls tool):**
+```json
+{
+  "tool": "sessions_spawn",
+  "parameters": {
+    "task": "Check main.py for Python syntax errors",
+    "model": "haiku"
+  }
+}
+```
+
+**Supported models:**
+- `haiku` - Claude Haiku 4.5 (fast)
+- `sonnet` - Claude Sonnet 4.6 (balanced, default)
+- `opus` - Claude Opus 4.6 (thorough)
+
+You can also use full model IDs:
+```json
+{
+  "model": "anthropic.claude-sonnet-4-6"
+}
+```
+
+### Model Hints
+
+Use hints for convenience:
+
+**User:**
+> Do a thorough security audit of the authentication system
+
+**Bot (calls tool):**
+```json
+{
+  "tool": "sessions_spawn",
+  "parameters": {
+    "task": "Audit authentication system for security vulnerabilities",
+    "modelHint": "thorough"
+  }
+}
+```
+
+**Available hints:**
+- `fast` → Haiku (quick tasks)
+- `balanced` → Sonnet (default)
+- `thorough` → Opus (deep analysis)
+
+### Automatic Model Selection
+
+If no model or hint is specified, the system automatically selects based on task complexity:
+
+**Triggers Opus (thorough):**
+- Keywords: analyze, review, audit, investigate, comprehensive
+- Code analysis keywords: codebase, vulnerabilities, refactor
+- Multi-step tasks: numbered lists, "then", "after"
+- Long tasks: >40 words
+
+**Triggers Haiku (fast):**
+- Short tasks: <8 words
+- No complexity keywords
+- Simple operations
+
+**Defaults to Sonnet (balanced):**
+- Medium complexity
+- Everything else
+
+**Example:**
+
+```typescript
+// Auto-selects Opus (has "analyze" + "codebase")
+await sessions_spawn({
+  task: "Analyze this codebase for security vulnerabilities"
+});
+
+// Auto-selects Haiku (short + simple)
+await sessions_spawn({
+  task: "Fix typo in README"
+});
+
+// Auto-selects Sonnet (medium complexity)
+await sessions_spawn({
+  task: "Write a summary of this research paper"
+});
+```
+
+### Configuration
+
+Admin can configure model selection in `nachos.toml`:
+
+```toml
+[gateway.subagent.models]
+# Custom aliases
+haiku = "anthropic.claude-haiku-4-5-20251001-v1:0"
+sonnet = "anthropic.claude-sonnet-4-6"
+opus = "anthropic.claude-opus-4-6-v1"
+
+# Enable auto-selection
+auto_select = true
+
+# Default when no model/hint specified
+default_model = "sonnet"
+```
+
+---
+
+## Progress Reporting
+
+**New in v2.0** - Get real-time status updates from long-running subagents.
+
+### Why Progress Matters
+
+For long-running tasks (>1 minute), progress updates:
+- Give users confidence the subagent is working
+- Show estimated completion
+- Enable early intervention if something's wrong
+
+### How Subagents Report Progress
+
+Subagents can report progress using the `subagent_progress` tool:
+
+```json
+{
+  "tool": "subagent_progress",
+  "parameters": {
+    "status": "Analyzing file 23 of 50",
+    "percentage": 46,
+    "metadata": {
+      "filesProcessed": 23,
+      "totalFiles": 50,
+      "issuesFound": 3
+    }
+  }
+}
+```
+
+**Parameters:**
+- `status` (required) - Human-readable status message
+- `percentage` (optional) - Progress percentage (0-100)
+- `metadata` (optional) - Structured data (JSON object)
+
+### Viewing Progress
+
+**User:**
+> What's the status of run-abc123?
+
+**Bot:**
+> 📊 Subagent run-abc123:
+> - Status: running
+> - Task: Analyze codebase for security issues
+> - Started: 5m 23s ago
+> - Progress: Analyzing file 23 of 50 (46%)
+> - Found 3 issues so far
+
+**Via tool call:**
+```json
+{
+  "tool": "subagents",
+  "parameters": {
+    "action": "info",
+    "runId": "run-abc123"
+  }
+}
+```
+
+**Response includes progress:**
+```json
+{
+  "runId": "run-abc123",
+  "status": "running",
+  "progress": [
+    {
+      "timestamp": "2026-02-24T14:30:00Z",
+      "status": "Starting analysis",
+      "percentage": 0
+    },
+    {
+      "timestamp": "2026-02-24T14:32:15Z",
+      "status": "Analyzing file 23 of 50",
+      "percentage": 46,
+      "metadata": {
+        "filesProcessed": 23,
+        "totalFiles": 50,
+        "issuesFound": 3
+      }
+    }
+  ]
+}
+```
+
+### Progress Best Practices
+
+**For Subagents:**
+```typescript
+// Report progress at meaningful milestones
+for (let i = 0; i < files.length; i++) {
+  await analyzeFile(files[i]);
+  
+  // Report every 10 files
+  if (i % 10 === 0) {
+    await subagent_progress({
+      status: `Analyzed ${i} of ${files.length} files`,
+      percentage: Math.floor((i / files.length) * 100),
+      metadata: { filesProcessed: i, totalFiles: files.length }
+    });
+  }
+}
+```
+
+**Don't:**
+- Report too frequently (<1 second intervals) - throttled automatically
+- Report only at 0% and 100% - defeats the purpose
+- Use vague statuses like "Working..." - be specific
+
+**Do:**
+- Report every 5-10% completion
+- Include concrete numbers when possible
+- Update when switching phases: "Analyzing → Testing → Reporting"
+- Include metadata for structured tracking
+
+---
+
+## Streaming Results
+
+**New in v2.0** - Get partial results before the subagent completes.
+
+### Why Streaming Matters
+
+For tasks that produce long outputs (reports, documentation, analyses):
+- Users see results sooner (lower perceived latency)
+- Early feedback if subagent is off-track
+- Can act on partial results before completion
+
+### Enabling Streaming
+
+Add `stream: true` when spawning:
+
+```json
+{
+  "tool": "sessions_spawn",
+  "parameters": {
+    "task": "Generate a comprehensive security audit report",
+    "stream": true
+  }
+}
+```
+
+### How Streaming Works
+
+```
+1. Subagent starts generating response
+     ↓
+2. LLM streams chunks via NATS topic
+     ↓
+3. Gateway accumulates chunks
+     ↓
+4. Chunks available via subagents tool
+     ↓
+5. (Optional) Chunks delivered to requester in real-time
+```
+
+### Viewing Streamed Chunks
+
+**During execution:**
+
+```json
+{
+  "tool": "subagents",
+  "parameters": {
+    "action": "info",
+    "runId": "run-abc123"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "runId": "run-abc123",
+  "status": "running",
+  "stream": true,
+  "streamChunks": [
+    "# Security Audit Report\n\n",
+    "## Executive Summary\n\n",
+    "This audit identified 3 critical vulnerabilities:\n",
+    "1. SQL injection in user login\n",
+    "2. XSS in comment system\n",
+    "..."
+  ]
+}
+```
+
+**Accumulated text:**
+```
+# Security Audit Report
+
+## Executive Summary
+
+This audit identified 3 critical vulnerabilities:
+1. SQL injection in user login
+2. XSS in comment system
+...
+```
+
+### Real-Time Delivery (Optional)
+
+Configure streaming to deliver chunks to the requester:
+
+```toml
+[gateway.subagent.streaming]
+enabled = true
+deliver_to_requester = true
+chunk_throttle_ms = 500  # Min 500ms between deliveries
+```
+
+**User experience:**
+
+**User:**
+> Generate a 50-page security audit report
+
+**Bot:**
+> ✅ Spawned subagent (run-abc123, streaming enabled)
+
+*(2 seconds later)*
+
+**Bot:**
+> 📄 **Section 1: Executive Summary**
+> This audit reviewed 150 files and identified...
+
+*(5 seconds later)*
+
+**Bot:**
+> 📄 **Section 2: Methodology**
+> We used automated scanning tools combined with...
+
+*(continues streaming sections as they're generated)*
+
+### Streaming + Progress
+
+Combine streaming with progress reporting for the best UX:
+
+```typescript
+// Subagent reports progress while streaming output
+await subagent_progress({
+  status: "Writing section 3 of 10",
+  percentage: 30
+});
+
+// LLM continues streaming the actual content
+```
+
+**User sees:**
+- Progress: "Writing section 3 of 10 (30%)"
+- Partial output: Sections 1 and 2 already visible
+
+---
+
+## Workflow Orchestration
+
+**New in v2.0** - Define multi-step workflows with dependencies.
+
+### Why Workflows Matter
+
+Many tasks require multiple steps in a specific order:
+- **Sequential**: Research → Analyze → Summarize
+- **Parallel**: Run tests + Build docs + Security scan (simultaneously)
+- **Diamond**: Fetch data → [Process A, Process B] → Merge results
+
+Workflows let you:
+- Define dependencies explicitly
+- Run independent steps in parallel
+- Pass results between steps
+- Handle failures gracefully
+
+### Defining a Workflow
+
+Use the `sessions_orchestrate` tool:
+
+```json
+{
+  "tool": "sessions_orchestrate",
+  "parameters": {
+    "steps": [
+      {
+        "id": "research",
+        "task": "Research renewable energy trends in 2025"
+      },
+      {
+        "id": "analyze",
+        "task": "Analyze the research findings",
+        "dependsOn": ["research"]
+      },
+      {
+        "id": "summarize",
+        "task": "Write a 2-paragraph summary",
+        "dependsOn": ["analyze"]
+      }
+    ],
+    "label": "renewable-energy-report"
+  }
+}
+```
+
+**Result:**
+```
+✅ Workflow renewable-energy-report started (workflow-xyz789)
+
+Step 1/3: research (running)
+→ Step 2/3: analyze (queued, waiting for research)
+→ Step 3/3: summarize (queued, waiting for analyze)
+```
+
+### Step Dependencies
+
+**Linear workflow (sequential):**
+```typescript
+{
+  steps: [
+    { id: 'step1', task: 'Fetch data' },
+    { id: 'step2', task: 'Process data', dependsOn: ['step1'] },
+    { id: 'step3', task: 'Generate report', dependsOn: ['step2'] }
+  ]
+}
+
+// Execution: step1 → step2 → step3
+```
+
+**Parallel workflow:**
+```typescript
+{
+  steps: [
+    { id: 'web', task: 'Search web' },
+    { id: 'docs', task: 'Search internal docs' },
+    { id: 'code', task: 'Search codebase' },
+    { id: 'synthesis', task: 'Combine findings', dependsOn: ['web', 'docs', 'code'] }
+  ]
+}
+
+// Execution:
+// Batch 1 (parallel): web, docs, code
+// Batch 2: synthesis (after all batch 1 completes)
+```
+
+**Diamond workflow:**
+```typescript
+{
+  steps: [
+    { id: 'fetch', task: 'Fetch user data' },
+    { id: 'validate', task: 'Validate data', dependsOn: ['fetch'] },
+    { id: 'enrich', task: 'Enrich with external data', dependsOn: ['fetch'] },
+    { id: 'merge', task: 'Merge validated and enriched data', dependsOn: ['validate', 'enrich'] }
+  ]
+}
+
+// Execution:
+// Batch 1: fetch
+// Batch 2 (parallel): validate, enrich
+// Batch 3: merge
+```
+
+### Result Passing
+
+Results from dependent steps are automatically injected:
+
+**Step 1 (research):**
+> Task: Research renewable energy trends in 2025
+
+**Step 1 Result:**
+> Solar capacity grew 45%, wind 30%...
+
+**Step 2 (analyze) receives:**
+> Task: Analyze the research findings
+>
+> **Results from 'research':**
+> Solar capacity grew 45%, wind 30%...
+
+The orchestrator automatically appends previous results to the task prompt.
+
+### Per-Step Model Selection
+
+Different steps can use different models:
+
+```typescript
+{
+  steps: [
+    {
+      id: 'fetch',
+      task: 'Fetch data from API',
+      model: 'haiku'  // Fast, simple task
+    },
+    {
+      id: 'analyze',
+      task: 'Deep analysis of trends',
+      dependsOn: ['fetch'],
+      modelHint: 'thorough'  // Complex analysis, use Opus
+    },
+    {
+      id: 'summarize',
+      task: 'Write 2-paragraph summary',
+      dependsOn: ['analyze'],
+      model: 'sonnet'  // Balanced for writing
+    }
+  ]
+}
+```
+
+### Streaming in Workflows
+
+Enable streaming for individual steps:
+
+```typescript
+{
+  steps: [
+    {
+      id: 'report',
+      task: 'Generate 50-page security report',
+      stream: true  // Stream this step's output
+    }
+  ]
+}
+```
+
+### Workflow Management
+
+**List workflows:**
+```json
+{
+  "tool": "subagents",
+  "parameters": {
+    "action": "workflow_list"
+  }
+}
+```
+
+**Get workflow status:**
+```json
+{
+  "tool": "subagents",
+  "parameters": {
+    "action": "workflow_info",
+    "workflowId": "workflow-xyz789"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "workflowId": "workflow-xyz789",
+  "status": "running",
+  "stepResults": {
+    "research": {
+      "status": "completed",
+      "runId": "run-001",
+      "result": "Solar capacity grew 45%...",
+      "durationMs": 12500
+    },
+    "analyze": {
+      "status": "running",
+      "runId": "run-002"
+    },
+    "summarize": {
+      "status": "queued"
+    }
+  },
+  "currentBatch": 2,
+  "totalBatches": 3
+}
+```
+
+### Error Handling
+
+**Default behavior:** Workflow stops if any step fails
+
+```typescript
+// Step 2 fails → Step 3 never runs
+{
+  steps: [
+    { id: 'step1', task: '...' },  // ✅ Completes
+    { id: 'step2', task: '...', dependsOn: ['step1'] },  // ❌ Fails
+    { id: 'step3', task: '...', dependsOn: ['step2'] }   // ⏭️ Skipped
+  ]
+}
+```
+
+**Continue on failure:**
+```typescript
+{
+  steps: [...],
+  continueOnFailure: true  // Keep going even if steps fail
+}
+```
+
+### DAG Validation
+
+The orchestrator validates your workflow:
+
+**Duplicate step IDs:**
+```typescript
+{
+  steps: [
+    { id: 'step1', task: '...' },
+    { id: 'step1', task: '...' }  // ❌ Error: Duplicate ID
+  ]
+}
+```
+
+**Missing dependencies:**
+```typescript
+{
+  steps: [
+    { id: 'step1', task: '...' },
+    { id: 'step2', task: '...', dependsOn: ['step3'] }  // ❌ Error: step3 doesn't exist
+  ]
+}
+```
+
+**Cycles:**
+```typescript
+{
+  steps: [
+    { id: 'a', task: '...', dependsOn: ['b'] },
+    { id: 'b', task: '...', dependsOn: ['a'] }  // ❌ Error: Cycle detected
+  ]
+}
+```
+
+### Real-World Example: Bug Fix Workflow
+
+```typescript
+{
+  tool: "sessions_orchestrate",
+  parameters: {
+    steps: [
+      {
+        id: 'investigate',
+        task: 'Find root cause of login bug',
+        model: 'opus'  // Deep investigation needs thorough model
+      },
+      {
+        id: 'fix',
+        task: 'Implement the fix based on investigation',
+        dependsOn: ['investigate'],
+        model: 'sonnet'
+      },
+      {
+        id: 'test',
+        task: 'Write tests to verify the fix',
+        dependsOn: ['fix'],
+        model: 'haiku'  // Test generation is straightforward
+      },
+      {
+        id: 'review',
+        task: 'Code review the changes',
+        dependsOn: ['fix', 'test'],
+        modelHint: 'thorough'
+      },
+      {
+        id: 'document',
+        task: 'Update documentation',
+        dependsOn: ['review'],
+        model: 'sonnet',
+        stream: true  // Stream the documentation as it's written
+      }
+    ],
+    label: 'login-bug-fix'
+  }
+}
+```
+
+**Execution plan:**
+```
+Batch 1: investigate (Opus)
+Batch 2: fix (Sonnet)
+Batch 3 (parallel): test (Haiku)
+Batch 4: review (Opus) - waits for both fix AND test
+Batch 5: document (Sonnet, streaming)
+```
 
 ---
 
@@ -240,6 +946,33 @@ image = "nachos/subagent-sandbox:latest"
 network = "none"
 memory_limit = "512m"
 cpu_shares = 512
+
+# Model Selection (New in v2.0)
+[gateway.subagent.models]
+# Model aliases (customize as needed)
+haiku = "anthropic.claude-haiku-4-5-20251001-v1:0"
+sonnet = "anthropic.claude-sonnet-4-6"
+opus = "anthropic.claude-opus-4-6-v1"
+fast = "anthropic.claude-haiku-4-5-20251001-v1:0"
+balanced = "anthropic.claude-sonnet-4-6"
+thorough = "anthropic.claude-opus-4-6-v1"
+
+# Enable automatic model selection based on task complexity
+auto_select = true
+
+# Default model when no model/hint specified
+default_model = "sonnet"
+
+# Streaming Results (New in v2.0)
+[gateway.subagent.streaming]
+enabled = true
+deliver_to_requester = true  # Send chunks to user in real-time
+chunk_throttle_ms = 500      # Min time between chunk deliveries
+
+# Workflows (New in v2.0)
+[gateway.subagent.workflows]
+max_steps = 50    # Maximum steps per workflow (prevent workflow bombs)
+max_depth = 5     # Maximum nested workflow depth
 ```
 
 ### Per-Request Configuration
@@ -252,10 +985,11 @@ When spawning subagents programmatically (via tool calls):
   "parameters": {
     "task": "Research quantum computing",
     "label": "quantum-research",
-    "model": "claude-sonnet-4",
+    "model": "sonnet",
     "thinking": "high",
     "runTimeoutSeconds": 600,
-    "cleanup": "delete"
+    "cleanup": "delete",
+    "stream": true
   }
 }
 ```
@@ -263,10 +997,49 @@ When spawning subagents programmatically (via tool calls):
 **Parameters:**
 - `task` - Task description (required)
 - `label` - Human-readable label (optional)
-- `model` - Override default model (optional)
+- `model` - Model ID or alias: haiku/sonnet/opus (optional, **new in v2.0**)
+- `modelHint` - Model hint: fast/balanced/thorough (optional, **new in v2.0**)
 - `thinking` - Thinking level: low/medium/high (optional)
 - `runTimeoutSeconds` - Max execution time (optional, default: 300)
 - `cleanup` - "delete" or "keep" workspace after completion (optional, default: "keep")
+- `stream` - Enable streaming results (optional, default: false, **new in v2.0**)
+
+**Workflow orchestration:**
+
+```json
+{
+  "tool": "sessions_orchestrate",
+  "parameters": {
+    "steps": [
+      {
+        "id": "step1",
+        "task": "First step",
+        "model": "haiku",
+        "stream": false
+      },
+      {
+        "id": "step2",
+        "task": "Second step",
+        "dependsOn": ["step1"],
+        "modelHint": "thorough"
+      }
+    ],
+    "label": "my-workflow",
+    "continueOnFailure": false
+  }
+}
+```
+
+**Workflow parameters:**
+- `steps` - Array of workflow steps (required)
+  - `id` - Unique step identifier (required)
+  - `task` - Task description (required)
+  - `dependsOn` - Array of step IDs this depends on (optional)
+  - `model` - Model for this step (optional)
+  - `modelHint` - Model hint for this step (optional)
+  - `stream` - Enable streaming for this step (optional)
+- `label` - Human-readable workflow label (optional)
+- `continueOnFailure` - Continue even if steps fail (optional, default: false)
 
 ---
 
@@ -327,6 +1100,216 @@ When spawning subagents programmatically (via tool calls):
 **Solution:**
 - Only sandboxed subagents have workspaces
 - Keep important workspaces: use `cleanup: "keep"`
+
+### Model Selection Issues
+
+**Symptom:** Wrong model selected for task
+
+**Causes:**
+- Auto-selection heuristics chose poorly
+- Model alias not configured
+
+**Solutions:**
+1. **Override with explicit model:**
+   ```json
+   { "model": "opus" }  // Force Opus
+   ```
+
+2. **Use model hint:**
+   ```json
+   { "modelHint": "thorough" }  // Request thorough analysis
+   ```
+
+3. **Disable auto-selection:**
+   ```toml
+   [gateway.subagent.models]
+   auto_select = false
+   default_model = "sonnet"  # Always use Sonnet
+   ```
+
+4. **Check configured aliases:**
+   ```bash
+   grep -A 10 "\[gateway.subagent.models\]" nachos.toml
+   ```
+
+**Symptom:** "Unknown model" error
+
+**Cause:** Invalid model ID or alias
+
+**Solution:** Use valid aliases (haiku/sonnet/opus) or full model IDs:
+```json
+{
+  "model": "anthropic.claude-sonnet-4-6"
+}
+```
+
+### Progress Not Updating
+
+**Symptom:** No progress updates visible
+
+**Causes:**
+1. Subagent isn't calling `subagent_progress` tool
+2. Progress updates throttled (too frequent)
+3. Querying wrong run ID
+
+**Solutions:**
+1. **Check if subagent supports progress:**
+   - Not all tasks report progress
+   - Long-running tasks (>1 minute) should
+
+2. **Check throttling:**
+   - Min 1 second between updates (enforced)
+   - Subagent may be calling too frequently
+
+3. **Verify run ID:**
+   ```json
+   {
+     "tool": "subagents",
+     "parameters": {
+       "action": "info",
+       "runId": "run-abc123"
+     }
+   }
+   ```
+
+### Streaming Not Working
+
+**Symptom:** No stream chunks received
+
+**Causes:**
+1. Streaming not enabled in request
+2. Streaming disabled in config
+3. Model doesn't support streaming
+4. Subagent completed before chunks delivered
+
+**Solutions:**
+1. **Enable streaming in request:**
+   ```json
+   { "stream": true }
+   ```
+
+2. **Check config:**
+   ```toml
+   [gateway.subagent.streaming]
+   enabled = true
+   ```
+
+3. **Check stream chunks:**
+   ```json
+   {
+     "tool": "subagents",
+     "parameters": {
+       "action": "info",
+       "runId": "run-abc123"
+     }
+   }
+   ```
+   Response should include `"stream": true` and `"streamChunks": [...]`
+
+4. **Verify real-time delivery:**
+   ```toml
+   [gateway.subagent.streaming]
+   deliver_to_requester = true  # Must be enabled for real-time delivery
+   ```
+
+### Workflow Validation Errors
+
+**Symptom:** "Cycle detected" error
+
+**Cause:** Steps have circular dependencies
+
+**Example:**
+```typescript
+// ❌ Bad: A depends on B, B depends on A
+{
+  steps: [
+    { id: 'a', task: '...', dependsOn: ['b'] },
+    { id: 'b', task: '...', dependsOn: ['a'] }
+  ]
+}
+```
+
+**Solution:** Remove circular dependencies:
+```typescript
+// ✅ Good: Linear dependency
+{
+  steps: [
+    { id: 'a', task: '...' },
+    { id: 'b', task: '...', dependsOn: ['a'] }
+  ]
+}
+```
+
+**Symptom:** "Missing dependency" error
+
+**Cause:** Step depends on non-existent step
+
+**Example:**
+```typescript
+// ❌ Bad: step3 doesn't exist
+{
+  steps: [
+    { id: 'step1', task: '...' },
+    { id: 'step2', task: '...', dependsOn: ['step3'] }
+  ]
+}
+```
+
+**Solution:** Fix step ID or remove invalid dependency:
+```typescript
+// ✅ Good: Correct dependency
+{
+  steps: [
+    { id: 'step1', task: '...' },
+    { id: 'step2', task: '...', dependsOn: ['step1'] }
+  ]
+}
+```
+
+**Symptom:** "Workflow too large" error
+
+**Cause:** Exceeds max steps limit (default: 50)
+
+**Solutions:**
+1. **Split into smaller workflows**
+2. **Increase limit (admin only):**
+   ```toml
+   [gateway.subagent.workflows]
+   max_steps = 100
+   ```
+
+### Workflow Execution Stuck
+
+**Symptom:** Workflow status "running" but no progress
+
+**Causes:**
+1. Step failed but `continueOnFailure` is false (default)
+2. Step is actually running but taking a long time
+3. Concurrency limit reached (other subagents blocking)
+
+**Solutions:**
+1. **Check step status:**
+   ```json
+   {
+     "tool": "subagents",
+     "parameters": {
+       "action": "workflow_info",
+       "workflowId": "workflow-xyz789"
+     }
+   }
+   ```
+   Look for failed steps.
+
+2. **Enable continue on failure:**
+   ```json
+   {
+     "continueOnFailure": true
+   }
+   ```
+
+3. **Check concurrency:**
+   - Workflows share concurrency limit with regular subagents
+   - If max_concurrent=2 and 2 other subagents are running, workflow waits
 
 ---
 
@@ -454,8 +1437,15 @@ For tasks >5 minutes, periodically check status or enable progress updates.
 ## See Also
 
 - [Architecture Guide](../architecture/subagents.md) - How subagents work internally
+- [ADR-004](../architecture/decisions/004-subagent-orchestration-enhancements.md) - Orchestration enhancements design
 - [Configuration Reference](../config/gateway.md) - Full subagent config options
-- [Tool Reference](../tools/sessions_spawn.md) - API documentation
+- [Tool Reference](../tools/README.md) - Tool API documentation
+
+**Key tools:**
+- `sessions_spawn` - Spawn individual subagents
+- `sessions_orchestrate` - Define multi-step workflows
+- `subagents` - Monitor and manage subagents/workflows
+- `subagent_progress` - Report progress from within subagents
 
 ---
 
