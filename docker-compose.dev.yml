@@ -204,6 +204,11 @@ services:
       PORT: "3001"
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # AWS Bedrock credentials (uses host env if not set in .env)
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
       NACHOS_CONFIG: /app/nachos.toml
     volumes:
       - ./nachos.toml:/app/nachos.toml:ro
@@ -237,6 +242,7 @@ services:
         condition: service_healthy
     networks:
       - nachos-internal
+      - nachos-egress
     ports:
       - "8082:8082"
     environment:

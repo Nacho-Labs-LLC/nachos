@@ -21,10 +21,13 @@ COPY packages/tools/filesystem ./packages/tools/filesystem
 RUN pnpm install --frozen-lockfile
 
 # Provide minimal root tsconfig (avoids references to packages not in this image)
-RUN echo '{"extends":"./tsconfig.base.json","compilerOptions":{"composite":true},"files":[],"references":[{"path":"./packages/shared/types"},{"path":"./packages/shared/utils"}]}' > tsconfig.json
+RUN echo '{"extends":"./tsconfig.base.json","compilerOptions":{"composite":true},"files":[],"references":[{"path":"./packages/shared/types"},{"path":"./packages/shared/utils"},{"path":"./packages/shared/tool-base"}]}' > tsconfig.json
 
-# Build
-RUN pnpm --filter @nachos/tool-filesystem build
+# Build dependencies first, then the tool
+RUN pnpm --filter @nachos/types build && \
+    pnpm --filter @nachos/utils build && \
+    pnpm --filter @nachos/tool-base build && \
+    pnpm --filter @nachos/tool-filesystem build
 
 # Create non-root user (1001 to avoid conflict with node:alpine built-in 'node' user at 1000)
 RUN addgroup -g 1001 nachos && \

@@ -16,8 +16,8 @@ export function createAdapterRegistry(config: LLMConfig): AdapterRegistry {
   adapters.set('openai', new OpenAIAdapter());
   adapters.set('ollama', new OllamaAdapter(config.base_url));
   
-  // Bedrock adapter uses AWS credentials from environment or AWS config
-  const awsRegion = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
+  // Bedrock adapter uses region from config, then falls back to environment variables
+  const awsRegion = config.region || process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
   adapters.set('bedrock', createBedrockAdapter(awsRegion));
 
   return {
