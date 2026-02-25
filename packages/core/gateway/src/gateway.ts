@@ -24,6 +24,7 @@ const logger = createLogger('gateway');
 import { TOPICS } from '@nachos/bus';
 import {
   SessionsSpawnToolSchema,
+  SessionsOrchestrateToolSchema,
   SubagentsToolSchema,
   SubagentProgressToolSchema,
   BootstrapToolSchema,
@@ -1550,6 +1551,12 @@ export class Gateway {
         parameters: this.sanitizeToolSchema(SessionsSpawnToolSchema),
       });
       tools.push({
+        name: 'sessions_orchestrate',
+        description:
+          'Orchestrate a multi-step workflow with dependencies. Steps execute in dependency order, with results passed to dependent steps.',
+        parameters: this.sanitizeToolSchema(SessionsOrchestrateToolSchema),
+      });
+      tools.push({
         name: 'subagents',
         description:
           'Internal tool: inspect subagent runs, fetch logs, and read subagent workspace files.',
@@ -2071,6 +2078,61 @@ export class Gateway {
         status: 'accepted',
         runId: run.runId,
         childSessionId: run.childSessionId,
+      };
+
+      return {
+        success: true,
+        content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
+      };
+    }
+
+    if (call.tool === 'sessions_orchestrate') {
+      if (!this.subagentOrchestrator) {
+        return this.formatToolError('SUBAGENT_DISABLED', 'Subagent execution is not configured');
+      }
+
+      if (!session) {
+        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found for workflow orchestration');
+      }
+
+      const steps = call.parameters.steps;
+      if (!Array.isArray(steps) || steps.length === 0) {
+        return this.formatToolError('INVALID_PARAMETERS', 'steps array is required');
+      }
+
+      // Build workflow definition
+      const workflow: import('./subagents/dependency-graph.js').WorkflowDefinition = {
+        steps: steps.map((step: unknown) => {
+          const s = step as {
+            id: string;
+            task: string;
+            dependsOn?: string[];
+            model?: string;
+            modelHint?: 'fast' | 'balanced' | 'thorough';
+            stream?: boolean;
+          };
+          return {
+            id: s.id,
+            task: s.task,
+            dependsOn: s.dependsOn,
+            model: this.readOptionalString(s.model),
+            modelHint: s.modelHint,
+            stream: typeof s.stream === 'boolean' ? s.stream : undefined,
+          };
+        }),
+      };
+
+      const workflowRecord = await this.subagentOrchestrator.enqueueWorkflow(workflow, {
+        sessionId: session.id,
+        channel: session.channel,
+        conversationId: session.conversationId,
+        userId: session.userId,
+      });
+
+      const payload = {
+        status: 'accepted',
+        workflowId: workflowRecord.workflowId,
+        totalBatches: workflowRecord.totalBatches,
       };
 
       return {
@@ -2806,6 +2868,51 @@ export class Gateway {
             ),
           },
         ],
+      };
+    }
+
+    if (action === 'workflow_list') {
+      if (!this.subagentOrchestrator) {
+        return this.formatToolError('SUBAGENT_DISABLED', 'Workflow orchestration is not configured');
+      }
+
+      const workflows = this.subagentOrchestrator.listWorkflows();
+      // Convert Map to plain object for JSON serialization
+      const serializedWorkflows = workflows.map((wf) => ({
+        ...wf,
+        stepResults: Object.fromEntries(wf.stepResults),
+      }));
+
+      return {
+        success: true,
+        content: [{ type: 'text', text: JSON.stringify({ workflows: serializedWorkflows }, null, 2) }],
+      };
+    }
+
+    if (action === 'workflow_info') {
+      if (!this.subagentOrchestrator) {
+        return this.formatToolError('SUBAGENT_DISABLED', 'Workflow orchestration is not configured');
+      }
+
+      const workflowId = this.readOptionalString(call.parameters.workflowId);
+      if (!workflowId) {
+        return this.formatToolError('INVALID_PARAMETERS', 'workflowId is required for workflow_info action');
+      }
+
+      const workflow = this.subagentOrchestrator.getWorkflow(workflowId);
+      if (!workflow) {
+        return this.formatToolError('NOT_FOUND', 'Workflow not found');
+      }
+
+      // Convert Map to plain object for JSON serialization
+      const serialized = {
+        ...workflow,
+        stepResults: Object.fromEntries(workflow.stepResults),
+      };
+
+      return {
+        success: true,
+        content: [{ type: 'text', text: JSON.stringify({ workflow: serialized }, null, 2) }],
       };
     }
 

@@ -613,6 +613,36 @@ export const SessionsSpawnToolSchema = Type.Object(
 export type SessionsSpawnToolType = Static<typeof SessionsSpawnToolSchema>;
 
 /**
+ * Workflow orchestration tool parameters
+ */
+export const SessionsOrchestrateToolSchema = Type.Object(
+  {
+    steps: Type.Array(
+      Type.Object({
+        id: Type.String({ description: 'Unique step identifier', minLength: 1 }),
+        task: Type.String({ description: 'Task instruction for this step', minLength: 1 }),
+        dependsOn: Type.Optional(
+          Type.Array(Type.String(), {
+            description: 'Array of step IDs this step depends on',
+          })
+        ),
+        model: Type.Optional(Type.String({ description: 'Optional model override for this step' })),
+        modelHint: Type.Optional(
+          Type.Union([Type.Literal('fast'), Type.Literal('balanced'), Type.Literal('thorough')], {
+            description: 'Model selection hint for this step',
+          })
+        ),
+        stream: Type.Optional(Type.Boolean({ description: 'Enable streaming for this step' })),
+      }),
+      { description: 'Workflow steps with dependencies', minItems: 1 }
+    ),
+  },
+  { $id: 'SessionsOrchestrateTool', description: 'Multi-step workflow orchestration parameters' }
+);
+
+export type SessionsOrchestrateToolType = Static<typeof SessionsOrchestrateToolSchema>;
+
+/**
  * memory tool parameters
  */
 export const MemoryToolSchema = Type.Object(
@@ -722,11 +752,14 @@ export const SubagentsToolSchema = Type.Object(
         Type.Literal('steer'),
         Type.Literal('files_list'),
         Type.Literal('files_get'),
+        Type.Literal('workflow_list'),
+        Type.Literal('workflow_info'),
       ],
       { description: 'Subagent action to perform' }
     ),
     message: Type.Optional(Type.String({ description: 'Message to send to subagent (steer action)' })),
     runId: Type.Optional(Type.String({ description: 'Subagent run ID' })),
+    workflowId: Type.Optional(Type.String({ description: 'Workflow ID (workflow_info action)' })),
     limit: Type.Optional(Type.Number({ description: 'Result limit', minimum: 1 })),
     path: Type.Optional(Type.String({ description: 'Workspace relative path' })),
     recursive: Type.Optional(Type.Boolean({ description: 'List files recursively' })),
@@ -987,6 +1020,7 @@ export const Schemas = {
   ToolRequest: ToolRequestSchema,
   ToolResponse: ToolResponseSchema,
   SessionsSpawnTool: SessionsSpawnToolSchema,
+  SessionsOrchestrateTool: SessionsOrchestrateToolSchema,
   SubagentsTool: SubagentsToolSchema,
   SubagentProgressTool: SubagentProgressToolSchema,
 

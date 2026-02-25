@@ -168,6 +168,8 @@ export {
   ToolErrorSchema,
   SessionsSpawnToolSchema,
   type SessionsSpawnToolType,
+  SessionsOrchestrateToolSchema,
+  type SessionsOrchestrateToolType,
   SubagentsToolSchema,
   type SubagentsToolType,
   SubagentProgressToolSchema,
