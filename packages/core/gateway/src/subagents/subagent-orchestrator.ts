@@ -41,6 +41,8 @@ export interface SubagentOrchestratorDeps {
     extraMessages?: LLMRequestType['messages'],
     stream?: boolean
   ) => Promise<LLMRequestType & { systemPromptTokens?: number }>;
+  subscribe?: (topic: string, handler: (data: unknown) => Promise<void>) => Promise<void>;
+  unsubscribe?: (topic: string) => Promise<void>;
   defaultSystemPrompt?: string;
   config?: SubagentOrchestratorConfig;
   workspaceRoot?: string;
@@ -109,6 +111,8 @@ export class SubagentOrchestrator {
       model: selectedModel,
       requester: request.requester,
       childSessionId,
+      stream: request.stream,
+      streamChunks: request.stream ? [] : undefined,
     };
 
     this.runs.set(runId, {
@@ -234,11 +238,32 @@ export class SubagentOrchestrator {
   }
 
   private async executeRun(entry: SubagentRunEntry): Promise<void> {
+    let streamTopic: string | null = null;
 
     try {
       const request = entry.request;
       const childSessionId = entry.record.childSessionId;
-      const llmRequest = await this.deps.buildLLMRequest(childSessionId, [], false);
+      const enableStreaming = Boolean(request.stream);
+      
+      // Subscribe to stream topic if streaming is enabled
+      if (enableStreaming && this.deps.subscribe) {
+        streamTopic = `nachos.llm.stream.${childSessionId}`;
+        await this.deps.subscribe(streamTopic, async (data: unknown) => {
+          // Accumulate stream chunks
+          const chunk = data as { type: string; content?: string };
+          if (chunk.type === 'delta' && chunk.content) {
+            if (!entry.record.streamChunks) {
+              entry.record.streamChunks = [];
+            }
+            entry.record.streamChunks.push(chunk.content);
+            
+            // Optionally deliver chunks to requester in real-time
+            // For now, we accumulate them and deliver at completion
+          }
+        });
+      }
+      
+      const llmRequest = await this.deps.buildLLMRequest(childSessionId, [], enableStreaming);
       
       // Override model with selected model for this subagent
       if (entry.record.model) {
@@ -287,6 +312,11 @@ export class SubagentOrchestrator {
       };
       entry.record.completedAt = new Date().toISOString();
     } finally {
+      // Unsubscribe from stream topic
+      if (streamTopic && this.deps.unsubscribe) {
+        await this.deps.unsubscribe(streamTopic);
+      }
+      
       this.runningCount = Math.max(0, this.runningCount - 1);
       this.drainQueue();
     }

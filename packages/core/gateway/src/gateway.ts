@@ -635,6 +635,18 @@ export class Gateway {
         sessionManager: this.sessionManager,
         router: this.router,
         buildLLMRequest: this.buildLLMRequest.bind(this),
+        subscribe: async (topic: string, handler: (data: unknown) => Promise<void>) => {
+          const bus = this.router.getBus();
+          if (bus) {
+            await bus.subscribe(topic, handler);
+          }
+        },
+        unsubscribe: async (topic: string) => {
+          const bus = this.router.getBus();
+          if (bus) {
+            await bus.unsubscribe(topic);
+          }
+        },
         defaultSystemPrompt: this.options.defaultSystemPrompt,
         config: options.subagentOrchestratorConfig,
         workspaceRoot: this.subagentWorkspaceRoot,
@@ -2030,6 +2042,7 @@ export class Gateway {
       const agentId = this.readOptionalString(call.parameters.agentId);
       const model = this.readOptionalString(call.parameters.model);
       const thinking = this.readOptionalString(call.parameters.thinking);
+      const stream = typeof call.parameters.stream === 'boolean' ? call.parameters.stream : undefined;
       const cleanup = this.readCleanup(call.parameters.cleanup);
       const timeoutMs = this.readTimeoutMs(call.parameters.runTimeoutSeconds);
 
@@ -2040,6 +2053,7 @@ export class Gateway {
         agentId,
         model,
         thinking,
+        stream,
         cleanup,
         timeoutMs,
         sessionConfig: session.config,

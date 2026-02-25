@@ -10,6 +10,7 @@ export interface SubagentTask {
   timeoutMs?: number;
   sandboxMode?: 'host' | 'tool' | 'full';
   workspaceDir?: string;
+  onChunk?: (chunk: string) => void;
 }
 
 export interface SubagentResult {
@@ -73,6 +74,7 @@ export interface SubagentRunRequest {
   cleanup?: 'delete' | 'keep';
   sessionConfig?: SessionConfig;
   sandboxMode?: SubagentTask['sandboxMode'];
+  stream?: boolean;
 }
 
 export interface SubagentProgressUpdate {
@@ -99,4 +101,6 @@ export interface SubagentRunRecord {
   durationMs?: number;
   error?: { code: string; message: string };
   progress?: SubagentProgressUpdate[];
+  stream?: boolean;
+  streamChunks?: string[];
 }

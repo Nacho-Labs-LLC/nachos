@@ -597,6 +597,7 @@ export const SessionsSpawnToolSchema = Type.Object(
     agentId: Type.Optional(Type.String({ description: 'Optional subagent ID override' })),
     model: Type.Optional(Type.String({ description: 'Optional model override' })),
     thinking: Type.Optional(Type.String({ description: 'Optional thinking hint' })),
+    stream: Type.Optional(Type.Boolean({ description: 'Enable streaming for real-time partial results' })),
     runTimeoutSeconds: Type.Optional(
       Type.Number({ description: 'Run timeout in seconds', minimum: 1 })
     ),
