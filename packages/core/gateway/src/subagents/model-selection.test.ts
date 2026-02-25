@@ -203,7 +203,13 @@ describe('Model Selection', () => {
   });
 
   describe('getModelName', () => {
-    it('should return human-readable names for standard models', () => {
+    it('should return human-readable names for Claude 4.6 models', () => {
+      expect(getModelName('anthropic.claude-haiku-4-5-20251001-v1:0')).toBe('Claude Haiku 4.5');
+      expect(getModelName('anthropic.claude-sonnet-4-6')).toBe('Claude Sonnet 4.6');
+      expect(getModelName('anthropic.claude-opus-4-6-v1')).toBe('Claude Opus 4.6');
+    });
+
+    it('should handle Claude 3 models', () => {
       expect(getModelName('anthropic.claude-3-haiku-20240307-v1:0')).toBe('Claude 3 Haiku');
       expect(getModelName('anthropic.claude-3-5-sonnet-20241022-v2:0')).toBe('Claude 3.5 Sonnet');
       expect(getModelName('anthropic.claude-3-opus-20240229-v1:0')).toBe('Claude 3 Opus');
@@ -215,10 +221,16 @@ describe('Model Selection', () => {
   });
 
   describe('getModelCostMultiplier', () => {
-    it('should return correct cost multipliers', () => {
+    it('should return correct cost multipliers for Claude 4.6', () => {
+      expect(getModelCostMultiplier('anthropic.claude-haiku-4-5-20251001-v1:0')).toBe(1.0);
+      expect(getModelCostMultiplier('anthropic.claude-sonnet-4-6')).toBe(3.0);
+      expect(getModelCostMultiplier('anthropic.claude-opus-4-6-v1')).toBe(5.0);
+    });
+
+    it('should handle Claude 3 models', () => {
       expect(getModelCostMultiplier('anthropic.claude-3-haiku-20240307-v1:0')).toBe(1.0);
-      expect(getModelCostMultiplier('anthropic.claude-3-5-sonnet-20241022-v2:0')).toBe(12.0);
-      expect(getModelCostMultiplier('anthropic.claude-3-opus-20240229-v1:0')).toBe(60.0);
+      expect(getModelCostMultiplier('anthropic.claude-3-5-sonnet-20241022-v2:0')).toBe(3.0);
+      expect(getModelCostMultiplier('anthropic.claude-3-opus-20240229-v1:0')).toBe(5.0);
     });
 
     it('should default to 1.0 for unknown models', () => {

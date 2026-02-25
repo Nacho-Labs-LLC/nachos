@@ -6,24 +6,32 @@
  */
 
 /**
- * Default model aliases (Bedrock format)
+ * Default model aliases
+ * 
+ * Supports both Anthropic API and AWS Bedrock formats.
+ * Bedrock models use simplified IDs for Claude 4+ series.
  */
 export const DEFAULT_MODEL_ALIASES: Record<string, string> = {
-  // Claude 3 Haiku - Fast and economical
-  'haiku': 'anthropic.claude-3-haiku-20240307-v1:0',
+  // Claude 4.5 Haiku - Fast and economical
+  'haiku': 'anthropic.claude-haiku-4-5-20251001-v1:0',
   
-  // Claude 3.5 Sonnet - Balanced performance
-  'sonnet': 'anthropic.claude-3-5-sonnet-20241022-v2:0',
-  'balanced': 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+  // Claude 4.6 Sonnet - Balanced performance (best speed/intelligence)
+  'sonnet': 'anthropic.claude-sonnet-4-6',
+  'balanced': 'anthropic.claude-sonnet-4-6',
   
-  // Claude 3 Opus - Maximum capability
-  'opus': 'anthropic.claude-3-opus-20240229-v1:0',
-  'thorough': 'anthropic.claude-3-opus-20240229-v1:0',
+  // Claude 4.6 Opus - Maximum capability (most intelligent)
+  'opus': 'anthropic.claude-opus-4-6-v1',
+  'thorough': 'anthropic.claude-opus-4-6-v1',
   
   // Convenience aliases
-  'fast': 'anthropic.claude-3-haiku-20240307-v1:0',
-  'cheap': 'anthropic.claude-3-haiku-20240307-v1:0',
-  'default': 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+  'fast': 'anthropic.claude-haiku-4-5-20251001-v1:0',
+  'cheap': 'anthropic.claude-haiku-4-5-20251001-v1:0',
+  'default': 'anthropic.claude-sonnet-4-6',
+  
+  // Anthropic API aliases (for direct API use, not Bedrock)
+  'anthropic-opus': 'claude-opus-4-6',
+  'anthropic-sonnet': 'claude-sonnet-4-6',
+  'anthropic-haiku': 'claude-haiku-4-5',
 };
 
 /**
@@ -208,6 +216,9 @@ export function selectModel(
  * Get human-readable model name from model ID
  */
 export function getModelName(modelId: string): string {
+  if (modelId.includes('haiku-4')) return 'Claude Haiku 4.5';
+  if (modelId.includes('sonnet-4')) return 'Claude Sonnet 4.6';
+  if (modelId.includes('opus-4')) return 'Claude Opus 4.6';
   if (modelId.includes('haiku')) return 'Claude 3 Haiku';
   if (modelId.includes('sonnet')) return 'Claude 3.5 Sonnet';
   if (modelId.includes('opus')) return 'Claude 3 Opus';
@@ -217,10 +228,15 @@ export function getModelName(modelId: string): string {
 /**
  * Estimate relative cost multiplier for a model
  * Base cost = 1.0 (Haiku)
+ * 
+ * Based on Claude 4.6 pricing:
+ * - Haiku 4.5: $1 input / $5 output per MTok
+ * - Sonnet 4.6: $3 input / $15 output per MTok (3x Haiku)
+ * - Opus 4.6: $5 input / $25 output per MTok (5x Haiku)
  */
 export function getModelCostMultiplier(modelId: string): number {
   if (modelId.includes('haiku')) return 1.0;
-  if (modelId.includes('sonnet')) return 12.0; // ~12x more expensive than Haiku
-  if (modelId.includes('opus')) return 60.0; // ~60x more expensive than Haiku
+  if (modelId.includes('sonnet')) return 3.0; // 3x more expensive than Haiku
+  if (modelId.includes('opus')) return 5.0; // 5x more expensive than Haiku
   return 1.0;
 }
