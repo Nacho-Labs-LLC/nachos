@@ -87,6 +87,12 @@ COPY --chown=nachos:nachos . .
 # Copy prebuilt config dist from shared builder
 COPY --from=config --chown=nachos:nachos /app/packages/shared/config/dist ./packages/shared/config/dist
 
+# Build all workspace dependencies
+RUN pnpm --filter @nachos/types build && \
+    pnpm --filter @nachos/utils build && \
+    pnpm --filter @nachos/context-manager build && \
+    pnpm --filter @nachos/bus build
+
 # Expose port (gateway will listen on this)
 EXPOSE 3000
 

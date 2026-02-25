@@ -35,6 +35,7 @@ const CONFIG_SHAPE: SchemaNode = {
     max_tokens: true,
     temperature: true,
     base_url: true,
+    region: true, // AWS region for Bedrock provider
   },
   channels: {
     webchat: { enabled: true, port: true },
@@ -478,11 +479,16 @@ function validateLLMConfig(config: NachosConfig, errors: string[], warnings: str
     return;
   }
 
-  const validProviders = ['anthropic', 'openai', 'ollama', 'custom'];
+  const validProviders = ['anthropic', 'openai', 'ollama', 'bedrock', 'custom'];
   if (!validProviders.includes(config.llm.provider)) {
     errors.push(
       `Invalid llm.provider: "${config.llm.provider}". Must be one of: ${validProviders.join(', ')}`
     );
+  }
+
+  // Bedrock provider should have region specified
+  if (config.llm.provider === 'bedrock' && !config.llm.region) {
+    errors.push('llm.region is required when using bedrock provider');
   }
 
   if (!config.llm.model || config.llm.model.trim() === '') {

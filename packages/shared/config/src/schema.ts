@@ -57,6 +57,7 @@ export interface LLMConfig {
   max_tokens?: number;
   temperature?: number;
   base_url?: string; // For Ollama and custom providers
+  region?: string; // AWS region for Bedrock provider
 }
 
 /**

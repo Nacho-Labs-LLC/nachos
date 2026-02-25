@@ -28,7 +28,10 @@ COPY packages/shared/ ./packages/shared/
 COPY packages/core/bus/ ./packages/core/bus/
 COPY packages/core/admin/ ./packages/core/admin/
 
-RUN pnpm install --frozen-lockfile --filter @nachos/admin...
+# Build workspace dependencies first
+RUN pnpm install --frozen-lockfile --filter @nachos/admin... \
+ && pnpm --filter @nachos/types build \
+ && pnpm --filter @nachos/bus build
 
 WORKDIR /build/packages/core/admin
 RUN pnpm build:backend
