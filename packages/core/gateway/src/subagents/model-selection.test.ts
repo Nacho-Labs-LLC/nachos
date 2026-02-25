@@ -117,6 +117,24 @@ describe('Model Selection', () => {
       expect(model).toBe('my-custom-model-id');
     });
 
+    it('should handle custom aliases case-insensitively', () => {
+      const config = {
+        aliases: {
+          'My-Custom-Fast': 'my-custom-model-id',
+          'CUSTOM_SLOW': 'another-model-id',
+        },
+      };
+
+      expect(selectModel('Task', { model: 'my-custom-fast' }, config))
+        .toBe('my-custom-model-id');
+      
+      expect(selectModel('Task', { model: 'custom_slow' }, config))
+        .toBe('another-model-id');
+      
+      expect(selectModel('Task', { model: 'CUSTOM_SLOW' }, config))
+        .toBe('another-model-id');
+    });
+
     it('should use defaultModel from config when no auto-select', () => {
       const model = selectModel(
         'Some task',

@@ -108,7 +108,7 @@ function analyzeTaskComplexity(task: string): ComplexityIndicators {
  */
 function autoSelectModel(task: string, config: ModelSelectionConfig): string {
   const complexity = analyzeTaskComplexity(task);
-  const aliases = { ...DEFAULT_MODEL_ALIASES, ...config.aliases };
+  const aliases = normalizeAliases({ ...DEFAULT_MODEL_ALIASES, ...config.aliases });
   
   // Code analysis or multi-step work → Opus (keywords trump length)
   if (complexity.hasCodeAnalysis || complexity.hasMultipleSteps) {
@@ -130,10 +130,21 @@ function autoSelectModel(task: string, config: ModelSelectionConfig): string {
 }
 
 /**
+ * Normalize aliases to lowercase for case-insensitive lookups
+ */
+function normalizeAliases(aliases: Record<string, string>): Record<string, string> {
+  const normalized: Record<string, string> = {};
+  for (const [key, value] of Object.entries(aliases)) {
+    normalized[key.toLowerCase()] = value;
+  }
+  return normalized;
+}
+
+/**
  * Resolve model alias to full model ID
  */
 function resolveAlias(alias: string, config: ModelSelectionConfig): string {
-  const aliases = { ...DEFAULT_MODEL_ALIASES, ...config.aliases };
+  const aliases = normalizeAliases({ ...DEFAULT_MODEL_ALIASES, ...config.aliases });
   const lowerAlias = alias.toLowerCase();
   
   // If it's an alias, resolve it
@@ -175,7 +186,7 @@ export function selectModel(
   
   // 2. Model hint
   if (options.modelHint) {
-    const aliases = { ...DEFAULT_MODEL_ALIASES, ...config.aliases };
+    const aliases = normalizeAliases({ ...DEFAULT_MODEL_ALIASES, ...config.aliases });
     return aliases[options.modelHint] ?? DEFAULT_MODEL_ALIASES[options.modelHint]!;
   }
   

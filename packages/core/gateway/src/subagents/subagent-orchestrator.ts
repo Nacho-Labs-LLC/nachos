@@ -75,15 +75,23 @@ export class SubagentOrchestrator {
       throw createValidationError('Subagent task is required', { component: 'gateway' });
     }
 
-    // Select model based on request and config
-    const selectedModel = selectModel(
-      task,
-      {
-        model: request.model,
-        modelHint: request.modelHint,
-      },
-      this.deps.config?.models
-    );
+    // Only select model when explicitly requested or auto-select is enabled
+    // This preserves session.config.model for subagents without overrides
+    const modelsConfig = this.deps.config?.models;
+    const hasExplicitOverride = Boolean(request.model || request.modelHint);
+    const autoSelectEnabled = Boolean(modelsConfig?.autoSelect || modelsConfig?.defaultModel);
+
+    let selectedModel: string | undefined;
+    if (hasExplicitOverride || autoSelectEnabled) {
+      selectedModel = selectModel(
+        task,
+        {
+          model: request.model,
+          modelHint: request.modelHint,
+        },
+        modelsConfig
+      );
+    }
 
     const runId = randomUUID();
     const now = new Date().toISOString();
@@ -320,6 +328,13 @@ export class SubagentOrchestrator {
     });
 
     const announceRequest = await this.deps.buildLLMRequest(childSessionId, [], false);
+    
+    // Use the same model for announce as the main subagent run
+    if (entry.record.model) {
+      announceRequest.options = announceRequest.options || {};
+      announceRequest.options.model = entry.record.model;
+    }
+    
     const announceResult = await this.deps.subagentManager.run({
       id: `${record.runId}-announce`,
       request: announceRequest,
