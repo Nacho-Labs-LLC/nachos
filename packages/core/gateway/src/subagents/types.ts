@@ -103,4 +103,31 @@ export interface SubagentRunRecord {
   progress?: SubagentProgressUpdate[];
   stream?: boolean;
   streamChunks?: string[];
+  workflowId?: string;
+  stepId?: string;
+}
+
+export type WorkflowRunStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+
+export interface WorkflowStepResult {
+  stepId: string;
+  runId: string;
+  status: SubagentRunStatus;
+  result?: string;
+  error?: { code: string; message: string };
+  durationMs?: number;
+}
+
+export interface WorkflowRunRecord {
+  workflowId: string;
+  status: WorkflowRunStatus;
+  createdAt: string;
+  startedAt?: string;
+  completedAt?: string;
+  requester: SubagentRequesterInfo;
+  stepResults: Map<string, WorkflowStepResult>;
+  currentBatch?: number;
+  totalBatches?: number;
+  durationMs?: number;
+  error?: { code: string; message: string };
 }

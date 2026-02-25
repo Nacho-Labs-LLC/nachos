@@ -57,6 +57,7 @@ export class SubagentOrchestrator {
   private stopped = false;
   private workspaceRoot?: string;
   private workspaceDirs = new Map<string, string>();
+  private workflows = new Map<string, import('./types.js').WorkflowRunRecord>();
 
   constructor(private deps: SubagentOrchestratorDeps) {
     this.maxConcurrent = Math.max(1, Math.floor(deps.config?.maxConcurrent ?? 1));
@@ -209,6 +210,56 @@ export class SubagentOrchestrator {
     });
 
     return true;
+  }
+
+  async enqueueWorkflow(
+    workflow: import('./dependency-graph.js').WorkflowDefinition,
+    requester: import('./types.js').SubagentRequesterInfo
+  ): Promise<import('./types.js').WorkflowRunRecord> {
+    if (this.stopped) {
+      throw createInvalidStateError('Subagent orchestrator is stopped', { component: 'gateway' });
+    }
+
+    // Validate workflow
+    const { validateWorkflow, computeExecutionPlan } = await import('./dependency-graph.js');
+    const validation = validateWorkflow(workflow);
+    if (!validation.valid) {
+      throw createValidationError(
+        validation.error?.message ?? 'Invalid workflow',
+        { component: 'gateway', details: validation.error }
+      );
+    }
+
+    // Compute execution plan
+    const plan = computeExecutionPlan(workflow);
+
+    const workflowId = randomUUID();
+    const now = new Date().toISOString();
+
+    const workflowRecord: import('./types.js').WorkflowRunRecord = {
+      workflowId,
+      status: 'queued',
+      createdAt: now,
+      requester,
+      stepResults: new Map(),
+      currentBatch: 0,
+      totalBatches: plan.batches.length,
+    };
+
+    this.workflows.set(workflowId, workflowRecord);
+
+    // Start workflow execution
+    void this.executeWorkflow(workflowId, plan, requester);
+
+    return workflowRecord;
+  }
+
+  getWorkflow(workflowId: string): import('./types.js').WorkflowRunRecord | null {
+    return this.workflows.get(workflowId) ?? null;
+  }
+
+  listWorkflows(): import('./types.js').WorkflowRunRecord[] {
+    return Array.from(this.workflows.values());
   }
 
   async shutdown(): Promise<void> {
@@ -422,5 +473,127 @@ export class SubagentOrchestrator {
         format: 'markdown',
       },
     });
+  }
+
+  private async executeWorkflow(
+    workflowId: string,
+    plan: import('./dependency-graph.js').ExecutionPlan,
+    requester: import('./types.js').SubagentRequesterInfo
+  ): Promise<void> {
+    const workflow = this.workflows.get(workflowId);
+    if (!workflow) {
+      return;
+    }
+
+    workflow.status = 'running';
+    workflow.startedAt = new Date().toISOString();
+    const startTime = Date.now();
+
+    try {
+      // Execute batches sequentially
+      for (let batchIndex = 0; batchIndex < plan.batches.length; batchIndex++) {
+        workflow.currentBatch = batchIndex;
+        const batch = plan.batches[batchIndex];
+        if (!batch) {
+          throw new Error(`Batch ${batchIndex} not found in execution plan`);
+        }
+
+        // Spawn all steps in the batch (parallel execution)
+        const batchPromises = batch.map(async (stepId) => {
+          const step = plan.steps.get(stepId);
+          if (!step) {
+            throw new Error(`Step ${stepId} not found in execution plan`);
+          }
+
+          // Build task with dependency results injected
+          let enhancedTask = step.task;
+          if (step.dependsOn && step.dependsOn.length > 0) {
+            const depResults: string[] = [];
+            for (const depId of step.dependsOn) {
+              const depResult = workflow.stepResults.get(depId);
+              if (depResult?.result) {
+                depResults.push(`**Result from step "${depId}":**\n${depResult.result}`);
+              }
+            }
+            if (depResults.length > 0) {
+              enhancedTask = `${depResults.join('\n\n')}\n\n**Your task:**\n${step.task}`;
+            }
+          }
+
+          // Enqueue the step as a regular subagent
+          const run = await this.enqueue({
+            task: enhancedTask,
+            model: step.model,
+            modelHint: step.modelHint,
+            stream: step.stream,
+            requester,
+          });
+
+          // Mark the run as part of this workflow
+          const runEntry = this.runs.get(run.runId);
+          if (runEntry) {
+            runEntry.record.workflowId = workflowId;
+            runEntry.record.stepId = stepId;
+          }
+
+          // Wait for completion
+          let attempts = 0;
+          while (attempts < 3000) {
+            // 5 minutes max
+            const runRecord = this.getRun(run.runId);
+            if (runRecord?.status === 'completed' || runRecord?.status === 'failed') {
+              break;
+            }
+            await new Promise((resolve) => setTimeout(resolve, 100));
+            attempts++;
+          }
+
+          const finalRun = this.getRun(run.runId);
+          const result = this.getRunResult(run.runId);
+
+          // Extract result text
+          let resultText: string | undefined;
+          if (result?.success && result.response?.message) {
+            resultText =
+              typeof result.response.message.content === 'string'
+                ? result.response.message.content
+                : undefined;
+          }
+
+          // Store step result
+          const stepResult: import('./types.js').WorkflowStepResult = {
+            stepId,
+            runId: run.runId,
+            status: finalRun?.status ?? 'failed',
+            result: resultText,
+            error: finalRun?.error,
+            durationMs: finalRun?.durationMs,
+          };
+
+          workflow.stepResults.set(stepId, stepResult);
+
+          // If step failed, propagate error
+          if (finalRun?.status === 'failed') {
+            throw new Error(`Step "${stepId}" failed: ${finalRun.error?.message ?? 'Unknown error'}`);
+          }
+        });
+
+        // Wait for all steps in batch to complete
+        await Promise.all(batchPromises);
+      }
+
+      // Workflow completed successfully
+      workflow.status = 'completed';
+      workflow.completedAt = new Date().toISOString();
+      workflow.durationMs = Date.now() - startTime;
+    } catch (error) {
+      workflow.status = 'failed';
+      workflow.error = {
+        code: 'WORKFLOW_EXECUTION_ERROR',
+        message: error instanceof Error ? error.message : 'Workflow execution failed',
+      };
+      workflow.completedAt = new Date().toISOString();
+      workflow.durationMs = Date.now() - startTime;
+    }
   }
 }
