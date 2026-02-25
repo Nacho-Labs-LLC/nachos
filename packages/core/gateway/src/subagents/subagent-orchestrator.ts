@@ -175,6 +175,38 @@ export class SubagentOrchestrator {
     return true;
   }
 
+  reportProgress(
+    runId: string,
+    status: string,
+    percentage?: number,
+    metadata?: Record<string, unknown>
+  ): boolean {
+    const entry = this.runs.get(runId);
+    if (!entry) {
+      return false;
+    }
+
+    // Can only report progress for running subagents
+    if (entry.record.status !== 'running') {
+      return false;
+    }
+
+    // Initialize progress array if not present
+    if (!entry.record.progress) {
+      entry.record.progress = [];
+    }
+
+    // Add progress update
+    entry.record.progress.push({
+      timestamp: new Date().toISOString(),
+      status,
+      percentage,
+      metadata,
+    });
+
+    return true;
+  }
+
   async shutdown(): Promise<void> {
     this.stopped = true;
     this.queue = [];

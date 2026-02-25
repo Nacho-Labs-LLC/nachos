@@ -25,6 +25,7 @@ import { TOPICS } from '@nachos/bus';
 import {
   SessionsSpawnToolSchema,
   SubagentsToolSchema,
+  SubagentProgressToolSchema,
   BootstrapToolSchema,
   UserProfileToolSchema,
   validateChannelInboundMessage,
@@ -1524,7 +1525,7 @@ export class Gateway {
     options?: { bootstrapLocked?: boolean }
   ): LLMRequestType['tools'] {
     if (this.isSubagentSession(session)) {
-      return undefined;
+      return this.buildSubagentToolDefinitions();
     }
 
     const tools: NonNullable<LLMRequestType['tools']> = [];
@@ -1686,6 +1687,24 @@ export class Gateway {
       securityMode: this.securityMode,
       channel: session.channel,
     };
+  }
+
+  /**
+   * Build tool definitions for subagent sessions.
+   * Subagents get a limited set of tools, primarily for reporting progress.
+   */
+  private buildSubagentToolDefinitions(): LLMRequestType['tools'] {
+    const tools: NonNullable<LLMRequestType['tools']> = [];
+
+    // Progress reporting tool - allows subagents to report progress
+    tools.push({
+      name: 'subagent_progress',
+      description:
+        'Report progress on the current task. Use this to keep the requester informed of your progress. The runId is automatically determined from your session context.',
+      parameters: this.sanitizeToolSchema(SubagentProgressToolSchema),
+    });
+
+    return tools;
   }
 
   private buildStateLayerDependencies(): StateLayerDependencies {
@@ -2043,6 +2062,60 @@ export class Gateway {
       return {
         success: true,
         content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
+      };
+    }
+
+    if (call.tool === 'subagent_progress') {
+      if (!this.subagentOrchestrator) {
+        return this.formatToolError('SUBAGENT_DISABLED', 'Subagent execution is not configured');
+      }
+
+      if (!session) {
+        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found');
+      }
+
+      // Extract runId from session metadata (only available in subagent sessions)
+      const subagentMetadata = session.metadata?.subagent as { runId?: string } | undefined;
+      const runId = subagentMetadata?.runId;
+      if (!runId) {
+        return this.formatToolError(
+          'NOT_SUBAGENT_SESSION',
+          'Progress reporting is only available within subagent sessions'
+        );
+      }
+
+      const status = this.readOptionalString(call.parameters.status);
+      if (!status) {
+        return this.formatToolError('INVALID_PARAMETERS', 'status is required');
+      }
+
+      const percentage =
+        typeof call.parameters.percentage === 'number' ? call.parameters.percentage : undefined;
+      const metadata =
+        typeof call.parameters.metadata === 'object' && call.parameters.metadata !== null
+          ? (call.parameters.metadata as Record<string, unknown>)
+          : undefined;
+
+      const success = this.subagentOrchestrator.reportProgress(runId, status, percentage, metadata);
+
+      if (!success) {
+        return this.formatToolError(
+          'PROGRESS_REPORT_FAILED',
+          'Failed to report progress (run may be completed or not found)'
+        );
+      }
+
+      return {
+        success: true,
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              status: 'recorded',
+              message: 'Progress update recorded successfully',
+            }),
+          },
+        ],
       };
     }
 
