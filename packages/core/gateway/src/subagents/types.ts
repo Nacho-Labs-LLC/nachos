@@ -53,6 +53,11 @@ export interface SubagentAnnounceConfig {
 export interface SubagentOrchestratorConfig {
   maxConcurrent?: number;
   announce?: SubagentAnnounceConfig;
+  models?: {
+    aliases?: Record<string, string>;
+    autoSelect?: boolean;
+    defaultModel?: string;
+  };
 }
 
 export interface SubagentRunRequest {
@@ -62,6 +67,7 @@ export interface SubagentRunRequest {
   agentId?: string;
   requester: SubagentRequesterInfo;
   model?: string;
+  modelHint?: 'fast' | 'balanced' | 'thorough';
   thinking?: string;
   timeoutMs?: number;
   cleanup?: 'delete' | 'keep';
@@ -79,6 +85,7 @@ export interface SubagentRunRecord {
   label?: string;
   profile?: string;
   agentId?: string;
+  model?: string;
   requester: SubagentRequesterInfo;
   childSessionId: string;
   sandboxed?: boolean;

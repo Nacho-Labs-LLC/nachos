@@ -23,6 +23,7 @@ import {
   extractMessageText,
 } from './announce.js';
 import { ensureSubagentWorkspaceDir } from './workspace-utils.js';
+import { selectModel } from './model-selection.js';
 
 interface SubagentRunEntry {
   record: SubagentRunRecord;
@@ -74,6 +75,24 @@ export class SubagentOrchestrator {
       throw createValidationError('Subagent task is required', { component: 'gateway' });
     }
 
+    // Only select model when explicitly requested or auto-select is enabled
+    // This preserves session.config.model for subagents without overrides
+    const modelsConfig = this.deps.config?.models;
+    const hasExplicitOverride = Boolean(request.model || request.modelHint);
+    const autoSelectEnabled = Boolean(modelsConfig?.autoSelect || modelsConfig?.defaultModel);
+
+    let selectedModel: string | undefined;
+    if (hasExplicitOverride || autoSelectEnabled) {
+      selectedModel = selectModel(
+        task,
+        {
+          model: request.model,
+          modelHint: request.modelHint,
+        },
+        modelsConfig
+      );
+    }
+
     const runId = randomUUID();
     const now = new Date().toISOString();
     const workspaceDir = await this.ensureWorkspace(runId);
@@ -87,6 +106,7 @@ export class SubagentOrchestrator {
       label: request.label,
       profile: request.profile,
       agentId: request.agentId,
+      model: selectedModel,
       requester: request.requester,
       childSessionId,
     };
@@ -187,6 +207,13 @@ export class SubagentOrchestrator {
       const request = entry.request;
       const childSessionId = entry.record.childSessionId;
       const llmRequest = await this.deps.buildLLMRequest(childSessionId, [], false);
+      
+      // Override model with selected model for this subagent
+      if (entry.record.model) {
+        llmRequest.options = llmRequest.options || {};
+        llmRequest.options.model = entry.record.model;
+      }
+      
       const result = await this.deps.subagentManager.run({
         id: entry.record.runId,
         request: llmRequest,
@@ -301,6 +328,13 @@ export class SubagentOrchestrator {
     });
 
     const announceRequest = await this.deps.buildLLMRequest(childSessionId, [], false);
+    
+    // Use the same model for announce as the main subagent run
+    if (entry.record.model) {
+      announceRequest.options = announceRequest.options || {};
+      announceRequest.options.model = entry.record.model;
+    }
+    
     const announceResult = await this.deps.subagentManager.run({
       id: `${record.runId}-announce`,
       request: announceRequest,
