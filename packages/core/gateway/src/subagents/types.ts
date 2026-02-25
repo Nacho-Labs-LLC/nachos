@@ -53,11 +53,16 @@ export interface SubagentAnnounceConfig {
 
 export interface SubagentOrchestratorConfig {
   maxConcurrent?: number;
+  maxQueueSize?: number;
+  maxPerUser?: number;
+  maxStreamChunks?: number;
+  maxProgressUpdates?: number;
   announce?: SubagentAnnounceConfig;
   models?: {
     aliases?: Record<string, string>;
     autoSelect?: boolean;
     defaultModel?: string;
+    allowedModels?: string[];
   };
 }
 

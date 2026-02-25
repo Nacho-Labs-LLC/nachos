@@ -5,6 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import crypto from 'node:crypto';
 import type { Router } from '../router.js';
 import type { SessionManager } from '../session.js';
 import { SubagentOrchestrator } from './subagent-orchestrator.js';
@@ -31,11 +32,11 @@ describe('SubagentOrchestrator - Streaming Results', () => {
     } as unknown as SubagentManager;
 
     mockSessionManager = {
-      getOrCreateSession: vi.fn().mockReturnValue({
-        id: 'test-session-id',
+      getOrCreateSession: vi.fn().mockImplementation(() => ({
+        id: crypto.randomUUID(), // Valid UUID for session ID validation
         channel: 'test',
         conversationId: 'test-conv',
-      }),
+      })),
       addMessage: vi.fn(),
     } as unknown as SessionManager;
 
