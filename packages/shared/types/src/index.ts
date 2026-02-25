@@ -170,6 +170,8 @@ export {
   type SessionsSpawnToolType,
   SubagentsToolSchema,
   type SubagentsToolType,
+  SubagentProgressToolSchema,
+  type SubagentProgressToolType,
   MemoryToolSchema,
   type MemoryToolType,
   BootstrapToolSchema,

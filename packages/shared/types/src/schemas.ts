@@ -736,6 +736,25 @@ export const SubagentsToolSchema = Type.Object(
 
 export type SubagentsToolType = Static<typeof SubagentsToolSchema>;
 
+/**
+ * Subagent progress update tool parameters
+ * Available only within subagent sessions
+ */
+export const SubagentProgressToolSchema = Type.Object(
+  {
+    status: Type.String({ description: 'Progress status message', minLength: 1 }),
+    percentage: Type.Optional(
+      Type.Number({ description: 'Progress percentage (0-100)', minimum: 0, maximum: 100 })
+    ),
+    metadata: Type.Optional(
+      Type.Record(Type.String(), Type.Unknown(), { description: 'Additional progress metadata' })
+    ),
+  },
+  { $id: 'SubagentProgressTool', description: 'Subagent progress update tool parameters' }
+);
+
+export type SubagentProgressToolType = Static<typeof SubagentProgressToolSchema>;
+
 // ============================================================================
 // Health Check Schemas
 // ============================================================================
@@ -968,6 +987,7 @@ export const Schemas = {
   ToolResponse: ToolResponseSchema,
   SessionsSpawnTool: SessionsSpawnToolSchema,
   SubagentsTool: SubagentsToolSchema,
+  SubagentProgressTool: SubagentProgressToolSchema,
 
   // Health
   HealthStatus: HealthStatusSchema,

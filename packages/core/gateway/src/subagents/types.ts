@@ -75,6 +75,13 @@ export interface SubagentRunRequest {
   sandboxMode?: SubagentTask['sandboxMode'];
 }
 
+export interface SubagentProgressUpdate {
+  timestamp: string;
+  status: string;
+  percentage?: number;
+  metadata?: Record<string, unknown>;
+}
+
 export interface SubagentRunRecord {
   runId: string;
   status: SubagentRunStatus;
@@ -91,4 +98,5 @@ export interface SubagentRunRecord {
   sandboxed?: boolean;
   durationMs?: number;
   error?: { code: string; message: string };
+  progress?: SubagentProgressUpdate[];
 }
