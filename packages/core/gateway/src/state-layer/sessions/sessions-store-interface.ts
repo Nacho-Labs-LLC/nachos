@@ -45,43 +45,43 @@ export interface CreateMessageData {
 }
 
 /**
- * Sessions storage interface - supports both sync (SQLite) and async (Postgres) implementations
+ * Sessions storage interface
+ * 
+ * Copilot fix #8: Made all methods consistently async (Promise<T>)
+ * Copilot fix #9: Renamed from ISessionsStore to SessionsStore (removed I prefix)
+ * 
+ * All implementations must be async to support both SQLite and Postgres.
  */
-export interface ISessionsStore {
+export interface SessionsStore {
   /**
    * Create a new session
    */
-  createSession(data: CreateSessionData): Session | Promise<Session>;
+  createSession(data: CreateSessionData): Promise<Session>;
 
   /**
    * Get or create a session atomically (race condition safe)
    */
-  getOrCreateSessionAtomic(data: CreateSessionData): 
-    | { session: Session; created: boolean }
-    | Promise<{ session: Session; created: boolean }>;
+  getOrCreateSessionAtomic(data: CreateSessionData): Promise<{ session: Session; created: boolean }>;
 
   /**
    * Get a session by ID
    */
-  getSession(id: string): Session | null | Promise<Session | null>;
+  getSession(id: string): Promise<Session | null>;
 
   /**
    * Get a session by channel and conversation ID
    */
-  getSessionByConversation(channel: string, conversationId: string): 
-    | Session
-    | null
-    | Promise<Session | null>;
+  getSessionByConversation(channel: string, conversationId: string): Promise<Session | null>;
 
   /**
    * Update a session
    */
-  updateSession(id: string, data: UpdateSessionData): Session | null | Promise<Session | null>;
+  updateSession(id: string, data: UpdateSessionData): Promise<Session | null>;
 
   /**
    * Delete a session and its messages
    */
-  deleteSession(id: string): boolean | Promise<boolean>;
+  deleteSession(id: string): Promise<boolean>;
 
   /**
    * List sessions with optional filtering
@@ -91,12 +91,12 @@ export interface ISessionsStore {
     status?: SessionStatus;
     limit?: number;
     offset?: number;
-  }): Session[] | Promise<Session[]>;
+  }): Promise<Session[]>;
 
   /**
    * Add a message to a session
    */
-  addMessage(data: CreateMessageData): Message | Promise<Message>;
+  addMessage(data: CreateMessageData): Promise<Message>;
 
   /**
    * Get messages for a session
@@ -104,22 +104,22 @@ export interface ISessionsStore {
   getMessages(
     sessionId: string,
     options?: { limit?: number; offset?: number }
-  ): Message[] | Promise<Message[]>;
+  ): Promise<Message[]>;
 
   /**
    * Get a session with its messages
    */
-  getSessionWithMessages(id: string): SessionWithMessages | null | Promise<SessionWithMessages | null>;
+  getSessionWithMessages(id: string): Promise<SessionWithMessages | null>;
 
   /**
    * Get the count of messages in a session
    */
-  getMessageCount(sessionId: string): number | Promise<number>;
+  getMessageCount(sessionId: string): Promise<number>;
 
   /**
    * Replace all messages for a session (used after compaction)
    */
-  replaceMessages(sessionId: string, messages: Message[]): number | Promise<number>;
+  replaceMessages(sessionId: string, messages: Message[]): Promise<number>;
 
   /**
    * List active sessions (last activity within 24 hours OR pinned)
@@ -129,7 +129,7 @@ export interface ISessionsStore {
     userId?: string;
     limit?: number;
     offset?: number;
-  }): Session[] | Promise<Session[]>;
+  }): Promise<Session[]>;
 
   /**
    * List archived sessions
@@ -140,25 +140,30 @@ export interface ISessionsStore {
     search?: string;
     limit?: number;
     offset?: number;
-  }): Session[] | Promise<Session[]>;
+  }): Promise<Session[]>;
 
   /**
    * Archive a session
    */
-  archive(sessionId: string): boolean | Promise<boolean>;
+  archive(sessionId: string): Promise<boolean>;
 
   /**
    * Restore a session from archive
    */
-  restore(sessionId: string): boolean | Promise<boolean>;
+  restore(sessionId: string): Promise<boolean>;
 
   /**
    * Pin or unpin a session
    */
-  pin(sessionId: string, pinned: boolean): boolean | Promise<boolean>;
+  pin(sessionId: string, pinned: boolean): Promise<boolean>;
 
   /**
    * Close the storage connection
    */
-  close(): void | Promise<void>;
+  close(): Promise<void>;
 }
+
+/**
+ * @deprecated Use SessionsStore instead
+ */
+export type ISessionsStore = SessionsStore;

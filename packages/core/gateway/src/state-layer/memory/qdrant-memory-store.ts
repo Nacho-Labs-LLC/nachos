@@ -16,26 +16,47 @@ import { createLogger } from '@nachos/types';
 
 const logger = createLogger('qdrant-memory-store');
 
+// Copilot fix #11: Define typed payloads to replace `as any` casts
+interface QdrantEntryPayload {
+  agent_id: string;
+  kind: 'decision' | 'observation' | 'conversation' | 'tool_result';
+  content: string;
+  tags?: string[];
+  confidence?: number;
+  provenance?: Record<string, unknown>;
+  created_at: string;
+  updated_at?: string;
+  expires_at?: string;
+}
+
+interface QdrantFactPayload {
+  agent_id: string;
+  kind: 'fact';
+  subject: string;
+  predicate: string;
+  object: string;
+  confidence?: number;
+  source_entry_id?: string;
+  created_at: string;
+  content: string; // Required by base payload structure
+}
+
+type QdrantPayload = QdrantEntryPayload | QdrantFactPayload;
+
+function isFactPayload(payload: QdrantPayload): payload is QdrantFactPayload {
+  return payload.kind === 'fact';
+}
+
 interface QdrantPoint {
   id: string;
   vector: number[];
-  payload: {
-    agent_id: string;
-    kind: string;
-    content: string;
-    tags?: string[];
-    confidence?: number;
-    provenance?: Record<string, unknown>;
-    created_at: string;
-    updated_at?: string;
-    expires_at?: string;
-  };
+  payload: QdrantPayload;
 }
 
 interface QdrantSearchResult {
   id: string;
   score: number;
-  payload: QdrantPoint['payload'];
+  payload: QdrantPayload;
 }
 
 interface QdrantConfig {
@@ -124,6 +145,8 @@ export class QdrantMemoryStore implements MemoryStore {
 
   /**
    * Make HTTP request to Qdrant API
+   * 
+   * Copilot fix #10: Throw on non-2xx responses instead of returning success with status
    */
   private async request(
     path: string,
@@ -144,7 +167,13 @@ export class QdrantMemoryStore implements MemoryStore {
       body: body ? JSON.stringify(body) : undefined,
     });
 
-    const data = response.ok ? await response.json() : undefined;
+    // Throw on non-2xx responses
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error');
+      throw new Error(`Qdrant API error: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    const data = await response.json();
 
     return {
       status: response.status,
@@ -292,16 +321,22 @@ export class QdrantMemoryStore implements MemoryStore {
         }));
 
         if (factResults.length > 0) {
-          facts = factResults.map((r) => ({
-            id: r.id,
-            agentId: r.payload.agent_id,
-            subject: (r.payload as any).subject,
-            predicate: (r.payload as any).predicate,
-            object: (r.payload as any).object,
-            confidence: r.payload.confidence,
-            sourceEntryId: (r.payload as any).source_entry_id,
-            createdAt: r.payload.created_at,
-          }));
+          // Copilot fix #11: Use type guard instead of `as any`
+          facts = factResults.map((r) => {
+            if (!isFactPayload(r.payload)) {
+              throw new Error(`Expected fact payload but got ${r.payload.kind}`);
+            }
+            return {
+              id: r.id,
+              agentId: r.payload.agent_id,
+              subject: r.payload.subject,
+              predicate: r.payload.predicate,
+              object: r.payload.object,
+              confidence: r.payload.confidence,
+              sourceEntryId: r.payload.source_entry_id,
+              createdAt: r.payload.created_at,
+            };
+          });
         }
       }
     } else {

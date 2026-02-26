@@ -1,17 +1,25 @@
-import type { Pool } from 'pg';
-import type { Session, SessionStatus, Message, SessionWithMessages } from '@nachos/types';
-import type { CreateSessionData, UpdateSessionData, CreateMessageData } from './sessions-store-interface.js';
-export declare class PostgresSessionsStore {
-    private pool;
-    private initialized;
-    private schemaPromise;
-    private schema;
-    constructor(pool: Pool, schema?: string);
-    private ensureSchema;
-    private runSchema;
-    private qualified;
-    private rowToSession;
-    private rowToMessage;
+import type { Session, SessionStatus, Message, SessionWithMessages, SessionConfig, MessageRole } from '@nachos/types';
+export interface CreateSessionData {
+    channel: string;
+    conversationId: string;
+    userId: string;
+    systemPrompt?: string;
+    config?: SessionConfig;
+    metadata?: Record<string, unknown>;
+}
+export interface UpdateSessionData {
+    status?: SessionStatus;
+    systemPrompt?: string;
+    config?: SessionConfig;
+    metadata?: Record<string, unknown>;
+}
+export interface CreateMessageData {
+    sessionId: string;
+    role: MessageRole;
+    content: string;
+    toolCalls?: unknown;
+}
+export interface SessionsStore {
     createSession(data: CreateSessionData): Promise<Session>;
     getOrCreateSessionAtomic(data: CreateSessionData): Promise<{
         session: Session;
@@ -53,4 +61,5 @@ export declare class PostgresSessionsStore {
     pin(sessionId: string, pinned: boolean): Promise<boolean>;
     close(): Promise<void>;
 }
-//# sourceMappingURL=postgres-sessions-store.d.ts.map
+export type ISessionsStore = SessionsStore;
+//# sourceMappingURL=sessions-store-interface.d.ts.map
