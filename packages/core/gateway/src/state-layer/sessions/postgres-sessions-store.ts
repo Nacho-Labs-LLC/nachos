@@ -62,6 +62,9 @@ interface SessionRow {
   metadata: string | null;
   created_at: string;
   updated_at: string;
+  is_pinned: boolean;
+  is_archived: boolean;
+  last_activity: string;
 }
 
 /**
@@ -129,6 +132,9 @@ export class PostgresSessionsStore {
         metadata JSONB,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
+        is_pinned BOOLEAN DEFAULT false,
+        is_archived BOOLEAN DEFAULT false,
+        last_activity TEXT NOT NULL,
         UNIQUE(channel, conversation_id)
       )`
     );
@@ -136,6 +142,20 @@ export class PostgresSessionsStore {
     await this.pool.query(
       `CREATE INDEX IF NOT EXISTS sessions_channel_conversation_idx 
        ON ${this.qualified('sessions')}(channel, conversation_id)`
+    );
+
+    // Create index for active sessions query (optimized for listActive)
+    await this.pool.query(
+      `CREATE INDEX IF NOT EXISTS sessions_active_idx 
+       ON ${this.qualified('sessions')}(channel, is_archived, last_activity) 
+       WHERE is_archived = false`
+    );
+
+    // Create index for archived sessions query
+    await this.pool.query(
+      `CREATE INDEX IF NOT EXISTS sessions_archived_idx 
+       ON ${this.qualified('sessions')}(channel, is_archived, updated_at) 
+       WHERE is_archived = true`
     );
 
     // Create messages table
@@ -179,6 +199,9 @@ export class PostgresSessionsStore {
       metadata: row.metadata ? (typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata) : {},
       createdAt: row.created_at,
       updatedAt: row.updated_at,
+      isPinned: row.is_pinned,
+      isArchived: row.is_archived,
+      lastActivity: row.last_activity,
     };
   }
 
@@ -206,8 +229,8 @@ export class PostgresSessionsStore {
 
     await this.pool.query(
       `INSERT INTO ${this.qualified('sessions')} 
-       (id, channel, conversation_id, user_id, status, system_prompt, config, metadata, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+       (id, channel, conversation_id, user_id, status, system_prompt, config, metadata, created_at, updated_at, is_pinned, is_archived, last_activity)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
       [
         id,
         data.channel,
@@ -219,6 +242,9 @@ export class PostgresSessionsStore {
         data.metadata ? JSON.stringify(data.metadata) : null,
         now,
         now,
+        false, // is_pinned
+        false, // is_archived
+        now,   // last_activity
       ]
     );
 
@@ -233,6 +259,9 @@ export class PostgresSessionsStore {
       metadata: data.metadata ?? {},
       createdAt: now,
       updatedAt: now,
+      isPinned: false,
+      isArchived: false,
+      lastActivity: now,
     };
   }
 
@@ -283,8 +312,8 @@ export class PostgresSessionsStore {
 
       await client.query(
         `INSERT INTO ${this.qualified('sessions')} 
-         (id, channel, conversation_id, user_id, status, system_prompt, config, metadata, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+         (id, channel, conversation_id, user_id, status, system_prompt, config, metadata, created_at, updated_at, is_pinned, is_archived, last_activity)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
         [
           id,
           data.channel,
@@ -296,6 +325,9 @@ export class PostgresSessionsStore {
           data.metadata ? JSON.stringify(data.metadata) : null,
           now,
           now,
+          false, // is_pinned
+          false, // is_archived
+          now,   // last_activity
         ]
       );
 
@@ -312,6 +344,9 @@ export class PostgresSessionsStore {
         metadata: data.metadata ?? {},
         createdAt: now,
         updatedAt: now,
+        isPinned: false,
+        isArchived: false,
+        lastActivity: now,
       };
 
       return { session, created: true };
@@ -500,10 +535,10 @@ export class PostgresSessionsStore {
         ]
       );
 
-      // Update session's updated_at
+      // Update session's updated_at and last_activity
       await client.query(
         `UPDATE ${this.qualified('sessions')} 
-         SET updated_at = $1 
+         SET updated_at = $1, last_activity = $1 
          WHERE id = $2`,
         [now, data.sessionId]
       );
@@ -631,6 +666,149 @@ export class PostgresSessionsStore {
     } finally {
       client.release();
     }
+  }
+
+  /**
+   * List active sessions (last activity within 24 hours OR pinned)
+   */
+  async listActive(options?: {
+    channel?: string;
+    userId?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<Session[]> {
+    await this.ensureSchema();
+    const conditions: string[] = ['is_archived = false'];
+    const values: unknown[] = [];
+    let paramIndex = 1;
+
+    // Calculate 24 hours ago timestamp
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+    // Active sessions are either: (last_activity within 24h) OR is_pinned = true
+    conditions.push(`(last_activity >= $${paramIndex++} OR is_pinned = true)`);
+    values.push(twentyFourHoursAgo);
+
+    if (options?.channel) {
+      conditions.push(`channel = $${paramIndex++}`);
+      values.push(options.channel);
+    }
+    if (options?.userId) {
+      conditions.push(`user_id = $${paramIndex++}`);
+      values.push(options.userId);
+    }
+
+    let sql = `SELECT * FROM ${this.qualified('sessions')} WHERE ${conditions.join(' AND ')}`;
+    sql += ' ORDER BY is_pinned DESC, last_activity DESC';
+
+    if (options?.limit) {
+      sql += ` LIMIT $${paramIndex++}`;
+      values.push(options.limit);
+    }
+    if (options?.offset) {
+      sql += ` OFFSET $${paramIndex++}`;
+      values.push(options.offset);
+    }
+
+    const result = await this.pool.query(sql, values);
+    return result.rows.map((row: SessionRow) => this.rowToSession(row));
+  }
+
+  /**
+   * List archived sessions
+   */
+  async listArchived(options?: {
+    channel?: string;
+    userId?: string;
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<Session[]> {
+    await this.ensureSchema();
+    const conditions: string[] = ['is_archived = true'];
+    const values: unknown[] = [];
+    let paramIndex = 1;
+
+    if (options?.channel) {
+      conditions.push(`channel = $${paramIndex++}`);
+      values.push(options.channel);
+    }
+    if (options?.userId) {
+      conditions.push(`user_id = $${paramIndex++}`);
+      values.push(options.userId);
+    }
+    if (options?.search) {
+      // Search in conversation_id (session name) and system_prompt
+      conditions.push(`(conversation_id ILIKE $${paramIndex} OR system_prompt ILIKE $${paramIndex})`);
+      values.push(`%${options.search}%`);
+      paramIndex++;
+    }
+
+    let sql = `SELECT * FROM ${this.qualified('sessions')} WHERE ${conditions.join(' AND ')}`;
+    sql += ' ORDER BY updated_at DESC';
+
+    if (options?.limit) {
+      sql += ` LIMIT $${paramIndex++}`;
+      values.push(options.limit);
+    }
+    if (options?.offset) {
+      sql += ` OFFSET $${paramIndex++}`;
+      values.push(options.offset);
+    }
+
+    const result = await this.pool.query(sql, values);
+    return result.rows.map((row: SessionRow) => this.rowToSession(row));
+  }
+
+  /**
+   * Archive a session
+   */
+  async archive(sessionId: string): Promise<boolean> {
+    await this.ensureSchema();
+    const now = new Date().toISOString();
+
+    const result = await this.pool.query(
+      `UPDATE ${this.qualified('sessions')} 
+       SET is_archived = true, updated_at = $1 
+       WHERE id = $2`,
+      [now, sessionId]
+    );
+
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  /**
+   * Restore a session from archive
+   */
+  async restore(sessionId: string): Promise<boolean> {
+    await this.ensureSchema();
+    const now = new Date().toISOString();
+
+    const result = await this.pool.query(
+      `UPDATE ${this.qualified('sessions')} 
+       SET is_archived = false, last_activity = $1, updated_at = $1 
+       WHERE id = $2`,
+      [now, sessionId]
+    );
+
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  /**
+   * Pin or unpin a session
+   */
+  async pin(sessionId: string, pinned: boolean): Promise<boolean> {
+    await this.ensureSchema();
+    const now = new Date().toISOString();
+
+    const result = await this.pool.query(
+      `UPDATE ${this.qualified('sessions')} 
+       SET is_pinned = $1, updated_at = $2 
+       WHERE id = $3`,
+      [pinned, now, sessionId]
+    );
+
+    return result.rowCount !== null && result.rowCount > 0;
   }
 
   /**

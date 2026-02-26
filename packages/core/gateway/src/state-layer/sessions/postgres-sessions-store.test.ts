@@ -336,4 +336,198 @@ describeIfPostgres('PostgresSessionsStore', () => {
     expect(retrieved!.config).toEqual(complexConfig);
     expect(retrieved!.metadata).toEqual(complexMetadata);
   });
+
+  it('should create session with default isPinned and isArchived as false', async () => {
+    const session = await store.createSession({
+      channel: 'discord',
+      conversationId: 'test-conversation-11',
+      userId: 'user-123',
+    });
+
+    expect(session.isPinned).toBe(false);
+    expect(session.isArchived).toBe(false);
+    expect(session.lastActivity).toBeTruthy();
+  });
+
+  it('should pin and unpin a session', async () => {
+    const session = await store.createSession({
+      channel: 'discord',
+      conversationId: 'test-conversation-12',
+      userId: 'user-123',
+    });
+
+    // Pin the session
+    const pinned = await store.pin(session.id, true);
+    expect(pinned).toBe(true);
+
+    const pinnedSession = await store.getSession(session.id);
+    expect(pinnedSession!.isPinned).toBe(true);
+
+    // Unpin the session
+    const unpinned = await store.pin(session.id, false);
+    expect(unpinned).toBe(true);
+
+    const unpinnedSession = await store.getSession(session.id);
+    expect(unpinnedSession!.isPinned).toBe(false);
+  });
+
+  it('should archive and restore a session', async () => {
+    const session = await store.createSession({
+      channel: 'discord',
+      conversationId: 'test-conversation-13',
+      userId: 'user-123',
+    });
+
+    // Archive the session
+    const archived = await store.archive(session.id);
+    expect(archived).toBe(true);
+
+    const archivedSession = await store.getSession(session.id);
+    expect(archivedSession!.isArchived).toBe(true);
+
+    // Restore the session
+    const restored = await store.restore(session.id);
+    expect(restored).toBe(true);
+
+    const restoredSession = await store.getSession(session.id);
+    expect(restoredSession!.isArchived).toBe(false);
+  });
+
+  it('should list active sessions (within 24h or pinned)', async () => {
+    // Create a recent session
+    const recentSession = await store.createSession({
+      channel: 'discord',
+      conversationId: 'test-conversation-14',
+      userId: 'user-123',
+    });
+
+    // Create an old session (simulate by manually updating timestamp)
+    const oldSession = await store.createSession({
+      channel: 'discord',
+      conversationId: 'test-conversation-15',
+      userId: 'user-123',
+    });
+
+    // Manually set old session's last_activity to 48 hours ago
+    const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+    await pool.query(
+      `UPDATE ${TEST_SCHEMA}.sessions SET last_activity = $1 WHERE id = $2`,
+      [fortyEightHoursAgo, oldSession.id]
+    );
+
+    // Create a pinned old session
+    const pinnedOldSession = await store.createSession({
+      channel: 'discord',
+      conversationId: 'test-conversation-16',
+      userId: 'user-123',
+    });
+
+    await pool.query(
+      `UPDATE ${TEST_SCHEMA}.sessions SET last_activity = $1 WHERE id = $2`,
+      [fortyEightHoursAgo, pinnedOldSession.id]
+    );
+    await store.pin(pinnedOldSession.id, true);
+
+    // List active sessions
+    const activeSessions = await store.listActive({ channel: 'discord', userId: 'user-123' });
+
+    // Should include recent session and pinned old session, but not unpinned old session
+    const activeIds = activeSessions.map(s => s.id);
+    expect(activeIds).toContain(recentSession.id);
+    expect(activeIds).toContain(pinnedOldSession.id);
+    expect(activeIds).not.toContain(oldSession.id);
+  });
+
+  it('should list archived sessions', async () => {
+    // Create and archive sessions
+    const session1 = await store.createSession({
+      channel: 'discord',
+      conversationId: 'test-conversation-17',
+      userId: 'user-123',
+    });
+    await store.archive(session1.id);
+
+    const session2 = await store.createSession({
+      channel: 'discord',
+      conversationId: 'test-conversation-18',
+      userId: 'user-123',
+    });
+    await store.archive(session2.id);
+
+    // Create an active session (should not appear)
+    await store.createSession({
+      channel: 'discord',
+      conversationId: 'test-conversation-19',
+      userId: 'user-123',
+    });
+
+    // List archived sessions
+    const archivedSessions = await store.listArchived({ channel: 'discord', userId: 'user-123' });
+
+    const archivedIds = archivedSessions.map(s => s.id);
+    expect(archivedIds).toContain(session1.id);
+    expect(archivedIds).toContain(session2.id);
+    expect(archivedSessions.every(s => s.isArchived)).toBe(true);
+  });
+
+  it('should search archived sessions', async () => {
+    const session1 = await store.createSession({
+      channel: 'discord',
+      conversationId: 'search-test-foo',
+      userId: 'user-123',
+      systemPrompt: 'You are a helpful assistant',
+    });
+    await store.archive(session1.id);
+
+    const session2 = await store.createSession({
+      channel: 'discord',
+      conversationId: 'search-test-bar',
+      userId: 'user-123',
+      systemPrompt: 'You are a coding assistant',
+    });
+    await store.archive(session2.id);
+
+    // Search for "foo"
+    const fooResults = await store.listArchived({ 
+      channel: 'discord', 
+      userId: 'user-123',
+      search: 'foo' 
+    });
+
+    expect(fooResults.length).toBeGreaterThanOrEqual(1);
+    expect(fooResults.some(s => s.id === session1.id)).toBe(true);
+
+    // Search for "coding"
+    const codingResults = await store.listArchived({ 
+      channel: 'discord', 
+      userId: 'user-123',
+      search: 'coding' 
+    });
+
+    expect(codingResults.length).toBeGreaterThanOrEqual(1);
+    expect(codingResults.some(s => s.id === session2.id)).toBe(true);
+  });
+
+  it('should update lastActivity when adding messages', async () => {
+    const session = await store.createSession({
+      channel: 'discord',
+      conversationId: 'test-conversation-20',
+      userId: 'user-123',
+    });
+
+    const initialActivity = session.lastActivity;
+
+    // Wait a bit to ensure timestamp changes
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    // Add a message
+    await store.addMessage({
+      sessionId: session.id,
+      role: 'user',
+      content: 'Test message',
+    });
+
+    const updatedSession = await store.getSession(session.id);
+    expect(updatedSession!.lastActivity).not.toBe(initialActivity);
+  });
 });

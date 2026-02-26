@@ -122,6 +122,42 @@ export interface ISessionsStore {
   replaceMessages(sessionId: string, messages: Message[]): number | Promise<number>;
 
   /**
+   * List active sessions (last activity within 24 hours OR pinned)
+   */
+  listActive(options?: {
+    channel?: string;
+    userId?: string;
+    limit?: number;
+    offset?: number;
+  }): Session[] | Promise<Session[]>;
+
+  /**
+   * List archived sessions
+   */
+  listArchived(options?: {
+    channel?: string;
+    userId?: string;
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }): Session[] | Promise<Session[]>;
+
+  /**
+   * Archive a session
+   */
+  archive(sessionId: string): boolean | Promise<boolean>;
+
+  /**
+   * Restore a session from archive
+   */
+  restore(sessionId: string): boolean | Promise<boolean>;
+
+  /**
+   * Pin or unpin a session
+   */
+  pin(sessionId: string, pinned: boolean): boolean | Promise<boolean>;
+
+  /**
    * Close the storage connection
    */
   close(): void | Promise<void>;
