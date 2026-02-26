@@ -1,0 +1,582 @@
+# Nachos Development Compose
+# Use `docker compose watch` for hot-reload (syncs source, rebuilds on shared changes)
+# Use `docker compose up` for static run (no hot-reload, image-baked code only)
+
+# ==================== Networks ====================
+networks:
+  nachos-internal:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+  nachos-egress:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.29.0.0/16
+
+# ==================== Volumes ====================
+volumes:
+  nats-data:
+  redis-data:
+  # postgres-data:  # Uncomment if using Postgres
+  # qdrant-data:    # Uncomment if using Qdrant for semantic search
+
+# ==================== Common Config ====================
+
+x-common-env: &common-env
+  NODE_ENV: development
+  NATS_URL: nats://bus:4222
+  NATS_SERVERS: nats://bus:4222
+  NATS_TOKEN: ${NATS_TOKEN:-nachos-dev-token}
+  LOG_LEVEL: debug
+
+x-channel-env: &channel-env
+  <<: *common-env
+  SECURITY_MODE: ${SECURITY_MODE:-standard}
+  NACHOS_STATE_DIR: /app/state
+  NACHOS_PAIRING_TOKEN: ${NACHOS_PAIRING_TOKEN:-}
+  NACHOS_CONFIG_PATH: /app/nachos.toml
+
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-channel-defaults: &channel-defaults
+  restart: unless-stopped
+  depends_on:
+    bus:
+      condition: service_healthy
+  networks:
+    - nachos-egress
+    - nachos-internal
+  volumes:
+    - ./data/channels:/app/state
+  logging: *default-logging
+
+x-tool-security: &tool-security
+  security_opt:
+    - no-new-privileges:true
+  user: "1001:1001"
+  read_only: true
+
+# ==================== Services ====================
+services:
+
+  # -------------------- Message Bus --------------------
+  bus:
+    container_name: nachos-bus
+    build:
+      context: .
+      dockerfile: packages/core/bus/Dockerfile
+    image: nachos-bus:dev
+    restart: unless-stopped
+    networks:
+      - nachos-internal
+    ports:
+      - "4222:4222"
+    volumes:
+      - nats-data:/data
+    command: ["-c", "/etc/nats/nats-server.conf", "--auth", "${NATS_TOKEN:-nachos-dev-token}"]
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    logging: *default-logging
+
+  # -------------------- Gateway (with embedded Cheese) --------------------
+  gateway:
+    container_name: nachos-gateway
+    build:
+      context: .
+      dockerfile: packages/core/gateway/Dockerfile
+    image: nachos-gateway:dev
+    restart: unless-stopped
+    depends_on:
+      bus:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      # postgres:
+      #   condition: service_healthy
+    networks:
+      - nachos-egress
+      - nachos-internal
+    ports:
+      - "${GATEWAY_PORT:-3000}:3000"
+    environment:
+      <<: *common-env
+      REDIS_URL: redis://redis:6379
+      PORT: "3000"
+      NACHOS_CONFIG_PATH: /app/nachos.toml
+      # Browser tool (embedded via @playwright/mcp)
+      BROWSER_ALLOWED_DOMAINS: ${BROWSER_ALLOWED_DOMAINS:-*}
+      BROWSER_HEADLESS: ${BROWSER_HEADLESS:-true}
+      BROWSER_TIMEOUT_MS: ${BROWSER_TIMEOUT_MS:-30000}
+    shm_size: 256m
+    volumes:
+      - ./data/gateway:/app/data
+      - ./nachos.toml:/app/nachos.toml:ro
+    develop:
+      watch:
+        - action: sync
+          path: ./packages/core/gateway/src
+          target: /app/packages/core/gateway/src
+        - action: rebuild
+          path: ./packages/shared
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    logging: *default-logging
+
+  # -------------------- Redis (Shared State) --------------------
+  redis:
+    container_name: nachos-redis
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks:
+      - nachos-internal
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    logging: *default-logging
+
+  # -------------------- Postgres (OPTIONAL - Multi-Instance Deployments) --------------------
+  # Uncomment if you need:
+  # - Multi-instance gateway deployments (shared sessions/messages)
+  # - Shared identity/memory across instances
+  # Default: SQLite (faster for single instance)
+  #
+  # postgres:
+  #   container_name: nachos-postgres
+  #   image: postgres:16-alpine
+  #   restart: unless-stopped
+  #   networks:
+  #     - nachos-internal
+  #   environment:
+  #     POSTGRES_DB: ${POSTGRES_DB:-nachos}
+  #     POSTGRES_USER: ${POSTGRES_USER:-nachos}
+  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nachos}
+  #   volumes:
+  #     - postgres-data:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+  #     interval: 10s
+  #     timeout: 3s
+  #     retries: 5
+  #     start_period: 5s
+  #   logging: *default-logging
+
+  # -------------------- Qdrant (OPTIONAL - Semantic Search) --------------------
+  # Uncomment if you want semantic search for memory/knowledge:
+  # - Fast vector similarity search
+  # - Hybrid search with metadata filtering
+  # - Better performance than local embeddings at scale
+  # Default: Filesystem + local embeddings (no service required)
+  #
+  # qdrant:
+  #   container_name: nachos-qdrant
+  #   image: qdrant/qdrant:latest
+  #   restart: unless-stopped
+  #   networks:
+  #     - nachos-internal
+  #   ports:
+  #     - "6333:6333"  # HTTP API
+  #     - "6334:6334"  # gRPC API
+  #   volumes:
+  #     - qdrant-data:/qdrant/storage
+  #   environment:
+  #     QDRANT__SERVICE__GRPC_PORT: "6334"
+  #   healthcheck:
+  #     test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:6333/healthz"]
+  #     interval: 10s
+  #     timeout: 3s
+  #     retries: 3
+  #     start_period: 5s
+  #   logging: *default-logging
+
+  # -------------------- LLM Proxy --------------------
+  llm-proxy:
+    container_name: nachos-llm-proxy
+    build:
+      context: .
+      dockerfile: packages/core/llm-proxy/Dockerfile
+    image: nachos-llm-proxy:dev
+    restart: unless-stopped
+    depends_on:
+      bus:
+        condition: service_healthy
+    networks:
+      - nachos-egress
+      - nachos-internal
+    ports:
+      - "3001:3001"
+    environment:
+      <<: *common-env
+      PORT: "3001"
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # AWS Bedrock credentials (uses host env if not set in .env)
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      NACHOS_CONFIG: /app/nachos.toml
+    volumes:
+      - ./nachos.toml:/app/nachos.toml:ro
+    develop:
+      watch:
+        - action: sync
+          path: ./packages/core/llm-proxy/src
+          target: /app/packages/core/llm-proxy/src
+        - action: rebuild
+          path: ./packages/shared
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    logging: *default-logging
+
+  # -------------------- Admin UI --------------------
+  admin:
+    container_name: nachos-admin
+    build:
+      context: .
+      dockerfile: packages/core/admin/Dockerfile
+      args:
+        DOCKER_GID: ${DOCKER_GID:-999}
+    image: nachos-admin:dev
+    restart: unless-stopped
+    depends_on:
+      gateway:
+        condition: service_healthy
+    networks:
+      - nachos-internal
+      - nachos-egress
+    ports:
+      - "8082:8082"
+    environment:
+      NODE_ENV: development
+      PORT: "8082"
+      NATS_URL: nats://bus:4222
+      NATS_TOKEN: ${NATS_TOKEN:-nachos-dev-token}
+      NACHOS_CONFIG_PATH: /app/nachos.toml
+      NACHOS_STATE_DIR: /app/state
+      GATEWAY_HEALTH_URL: http://gateway:3000/health
+      NACHOS_ADMIN_TOKEN: ${NACHOS_ADMIN_TOKEN:-}
+    volumes:
+      - ./data/gateway:/app/state:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./nachos.toml:/app/nachos.toml:ro
+    develop:
+      watch:
+        - action: rebuild
+          path: ./packages/core/admin/src
+        - action: rebuild
+          path: ./packages/core/admin/frontend/src
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8082/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging: *default-logging
+
+  # ==================== Channels ====================
+
+  # -------------------- Slack --------------------
+  slack:
+    <<: *channel-defaults
+    container_name: nachos-channel-slack
+    build:
+      context: .
+      dockerfile: packages/channels/slack/Dockerfile
+    image: nachos-channel-slack:dev
+    ports:
+      - "3005:3005"
+    environment:
+      <<: *channel-env
+      SLACK_HTTP_PORT: "3005"
+      SLACK_APP_TOKEN: ${SLACK_APP_TOKEN:-}
+      SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN:-}
+      SLACK_SIGNING_SECRET: ${SLACK_SIGNING_SECRET:-}
+    develop:
+      watch:
+        - action: sync
+          path: ./packages/channels/slack/src
+          target: /app/packages/channels/slack/src
+        - action: rebuild
+          path: ./packages/channels/base
+        - action: rebuild
+          path: ./packages/shared
+
+  # -------------------- Discord --------------------
+  discord:
+    <<: *channel-defaults
+    container_name: nachos-channel-discord
+    build:
+      context: .
+      dockerfile: packages/channels/discord/Dockerfile
+    image: nachos-channel-discord:dev
+    environment:
+      <<: *channel-env
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
+      CHANNEL_DISCORD_ENABLED: ${CHANNEL_DISCORD_ENABLED:-}
+      # Guild/server access — set these in .env instead of nachos.toml for simple setups
+      CHANNEL_DISCORD_GUILD_ID: ${CHANNEL_DISCORD_GUILD_ID:-}
+      CHANNEL_DISCORD_CHANNEL_IDS: ${CHANNEL_DISCORD_CHANNEL_IDS:-}
+      CHANNEL_DISCORD_USER_ALLOWLIST: ${CHANNEL_DISCORD_USER_ALLOWLIST:-}
+      CHANNEL_DISCORD_MENTION_GATING: ${CHANNEL_DISCORD_MENTION_GATING:-false}
+      CHANNEL_DISCORD_DM_ALLOWLIST: ${CHANNEL_DISCORD_DM_ALLOWLIST:-}
+    develop:
+      watch:
+        - action: sync
+          path: ./packages/channels/discord/src
+          target: /app/packages/channels/discord/src
+        - action: rebuild
+          path: ./packages/channels/base
+        - action: rebuild
+          path: ./packages/shared
+
+  # -------------------- Telegram --------------------
+  telegram:
+    <<: *channel-defaults
+    container_name: nachos-channel-telegram
+    build:
+      context: .
+      dockerfile: packages/channels/telegram/Dockerfile
+    image: nachos-channel-telegram:dev
+    environment:
+      <<: *channel-env
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+    develop:
+      watch:
+        - action: sync
+          path: ./packages/channels/telegram/src
+          target: /app/packages/channels/telegram/src
+        - action: rebuild
+          path: ./packages/channels/base
+        - action: rebuild
+          path: ./packages/shared
+
+  # -------------------- WhatsApp --------------------
+  whatsapp:
+    <<: *channel-defaults
+    container_name: nachos-channel-whatsapp
+    build:
+      context: .
+      dockerfile: packages/channels/whatsapp/Dockerfile
+    image: nachos-channel-whatsapp:dev
+    ports:
+      - "3002:3002"
+    environment:
+      <<: *channel-env
+      WHATSAPP_HTTP_PORT: "3002"
+      WHATSAPP_TOKEN: ${WHATSAPP_TOKEN:-}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-}
+      WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET:-}
+    develop:
+      watch:
+        - action: sync
+          path: ./packages/channels/whatsapp/src
+          target: /app/packages/channels/whatsapp/src
+        - action: rebuild
+          path: ./packages/channels/base
+        - action: rebuild
+          path: ./packages/shared
+
+  # ==================== Tools ====================
+
+  # -------------------- Filesystem Read (SecurityTier 0 — read-only mount) --------------------
+  filesystem-read:
+    container_name: nachos-tool-filesystem-read
+    build:
+      context: .
+      dockerfile: packages/tools/filesystem/Dockerfile
+    image: nachos-tool-filesystem:dev
+    restart: unless-stopped
+    <<: *tool-security
+    depends_on:
+      bus:
+        condition: service_healthy
+    networks:
+      - nachos-internal
+    environment:
+      <<: *common-env
+      TOOL_MODE: read
+      ALLOWED_PATHS: ./workspace
+    volumes:
+      - ./workspace:/workspace:ro
+    tmpfs:
+      - /tmp:noexec,nosuid,size=10m
+    develop:
+      watch:
+        - action: rebuild
+          path: ./packages/tools/filesystem/src
+        - action: rebuild
+          path: ./packages/shared
+    logging: *default-logging
+
+  # -------------------- Filesystem ReadWrite (SecurityTier 2 — write/edit/patch) --------------------
+  filesystem-readwrite:
+    container_name: nachos-tool-filesystem-readwrite
+    build:
+      context: .
+      dockerfile: packages/tools/filesystem/Dockerfile
+    image: nachos-tool-filesystem:dev
+    restart: unless-stopped
+    <<: *tool-security
+    depends_on:
+      bus:
+        condition: service_healthy
+    networks:
+      - nachos-internal
+    environment:
+      <<: *common-env
+      TOOL_MODE: readwrite
+      ALLOWED_PATHS: ./workspace
+      MAX_FILE_SIZE: 10MB
+    volumes:
+      - ./workspace:/workspace:rw
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m
+    develop:
+      watch:
+        - action: rebuild
+          path: ./packages/tools/filesystem/src
+        - action: rebuild
+          path: ./packages/shared
+    logging: *default-logging
+
+  # -------------------- Browser --------------------
+  # Browser tool now runs inside the gateway via @playwright/mcp
+  # See packages/core/gateway/src/tools/browser-local.ts
+
+  # -------------------- Code Runner - Python --------------------
+  code-runner-python:
+    container_name: nachos-tool-code-python
+    build:
+      context: .
+      dockerfile: packages/tools/code-runner/Dockerfile
+    image: nachos-tool-code-runner:dev
+    restart: unless-stopped
+    <<: *tool-security
+    depends_on:
+      bus:
+        condition: service_healthy
+    networks:
+      - nachos-internal
+    environment:
+      <<: *common-env
+      LANGUAGE: python
+      EXECUTION_TIMEOUT: ${CODE_EXECUTION_TIMEOUT:-30}
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 50
+    develop:
+      watch:
+        - action: rebuild
+          path: ./packages/tools/code-runner/src
+        - action: rebuild
+          path: ./packages/shared
+    healthcheck:
+      test: ["CMD", "node", "-e", "process.exit(0)"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    logging: *default-logging
+
+  # -------------------- Code Runner - JavaScript --------------------
+  code-runner-javascript:
+    container_name: nachos-tool-code-javascript
+    build:
+      context: .
+      dockerfile: packages/tools/code-runner/Dockerfile
+    image: nachos-tool-code-runner:dev
+    restart: unless-stopped
+    <<: *tool-security
+    depends_on:
+      bus:
+        condition: service_healthy
+    networks:
+      - nachos-internal
+    environment:
+      <<: *common-env
+      LANGUAGE: javascript
+      EXECUTION_TIMEOUT: ${CODE_EXECUTION_TIMEOUT:-30}
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 50
+    develop:
+      watch:
+        - action: rebuild
+          path: ./packages/tools/code-runner/src
+        - action: rebuild
+          path: ./packages/shared
+    healthcheck:
+      test: ["CMD", "node", "-e", "process.exit(0)"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    logging: *default-logging
+
+  # -------------------- Web Fetch (SecurityTier 1 — STANDARD) --------------------
+  web-fetch:
+    container_name: nachos-tool-web-fetch
+    build:
+      context: .
+      dockerfile: packages/tools/web-fetch/Dockerfile
+    image: nachos-tool-web-fetch:dev
+    restart: unless-stopped
+    <<: *tool-security
+    depends_on:
+      bus:
+        condition: service_healthy
+    networks:
+      - nachos-internal
+      - nachos-egress
+    environment:
+      <<: *common-env
+      MAX_RESPONSE_SIZE: ${WEB_FETCH_MAX_SIZE:-1048576}
+      REQUEST_TIMEOUT: ${WEB_FETCH_TIMEOUT:-30000}
+    tmpfs:
+      - /tmp:noexec,nosuid,size=10m
+    develop:
+      watch:
+        - action: rebuild
+          path: ./packages/tools/web-fetch/src
+        - action: rebuild
+          path: ./packages/shared
+    healthcheck:
+      test: ["CMD", "node", "-e", "process.exit(0)"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    logging: *default-logging

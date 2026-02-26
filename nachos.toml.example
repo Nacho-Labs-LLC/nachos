@@ -1,0 +1,481 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# 🧀 NACHOS CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════════
+# 
+# This is your single configuration file for the entire Nachos stack.
+# Edit this file and run `nachos up` to apply changes.
+#
+# Documentation: https://nachos.dev/docs/configuration
+# ═══════════════════════════════════════════════════════════════════════════════
+
+[nachos]
+name = "my-assistant"
+version = "1.0"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 🥩 THE PROTEIN - Your LLM Provider
+# ═══════════════════════════════════════════════════════════════════════════════
+# Choose your AI backend. Credentials come from environment variables or .env file.
+# For Claude subscriptions, set ANTHROPIC_SETUP_TOKEN from `claude setup-token`.
+
+[llm]
+provider = "anthropic"                    # "anthropic" | "openai" | "ollama" | "custom"
+model = "claude-sonnet-4-20250514"        # Default model
+fallback_order = ["anthropic:claude-haiku"] # Used if primary fails
+max_tokens = 4096                         # Max response tokens
+temperature = 0.7                         # 0.0 = deterministic, 1.0 = creative
+
+# Multiple auth profiles (optional): define env var names + preferred order.
+#
+# [[llm.profiles]]
+# name = "anthropic-subscription-1"
+# provider = "anthropic"
+# api_key_env = "ANTHROPIC_SETUP_TOKEN"
+#
+# [[llm.profiles]]
+# name = "anthropic-primary"
+# provider = "anthropic"
+# api_key_env = "ANTHROPIC_API_KEY"
+#
+# [[llm.profiles]]
+# name = "anthropic-subscription-2"
+# provider = "anthropic"
+# api_key_env = "ANTHROPIC_SETUP_TOKEN_2"
+#
+# profile_order = [
+#   "anthropic-subscription-1",
+#   "anthropic-primary",
+#   "anthropic-subscription-2",
+# ]
+
+# For Ollama (local models):
+# [llm]
+# provider = "ollama"
+# model = "llama3.2"
+# base_url = "http://host.docker.internal:11434"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 🖥️  ADMIN UI - Web Interface
+# ═══════════════════════════════════════════════════════════════════════════════
+# Local web UI for managing the bot and its settings.
+# Access at http://localhost:8082 after `nachos up`.
+# Run `nachos ui` to open in browser.
+
+[admin]
+enabled = true
+port = 8082                               # Local port for admin web UI
+# Set NACHOS_ADMIN_TOKEN env var to require token auth (recommended for non-local use)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 🫑 TOPPINGS - Channels
+# ═══════════════════════════════════════════════════════════════════════════════
+# Enable the messaging platforms you want to connect.
+# Credentials come from environment variables (SLACK_BOT_TOKEN, etc.)
+
+[channels.webchat]
+enabled = true
+port = 8080                               # Local port for web interface
+# No authentication required for local webchat
+
+[channels.slack]
+enabled = false
+mode = "socket"                           # "socket" | "http"
+app_token = "${SLACK_APP_TOKEN}"
+bot_token = "${SLACK_BOT_TOKEN}"
+# For HTTP mode:
+# signing_secret = "${SLACK_SIGNING_SECRET}"
+# webhook_path = "/slack/events"
+
+[channels.slack.commands]
+enabled = ["status", "help", "config.show", "session.reset", "context"]
+admin_allowlist = ["U123456"]
+
+[[channels.slack.servers]]
+ids = ["T123456"]
+channel_ids = ["C111", "C222"]
+user_allowlist = ["U123", "U456"]
+
+[channels.discord]
+enabled = false
+token = "${DISCORD_BOT_TOKEN}"
+
+[channels.discord.commands]
+enabled = ["status", "help", "config.show", "session.reset", "context"]
+admin_allowlist = ["1234567890"]
+
+[[channels.discord.servers]]
+ids = ["1234567890"]
+channel_ids = ["111", "222"]
+user_allowlist = ["user_a", "user_b"]
+
+[channels.telegram]
+enabled = false
+token = "${TELEGRAM_BOT_TOKEN}"
+
+[[channels.telegram.servers]]
+ids = ["9876543210"]
+channel_ids = ["333", "444"]
+user_allowlist = ["user_c", "user_d"]
+
+[channels.whatsapp]
+enabled = false
+token = "${WHATSAPP_TOKEN}"
+phone_number_id = "${WHATSAPP_PHONE_NUMBER_ID}"
+verify_token = "${WHATSAPP_VERIFY_TOKEN}"
+app_secret = "${WHATSAPP_APP_SECRET}" # Optional: enables signature verification
+webhook_path = "/whatsapp/webhook"
+api_version = "v20.0"
+
+[channels.whatsapp.dm]
+user_allowlist = ["15551234567"]
+
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 🫑 MORE TOPPINGS - Tools
+# ═══════════════════════════════════════════════════════════════════════════════
+# Enable capabilities for your assistant.
+
+[tools.filesystem]
+enabled = true
+paths = ["./workspace"]                   # Directories the assistant can access
+write = true                              # Allow write operations
+max_file_size = "10MB"                    # Limit for file operations
+
+[tools.browser]
+enabled = true
+allowed_domains = ["*"]                   # Restrict if needed: ["docs.google.com", "github.com"]
+headless = true                           # Run browser without GUI
+timeout = 30                              # Page load timeout in seconds
+
+[tools.code_runner]
+enabled = true
+runtime = "sandboxed"                     # "sandboxed" (safe) | "native" (requires opt-in)
+languages = ["python", "javascript", "typescript"]
+timeout = 30                              # Execution timeout in seconds
+max_memory = "256MB"                      # Memory limit per execution
+
+[tools.bootstrap]
+enabled = true                            # Internal state tool for bootstrap blocks
+
+[tools.shell]
+enabled = false                           # Disabled by default - high risk
+# To enable, you must also set security.mode = "permissive"
+
+[tools.web_search]
+enabled = false
+# Requires: BRAVE_API_KEY in .env
+# api_key_env = "BRAVE_API_KEY"
+# default_country = "US"
+# safe_search = "moderate"  # "off" | "moderate" | "strict"
+# max_results = 10
+
+[tools.web_fetch]
+enabled = true
+allowed_domains = ["*"]
+max_chars = 50000
+timeout_seconds = 30
+max_redirects = 3
+# user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+
+[tools.web_fetch.firecrawl]
+enabled = false
+# api_key = "${FIRECRAWL_API_KEY}"
+# base_url = "https://api.firecrawl.dev"
+only_main_content = true
+max_age_ms = 86400000
+timeout_seconds = 60
+
+[tools.github]
+enabled = false
+# Requires: GITHUB_TOKEN in .env (or use gh CLI authentication)
+# default_repo = "owner/repo"
+# token_env = "GITHUB_TOKEN"
+# repo_allowlist = ["owner/repo1", "owner/repo2"]
+
+[tools.bitbucket]
+enabled = false
+# Requires: BITBUCKET credentials in .env
+# default_workspace = "my-workspace"
+# auth_type = "app_password"  # "app_password" | "oauth"
+# username_env = "BITBUCKET_USERNAME"
+# password_env = "BITBUCKET_APP_PASSWORD"
+# token_env = "BITBUCKET_TOKEN"  # For OAuth
+# workspace_allowlist = ["workspace1", "workspace2"]
+
+[tools.composio]
+enabled = false
+# Requires: COMPOSIO_API_KEY in .env
+# Composio provides OAuth-based integrations for Gmail, Calendar, Docs, Meet, Drive, LinkedIn, etc.
+# api_key_env = "COMPOSIO_API_KEY"
+# entity_id = "default"
+# allowed_apps = ["gmail", "googlecalendar", "googledocs", "googlemeet", "googledrive", "linkedin"]
+
+# Tool groups (policy defaults). Users can override per-tool policies if needed.
+[tools.groups.lookup]
+tools = ["web_fetch", "goplaces"]
+
+[tools.groups.media]
+tools = ["gifgrep"]
+
+[tools.groups.summarize]
+tools = ["summarize"]
+
+[tools.groups.workspace]
+tools = ["gog"]
+
+# Per-tool policy overrides (optional)
+# Override group defaults for specific tools
+[tools.overrides.goplaces]
+# security_tier = 2                    # Override security tier (0=SAFE, 1=STANDARD, 2=ELEVATED, 3=RESTRICTED, 4=DANGEROUS)
+# rate_limit_per_minute = 10           # Tool-specific rate limit
+# require_approval = true              # Require user approval for this tool
+# max_timeout_ms = 60000               # Maximum execution timeout
+# enabled = true                       # Enable/disable individual tool
+
+[tools.overrides.summarize]
+# max_timeout_ms = 180000              # 3 minutes for video processing
+# rate_limit_per_minute = 5            # Lower rate limit for heavy operations
+
+[tools.claude_code_mcp]
+enabled = true
+max_prompt_length = 4000
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 🌶️ THE CHEESE - Security Configuration
+# ═══════════════════════════════════════════════════════════════════════════════
+# Security is on by default. Adjust these settings carefully.
+
+[security]
+mode = "standard"                         # "strict" | "standard" | "permissive"
+
+# Strict: Everything disabled, allowlist only, full audit
+# Standard: Common tools enabled, pairing DMs, balanced security  
+# Permissive: Full access (requires i_understand_the_risks = true)
+
+# Required only for permissive mode:
+# i_understand_the_risks = true
+
+[security.dlp]
+enabled = true
+action = "warn"                           # "block" | "warn" | "audit" | "allow" | "redact"
+patterns = [
+    "credit_card",
+    "ssn", 
+    "api_key",
+    "password"
+]
+
+[security.approval]
+approver_allowlist = ["U123", "U456"]   # Optional: allowlisted approvers for restricted tools
+
+[security.rate_limits]
+messages_per_minute = 30
+tool_calls_per_minute = 15
+llm_requests_per_minute = 30
+
+[security.audit]
+enabled = true
+retention_days = 30
+log_inputs = true                         # Log user messages (redacted)
+log_outputs = true                        # Log assistant responses
+log_tool_calls = true                     # Log all tool invocations
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 🍽️ THE PLATE - Runtime Configuration
+# ═══════════════════════════════════════════════════════════════════════════════
+
+[runtime]
+state_dir = "./state"                     # Persistent state storage
+config_dir = "./config"                   # Optional: config directory mounted into sandboxes
+workspace_dir = "./workspace"             # Optional: workspace directory mounted into sandboxes
+log_level = "info"                        # "debug" | "info" | "warn" | "error"
+log_format = "pretty"                     # "pretty" | "json"
+redis_url = "redis://localhost:6379"
+
+# Pairing (DMs): set NACHOS_PAIRING_TOKEN in your environment to require a token
+
+[runtime.resources]
+# Default resource limits per container
+memory = "512MB"
+cpus = 0.5
+pids_limit = 100
+
+# State Layer storage (identity, memory, session state)
+[runtime.state]
+
+[runtime.state.identity]
+provider = "postgres"                     # "filesystem" | "postgres"
+[runtime.state.identity.postgres]
+connection_string = "postgres://nachos:nachos@postgres:5432/nachos"
+schema = "public"
+
+[runtime.state.memory]
+provider = "postgres"
+[runtime.state.memory.postgres]
+connection_string = "postgres://nachos:nachos@postgres:5432/nachos"
+schema = "public"
+
+[runtime.state.user_profile]
+provider = "postgres"
+[runtime.state.user_profile.postgres]
+connection_string = "postgres://nachos:nachos@postgres:5432/nachos"
+schema = "public"
+
+[runtime.state.bootstrap]
+provider = "postgres"
+[runtime.state.bootstrap.postgres]
+connection_string = "postgres://nachos:nachos@postgres:5432/nachos"
+schema = "public"
+
+# Sessions & Messages (conversation history)
+# Copilot fix #7: Use nested format [runtime.state.sessions.sqlite] instead of flat structure
+[runtime.state.sessions]
+provider = "sqlite"                       # "sqlite" (default, fast) | "postgres" (multi-instance)
+# SQLite config (default):
+[runtime.state.sessions.sqlite]
+db_path = "./data/gateway.db"
+# Postgres config (uncomment for multi-instance):
+# [runtime.state.sessions.postgres]
+# connection_string = "postgres://nachos:nachos@postgres:5432/nachos"
+# schema = "public"
+
+# Semantic search (embeddings)
+# Copilot fix #7: Use nested format [runtime.state.semantic.local] instead of flat structure
+[runtime.state.semantic]
+provider = "local"                        # "local" (default) | "qdrant" (production)
+# Local config (default - filesystem + Transformers.js):
+[runtime.state.semantic.local]
+model = "Xenova/all-MiniLM-L6-v2"
+cache_dir = "./state/embeddings"
+# Qdrant config (uncomment for production semantic search):
+# [runtime.state.semantic.qdrant]
+# url = "http://qdrant:6333"
+# collection = "nachos-memory"
+# api_key = "${QDRANT_API_KEY}"            # optional
+
+[runtime.state.session]
+provider = "redis"                        # "redis" | "memory"
+redis_url = "redis://localhost:6379"
+ttl_seconds = 86400
+
+[runtime.state.prompt_report]
+hash = "sha256"
+include_tokens = true
+max_memory_entries = 50
+max_memory_facts = 50
+include_session_state = false
+
+# Context management (memory flush example)
+[runtime.context_management.memory_flush]
+enabled = true
+soft_threshold_tokens = 4000
+extract_structured = true
+create_snapshot = true
+validate_extraction = true
+
+[runtime.context_management.commands]
+enabled = true
+allow_in_dms = true
+allow_in_channels = false
+admin_allowlist = []
+reset_triggers = ["/new", "/reset", "!new", "!reset"]
+context_triggers = ["/context", "/context-management", "!context"]
+identity_triggers = ["/identity", "!identity"]
+
+# Subagent sandboxing
+[runtime.subagents]
+enabled = false
+max_concurrent = 1
+
+[runtime.subagents.announce]
+enabled = true
+# prompt = """
+# Status: <success|failed|cancelled>
+# Result: <short summary>
+# Notes: <optional>
+# Stats: durationMs=<number> sandboxed=<true|false>
+# """
+
+[runtime.subagents.tools]
+# deny wins; if allow is set, only allow those tools
+deny = ["sessions_list", "sessions_history", "sessions_send", "sessions_spawn"]
+# allow = ["filesystem_read", "browser"]
+default_profile = "engineering"
+
+# Tool profiles let you tailor access per subagent task type.
+[runtime.subagents.tools.profiles.research]
+allow = ["filesystem_read", "browser", "web_search"]
+deny = ["filesystem_write", "code_runner"]
+
+[runtime.subagents.tools.profiles.frontend]
+allow = ["filesystem_read", "filesystem_write", "browser", "code_runner"]
+
+[runtime.subagents.tools.profiles.qa]
+allow = ["filesystem_read", "code_runner"]
+deny = ["filesystem_write"]
+
+[runtime.subagents.tools.profiles.devops]
+allow = ["filesystem_read", "filesystem_write", "code_runner"]
+deny = ["shell"]
+
+[runtime.subagents.tools.profiles.security_audit]
+allow = ["filesystem_read", "web_search"]
+deny = ["filesystem_write", "code_runner"]
+
+[runtime.subagents.tools.profiles.engineering]
+allow = ["filesystem_read", "filesystem_write", "code_runner", "browser"]
+
+[runtime.subagents.sandbox]
+mode = "full"                              # "host" | "tool" | "full"
+
+[runtime.subagents.sandbox.docker]
+image = "nachos/subagent:latest"
+network = "egress"                         # "none" | "egress" | "full"
+workspace_dir = "./workspace"
+config_dir = "./config"
+state_dir = "./state"
+timeout_ms = 300000
+
+# Tool sandboxing (optional)
+[runtime.sandbox]
+mode = "off"                               # "off" | "non-main" | "all"
+scope = "session"                          # "session" | "agent" | "shared"
+workspace_access = "rw"                    # "none" | "ro" | "rw"
+# extra_binds = ["/host/path:/container/path:ro"]
+# env = { KEY = "value" }
+# setup_command = "echo setup"
+# network = "egress"                       # "none" | "egress" | "full"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 🎨 PERSONALITY - Assistant Configuration
+# ═══════════════════════════════════════════════════════════════════════════════
+
+[assistant]
+name = "Nachos"
+system_prompt = """
+You are a helpful AI assistant running in the Nachos framework.
+You have access to various tools based on your configuration.
+Be concise, helpful, and security-conscious.
+"""
+
+# Load additional context from files:
+# context_files = ["./skills/researcher.md", "./context/company.md"]
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 📦 SKILLS - Pre-configured Tool + Prompt Bundles
+# ═══════════════════════════════════════════════════════════════════════════════
+
+[skills]
+enabled = []                              # ["researcher", "coder", "writer"]
+# allow = ["goplaces", "gifgrep"]         # Optional allowlist (only these load)
+# deny = ["gog"]                          # Optional denylist
+# hot_reload = true                       # Auto-reload skills when files change (default: true in dev, false in prod)
+# debounce_ms = 500                       # Delay before reloading after file change (default: 500ms)
+
+# [skills.entries.goplaces]
+# enabled = true
+
+# Skills are pre-configured bundles that enable specific tools and prompts.
+# Browse available skills: nachos search skills
+# Add a skill: nachos add skill researcher

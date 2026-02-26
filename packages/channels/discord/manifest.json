@@ -1,0 +1,14 @@
+{
+  "name": "nachos-channel-discord",
+  "version": "0.0.0",
+  "type": "channel",
+  "capabilities": {
+    "network": {
+      "egress": ["discord.com"]
+    },
+    "secrets": ["DISCORD_BOT_TOKEN"]
+  },
+  "provides": {
+    "channel": "discord"
+  }
+}

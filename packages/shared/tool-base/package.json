@@ -1,0 +1,39 @@
+{
+  "name": "@nachos/tool-base",
+  "version": "0.0.0",
+  "description": "Base classes and utilities for NACHOS tools",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@nachos/types": "workspace:*",
+    "nats": "^2.29.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  },
+  "keywords": [
+    "nachos",
+    "tools",
+    "base"
+  ],
+  "author": "Nachos Team",
+  "license": "MIT"
+}

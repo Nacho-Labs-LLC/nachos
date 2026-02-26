@@ -1,0 +1,71 @@
+# Dependencies
+node_modules/
+.pnp.*
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Claude AI settings
+.claude/settings.local.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Docker
+docker-compose.yml
+.docker/
+
+# Changesets
+.changeset/*.md
+!.changeset/README.md
+
+# Generated files
+nachos.toml
+
+# Backup files
+*.bak
+
+# Compiled TypeScript in src (should only be in dist)
+packages/*/src/**/*.js
+packages/*/src/**/*.d.ts
+packages/*/src/**/*.js.map
+packages/*/src/**/*.d.ts.map
+
+# Documentation bloat (AI-generated status/summary docs)
+*IMPLEMENTATION*.md
+*SUMMARY*.md
+*QUICKSTART*.md
+*TEST_PLAN*.md
+*USER_GUIDE*.md
+REVIEW_CHECKLIST.md
+EXECUTIVE_SUMMARY.md

@@ -1,0 +1,377 @@
+# Nachos Default Security Policies - Standard Mode
+#
+# Standard mode provides balanced security:
+# - Common tools enabled (browser, filesystem read, etc.)
+# - Pairing-based DM approval
+# - Audit logging
+# - Controlled filesystem access (./workspace only)
+# - Limited network egress
+
+version: "1.0"
+
+metadata:
+  name: "Standard Mode Security Policies"
+  description: "Balanced security for typical use cases"
+  mode: "standard"
+
+rules:
+  # ============================================================================
+  # LLM Access - Always allowed
+  # ============================================================================
+  - id: "standard-llm-allow"
+    description: "Allow LLM calls in standard mode"
+    priority: 1000
+    match:
+      resource: "llm"
+      action: "call"
+    effect: "allow"
+
+  # ============================================================================
+  # DM Access - Pairing-based approval
+  # ============================================================================
+  - id: "standard-dm-paired-allow"
+    description: "Allow DMs from paired users in standard mode"
+    priority: 900
+    match:
+      resource: "dm"
+      action: "send"
+    conditions:
+      - field: "metadata.is_paired"
+        operator: "equals"
+        value: true
+    effect: "allow"
+
+  - id: "standard-dm-unpaired-deny"
+    description: "Deny DMs from unpaired users"
+    priority: 899
+    match:
+      resource: "dm"
+      action: "send"
+    effect: "deny"
+    reason: "DM access requires pairing. User must complete pairing process."
+
+  # ============================================================================
+  # DM Receive - Always allow inbound DMs (filtering is done upstream)
+  # ============================================================================
+  - id: "standard-dm-receive-allow"
+    description: "Allow receiving DMs (inbound processing)"
+    priority: 901
+    match:
+      resource: "dm"
+      action: "receive"
+    effect: "allow"
+
+  - id: "standard-dm-send-allow"
+    description: "Allow sending DM responses (outbound)"
+    priority: 901
+    match:
+      resource: "dm"
+      action: "send"
+    effect: "allow"
+
+  # ============================================================================
+  # Channel Messages - Allow
+  # ============================================================================
+  - id: "standard-channel-allow"
+    description: "Allow channel messages in standard mode"
+    priority: 850
+    match:
+      resource: "channel"
+      action: ["send", "receive"]
+    effect: "allow"
+
+  # ============================================================================
+  # Tools - Common tools enabled
+  # ============================================================================
+
+  # Web fetch - allowlisted domains only (customize this list)
+  - id: "standard-tool-web-fetch-allow"
+    description: "Allow web_fetch only for allowlisted domains"
+    priority: 825
+    match:
+      resource: "tool"
+      resourceId: "web_fetch"
+      action: "execute"
+    conditions:
+      - field: "metadata.domain"
+        operator: "in"
+        value:
+          - "github.com"
+          - "docs.google.com"
+          - "learn.microsoft.com"
+          - "developer.apple.com"
+          - "stackoverflow.com"
+          - "httpbin.org"
+          - "example.com"
+    effect: "allow"
+
+  - id: "standard-tool-web-fetch-deny"
+    description: "Deny web_fetch outside allowlisted domains"
+    priority: 824
+    match:
+      resource: "tool"
+      resourceId: "web_fetch"
+      action: "execute"
+    effect: "deny"
+    reason: "web_fetch is restricted to allowlisted domains in standard mode"
+
+  # Tool groups - lookup/media/summarize/workspace
+  - id: "standard-tool-group-lookup"
+    description: "Allow lookup tools (web_fetch + goplaces)"
+    priority: 820
+    match:
+      resource: "tool"
+      action: "execute"
+    conditions:
+      - field: "metadata.tool_group"
+        operator: "equals"
+        value: "lookup"
+    effect: "allow"
+
+  - id: "standard-tool-group-media"
+    description: "Allow media tools (gifgrep)"
+    priority: 819
+    match:
+      resource: "tool"
+      action: "execute"
+    conditions:
+      - field: "metadata.tool_group"
+        operator: "equals"
+        value: "media"
+    effect: "allow"
+
+  - id: "standard-tool-group-summarize"
+    description: "Allow summarize tools (summarize)"
+    priority: 818
+    match:
+      resource: "tool"
+      action: "execute"
+    conditions:
+      - field: "metadata.tool_group"
+        operator: "equals"
+        value: "summarize"
+    effect: "allow"
+
+  - id: "standard-tool-group-workspace"
+    description: "Allow workspace tools (gog)"
+    priority: 817
+    match:
+      resource: "tool"
+      action: "execute"
+    conditions:
+      - field: "metadata.tool_group"
+        operator: "equals"
+        value: "workspace"
+    effect: "allow"
+
+  - id: "standard-tool-state-allow"
+    description: "Allow state layer reads/writes for prompt assembly and memory"
+    priority: 816
+    match:
+      resource: "tool"
+      action: ["read", "write", "call"]
+    conditions:
+      - field: "metadata.stateAction"
+        operator: "starts_with"
+        value: "state."
+    effect: "allow"
+
+  # Browser tool - Standard tier, allowed with SSRF protection
+  - id: "standard-tool-browser"
+    description: "Allow browser tool (SecurityTier: STANDARD)"
+    priority: 800
+    match:
+      resource: "tool"
+      resourceId: "browser"
+    effect: "allow"
+
+  # Bitbucket tool - Standard tier, allows interaction with Bitbucket via REST API
+  - id: "standard-tool-bitbucket"
+    description: "Allow Bitbucket tool (SecurityTier: STANDARD)"
+    priority: 795
+    match:
+      resource: "tool"
+      resourceId: "bitbucket"
+    effect: "allow"
+
+  # Web search tool - Standard tier, allows searching the web via Brave Search API
+  - id: "standard-tool-web-search"
+    description: "Allow web search tool (SecurityTier: STANDARD)"
+    priority: 790
+    match:
+      resource: "tool"
+      resourceId: "web_search"
+    effect: "allow"
+
+  # Web fetch native tool - Standard tier, allows fetching URLs directly
+  - id: "standard-tool-web-fetch-native"
+    description: "Allow web fetch native tool (SecurityTier: STANDARD)"
+    priority: 785
+    match:
+      resource: "tool"
+      resourceId: "web_fetch_native"
+    effect: "allow"
+
+  # GitHub tool - Standard tier, allows interaction with GitHub via gh CLI
+  - id: "standard-tool-github"
+    description: "Allow GitHub tool (SecurityTier: STANDARD)"
+    priority: 795
+    match:
+      resource: "tool"
+      resourceId: "github"
+    effect: "allow"
+
+  # Filesystem Read - Safe tier, workspace only
+  - id: "standard-tool-filesystem-read"
+    description: "Allow filesystem read tool (SecurityTier: SAFE) in workspace"
+    priority: 750
+    match:
+      resource: "tool"
+      resourceId: "filesystem_read"
+    conditions:
+      - field: "metadata.path"
+        operator: "starts_with"
+        value: "/workspace"
+    effect: "allow"
+
+  - id: "standard-tool-filesystem-read-deny-outside"
+    description: "Deny filesystem read outside workspace"
+    priority: 749
+    match:
+      resource: "tool"
+      resourceId: "filesystem_read"
+    effect: "deny"
+    reason: "Filesystem read is restricted to /workspace directory"
+
+  # Filesystem Write - Elevated tier, workspace only
+  - id: "standard-tool-filesystem-write"
+    description: "Allow filesystem write tool (SecurityTier: ELEVATED) in workspace"
+    priority: 740
+    match:
+      resource: "tool"
+      resourceId: "filesystem_write"
+    conditions:
+      - field: "metadata.path"
+        operator: "starts_with"
+        value: "/workspace"
+    effect: "allow"
+
+  - id: "standard-tool-filesystem-write-deny-outside"
+    description: "Deny filesystem write outside workspace"
+    priority: 739
+    match:
+      resource: "tool"
+      resourceId: "filesystem_write"
+    effect: "deny"
+    reason: "Filesystem write is restricted to /workspace directory"
+
+  # Filesystem Edit - Elevated tier, workspace only
+  - id: "standard-tool-filesystem-edit"
+    description: "Allow filesystem edit tool (SecurityTier: ELEVATED) in workspace"
+    priority: 730
+    match:
+      resource: "tool"
+      resourceId: "filesystem_edit"
+    conditions:
+      - field: "metadata.path"
+        operator: "starts_with"
+        value: "/workspace"
+    effect: "allow"
+
+  - id: "standard-tool-filesystem-edit-deny-outside"
+    description: "Deny filesystem edit outside workspace"
+    priority: 729
+    match:
+      resource: "tool"
+      resourceId: "filesystem_edit"
+    effect: "deny"
+    reason: "Filesystem edit is restricted to /workspace directory"
+
+  # Filesystem Patch - Elevated tier, workspace only
+  - id: "standard-tool-filesystem-patch"
+    description: "Allow filesystem patch tool (SecurityTier: ELEVATED) in workspace"
+    priority: 720
+    match:
+      resource: "tool"
+      resourceId: "filesystem_patch"
+    conditions:
+      - field: "metadata.path"
+        operator: "starts_with"
+        value: "/workspace"
+    effect: "allow"
+
+  - id: "standard-tool-filesystem-patch-deny-outside"
+    description: "Deny filesystem patch outside workspace"
+    priority: 719
+    match:
+      resource: "tool"
+      resourceId: "filesystem_patch"
+    effect: "deny"
+    reason: "Filesystem patch is restricted to /workspace directory"
+
+  # Code Runner Python - Restricted tier
+  # NOTE: require_approval is enforced at the gateway layer via SecurityTier,
+  # not by the policy engine. This rule only controls the allow/deny decision.
+  - id: "standard-tool-code-runner-python"
+    description: "Allow Python code runner (SecurityTier: RESTRICTED)"
+    priority: 700
+    match:
+      resource: "tool"
+      resourceId: "code_runner_python"
+    effect: "allow"
+
+  # Code Runner JavaScript - Restricted tier
+  - id: "standard-tool-code-runner-javascript"
+    description: "Allow JavaScript code runner (SecurityTier: RESTRICTED)"
+    priority: 690
+    match:
+      resource: "tool"
+      resourceId: "code_runner_javascript"
+    effect: "allow"
+
+  # GitHub Copilot CLI - Restricted tier
+  - id: "standard-tool-copilot"
+    description: "Allow GitHub Copilot CLI (SecurityTier: RESTRICTED)"
+    priority: 680
+    match:
+      resource: "tool"
+      resourceId: "copilot"
+    effect: "allow"
+
+  # Composio - Elevated tier (OAuth-based external service access)
+  - id: "standard-tool-composio"
+    description: "Allow Composio integration tool (SecurityTier: ELEVATED)"
+    priority: 670
+    match:
+      resource: "tool"
+      resourceId: "composio"
+    effect: "allow"
+
+  # ============================================================================
+  # Network Access - Limited egress
+  # ============================================================================
+
+  # Allow network access to common domains
+  - id: "standard-network-common-domains"
+    description: "Allow network access to common domains"
+    priority: 600
+    match:
+      resource: "network"
+      action: "read"
+    conditions:
+      - field: "metadata.domain"
+        operator: "in"
+        value:
+          - "github.com"
+          - "docs.google.com"
+          - "stackoverflow.com"
+    effect: "allow"
+
+  # Deny other network access
+  - id: "standard-network-deny-other"
+    description: "Deny network access to other domains"
+    priority: 599
+    match:
+      resource: "network"
+    effect: "deny"
+    reason: "Network access is restricted to approved domains in standard mode"

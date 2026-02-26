@@ -1,0 +1,488 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { Gateway } from './gateway.js';
+import type { ChannelInboundMessage, Session } from '@nachos/types';
+import type { AuditConfig, ToolsConfig } from '@nachos/config';
+import type { AuditProvider } from './audit/provider.js';
+import * as auditLoader from './audit/loader.js';
+
+describe('Gateway', () => {
+  let gateway: Gateway;
+
+  beforeEach(() => {
+    gateway = new Gateway({ dbPath: ':memory:' });
+  });
+
+  afterEach(async () => {
+    if (gateway) {
+      await gateway.stop();
+    }
+  });
+
+  describe('constructor', () => {
+    it('should create a gateway with default options', () => {
+      expect(gateway).toBeDefined();
+      expect(gateway.getSessionManager()).toBeDefined();
+      expect(gateway.getRouter()).toBeDefined();
+      expect(gateway.getStorage()).toBeDefined();
+    });
+
+    it('should create a gateway with custom system prompt', () => {
+      const customGateway = new Gateway({
+        dbPath: ':memory:',
+        defaultSystemPrompt: 'You are a custom assistant',
+      });
+
+      expect(customGateway).toBeDefined();
+
+      // Clean up
+      customGateway.getStorage().close();
+    });
+  });
+
+  describe('start/stop', () => {
+    it('should start and stop without errors', async () => {
+      // Mock console.log to suppress output
+      vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      await gateway.start();
+
+      // Gateway should be connected
+      const health = gateway.getHealth();
+      expect(health.status).toBe('healthy');
+
+      await gateway.stop();
+    });
+
+    it('should start on specified health port', async () => {
+      const customGateway = new Gateway({
+        dbPath: ':memory:',
+        healthPort: 9001,
+      });
+
+      // Mock console.log to suppress output
+      vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      await customGateway.start();
+
+      // Verify health endpoint is accessible
+      const response = await fetch('http://localhost:9001/health');
+      expect(response.status).toBe(200);
+
+      await customGateway.stop();
+    });
+
+    it('should initialize audit logging when enabled', async () => {
+      const provider: AuditProvider = {
+        name: 'test',
+        init: vi.fn().mockResolvedValue(undefined),
+        log: vi.fn().mockResolvedValue(undefined),
+        flush: vi.fn().mockResolvedValue(undefined),
+        close: vi.fn().mockResolvedValue(undefined),
+      };
+      const auditConfig: AuditConfig = {
+        enabled: true,
+        provider: 'sqlite',
+        path: ':memory:',
+      };
+      vi.spyOn(auditLoader, 'loadAuditProvider').mockResolvedValue(provider);
+
+      const customGateway = new Gateway({
+        dbPath: ':memory:',
+        healthPort: 9002,
+        auditConfig,
+      });
+
+      vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      await customGateway.start();
+
+      expect(provider.init).toHaveBeenCalled();
+
+      await customGateway.stop();
+    });
+  });
+
+  describe('processMessage', () => {
+    it('should create a session for new conversation', async () => {
+      const message: ChannelInboundMessage = {
+        channel: 'slack',
+        channelMessageId: 'msg-123',
+        sender: { id: 'user-456', isAllowed: true },
+        conversation: { id: 'conv-789', type: 'dm' },
+        content: { text: 'Hello!' },
+      };
+
+      const session = await gateway.processMessage(message);
+
+      expect(session).toBeDefined();
+      expect(session.channel).toBe('slack');
+      expect(session.conversationId).toBe('conv-789');
+      expect(session.userId).toBe('user-456');
+      expect(session.status).toBe('active');
+    });
+
+    it('should log audit event for new session when audit is enabled', async () => {
+      const provider: AuditProvider = {
+        name: 'test',
+        init: vi.fn().mockResolvedValue(undefined),
+        log: vi.fn().mockResolvedValue(undefined),
+        flush: vi.fn().mockResolvedValue(undefined),
+        close: vi.fn().mockResolvedValue(undefined),
+      };
+      const auditConfig: AuditConfig = {
+        enabled: true,
+        provider: 'sqlite',
+        path: ':memory:',
+      };
+      vi.spyOn(auditLoader, 'loadAuditProvider').mockResolvedValue(provider);
+
+      const customGateway = new Gateway({
+        dbPath: ':memory:',
+        healthPort: 0,
+        auditConfig,
+      });
+
+      vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      await customGateway.start();
+
+      const message: ChannelInboundMessage = {
+        channel: 'slack',
+        channelMessageId: 'msg-123',
+        sender: { id: 'user-456', isAllowed: true },
+        conversation: { id: 'conv-789', type: 'dm' },
+        content: { text: 'Hello!' },
+      };
+
+      await customGateway.processMessage(message);
+
+      expect(provider.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: 'session_create',
+          action: 'session.create',
+          outcome: 'allowed',
+          channel: 'slack',
+          userId: 'user-456',
+        })
+      );
+
+      await customGateway.stop();
+    });
+
+    it('should reuse existing session for same conversation', async () => {
+      const message1: ChannelInboundMessage = {
+        channel: 'slack',
+        channelMessageId: 'msg-1',
+        sender: { id: 'user-456', isAllowed: true },
+        conversation: { id: 'conv-789', type: 'dm' },
+        content: { text: 'Hello!' },
+      };
+
+      const message2: ChannelInboundMessage = {
+        channel: 'slack',
+        channelMessageId: 'msg-2',
+        sender: { id: 'user-456', isAllowed: true },
+        conversation: { id: 'conv-789', type: 'dm' },
+        content: { text: 'How are you?' },
+      };
+
+      const session1 = await gateway.processMessage(message1);
+      const session2 = await gateway.processMessage(message2);
+
+      expect(session2.id).toBe(session1.id);
+    });
+
+    it('should store user message in session', async () => {
+      const message: ChannelInboundMessage = {
+        channel: 'slack',
+        channelMessageId: 'msg-123',
+        sender: { id: 'user-456', isAllowed: true },
+        conversation: { id: 'conv-789', type: 'dm' },
+        content: { text: 'Hello!' },
+      };
+
+      const session = await gateway.processMessage(message);
+      const messages = await gateway.getSessionManager().getMessages(session.id);
+
+      expect(messages).toHaveLength(1);
+      expect(messages[0]?.role).toBe('user');
+      expect(messages[0]?.content).toBe('Hello!');
+    });
+
+    it('should handle message without text content', async () => {
+      const message: ChannelInboundMessage = {
+        channel: 'slack',
+        channelMessageId: 'msg-123',
+        sender: { id: 'user-456', isAllowed: true },
+        conversation: { id: 'conv-789', type: 'dm' },
+        content: {
+          attachments: [{ type: 'image', url: 'https://example.com/image.png' }],
+        },
+      };
+
+      const session = await gateway.processMessage(message);
+
+      // Session should be created even without text
+      expect(session).toBeDefined();
+
+      // No message should be added (no text content)
+      const messages = await gateway.getSessionManager().getMessages(session.id);
+      expect(messages).toHaveLength(0);
+    });
+
+    it('should use default system prompt for new sessions', async () => {
+      const customGateway = new Gateway({
+        dbPath: ':memory:',
+        defaultSystemPrompt: 'You are a helpful assistant',
+      });
+
+      const message: ChannelInboundMessage = {
+        channel: 'slack',
+        channelMessageId: 'msg-123',
+        sender: { id: 'user-456', isAllowed: true },
+        conversation: { id: 'conv-789', type: 'dm' },
+        content: { text: 'Hello!' },
+      };
+
+      const session = await customGateway.processMessage(message);
+
+      expect(session.systemPrompt).toBe('You are a helpful assistant');
+
+      customGateway.getStorage().close();
+    });
+  });
+
+  describe('bootstrap tool', () => {
+    it('omits bootstrap tool when disabled', () => {
+      const toolsConfig: ToolsConfig = { bootstrap: { enabled: false } };
+      const customGateway = new Gateway({ dbPath: ':memory:', toolsConfig });
+      const session = customGateway.getSessionManager().createSession({
+        channel: 'slack',
+        conversationId: 'conv-1',
+        userId: 'user-1',
+      });
+
+      (customGateway as unknown as { stateLayer?: unknown }).stateLayer = {};
+
+      const tools = (
+        customGateway as unknown as { buildToolDefinitions: (s: Session) => unknown }
+      ).buildToolDefinitions(session) as Array<{ name?: string }> | undefined;
+
+      expect(tools?.some((tool) => tool.name === 'bootstrap')).toBe(false);
+
+      customGateway.getStorage().close();
+    });
+
+    it('increments bootstrap version on set', async () => {
+      const session = await gateway.getSessionManager().createSession({
+        channel: 'slack',
+        conversationId: 'conv-2',
+        userId: 'user-2',
+      });
+
+      const stateLayer = {
+        getIdentity: vi.fn().mockResolvedValue(null),
+        getBootstrap: vi.fn().mockResolvedValue({
+          agentId: 'user-2',
+          content: { foo: 'bar' },
+          updatedAt: '2024-01-01T00:00:00.000Z',
+          version: 2,
+          source: 'db',
+        }),
+        putBootstrap: vi.fn().mockImplementation(async (profile) => profile),
+        deleteBootstrap: vi.fn().mockResolvedValue(undefined),
+        close: vi.fn().mockResolvedValue(undefined),
+      };
+
+      (gateway as unknown as { stateLayer?: unknown }).stateLayer = stateLayer;
+
+      const call = {
+        tool: 'bootstrap',
+        parameters: {
+          action: 'set',
+          content: { foo: 'baz' },
+        },
+      };
+
+      const result = await (
+        gateway as unknown as {
+          executeBootstrapToolCall: (
+            c: unknown,
+            s: Session
+          ) => Promise<{ content: Array<{ text?: string }> }>;
+        }
+      ).executeBootstrapToolCall(call, session);
+
+      expect(stateLayer.putBootstrap).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agentId: 'user-2',
+          version: 3,
+          content: { foo: 'baz' },
+        }),
+        expect.anything()
+      );
+
+      const payload = JSON.parse(result.content[0]?.text ?? '{}') as {
+        profile?: { version?: number };
+      };
+      expect(payload.profile?.version).toBe(3);
+    });
+  });
+
+  describe('getHealth', () => {
+    it('should return database check as ok', () => {
+      const health = gateway.getHealth();
+
+      expect(health.component).toBe('gateway');
+      expect(health.checks.database).toBe('ok');
+    });
+
+    it('should return healthy status when started', async () => {
+      // Mock console.log to suppress output
+      vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      await gateway.start();
+
+      const health = gateway.getHealth();
+      expect(health.status).toBe('healthy');
+      expect(health.checks.bus).toBe('ok');
+    });
+
+    it('should return unhealthy status when not started (bus disconnected)', () => {
+      const health = gateway.getHealth();
+
+      // Bus is not connected until start() is called
+      expect(health.checks.bus).toBe('error');
+      expect(health.status).toBe('unhealthy');
+    });
+  });
+
+  describe('subagent tool policy', () => {
+    it('denies session tools by default', () => {
+      const evaluator = gateway as unknown as {
+        evaluateSubagentToolPolicy: (
+          tool: string,
+          session?: Session | null
+        ) => {
+          allowed: boolean;
+        };
+      };
+      const policy = evaluator.evaluateSubagentToolPolicy('sessions_spawn');
+
+      expect(policy.allowed).toBe(false);
+    });
+
+    it('respects allowlist overrides', () => {
+      const customGateway = new Gateway({
+        dbPath: ':memory:',
+        subagentToolPolicy: { allow: ['filesystem_read'] },
+      });
+
+      const evaluator = customGateway as unknown as {
+        evaluateSubagentToolPolicy: (
+          tool: string,
+          session?: Session | null
+        ) => {
+          allowed: boolean;
+        };
+      };
+
+      const allowed = evaluator.evaluateSubagentToolPolicy('filesystem_read');
+      const denied = evaluator.evaluateSubagentToolPolicy('browser');
+
+      expect(allowed.allowed).toBe(true);
+      expect(denied.allowed).toBe(false);
+
+      customGateway.getStorage().close();
+    });
+
+    it('supports profile-specific allowlists', () => {
+      const customGateway = new Gateway({
+        dbPath: ':memory:',
+        subagentToolPolicy: {
+          default_profile: 'research',
+          profiles: {
+            research: {
+              allow: ['browser', 'web_search'],
+              deny: ['filesystem_write'],
+            },
+          },
+        },
+      });
+
+      const session = customGateway.getSessionManager().getOrCreateSession({
+        channel: 'subagent',
+        conversationId: 'conv-1',
+        userId: 'user-1',
+        metadata: { subagent: { runId: 'run-1', profile: 'research' } },
+      });
+
+      const evaluator = customGateway as unknown as {
+        evaluateSubagentToolPolicy: (
+          tool: string,
+          session?: Session | null
+        ) => {
+          allowed: boolean;
+        };
+      };
+
+      const allowed = evaluator.evaluateSubagentToolPolicy('browser', session);
+      const denied = evaluator.evaluateSubagentToolPolicy('filesystem_write', session);
+
+      expect(allowed.allowed).toBe(true);
+      expect(denied.allowed).toBe(false);
+
+      customGateway.getStorage().close();
+    });
+  });
+
+  describe('SessionManager access', () => {
+    it('should provide access to session manager', async () => {
+      const sessionManager = gateway.getSessionManager();
+
+      const session = await sessionManager.getOrCreateSession({
+        channel: 'slack',
+        conversationId: 'conv-123',
+        userId: 'user-456',
+      });
+
+      expect(session).toBeDefined();
+      expect(session.channel).toBe('slack');
+    });
+  });
+
+  describe('Router access', () => {
+    it('should provide access to router', () => {
+      const router = gateway.getRouter();
+
+      expect(router).toBeDefined();
+      expect(typeof router.subscribe).toBe('function');
+      expect(typeof router.sendToChannel).toBe('function');
+    });
+
+    it('should register custom handlers', async () => {
+      const router = gateway.getRouter();
+      const handler = vi.fn().mockResolvedValue(undefined);
+
+      router.registerHandler('custom.message', handler);
+
+      const retrievedHandler = router.getHandler('custom.message');
+      expect(retrievedHandler).toBe(handler);
+    });
+  });
+
+  describe('Storage access', () => {
+    it('should provide access to storage', async () => {
+      const storage = gateway.getStorage();
+
+      const session = await storage.createSession({
+        channel: 'slack',
+        conversationId: 'conv-123',
+        userId: 'user-456',
+      });
+
+      expect(session).toBeDefined();
+      expect(session.id).toBeDefined();
+    });
+  });
+});

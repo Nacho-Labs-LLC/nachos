@@ -1,0 +1,161 @@
+/**
+ * Postgres IdentityStore implementation.
+ */
+
+import type { Pool } from 'pg';
+import type { IdentityProfile, IdentityStore } from '@nachos/types';
+
+export class PostgresIdentityStore implements IdentityStore {
+  private initialized = false;
+  private schemaPromise: Promise<void> | null = null;
+  private schema: string;
+
+  constructor(
+    private pool: Pool,
+    schema?: string
+  ) {
+    this.schema = schema ?? 'public';
+  }
+
+  async get(agentId: string): Promise<IdentityProfile | null> {
+    await this.ensureSchema();
+    const result = await this.pool.query(
+      `SELECT agent_id, soul, identity, user_profile, tools_notes,
+              identity_completed, identity_completed_at,
+              updated_at, version, source
+       FROM ${this.qualified('identity_profiles')}
+       WHERE agent_id = $1`,
+      [agentId]
+    );
+
+    if (result.rowCount === 0) {
+      return null;
+    }
+
+    const row = result.rows[0] as {
+      agent_id: string;
+      soul: string;
+      identity: string;
+      user_profile: string;
+      tools_notes: string | null;
+      identity_completed: boolean | null;
+      identity_completed_at: string | null;
+      updated_at: string;
+      version: number;
+      source: string | null;
+    };
+
+    return {
+      agentId: row.agent_id,
+      soul: row.soul,
+      identity: row.identity,
+      userProfile: row.user_profile,
+      toolsNotes: row.tools_notes ?? undefined,
+      identityCompleted: row.identity_completed ?? undefined,
+      identityCompletedAt: row.identity_completed_at ?? undefined,
+      updatedAt: row.updated_at,
+      version: row.version,
+      source: (row.source ?? 'db') as IdentityProfile['source'],
+    };
+  }
+
+  async put(profile: IdentityProfile): Promise<IdentityProfile> {
+    await this.ensureSchema();
+    const updated = {
+      ...profile,
+      source: profile.source ?? 'db',
+      updatedAt: profile.updatedAt ?? new Date().toISOString(),
+    };
+
+    await this.pool.query(
+      `INSERT INTO ${this.qualified('identity_profiles')} (
+        agent_id, soul, identity, user_profile, tools_notes,
+        identity_completed, identity_completed_at,
+        updated_at, version, source
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      ON CONFLICT (agent_id) DO UPDATE SET
+        soul = EXCLUDED.soul,
+        identity = EXCLUDED.identity,
+        user_profile = EXCLUDED.user_profile,
+        tools_notes = EXCLUDED.tools_notes,
+        identity_completed = EXCLUDED.identity_completed,
+        identity_completed_at = EXCLUDED.identity_completed_at,
+        updated_at = EXCLUDED.updated_at,
+        version = EXCLUDED.version,
+        source = EXCLUDED.source`,
+      [
+        updated.agentId,
+        updated.soul,
+        updated.identity,
+        updated.userProfile,
+        updated.toolsNotes ?? null,
+        updated.identityCompleted ?? null,
+        updated.identityCompletedAt ?? null,
+        updated.updatedAt,
+        updated.version,
+        updated.source,
+      ]
+    );
+
+    return updated;
+  }
+
+  async delete(agentId: string): Promise<void> {
+    await this.ensureSchema();
+    await this.pool.query(
+      `DELETE FROM ${this.qualified('identity_profiles')} WHERE agent_id = $1`,
+      [agentId]
+    );
+  }
+
+  private qualified(table: string): string {
+    return `"${this.schema}".${table}`;
+  }
+
+  private ensureSchema(): Promise<void> {
+    if (this.initialized) return Promise.resolve();
+    if (!this.schemaPromise) {
+      this.schemaPromise = this.runSchema()
+        .then(() => {
+          this.initialized = true;
+          this.schemaPromise = null;
+        })
+        .catch((err) => {
+          this.schemaPromise = null;
+          throw err;
+        });
+    }
+    return this.schemaPromise;
+  }
+
+  private async runSchema(): Promise<void> {
+    await this.pool.query(`CREATE SCHEMA IF NOT EXISTS "${this.schema}"`);
+    await this.pool.query(
+      `CREATE TABLE IF NOT EXISTS ${this.qualified('identity_profiles')} (
+        agent_id TEXT PRIMARY KEY,
+        soul TEXT NOT NULL,
+        identity TEXT NOT NULL,
+        user_profile TEXT NOT NULL,
+        tools_notes TEXT,
+        identity_completed BOOLEAN,
+        identity_completed_at TEXT,
+        updated_at TEXT NOT NULL,
+        version INTEGER NOT NULL,
+        source TEXT
+      )`
+    );
+
+    await this.pool.query(
+      `ALTER TABLE ${this.qualified('identity_profiles')}
+        ADD COLUMN IF NOT EXISTS identity_completed BOOLEAN`
+    );
+    await this.pool.query(
+      `ALTER TABLE ${this.qualified('identity_profiles')}
+        ADD COLUMN IF NOT EXISTS identity_completed_at TEXT`
+    );
+  }
+
+  async close(): Promise<void> {
+    // Pool lifecycle is managed by the StateLayer that created this store.
+  }
+}

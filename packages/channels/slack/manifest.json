@@ -1,0 +1,14 @@
+{
+  "name": "nachos-channel-slack",
+  "version": "0.0.0",
+  "type": "channel",
+  "capabilities": {
+    "network": {
+      "egress": ["slack.com"]
+    },
+    "secrets": ["SLACK_APP_TOKEN", "SLACK_BOT_TOKEN", "SLACK_SIGNING_SECRET"]
+  },
+  "provides": {
+    "channel": "slack"
+  }
+}

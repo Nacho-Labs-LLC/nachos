@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "incremental": true
+  },
+  "files": [],
+  "references": [
+    { "path": "./packages/cli" },
+    { "path": "./packages/core/admin" },
+    { "path": "./packages/core/bus" },
+    { "path": "./packages/core/gateway" },
+    { "path": "./packages/core/llm-proxy" },
+    { "path": "./packages/channels/base" },
+    { "path": "./packages/channels/discord" },
+    { "path": "./packages/channels/slack" },
+    { "path": "./packages/channels/telegram" },
+    { "path": "./packages/channels/whatsapp" },
+    { "path": "./packages/shared/config" },
+    { "path": "./packages/shared/context-manager" },
+    { "path": "./packages/shared/state" },
+    { "path": "./packages/shared/tool-base" },
+    { "path": "./packages/shared/types" },
+    { "path": "./packages/shared/utils" },
+    { "path": "./packages/tools/claude-code-mcp" },
+    { "path": "./packages/tools/code-runner" },
+    { "path": "./packages/tools/filesystem" },
+    { "path": "./packages/tools/web-fetch" }
+  ]
+}

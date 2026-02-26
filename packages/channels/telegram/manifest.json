@@ -1,0 +1,14 @@
+{
+  "name": "nachos-channel-telegram",
+  "version": "0.0.0",
+  "type": "channel",
+  "capabilities": {
+    "network": {
+      "egress": ["api.telegram.org"]
+    },
+    "secrets": ["TELEGRAM_BOT_TOKEN"]
+  },
+  "provides": {
+    "channel": "telegram"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "composite": true,
+    "baseUrl": ".",
+    "paths": {
+      "@nachos/state": ["../../shared/state/src/index.ts"],
+      "@nachos/state/*": ["../../shared/state/src/*"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"],
+  "references": [
+    { "path": "../../shared/types" },
+    { "path": "../../shared/config" },
+    { "path": "../../shared/utils" },
+    { "path": "../../shared/state" },
+    { "path": "../bus" }
+  ]
+}

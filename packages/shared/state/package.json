@@ -1,0 +1,34 @@
+{
+  "name": "@nachos/state",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "State layer for Nachos - identity, memory, bootstrap, user profiles, and session state",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@nachos/context-manager": "workspace:*",
+    "@nacho-labs/nachos-embeddings": "^0.2.0",
+    "@nachos/types": "workspace:*",
+    "pg": "^8.13.1",
+    "redis": "^4.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "@types/pg": "^8.11.11",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  }
+}

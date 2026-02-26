@@ -1,0 +1,19 @@
+{
+  "name": "nachos-channel-whatsapp",
+  "version": "0.0.0",
+  "type": "channel",
+  "capabilities": {
+    "network": {
+      "egress": ["graph.facebook.com"]
+    },
+    "secrets": [
+      "WHATSAPP_TOKEN",
+      "WHATSAPP_PHONE_NUMBER_ID",
+      "WHATSAPP_VERIFY_TOKEN",
+      "WHATSAPP_APP_SECRET"
+    ]
+  },
+  "provides": {
+    "channel": "whatsapp"
+  }
+}

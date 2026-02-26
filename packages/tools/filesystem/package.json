@@ -1,0 +1,40 @@
+{
+  "name": "@nachos/tool-filesystem",
+  "version": "0.0.0",
+  "description": "Filesystem tools for NACHOS",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "start": "node dist/index.js",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@nachos/types": "workspace:*",
+    "@nachos/tool-base": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  },
+  "keywords": [
+    "nachos",
+    "filesystem",
+    "tool"
+  ],
+  "author": "Nachos Team",
+  "license": "MIT"
+}

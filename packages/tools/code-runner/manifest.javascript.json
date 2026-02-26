@@ -1,0 +1,18 @@
+{
+  "name": "code_runner_javascript",
+  "version": "0.1.0",
+  "type": "tool",
+  "capabilities": {
+    "network": {
+      "egress": []
+    },
+    "resources": {
+      "memory": "512Mi",
+      "cpus": 1
+    }
+  },
+  "provides": {
+    "tool": "code_runner_javascript",
+    "securityTier": 3
+  }
+}
