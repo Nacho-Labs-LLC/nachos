@@ -45,12 +45,7 @@ export interface CreateMessageData {
 }
 
 /**
- * Sessions storage interface
- * 
- * Copilot fix #8: Made all methods consistently async (Promise<T>)
- * Copilot fix #9: Renamed from ISessionsStore to SessionsStore (removed I prefix)
- * 
- * All implementations must be async to support both SQLite and Postgres.
+ * Sessions storage interface - all methods return promises for consistency
  */
 export interface SessionsStore {
   /**

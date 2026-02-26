@@ -561,12 +561,13 @@ export class Gateway {
     }
 
     // Initialize storage (SQLite by default for backwards compatibility)
-    // Copilot fix #4: Check provider config and throw error if postgres is configured
-    const sessionsProvider = options.stateLayerConfig?.sessions?.provider ?? 'sqlite';
-    if (sessionsProvider === 'postgres') {
+    // Note: Postgres sessions store not yet wired to SessionManager
+    const sessionsProvider = options.stateLayerConfig?.sessions?.provider;
+    if (sessionsProvider && sessionsProvider !== 'sqlite') {
       throw new Error(
-        'Postgres sessions provider is not yet wired up in the Gateway. ' +
-        'Please use "sqlite" provider in runtime.state.sessions or remove the provider config to use default SQLite.'
+        `Sessions provider '${sessionsProvider}' is not yet supported. ` +
+        `Only 'sqlite' is currently wired to the SessionManager. ` +
+        `Postgres support is implemented in PostgresSessionsStore but not yet integrated.`
       );
     }
     const dbPath = options.stateLayerConfig?.sessions?.sqlite?.dbPath ?? options.dbPath ?? ':memory:';

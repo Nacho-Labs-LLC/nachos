@@ -78,8 +78,7 @@ export class QdrantMemoryStore implements MemoryStore {
   private apiKey?: string;
   private embeddingModel: string;
   private embeddingDimensions: number;
-  // Copilot fix #13: Log-once guard to prevent embed() warning flood
-  private hasLoggedEmbedWarning = false;
+  private embedWarningLogged = false;
 
   constructor(config: QdrantConfig) {
     this.url = config.url.replace(/\/$/, ''); // Remove trailing slash
@@ -169,10 +168,11 @@ export class QdrantMemoryStore implements MemoryStore {
       body: body ? JSON.stringify(body) : undefined,
     });
 
-    // Throw on non-2xx responses
     if (!response.ok) {
       const errorText = await response.text().catch(() => 'Unknown error');
-      throw new Error(`Qdrant API error: ${response.status} ${response.statusText} - ${errorText}`);
+      throw new Error(
+        `Qdrant API error: ${response.status} ${response.statusText} - ${errorText}`
+      );
     }
 
     const data = await response.json();
@@ -191,9 +191,9 @@ export class QdrantMemoryStore implements MemoryStore {
   private async embed(text: string): Promise<number[]> {
     // TODO: Integrate with actual embedding service (OpenAI, Cohere, local model, etc.)
     // For now, return zero vector as placeholder
-    if (!this.hasLoggedEmbedWarning) {
-      logger.warn('Embedding generation not implemented, returning zero vector (this warning will only appear once)');
-      this.hasLoggedEmbedWarning = true;
+    if (!this.embedWarningLogged) {
+      logger.warn('Embedding generation not implemented, returning zero vector');
+      this.embedWarningLogged = true;
     }
     return new Array(this.embeddingDimensions).fill(0);
   }
@@ -328,7 +328,6 @@ export class QdrantMemoryStore implements MemoryStore {
         }));
 
         if (factResults.length > 0) {
-          // Copilot fix #11: Use type guard instead of `as any`
           facts = factResults.map((r) => {
             if (!isFactPayload(r.payload)) {
               throw new Error(`Expected fact payload but got ${r.payload.kind}`);
@@ -377,7 +376,6 @@ export class QdrantMemoryStore implements MemoryStore {
         }));
 
         if (factPoints.length > 0) {
-          // Copilot fix #11: Use type guard instead of `as any`
           facts = factPoints.map((p) => {
             if (!isFactPayload(p.payload)) {
               throw new Error(`Expected fact payload but got ${p.payload.kind}`);

@@ -11,11 +11,9 @@ import type {
   SessionStatus,
   Message,
   MessageRole,
-  SessionConfig,
   SessionWithMessages,
 } from '@nachos/types';
 import { v4 as uuid } from 'uuid';
-// Copilot fix #12: Import types from interface instead of redefining them
 import type {
   CreateSessionData,
   UpdateSessionData,
@@ -241,11 +239,7 @@ export class PostgresSessionsStore {
 
   /**
    * Get or create a session atomically (race condition safe)
-   * Uses UPSERT pattern to prevent race conditions on concurrent inserts
-   * 
-   * Copilot fix #1: Changed from SELECT FOR UPDATE + INSERT to INSERT ON CONFLICT
-   * to handle the case where two concurrent calls can both see no row exists,
-   * then both try to INSERT, causing UNIQUE constraint violation.
+   * Uses PostgreSQL UPSERT to handle concurrent inserts safely
    */
   async getOrCreateSessionAtomic(data: CreateSessionData): Promise<{ session: Session; created: boolean }> {
     await this.ensureSchema();
@@ -257,18 +251,24 @@ export class PostgresSessionsStore {
     try {
       await client.query('BEGIN');
 
-      // Use UPSERT: Insert new session, or update existing one to active status
-      // ON CONFLICT prevents race condition when multiple calls try to create same session
+      // UPSERT: INSERT new session, or UPDATE existing one if conflict occurs
+      // This locks the row atomically and handles non-existent rows correctly
       const result = await client.query(
         `INSERT INTO ${this.qualified('sessions')} 
          (id, channel, conversation_id, user_id, status, system_prompt, config, metadata, created_at, updated_at, is_pinned, is_archived, last_activity)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
          ON CONFLICT (channel, conversation_id) 
          DO UPDATE SET 
-           status = CASE WHEN ${this.qualified('sessions')}.status = 'active' THEN ${this.qualified('sessions')}.status ELSE 'active' END,
-           updated_at = CASE WHEN ${this.qualified('sessions')}.status = 'active' THEN ${this.qualified('sessions')}.updated_at ELSE $10 END,
-           last_activity = CASE WHEN ${this.qualified('sessions')}.status = 'active' THEN ${this.qualified('sessions')}.last_activity ELSE $13 END
-         RETURNING *, (xmax = 0) AS was_inserted`,
+           status = CASE WHEN ${this.qualified('sessions')}.status = 'active' 
+                         THEN ${this.qualified('sessions')}.status 
+                         ELSE 'active' END,
+           updated_at = CASE WHEN ${this.qualified('sessions')}.status = 'active' 
+                             THEN ${this.qualified('sessions')}.updated_at 
+                             ELSE $10 END,
+           last_activity = CASE WHEN ${this.qualified('sessions')}.status = 'active' 
+                                 THEN ${this.qualified('sessions')}.last_activity 
+                                 ELSE $13 END
+         RETURNING *, (xmax = 0) AS inserted`,
         [
           id,
           data.channel,
@@ -286,13 +286,12 @@ export class PostgresSessionsStore {
         ]
       );
 
-      // Copilot fix #2: Read within transaction using client, not this.pool
-      const row = result.rows[0] as SessionRow & { was_inserted: boolean };
+      const row = result.rows[0] as SessionRow & { inserted: boolean };
       const session = this.rowToSession(row);
-      
-      await client.query('COMMIT');
+      const created = row.inserted;
 
-      return { session, created: row.was_inserted };
+      await client.query('COMMIT');
+      return { session, created };
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
