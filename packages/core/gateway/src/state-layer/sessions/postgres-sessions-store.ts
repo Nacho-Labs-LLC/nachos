@@ -238,7 +238,7 @@ export class PostgresSessionsStore {
 
   /**
    * Get or create a session atomically (race condition safe)
-   * Uses PostgreSQL transaction with SELECT FOR UPDATE to prevent TOCTOU
+   * Uses PostgreSQL UPSERT to handle concurrent inserts safely
    */
   async getOrCreateSessionAtomic(data: CreateSessionData): Promise<{ session: Session; created: boolean }> {
     await this.ensureSchema();
@@ -247,44 +247,24 @@ export class PostgresSessionsStore {
     try {
       await client.query('BEGIN');
 
-      // Try to get existing session with lock
-      const getResult = await client.query(
-        `SELECT * FROM ${this.qualified('sessions')} 
-         WHERE channel = $1 AND conversation_id = $2
-         FOR UPDATE`,
-        [data.channel, data.conversationId]
-      );
-
-      if (getResult.rows.length > 0) {
-        const row = getResult.rows[0] as SessionRow;
-        
-        if (row.status === 'active') {
-          await client.query('COMMIT');
-          return { session: this.rowToSession(row), created: false };
-        }
-
-        // Reactivate existing session
-        const now = new Date().toISOString();
-        await client.query(
-          `UPDATE ${this.qualified('sessions')} 
-           SET status = $1, updated_at = $2 
-           WHERE id = $3`,
-          ['active', now, row.id]
-        );
-
-        const updated = await this.getSession(row.id);
-        await client.query('COMMIT');
-        return { session: updated!, created: false };
-      }
-
-      // Create new session
       const now = new Date().toISOString();
       const id = uuid();
 
-      await client.query(
+      // UPSERT: INSERT new session, or UPDATE existing one if conflict occurs
+      // This locks the row atomically and handles non-existent rows correctly
+      const result = await client.query(
         `INSERT INTO ${this.qualified('sessions')} 
          (id, channel, conversation_id, user_id, status, system_prompt, config, metadata, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         ON CONFLICT (channel, conversation_id) 
+         DO UPDATE SET 
+           status = CASE WHEN ${this.qualified('sessions')}.status = 'active' 
+                         THEN ${this.qualified('sessions')}.status 
+                         ELSE 'active' END,
+           updated_at = CASE WHEN ${this.qualified('sessions')}.status = 'active' 
+                             THEN ${this.qualified('sessions')}.updated_at 
+                             ELSE $10 END
+         RETURNING *, (xmax = 0) AS inserted`,
         [
           id,
           data.channel,
@@ -299,22 +279,12 @@ export class PostgresSessionsStore {
         ]
       );
 
+      const row = result.rows[0] as SessionRow & { inserted: boolean };
+      const session = this.rowToSession(row);
+      const created = row.inserted;
+
       await client.query('COMMIT');
-
-      const session: Session = {
-        id,
-        channel: data.channel,
-        conversationId: data.conversationId,
-        userId: data.userId,
-        status: 'active',
-        systemPrompt: data.systemPrompt,
-        config: data.config ?? {},
-        metadata: data.metadata ?? {},
-        createdAt: now,
-        updatedAt: now,
-      };
-
-      return { session, created: true };
+      return { session, created };
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
