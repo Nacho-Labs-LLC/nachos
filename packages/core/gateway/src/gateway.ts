@@ -561,7 +561,14 @@ export class Gateway {
     }
 
     // Initialize storage (SQLite by default for backwards compatibility)
-    // Note: Postgres sessions store will be initialized in start() if configured
+    // Copilot fix #4: Check provider config and throw error if postgres is configured
+    const sessionsProvider = options.stateLayerConfig?.sessions?.provider ?? 'sqlite';
+    if (sessionsProvider === 'postgres') {
+      throw new Error(
+        'Postgres sessions provider is not yet wired up in the Gateway. ' +
+        'Please use "sqlite" provider in runtime.state.sessions or remove the provider config to use default SQLite.'
+      );
+    }
     const dbPath = options.stateLayerConfig?.sessions?.sqlite?.dbPath ?? options.dbPath ?? ':memory:';
     this.storage = new StateStorage(dbPath);
 

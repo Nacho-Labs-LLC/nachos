@@ -326,6 +326,23 @@ const CONFIG_SHAPE: SchemaNode = {
         },
       },
       session: { provider: true, redis_url: true, ttl_seconds: true },
+      // Copilot fix #3: Add sessions storage config validation
+      sessions: {
+        provider: true,
+        sqlite: { db_path: true },
+        postgres: {
+          connection_string: true,
+          schema: true,
+          ssl: true,
+          max_connections: true,
+        },
+      },
+      // Copilot fix #3: Add semantic search config validation
+      semantic: {
+        provider: true,
+        local: { model: true, cache_dir: true },
+        qdrant: { url: true, collection: true, api_key: true },
+      },
       prompt_report: {
         hash: true,
         include_tokens: true,

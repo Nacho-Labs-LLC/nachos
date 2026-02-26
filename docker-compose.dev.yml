@@ -122,6 +122,7 @@ services:
     shm_size: 256m
     volumes:
       - ./data/gateway:/app/data
+      - ./nachos.toml:/app/nachos.toml:ro  # Copilot fix #5: Mount config file
     develop:
       watch:
         - action: sync
@@ -238,6 +239,8 @@ services:
       AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
       AWS_REGION: ${AWS_REGION:-us-east-1}
       NACHOS_CONFIG: /app/nachos.toml
+    volumes:
+      - ./nachos.toml:/app/nachos.toml:ro  # Copilot fix #5: Mount config file
     develop:
       watch:
         - action: sync
@@ -283,6 +286,7 @@ services:
     volumes:
       - ./data/gateway:/app/state:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./nachos.toml:/app/nachos.toml:ro  # Copilot fix #5: Mount config file
     develop:
       watch:
         - action: rebuild
