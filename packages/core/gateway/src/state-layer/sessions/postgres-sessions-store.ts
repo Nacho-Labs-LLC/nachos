@@ -11,42 +11,14 @@ import type {
   SessionStatus,
   Message,
   MessageRole,
-  SessionConfig,
   SessionWithMessages,
 } from '@nachos/types';
 import { v4 as uuid } from 'uuid';
-
-/**
- * Data for creating a new session
- */
-export interface CreateSessionData {
-  channel: string;
-  conversationId: string;
-  userId: string;
-  systemPrompt?: string;
-  config?: SessionConfig;
-  metadata?: Record<string, unknown>;
-}
-
-/**
- * Data for updating a session
- */
-export interface UpdateSessionData {
-  status?: SessionStatus;
-  systemPrompt?: string;
-  config?: SessionConfig;
-  metadata?: Record<string, unknown>;
-}
-
-/**
- * Data for creating a new message
- */
-export interface CreateMessageData {
-  sessionId: string;
-  role: MessageRole;
-  content: string;
-  toolCalls?: unknown;
-}
+import type {
+  CreateSessionData,
+  UpdateSessionData,
+  CreateMessageData,
+} from './sessions-store-interface.js';
 
 /**
  * Row type for session database queries

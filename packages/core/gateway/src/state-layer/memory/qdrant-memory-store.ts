@@ -29,6 +29,11 @@ interface QdrantPoint {
     created_at: string;
     updated_at?: string;
     expires_at?: string;
+    // Fact-specific fields
+    subject?: string;
+    predicate?: string;
+    object?: string;
+    source_entry_id?: string;
   };
 }
 
@@ -57,6 +62,7 @@ export class QdrantMemoryStore implements MemoryStore {
   private apiKey?: string;
   private embeddingModel: string;
   private embeddingDimensions: number;
+  private embedWarningLogged = false;
 
   constructor(config: QdrantConfig) {
     this.url = config.url.replace(/\/$/, ''); // Remove trailing slash
@@ -144,7 +150,14 @@ export class QdrantMemoryStore implements MemoryStore {
       body: body ? JSON.stringify(body) : undefined,
     });
 
-    const data = response.ok ? await response.json() : undefined;
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error');
+      throw new Error(
+        `Qdrant API error: ${response.status} ${response.statusText} - ${errorText}`
+      );
+    }
+
+    const data = await response.json();
 
     return {
       status: response.status,
@@ -158,7 +171,10 @@ export class QdrantMemoryStore implements MemoryStore {
   private async embed(text: string): Promise<number[]> {
     // TODO: Integrate with actual embedding service (OpenAI, Cohere, local model, etc.)
     // For now, return zero vector as placeholder
-    logger.warn('Embedding generation not implemented, returning zero vector');
+    if (!this.embedWarningLogged) {
+      logger.warn('Embedding generation not implemented, returning zero vector');
+      this.embedWarningLogged = true;
+    }
     return new Array(this.embeddingDimensions).fill(0);
   }
 
@@ -295,11 +311,11 @@ export class QdrantMemoryStore implements MemoryStore {
           facts = factResults.map((r) => ({
             id: r.id,
             agentId: r.payload.agent_id,
-            subject: (r.payload as any).subject,
-            predicate: (r.payload as any).predicate,
-            object: (r.payload as any).object,
+            subject: r.payload.subject ?? '',
+            predicate: r.payload.predicate ?? '',
+            object: r.payload.object ?? '',
             confidence: r.payload.confidence,
-            sourceEntryId: (r.payload as any).source_entry_id,
+            sourceEntryId: r.payload.source_entry_id,
             createdAt: r.payload.created_at,
           }));
         }
@@ -338,11 +354,11 @@ export class QdrantMemoryStore implements MemoryStore {
           facts = factPoints.map((p) => ({
             id: p.id,
             agentId: p.payload.agent_id,
-            subject: (p.payload as any).subject,
-            predicate: (p.payload as any).predicate,
-            object: (p.payload as any).object,
+            subject: p.payload.subject ?? '',
+            predicate: p.payload.predicate ?? '',
+            object: p.payload.object ?? '',
             confidence: p.payload.confidence,
-            sourceEntryId: (p.payload as any).source_entry_id,
+            sourceEntryId: p.payload.source_entry_id,
             createdAt: p.payload.created_at,
           }));
         }
