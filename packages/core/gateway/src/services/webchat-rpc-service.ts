@@ -189,7 +189,7 @@ export class WebChatRPCService {
   /**
    * Register an RPC handler
    */
-  private async registerHandler<TReq, TRes>(
+  private async registerHandler<TReq>(
     topic: string,
     handler: MessageHandler<TReq>
   ): Promise<void> {

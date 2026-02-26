@@ -189,23 +189,25 @@ describeIfInfra('WebChatRPCService', () => {
     });
 
     // Pin the session
-    const pinResponse = await bus.request('nachos.webchat.sessions.pin', {
+    const pinResponse = await bus.request<any, PinSessionResponse>('nachos.webchat.sessions.pin', {
       sessionId: session.id,
       userId: 'test-user-5',
       pinned: true,
     });
 
-    expect(pinResponse.payload).toHaveProperty('ok', true);
+    const pinPayload = pinResponse.payload as PinSessionResponse;
+    expect(pinPayload).toHaveProperty('ok', true);
 
     // Verify it's pinned
-    const sessions = await bus.request('nachos.webchat.sessions.list', {
+    const sessions = await bus.request<any, ListSessionsResponse>('nachos.webchat.sessions.list', {
       userId: 'test-user-5',
       channel: 'webchat',
     });
 
-    const pinnedSession = sessions.payload.sessions.find((s: any) => s.id === session.id);
+    const sessionsPayload = sessions.payload as ListSessionsResponse;
+    const pinnedSession = sessionsPayload.sessions.find(s => s.id === session.id);
     expect(pinnedSession).toBeTruthy();
-    expect(pinnedSession.isPinned).toBe(true);
+    expect(pinnedSession!.isPinned).toBe(true);
   });
 
   it('should handle deleteSession RPC request', async () => {
@@ -217,12 +219,13 @@ describeIfInfra('WebChatRPCService', () => {
     });
 
     // Delete the session
-    const deleteResponse = await bus.request('nachos.webchat.sessions.delete', {
+    const deleteResponse = await bus.request<any, DeleteSessionResponse>('nachos.webchat.sessions.delete', {
       sessionId: session.id,
       userId: 'test-user-6',
     });
 
-    expect(deleteResponse.payload).toHaveProperty('ok', true);
+    const deletePayload = deleteResponse.payload as DeleteSessionResponse;
+    expect(deletePayload).toHaveProperty('ok', true);
 
     // Verify it's deleted
     const retrieved = await store.getSession(session.id);
@@ -247,14 +250,15 @@ describeIfInfra('WebChatRPCService', () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     // Send a message
-    const sendResponse = await bus.request('nachos.webchat.messages.send', {
+    const sendResponse = await bus.request<any, SendMessageResponse>('nachos.webchat.messages.send', {
       sessionId: session.id,
       userId: 'test-user-7',
       text: 'Hello, world!',
     });
 
-    expect(sendResponse.payload).toHaveProperty('messageId');
-    expect(sendResponse.payload).toHaveProperty('timestamp');
+    const payload = sendResponse.payload as SendMessageResponse;
+    expect(payload).toHaveProperty('messageId');
+    expect(payload).toHaveProperty('timestamp');
 
     // Wait for message to be published
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -292,16 +296,17 @@ describeIfInfra('WebChatRPCService', () => {
     });
 
     // Get messages with pagination
-    const response = await bus.request('nachos.webchat.messages.get', {
+    const response = await bus.request<any, GetMessagesResponse>('nachos.webchat.messages.get', {
       sessionId: session.id,
       userId: 'test-user-8',
       limit: 2,
       offset: 0,
     });
 
-    expect(response.payload).toHaveProperty('messages');
-    expect(response.payload).toHaveProperty('total', 3);
-    expect(response.payload.messages.length).toBe(2);
+    const payload = response.payload as GetMessagesResponse;
+    expect(payload).toHaveProperty('messages');
+    expect(payload).toHaveProperty('total', 3);
+    expect(payload.messages.length).toBe(2);
   });
 
   it('should enforce user ownership for session operations', async () => {
@@ -313,12 +318,13 @@ describeIfInfra('WebChatRPCService', () => {
     });
 
     // Try to archive as user-2 (should fail)
-    const archiveResponse = await bus.request('nachos.webchat.sessions.archive', {
+    const archiveResponse = await bus.request<any, ArchiveSessionResponse | { error: string }>('nachos.webchat.sessions.archive', {
       sessionId: session.id,
       userId: 'user-2',
     });
 
-    expect(archiveResponse.payload).toHaveProperty('error');
-    expect(archiveResponse.payload.error).toContain('access denied');
+    const payload = archiveResponse.payload as any;
+    expect(payload).toHaveProperty('error');
+    expect(payload.error).toContain('access denied');
   });
 });
