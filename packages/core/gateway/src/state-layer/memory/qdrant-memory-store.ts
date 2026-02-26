@@ -16,31 +16,47 @@ import { createLogger } from '@nachos/types';
 
 const logger = createLogger('qdrant-memory-store');
 
+// Copilot fix #11: Define typed payloads to replace `as any` casts
+interface QdrantEntryPayload {
+  agent_id: string;
+  kind: 'decision' | 'observation' | 'conversation' | 'tool_result';
+  content: string;
+  tags?: string[];
+  confidence?: number;
+  provenance?: Record<string, unknown>;
+  created_at: string;
+  updated_at?: string;
+  expires_at?: string;
+}
+
+interface QdrantFactPayload {
+  agent_id: string;
+  kind: 'fact';
+  subject: string;
+  predicate: string;
+  object: string;
+  confidence?: number;
+  source_entry_id?: string;
+  created_at: string;
+  content: string; // Required by base payload structure
+}
+
+type QdrantPayload = QdrantEntryPayload | QdrantFactPayload;
+
+function isFactPayload(payload: QdrantPayload): payload is QdrantFactPayload {
+  return payload.kind === 'fact';
+}
+
 interface QdrantPoint {
   id: string;
   vector: number[];
-  payload: {
-    agent_id: string;
-    kind: string;
-    content: string;
-    tags?: string[];
-    confidence?: number;
-    provenance?: Record<string, unknown>;
-    created_at: string;
-    updated_at?: string;
-    expires_at?: string;
-    // Fact-specific fields
-    subject?: string;
-    predicate?: string;
-    object?: string;
-    source_entry_id?: string;
-  };
+  payload: QdrantPayload;
 }
 
 interface QdrantSearchResult {
   id: string;
   score: number;
-  payload: QdrantPoint['payload'];
+  payload: QdrantPayload;
 }
 
 interface QdrantConfig {
@@ -130,6 +146,8 @@ export class QdrantMemoryStore implements MemoryStore {
 
   /**
    * Make HTTP request to Qdrant API
+   * 
+   * Copilot fix #10: Throw on non-2xx responses instead of returning success with status
    */
   private async request(
     path: string,
@@ -167,6 +185,8 @@ export class QdrantMemoryStore implements MemoryStore {
 
   /**
    * Generate embedding for text (placeholder - requires external embedding service)
+   * 
+   * Copilot fix #13: Log warning only once to prevent log flooding
    */
   private async embed(text: string): Promise<number[]> {
     // TODO: Integrate with actual embedding service (OpenAI, Cohere, local model, etc.)
@@ -308,16 +328,21 @@ export class QdrantMemoryStore implements MemoryStore {
         }));
 
         if (factResults.length > 0) {
-          facts = factResults.map((r) => ({
-            id: r.id,
-            agentId: r.payload.agent_id,
-            subject: r.payload.subject ?? '',
-            predicate: r.payload.predicate ?? '',
-            object: r.payload.object ?? '',
-            confidence: r.payload.confidence,
-            sourceEntryId: r.payload.source_entry_id,
-            createdAt: r.payload.created_at,
-          }));
+          facts = factResults.map((r) => {
+            if (!isFactPayload(r.payload)) {
+              throw new Error(`Expected fact payload but got ${r.payload.kind}`);
+            }
+            return {
+              id: r.id,
+              agentId: r.payload.agent_id,
+              subject: r.payload.subject,
+              predicate: r.payload.predicate,
+              object: r.payload.object,
+              confidence: r.payload.confidence,
+              sourceEntryId: r.payload.source_entry_id,
+              createdAt: r.payload.created_at,
+            };
+          });
         }
       }
     } else {
@@ -351,16 +376,21 @@ export class QdrantMemoryStore implements MemoryStore {
         }));
 
         if (factPoints.length > 0) {
-          facts = factPoints.map((p) => ({
-            id: p.id,
-            agentId: p.payload.agent_id,
-            subject: p.payload.subject ?? '',
-            predicate: p.payload.predicate ?? '',
-            object: p.payload.object ?? '',
-            confidence: p.payload.confidence,
-            sourceEntryId: p.payload.source_entry_id,
-            createdAt: p.payload.created_at,
-          }));
+          facts = factPoints.map((p) => {
+            if (!isFactPayload(p.payload)) {
+              throw new Error(`Expected fact payload but got ${p.payload.kind}`);
+            }
+            return {
+              id: p.id,
+              agentId: p.payload.agent_id,
+              subject: p.payload.subject,
+              predicate: p.payload.predicate,
+              object: p.payload.object,
+              confidence: p.payload.confidence,
+              sourceEntryId: p.payload.source_entry_id,
+              createdAt: p.payload.created_at,
+            };
+          });
         }
       }
     }

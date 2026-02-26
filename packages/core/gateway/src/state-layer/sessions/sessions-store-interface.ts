@@ -117,7 +117,48 @@ export interface SessionsStore {
   replaceMessages(sessionId: string, messages: Message[]): Promise<number>;
 
   /**
+   * List active sessions (last activity within 24 hours OR pinned)
+   */
+  listActive(options?: {
+    channel?: string;
+    userId?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<Session[]>;
+
+  /**
+   * List archived sessions
+   */
+  listArchived(options?: {
+    channel?: string;
+    userId?: string;
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<Session[]>;
+
+  /**
+   * Archive a session
+   */
+  archive(sessionId: string): Promise<boolean>;
+
+  /**
+   * Restore a session from archive
+   */
+  restore(sessionId: string): Promise<boolean>;
+
+  /**
+   * Pin or unpin a session
+   */
+  pin(sessionId: string, pinned: boolean): Promise<boolean>;
+
+  /**
    * Close the storage connection
    */
   close(): Promise<void>;
 }
+
+/**
+ * @deprecated Use SessionsStore instead
+ */
+export type ISessionsStore = SessionsStore;

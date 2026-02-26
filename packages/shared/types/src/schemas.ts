@@ -377,6 +377,9 @@ export const SessionSchema = Type.Object(
     systemPrompt: Type.Optional(Type.String({ description: 'System prompt for this session' })),
     config: SessionConfigSchema,
     metadata: Type.Record(Type.String(), Type.Unknown(), { description: 'Additional metadata' }),
+    isPinned: Type.Boolean({ description: 'Whether this session is pinned', default: false }),
+    isArchived: Type.Boolean({ description: 'Whether this session is archived', default: false }),
+    lastActivity: TimestampSchema,
   },
   { $id: 'Session', description: 'Session data structure' }
 );

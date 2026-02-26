@@ -1,19 +1,24 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue';
+import { ref, onMounted, onUnmounted, nextTick, computed, watch } from 'vue';
 import MarkdownIt from 'markdown-it';
+import SessionDropdown from '../components/SessionDropdown.vue';
+import HistoryModal from '../components/HistoryModal.vue';
+import {
+  createSession,
+  sendMessage as sendMessageAPI,
+  getMessages,
+  subscribeToMessages,
+  archiveSession,
+  type Message,
+  type MessageSubscription,
+} from '../api/webchat';
+import { getSync } from '../utils/sync';
 
 const md = new MarkdownIt({
   html: false,
   linkify: true,
   breaks: true,
 });
-
-interface Message {
-  id: string;
-  role: 'user' | 'assistant';
-  text: string;
-  timestamp: string;
-}
 
 interface StatusEvent {
   type: 'thinking' | 'tool' | 'done' | 'error' | 'connected';
@@ -24,154 +29,262 @@ interface StatusEvent {
 const messages = ref<Message[]>([]);
 const inputText = ref('');
 const sessionId = ref<string | null>(null);
+const sessionName = ref<string | null>(null);
 const loading = ref(false);
 const error = ref<string | null>(null);
 const currentStatus = ref<StatusEvent | null>(null);
 const messageContainer = ref<HTMLElement | null>(null);
+const showHistory = ref(false);
+const loadingMore = ref(false);
+const hasMoreMessages = ref(false);
 
-let eventSource: EventSource | null = null;
+let messageSubscription: MessageSubscription | null = null;
 
 const messageCount = computed(() => messages.value.length);
+
+// Multi-tab sync
+const sync = getSync();
 
 function renderMarkdown(text: string): string {
   return md.render(text);
 }
 
+async function handleNewSession() {
+  if (loading.value) return;
+  
+  // Confirm if there's an active session
+  if (sessionId.value && messages.value.length > 0) {
+    if (!confirm('Create a new session? The current session will remain accessible.')) {
+      return;
+    }
+  }
+  
+  loading.value = true;
+  error.value = null;
+  
+  try {
+    const result = await createSession({ channel: 'webchat' });
+    
+    // Unsubscribe from current session
+    if (messageSubscription) {
+      messageSubscription.unsubscribe();
+      messageSubscription = null;
+    }
+    
+    // Switch to new session
+    sessionId.value = result.sessionId;
+    sessionName.value = result.name;
+    messages.value = [];
+    currentStatus.value = null;
+    
+    // Broadcast to other tabs
+    sync.broadcast('session-created', result.sessionId, {
+      name: result.name,
+    });
+    
+    // Start subscription
+    subscribeToSession(result.sessionId);
+  } catch (err) {
+    error.value = String(err);
+    console.error('[chat] Error creating session:', err);
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function handleSessionSelected(newSessionId: string) {
+  if (newSessionId === sessionId.value) return;
+  
+  loading.value = true;
+  error.value = null;
+  
+  try {
+    // Unsubscribe from current session
+    if (messageSubscription) {
+      messageSubscription.unsubscribe();
+      messageSubscription = null;
+    }
+    
+    // Load messages for new session
+    const result = await getMessages(newSessionId, { limit: 50 });
+    
+    sessionId.value = newSessionId;
+    messages.value = result.messages;
+    hasMoreMessages.value = result.total > result.messages.length;
+    currentStatus.value = null;
+    
+    await nextTick();
+    scrollToBottom();
+    
+    // Broadcast to other tabs
+    sync.broadcast('session-switched', newSessionId);
+    
+    // Subscribe to new session
+    subscribeToSession(newSessionId);
+  } catch (err) {
+    error.value = String(err);
+    console.error('[chat] Error switching session:', err);
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function handleSessionRestored(restoredSessionId: string) {
+  showHistory.value = false;
+  
+  // Switch to the restored session
+  await handleSessionSelected(restoredSessionId);
+}
+
+async function loadMoreMessages() {
+  if (!sessionId.value || loadingMore.value || !hasMoreMessages.value) return;
+  
+  loadingMore.value = true;
+  
+  try {
+    const oldestMessage = messages.value[0];
+    if (!oldestMessage) return;
+    
+    const result = await getMessages(sessionId.value, {
+      limit: 50,
+      offset: messages.value.length,
+    });
+    
+    // Prepend older messages
+    messages.value = [...result.messages, ...messages.value];
+    hasMoreMessages.value = result.total > messages.value.length;
+  } catch (err) {
+    console.error('[chat] Error loading more messages:', err);
+  } finally {
+    loadingMore.value = false;
+  }
+}
+
+function subscribeToSession(sid: string) {
+  // Register subscription with sync system
+  sync.registerSubscription(sid);
+  
+  messageSubscription = subscribeToMessages(
+    sid,
+    (message) => {
+      // Add new message
+      messages.value.push({
+        id: message.id,
+        sessionId: message.sessionId,
+        role: message.role,
+        content: message.content,
+        timestamp: message.timestamp,
+        toolCalls: message.toolCalls,
+      });
+      
+      loading.value = false;
+      currentStatus.value = null;
+      
+      nextTick(() => scrollToBottom());
+    },
+    {
+      onStatus: (status) => {
+        if (status.type === 'thinking') {
+          currentStatus.value = { type: 'thinking' };
+        } else if (status.type === 'tool') {
+          currentStatus.value = { type: 'tool', toolName: status.tool };
+        } else if (status.type === 'done') {
+          currentStatus.value = { type: 'done' };
+          setTimeout(() => {
+            currentStatus.value = null;
+          }, 1000);
+        } else if (status.type === 'error') {
+          currentStatus.value = { type: 'error', error: status.error };
+          error.value = status.error;
+          loading.value = false;
+        }
+      },
+      onError: (err) => {
+        console.error('[chat] Subscription error:', err);
+        error.value = 'Connection lost. Reconnecting...';
+      },
+      onConnect: () => {
+        console.log('[chat] Connected to session:', sid);
+        error.value = null;
+      },
+      autoReconnect: true,
+    }
+  );
+}
+
 async function sendMessage() {
   if (!inputText.value.trim() || loading.value) return;
-
+  
   const userMessage = inputText.value.trim();
   inputText.value = '';
   loading.value = true;
   error.value = null;
-
-  // Add user message immediately
+  
+  // Create session if needed
+  if (!sessionId.value) {
+    try {
+      const result = await createSession({ channel: 'webchat' });
+      sessionId.value = result.sessionId;
+      sessionName.value = result.name;
+      subscribeToSession(result.sessionId);
+    } catch (err) {
+      error.value = String(err);
+      loading.value = false;
+      return;
+    }
+  }
+  
+  // Add user message immediately (optimistic update)
+  const tempId = `temp-${Date.now()}`;
   messages.value.push({
-    id: crypto.randomUUID(),
+    id: tempId,
+    sessionId: sessionId.value,
     role: 'user',
-    text: userMessage,
+    content: userMessage,
     timestamp: new Date().toISOString(),
   });
-
+  
   await nextTick();
   scrollToBottom();
-
+  
   try {
-    const res = await fetch('/api/chat/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: userMessage,
-        sessionId: sessionId.value,
-      }),
-    });
-
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(errText || res.statusText);
-    }
-
-    const data = await res.json();
+    await sendMessageAPI(sessionId.value, userMessage);
+  } catch (err) {
+    error.value = String(err);
+    loading.value = false;
     
-    // Update session ID if this is the first message
-    if (!sessionId.value && data.sessionId) {
-      sessionId.value = data.sessionId;
-      // Start SSE stream
-      connectSSE();
-    }
-  } catch (err) {
-    error.value = String(err);
-    loading.value = false;
+    // Remove optimistic message on error
+    messages.value = messages.value.filter(m => m.id !== tempId);
   }
 }
 
-function connectSSE() {
+async function handleArchiveSession() {
   if (!sessionId.value) return;
-
-  if (eventSource) {
-    eventSource.close();
-  }
-
-  const url = `/api/chat/stream?sessionId=${encodeURIComponent(sessionId.value)}`;
-  eventSource = new EventSource(url);
-
-  eventSource.addEventListener('message', (e) => {
-    try {
-      const data = JSON.parse(e.data);
-      
-      if (data.type === 'message') {
-        // Add assistant message
-        messages.value.push({
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          text: data.text,
-          timestamp: data.timestamp,
-        });
-        loading.value = false;
-        currentStatus.value = null;
-        nextTick(() => scrollToBottom());
-      }
-    } catch (err) {
-      console.error('[chat] Error parsing message:', err);
-    }
-  });
-
-  eventSource.addEventListener('status', (e) => {
-    try {
-      const data = JSON.parse(e.data);
-      
-      if (data.type === 'connected') {
-        console.log('[chat] Connected to SSE stream');
-      } else if (data.type === 'thinking') {
-        currentStatus.value = { type: 'thinking' };
-      } else if (data.type === 'tool') {
-        currentStatus.value = { type: 'tool', toolName: data.tool };
-      } else if (data.type === 'done') {
-        currentStatus.value = { type: 'done' };
-        setTimeout(() => {
-          currentStatus.value = null;
-        }, 1000);
-      } else if (data.type === 'error') {
-        currentStatus.value = { type: 'error', error: data.error };
-        error.value = data.error;
-        loading.value = false;
-      }
-    } catch (err) {
-      console.error('[chat] Error parsing status:', err);
-    }
-  });
-
-  eventSource.addEventListener('error', (e) => {
-    console.error('[chat] SSE error:', e);
-    error.value = 'Connection lost. Please refresh the page.';
-    loading.value = false;
-  });
-}
-
-async function resetSession() {
-  if (!confirm('Reset the chat session? This will clear all messages.')) return;
-
+  
+  if (!confirm('Archive this session? You can restore it later from history.')) return;
+  
+  const archivedSessionId = sessionId.value;
+  
   try {
-    if (sessionId.value) {
-      await fetch('/api/chat/reset', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId: sessionId.value }),
-      });
+    await archiveSession(archivedSessionId);
+    
+    // Broadcast to other tabs
+    sync.broadcast('session-archived', archivedSessionId);
+    
+    // Clear current session
+    if (messageSubscription) {
+      messageSubscription.unsubscribe();
+      sync.unregisterSubscription(archivedSessionId);
+      messageSubscription = null;
     }
-
-    if (eventSource) {
-      eventSource.close();
-      eventSource = null;
-    }
-
-    messages.value = [];
+    
     sessionId.value = null;
+    sessionName.value = null;
+    messages.value = [];
     currentStatus.value = null;
-    loading.value = false;
-    error.value = null;
   } catch (err) {
-    error.value = String(err);
+    alert(`Failed to archive session: ${err}`);
+    console.error('[chat] Error archiving session:', err);
   }
 }
 
@@ -193,9 +306,56 @@ function handleKeydown(e: KeyboardEvent) {
   }
 }
 
+function handleScroll() {
+  if (!messageContainer.value) return;
+  
+  // Check if scrolled to top
+  if (messageContainer.value.scrollTop === 0 && hasMoreMessages.value) {
+    loadMoreMessages();
+  }
+}
+
+// Setup sync listeners
+onMounted(() => {
+  // Listen for session events from other tabs
+  sync.on('session-created', (event) => {
+    console.log('[chat] Other tab created session:', event.sessionId);
+    // Could refresh session list here
+  });
+  
+  sync.on('session-archived', (event) => {
+    console.log('[chat] Other tab archived session:', event.sessionId);
+    
+    // If we're viewing the archived session, clear it
+    if (sessionId.value === event.sessionId) {
+      if (messageSubscription) {
+        messageSubscription.unsubscribe();
+        messageSubscription = null;
+      }
+      sessionId.value = null;
+      sessionName.value = null;
+      messages.value = [];
+      currentStatus.value = null;
+    }
+  });
+  
+  sync.on('session-restored', (event) => {
+    console.log('[chat] Other tab restored session:', event.sessionId);
+    // Could refresh session list here
+  });
+  
+  sync.on('session-list-updated', () => {
+    console.log('[chat] Session list updated in another tab');
+    // Could trigger a refresh of the session dropdown
+  });
+});
+
 onUnmounted(() => {
-  if (eventSource) {
-    eventSource.close();
+  if (messageSubscription) {
+    messageSubscription.unsubscribe();
+    if (sessionId.value) {
+      sync.unregisterSubscription(sessionId.value);
+    }
   }
 });
 </script>
@@ -203,52 +363,96 @@ onUnmounted(() => {
 <template>
   <div class="page chat-page">
     <header class="page-header">
-      <div>
+      <div class="header-left">
         <h1 class="page-title">Web Chat</h1>
         <p class="page-sub">
-          {{ sessionId ? `Session: ${sessionId.slice(0, 8)}…` : 'No active session' }}
-          <span v-if="messageCount > 0"> · {{ messageCount }} messages</span>
+          Real-time messaging with session management
         </p>
       </div>
       <div class="header-actions">
-        <button 
-          class="btn-ghost" 
-          :disabled="!sessionId || loading" 
-          @click="resetSession"
+        <SessionDropdown
+          :current-session-id="sessionId"
+          @session-selected="handleSessionSelected"
+          @new-session="handleNewSession"
+        />
+        <button
+          class="btn-ghost"
+          @click="showHistory = true"
         >
-          ⟳ Reset Session
+          📁 History
+        </button>
+        <button
+          v-if="sessionId"
+          class="btn-ghost"
+          :disabled="loading"
+          @click="handleArchiveSession"
+        >
+          📦 Archive
         </button>
       </div>
     </header>
-
-    <div v-if="error" class="alert-error">{{ error }}</div>
-
+    
+    <div v-if="error" class="alert-error">
+      {{ error }}
+      <button
+        v-if="messageSubscription && !messageSubscription.isConnected()"
+        class="btn-reconnect"
+        @click="messageSubscription.reconnect()"
+      >
+        Reconnect
+      </button>
+    </div>
+    
     <div class="chat-container">
       <!-- Messages -->
-      <div ref="messageContainer" class="messages">
-        <div v-if="messages.length === 0" class="empty-state">
-          <p class="empty-icon">💬</p>
-          <p class="empty-text">Send a message to start chatting</p>
+      <div
+        ref="messageContainer"
+        class="messages"
+        @scroll="handleScroll"
+      >
+        <!-- Load more button -->
+        <div v-if="hasMoreMessages && !loadingMore" class="load-more-container">
+          <button class="btn-load-more" @click="loadMoreMessages">
+            ↑ Load older messages
+          </button>
         </div>
-
+        <div v-if="loadingMore" class="loading-more">
+          <span class="spinner">⟳</span> Loading...
+        </div>
+        
+        <!-- Empty state -->
+        <div v-if="messages.length === 0 && !loading" class="empty-state">
+          <p class="empty-icon">💬</p>
+          <p class="empty-text">
+            {{ sessionId ? 'No messages yet' : 'Create or select a session to start chatting' }}
+          </p>
+        </div>
+        
+        <!-- Message list -->
         <div
           v-for="msg in messages"
           :key="msg.id"
           class="message"
-          :class="{ 'message-user': msg.role === 'user', 'message-assistant': msg.role === 'assistant' }"
+          :class="{
+            'message-user': msg.role === 'user',
+            'message-assistant': msg.role === 'assistant',
+            'message-system': msg.role === 'system',
+          }"
         >
           <div class="message-header">
-            <span class="message-role">{{ msg.role === 'user' ? 'You' : 'Assistant' }}</span>
+            <span class="message-role">
+              {{ msg.role === 'user' ? 'You' : msg.role === 'assistant' ? 'Assistant' : 'System' }}
+            </span>
             <span class="message-time">{{ formatTime(msg.timestamp) }}</span>
           </div>
           <div
             v-if="msg.role === 'assistant'"
             class="message-content markdown-content"
-            v-html="renderMarkdown(msg.text)"
+            v-html="renderMarkdown(msg.content)"
           ></div>
-          <div v-else class="message-content">{{ msg.text }}</div>
+          <div v-else class="message-content">{{ msg.content }}</div>
         </div>
-
+        
         <!-- Status indicator -->
         <div v-if="currentStatus" class="status-indicator">
           <span v-if="currentStatus.type === 'thinking'" class="status-text">
@@ -262,7 +466,7 @@ onUnmounted(() => {
           </span>
         </div>
       </div>
-
+      
       <!-- Input -->
       <div class="input-container">
         <textarea
@@ -282,6 +486,13 @@ onUnmounted(() => {
         </button>
       </div>
     </div>
+    
+    <!-- History Modal -->
+    <HistoryModal
+      :is-open="showHistory"
+      @close="showHistory = false"
+      @session-restored="handleSessionRestored"
+    />
   </div>
 </template>
 
@@ -293,6 +504,52 @@ onUnmounted(() => {
   padding: 28px 32px;
 }
 
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  gap: 24px;
+}
+
+.header-left {
+  flex: 1;
+  min-width: 0;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.alert-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--error-dim);
+  border: 1px solid var(--error);
+  border-radius: var(--radius);
+  color: var(--error);
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.btn-reconnect {
+  padding: 6px 12px;
+  background: var(--error);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
 .chat-container {
   flex: 1;
   display: flex;
@@ -301,6 +558,7 @@ onUnmounted(() => {
   border-radius: var(--radius);
   background: var(--surface);
   overflow: hidden;
+  min-height: 0;
 }
 
 .messages {
@@ -310,6 +568,38 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.load-more-container {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.btn-load-more {
+  padding: 8px 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
+}
+
+.btn-load-more:hover {
+  background: var(--surface);
+  border-color: var(--border-strong);
+}
+
+.loading-more {
+  text-align: center;
+  padding: 12px;
+  color: var(--text-muted);
+  font-size: 13px;
 }
 
 .empty-state {
@@ -329,6 +619,8 @@ onUnmounted(() => {
 
 .empty-text {
   font-size: 14px;
+  text-align: center;
+  max-width: 300px;
 }
 
 .message {
@@ -343,7 +635,8 @@ onUnmounted(() => {
   align-self: flex-end;
 }
 
-.message-assistant {
+.message-assistant,
+.message-system {
   align-self: flex-start;
 }
 
@@ -384,6 +677,13 @@ onUnmounted(() => {
   background: var(--accent-dim);
   border-color: var(--accent);
   color: var(--text-strong);
+}
+
+.message-system .message-content {
+  background: var(--bg);
+  border-color: var(--border);
+  color: var(--text-muted);
+  font-style: italic;
 }
 
 .markdown-content :deep(p) {
@@ -467,6 +767,17 @@ onUnmounted(() => {
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .input-container {
