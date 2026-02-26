@@ -46,6 +46,7 @@ const CONFIG_SHAPE: SchemaNode = {
       bot_token: true,
       signing_secret: true,
       webhook_path: true,
+      typing_indicators: true,
       commands: { enabled: true, admin_allowlist: true },
       dm: { user_allowlist: true, pairing: true },
       servers: {
@@ -63,6 +64,7 @@ const CONFIG_SHAPE: SchemaNode = {
       token: true,
       allow_bots: true,
       bot_allowlist: true,
+      typing_indicators: true,
       commands: { enabled: true, admin_allowlist: true },
       status_emojis: { enabled: true },
       dm: { user_allowlist: true, pairing: true },
@@ -162,7 +164,6 @@ const CONFIG_SHAPE: SchemaNode = {
       entity_id: true,
       allowed_apps: true,
     },
-    overrides: true,
     copilot: {
       enabled: true,
       max_prompt_length: true,
@@ -325,28 +326,7 @@ const CONFIG_SHAPE: SchemaNode = {
           max_connections: true,
         },
       },
-      sessions: {
-        provider: true,
-        sqlite: { dbPath: true },
-        postgres: {
-          connection_string: true,
-          schema: true,
-          ssl: true,
-          max_connections: true,
-        },
-      },
-      semantic: {
-        provider: true,
-        filesystem: { dir: true },
-        qdrant: {
-          url: true,
-          api_key: true,
-          collection_name: true,
-          vector_size: true,
-        },
-      },
       session: { provider: true, redis_url: true, ttl_seconds: true },
-      // Copilot fix #3: Add sessions storage config validation
       sessions: {
         provider: true,
         sqlite: { db_path: true },
@@ -357,7 +337,6 @@ const CONFIG_SHAPE: SchemaNode = {
           max_connections: true,
         },
       },
-      // Copilot fix #3: Add semantic search config validation
       semantic: {
         provider: true,
         local: { model: true, cache_dir: true },
@@ -592,7 +571,7 @@ function validateSecurityConfig(config: NachosConfig, errors: string[], _warning
 
   // Validate DLP configuration
   if (config.security.dlp) {
-    const validActions = ['block', 'warn', 'audit'];
+    const validActions = ['block', 'warn', 'audit', 'allow', 'redact'];
     if (config.security.dlp.action && !validActions.includes(config.security.dlp.action)) {
       errors.push(
         `Invalid security.dlp.action: "${config.security.dlp.action}". Must be one of: ${validActions.join(', ')}`
