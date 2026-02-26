@@ -91,6 +91,9 @@ import { loadAndValidateConfig, validateConfigOrThrow } from '@nachos/config';
 import { randomUUID } from 'node:crypto';
 import { StateStorage } from './state.js';
 import { SessionManager } from './session.js';
+import { PostgresSessionsStore } from './state-layer/sessions/postgres-sessions-store.js';
+import { Pool } from 'pg';
+import type { SessionsStore } from './state-layer/sessions/sessions-store-interface.js';
 import {
   Router,
   InMemoryMessageBus,
@@ -487,7 +490,9 @@ export interface GatewayOptions {
  * Gateway class - orchestrates sessions, routing, and health
  */
 export class Gateway {
-  private storage: StateStorage;
+  private storage: SessionsStore;
+  private postgresPool?: Pool;
+  private sqliteStorage?: StateStorage; // For scheduler when using postgres sessions
   private sessionManager: SessionManager;
   private router: Router;
   private rateLimiter?: RateLimiter;
@@ -561,17 +566,41 @@ export class Gateway {
     }
 
     // Initialize storage (SQLite by default for backwards compatibility)
-    // Note: Postgres sessions store not yet wired to SessionManager
-    const sessionsProvider = options.stateLayerConfig?.sessions?.provider;
-    if (sessionsProvider && sessionsProvider !== 'sqlite') {
+    // Config path: stateLayerConfig.sessions (plural)
+    const sessionsConfig = (options.stateLayerConfig as any)?.sessions;
+    const sessionsProvider = sessionsConfig?.provider ?? 'sqlite';
+    const dbPath = sessionsConfig?.sqlite?.dbPath ?? options.dbPath ?? ':memory:';
+    
+    if (sessionsProvider === 'postgres') {
+      // Initialize Postgres connection pool for sessions
+      const pgConfig = sessionsConfig?.postgres;
+      if (!pgConfig?.connectionString) {
+        throw new Error('Postgres sessions provider requires connectionString in config');
+      }
+      
+      this.postgresPool = new Pool({
+        connectionString: pgConfig.connectionString,
+        ssl: pgConfig.ssl,
+        max: pgConfig.maxConnections ?? 10,
+      });
+      
+      this.storage = new PostgresSessionsStore(this.postgresPool, pgConfig.schema);
+      logger.info('Initialized Postgres sessions store');
+      
+      // Keep SQLite for scheduler/cron jobs (separate concern)
+      this.sqliteStorage = new StateStorage(dbPath);
+      logger.info({ dbPath }, 'Initialized SQLite for scheduler storage');
+    } else if (sessionsProvider === 'sqlite') {
+      // Initialize SQLite storage (used for both sessions and scheduler)
+      this.storage = new StateStorage(dbPath);
+      this.sqliteStorage = this.storage as StateStorage;
+      logger.info({ dbPath }, 'Initialized SQLite sessions store');
+    } else {
       throw new Error(
-        `Sessions provider '${sessionsProvider}' is not yet supported. ` +
-        `Only 'sqlite' is currently wired to the SessionManager. ` +
-        `Postgres support is implemented in PostgresSessionsStore but not yet integrated.`
+        `Unknown sessions provider '${sessionsProvider}'. ` +
+        `Supported providers: 'sqlite' (default), 'postgres'`
       );
     }
-    const dbPath = options.stateLayerConfig?.sessions?.sqlite?.dbPath ?? options.dbPath ?? ':memory:';
-    this.storage = new StateStorage(dbPath);
 
     // Initialize session manager
     this.sessionManager = new SessionManager(this.storage);
@@ -580,8 +609,11 @@ export class Gateway {
     this.schedulerConfig = options.schedulerConfig;
     this.heartbeatConfig = options.heartbeatConfig;
     if (this.schedulerConfig?.enabled) {
+      if (!this.sqliteStorage) {
+        throw new Error('Scheduler requires SQLite storage');
+      }
       this.scheduler = new Scheduler(
-        this.storage.getDatabase(),
+        this.sqliteStorage.getDatabase(),
         this.schedulerConfig,
         this.createJobExecutor()
       );
@@ -3181,6 +3213,9 @@ export class Gateway {
       metadata: {},
       createdAt: now,
       updatedAt: now,
+      isPinned: false,
+      isArchived: false,
+      lastActivity: now,
     };
 
     const subagentSession: Session = {
@@ -4161,7 +4196,19 @@ export class Gateway {
       logger.info('Scheduler stopped');
     }
 
-    this.storage.close();
+    await this.storage.close();
+    
+    // Close separate SQLite storage if using Postgres for sessions
+    if (this.sqliteStorage && this.sqliteStorage !== this.storage) {
+      await this.sqliteStorage.close();
+      logger.info('SQLite scheduler storage closed');
+    }
+    
+    if (this.postgresPool) {
+      await this.postgresPool.end();
+      logger.info('Postgres connection pool closed');
+    }
+    
     logger.info('Gateway stopped');
   }
 
@@ -4348,7 +4395,7 @@ export class Gateway {
   /**
    * Get the state storage
    */
-  getStorage(): StateStorage {
+  getStorage(): SessionsStore {
     return this.storage;
   }
 

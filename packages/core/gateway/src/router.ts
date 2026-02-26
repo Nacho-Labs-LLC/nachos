@@ -357,7 +357,7 @@ export class Router {
     const managerConfig = this.contextManager.getConfig();
 
     // Get session with messages
-    const sessionWithMessages = this.sessionManager.getSessionWithMessages(sessionId);
+    const sessionWithMessages = await this.sessionManager.getSessionWithMessages(sessionId);
     if (!sessionWithMessages) {
       logger.warn({ sessionId }, 'Cannot check context: session not found');
       return;

@@ -146,7 +146,7 @@ export class SubagentOrchestrator {
     const runId = randomUUID();
     const now = new Date().toISOString();
     const workspaceDir = await this.ensureWorkspace(runId);
-    const childSessionId = this.createSubagentSession(runId, { ...request, task }, workspaceDir);
+    const childSessionId = await this.createSubagentSession(runId, { ...request, task }, workspaceDir);
 
     const record: SubagentRunRecord = {
       runId,
@@ -465,18 +465,18 @@ export class SubagentOrchestrator {
     }
   }
 
-  private createSubagentSession(
+  private async createSubagentSession(
     runId: string,
     request: SubagentRunRequest,
     workspaceDir?: string
-  ): string {
+  ): Promise<string> {
     const baseConfig = request.sessionConfig ?? {};
     const config = {
       ...baseConfig,
       model: request.model ?? baseConfig.model,
     };
 
-    const session = this.deps.sessionManager.getOrCreateSession({
+    const session = await this.deps.sessionManager.getOrCreateSession({
       channel: 'subagent',
       conversationId: runId,
       userId: request.requester.userId ?? request.requester.sessionId,
@@ -494,7 +494,7 @@ export class SubagentOrchestrator {
       },
     });
 
-    this.deps.sessionManager.addMessage(session.id, {
+    await this.deps.sessionManager.addMessage(session.id, {
       role: 'user',
       content: request.task,
     });

@@ -10,7 +10,7 @@ import type {
   MessageRole,
 } from '@nachos/types';
 import { createLogger } from '@nachos/types';
-import { StateStorage, type CreateSessionData } from './state.js';
+import type { SessionsStore, CreateSessionData } from './state-layer/sessions/sessions-store-interface.js';
 
 const logger = createLogger('session-manager');
 
@@ -39,11 +39,11 @@ export interface AddMessageOptions {
  * Session Manager class
  */
 export class SessionManager {
-  private storage: StateStorage;
+  private storage: SessionsStore;
   private maxMessagesPerSession: number;
   private messageWarningThreshold: number;
 
-  constructor(storage: StateStorage, options?: { maxMessagesPerSession?: number }) {
+  constructor(storage: SessionsStore, options?: { maxMessagesPerSession?: number}) {
     this.storage = storage;
     // M2: Configurable max message limit (default: 10000)
     this.maxMessagesPerSession = options?.maxMessagesPerSession ?? 10000;
