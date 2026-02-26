@@ -51,3 +51,21 @@ docker-compose.yml
 
 # Generated files
 nachos.toml
+
+# Backup files
+*.bak
+
+# Compiled TypeScript in src (should only be in dist)
+packages/*/src/**/*.js
+packages/*/src/**/*.d.ts
+packages/*/src/**/*.js.map
+packages/*/src/**/*.d.ts.map
+
+# Documentation bloat (AI-generated status/summary docs)
+*IMPLEMENTATION*.md
+*SUMMARY*.md
+*QUICKSTART*.md
+*TEST_PLAN*.md
+*USER_GUIDE*.md
+REVIEW_CHECKLIST.md
+EXECUTIVE_SUMMARY.md
