@@ -78,7 +78,7 @@ describe('SubagentOrchestrator', () => {
   let orchestrator: SubagentOrchestrator;
   let deps: SubagentOrchestratorDeps;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     deps = createMockDeps();
     orchestrator = new SubagentOrchestrator(deps);
   });

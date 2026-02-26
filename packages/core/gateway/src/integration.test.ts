@@ -119,7 +119,7 @@ describe('Gateway-Bus Integration', () => {
 
       // Verify message was added to session
       const sessionManager = gateway.getSessionManager();
-      const messages = sessionManager.getMessages(session.id);
+      const messages = await sessionManager.getMessages(session.id);
       expect(messages.length).toBe(1);
       expect(messages[0]?.role).toBe('user');
       expect(messages[0]?.content).toBe('Hello, assistant!');

@@ -202,7 +202,7 @@ describe('Gateway', () => {
       };
 
       const session = await gateway.processMessage(message);
-      const messages = gateway.getSessionManager().getMessages(session.id);
+      const messages = await gateway.getSessionManager().getMessages(session.id);
 
       expect(messages).toHaveLength(1);
       expect(messages[0]?.role).toBe('user');
@@ -226,7 +226,7 @@ describe('Gateway', () => {
       expect(session).toBeDefined();
 
       // No message should be added (no text content)
-      const messages = gateway.getSessionManager().getMessages(session.id);
+      const messages = await gateway.getSessionManager().getMessages(session.id);
       expect(messages).toHaveLength(0);
     });
 
@@ -274,7 +274,7 @@ describe('Gateway', () => {
     });
 
     it('increments bootstrap version on set', async () => {
-      const session = gateway.getSessionManager().createSession({
+      const session = await gateway.getSessionManager().createSession({
         channel: 'slack',
         conversationId: 'conv-2',
         userId: 'user-2',
@@ -437,10 +437,10 @@ describe('Gateway', () => {
   });
 
   describe('SessionManager access', () => {
-    it('should provide access to session manager', () => {
+    it('should provide access to session manager', async () => {
       const sessionManager = gateway.getSessionManager();
 
-      const session = sessionManager.getOrCreateSession({
+      const session = await sessionManager.getOrCreateSession({
         channel: 'slack',
         conversationId: 'conv-123',
         userId: 'user-456',
@@ -472,10 +472,10 @@ describe('Gateway', () => {
   });
 
   describe('Storage access', () => {
-    it('should provide access to storage', () => {
+    it('should provide access to storage', async () => {
       const storage = gateway.getStorage();
 
-      const session = storage.createSession({
+      const session = await storage.createSession({
         channel: 'slack',
         conversationId: 'conv-123',
         userId: 'user-456',

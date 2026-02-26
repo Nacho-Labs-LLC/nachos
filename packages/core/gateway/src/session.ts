@@ -55,7 +55,7 @@ export class SessionManager {
    * Create a new session or return existing one for the conversation
    * C2: Uses atomic transaction to prevent race conditions
    */
-  getOrCreateSession(options: CreateSessionOptions): Session {
+  async getOrCreateSession(options: CreateSessionOptions): Promise<Session> {
     const createData: CreateSessionData = {
       channel: options.channel,
       conversationId: options.conversationId,
@@ -66,14 +66,14 @@ export class SessionManager {
     };
 
     // Use atomic transaction to prevent TOCTOU race
-    const { session } = this.storage.getOrCreateSessionAtomic(createData);
+    const { session } = await this.storage.getOrCreateSessionAtomic(createData);
     return session;
   }
 
   /**
    * Create a new session for the conversation without checking for existing ones.
    */
-  createSession(options: CreateSessionOptions): Session {
+  async createSession(options: CreateSessionOptions): Promise<Session> {
     const createData: CreateSessionData = {
       channel: options.channel,
       conversationId: options.conversationId,
@@ -83,69 +83,69 @@ export class SessionManager {
       metadata: options.metadata,
     };
 
-    return this.storage.createSession(createData);
+    return await this.storage.createSession(createData);
   }
 
   /**
    * Reset the session for a conversation by deleting the existing session and creating a new one.
    */
-  resetSession(options: CreateSessionOptions): { previous?: Session; session: Session } {
-    const existing = this.getSessionByConversation(options.channel, options.conversationId);
+  async resetSession(options: CreateSessionOptions): Promise<{ previous?: Session; session: Session }> {
+    const existing = await this.getSessionByConversation(options.channel, options.conversationId);
     if (existing) {
-      this.storage.deleteSession(existing.id);
+      await this.storage.deleteSession(existing.id);
     }
 
-    const session = this.createSession(options);
+    const session = await this.createSession(options);
     return { previous: existing ?? undefined, session };
   }
 
   /**
    * Get a session by ID
    */
-  getSession(sessionId: string): Session | null {
-    return this.storage.getSession(sessionId);
+  async getSession(sessionId: string): Promise<Session | null> {
+    return await this.storage.getSession(sessionId);
   }
 
   /**
    * Get a session by channel and conversation ID
    */
-  getSessionByConversation(channel: string, conversationId: string): Session | null {
-    return this.storage.getSessionByConversation(channel, conversationId);
+  async getSessionByConversation(channel: string, conversationId: string): Promise<Session | null> {
+    return await this.storage.getSessionByConversation(channel, conversationId);
   }
 
   /**
    * Get a session with its messages
    */
-  getSessionWithMessages(sessionId: string): SessionWithMessages | null {
-    return this.storage.getSessionWithMessages(sessionId);
+  async getSessionWithMessages(sessionId: string): Promise<SessionWithMessages | null> {
+    return await this.storage.getSessionWithMessages(sessionId);
   }
 
   /**
    * Update session status
    */
-  updateStatus(sessionId: string, status: SessionStatus): Session | null {
-    return this.storage.updateSession(sessionId, { status });
+  async updateStatus(sessionId: string, status: SessionStatus): Promise<Session | null> {
+    return await this.storage.updateSession(sessionId, { status });
   }
 
   /**
    * Pause a session
    */
-  pauseSession(sessionId: string): Session | null {
-    return this.updateStatus(sessionId, 'paused');
+  async pauseSession(sessionId: string): Promise<Session | null> {
+    return await this.updateStatus(sessionId, 'paused');
   }
 
   /**
    * End a session
    */
-  endSession(sessionId: string): Session | null {
-    return this.updateStatus(sessionId, 'ended');
+  async endSession(sessionId: string): Promise<Session | null> {
+    return await this.updateStatus(sessionId, 'ended');
   }
 
   /**
    * Reactivate a session
    */
-  reactivateSession(sessionId: string): Session | null {
-    const session = this.getSession(sessionId);
+  async reactivateSession(sessionId: string): Promise<Session | null> {
+    const session = await this.getSession(sessionId);
     if (!session) {
       return null;
     }
@@ -154,14 +154,14 @@ export class SessionManager {
       return session;
     }
 
-    return this.updateStatus(sessionId, 'active');
+    return await this.updateStatus(sessionId, 'active');
   }
 
   /**
    * Update session configuration
    */
-  updateConfig(sessionId: string, config: Partial<SessionConfig>): Session | null {
-    const session = this.getSession(sessionId);
+  async updateConfig(sessionId: string, config: Partial<SessionConfig>): Promise<Session | null> {
+    const session = await this.getSession(sessionId);
     if (!session) {
       return null;
     }
@@ -171,21 +171,21 @@ export class SessionManager {
       ...config,
     };
 
-    return this.storage.updateSession(sessionId, { config: newConfig });
+    return await this.storage.updateSession(sessionId, { config: newConfig });
   }
 
   /**
    * Update session system prompt
    */
-  updateSystemPrompt(sessionId: string, systemPrompt: string): Session | null {
-    return this.storage.updateSession(sessionId, { systemPrompt });
+  async updateSystemPrompt(sessionId: string, systemPrompt: string): Promise<Session | null> {
+    return await this.storage.updateSession(sessionId, { systemPrompt });
   }
 
   /**
    * Update session metadata
    */
-  updateMetadata(sessionId: string, metadata: Record<string, unknown>): Session | null {
-    const session = this.getSession(sessionId);
+  async updateMetadata(sessionId: string, metadata: Record<string, unknown>): Promise<Session | null> {
+    const session = await this.getSession(sessionId);
     if (!session) {
       return null;
     }
@@ -195,34 +195,34 @@ export class SessionManager {
       ...metadata,
     };
 
-    return this.storage.updateSession(sessionId, { metadata: newMetadata });
+    return await this.storage.updateSession(sessionId, { metadata: newMetadata });
   }
 
   /**
    * Delete a session
    */
-  deleteSession(sessionId: string): boolean {
-    return this.storage.deleteSession(sessionId);
+  async deleteSession(sessionId: string): Promise<boolean> {
+    return await this.storage.deleteSession(sessionId);
   }
 
   /**
    * List sessions with optional filtering
    */
-  listSessions(options?: {
+  async listSessions(options?: {
     channel?: string;
     status?: SessionStatus;
     limit?: number;
     offset?: number;
-  }): Session[] {
-    return this.storage.listSessions(options);
+  }): Promise<Session[]> {
+    return await this.storage.listSessions(options);
   }
 
   /**
    * Add a message to a session
    * M2: Logs warning when approaching message limit
    */
-  addMessage(sessionId: string, options: AddMessageOptions): Message | null {
-    const session = this.getSession(sessionId);
+  async addMessage(sessionId: string, options: AddMessageOptions): Promise<Message | null> {
+    const session = await this.getSession(sessionId);
     if (!session) {
       return null;
     }
@@ -232,7 +232,7 @@ export class SessionManager {
     }
 
     // M2: Check message count and warn if approaching limit
-    const currentCount = this.storage.getMessageCount(sessionId);
+    const currentCount = await this.storage.getMessageCount(sessionId);
     
     if (currentCount >= this.maxMessagesPerSession) {
       logger.warn(
@@ -249,7 +249,7 @@ export class SessionManager {
       );
     }
 
-    return this.storage.addMessage({
+    return await this.storage.addMessage({
       sessionId,
       role: options.role,
       content: options.content,
@@ -260,15 +260,15 @@ export class SessionManager {
   /**
    * Get messages for a session
    */
-  getMessages(sessionId: string, options?: { limit?: number; offset?: number }): Message[] {
-    return this.storage.getMessages(sessionId, options);
+  async getMessages(sessionId: string, options?: { limit?: number; offset?: number }): Promise<Message[]> {
+    return await this.storage.getMessages(sessionId, options);
   }
 
   /**
    * Get the count of messages in a session
    */
-  getMessageCount(sessionId: string): number {
-    return this.storage.getMessageCount(sessionId);
+  async getMessageCount(sessionId: string): Promise<number> {
+    return await this.storage.getMessageCount(sessionId);
   }
 
   /**
@@ -277,7 +277,7 @@ export class SessionManager {
    * This is an atomic operation that deletes existing messages and inserts new ones.
    * Used by context management to update message history after compaction.
    */
-  replaceMessages(sessionId: string, messages: Message[]): number {
-    return this.storage.replaceMessages(sessionId, messages);
+  async replaceMessages(sessionId: string, messages: Message[]): Promise<number> {
+    return await this.storage.replaceMessages(sessionId, messages);
   }
 }
