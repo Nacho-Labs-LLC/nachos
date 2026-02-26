@@ -370,16 +370,22 @@ export class QdrantMemoryStore implements MemoryStore {
         }));
 
         if (factPoints.length > 0) {
-          facts = factPoints.map((p) => ({
-            id: p.id,
-            agentId: p.payload.agent_id,
-            subject: (p.payload as any).subject,
-            predicate: (p.payload as any).predicate,
-            object: (p.payload as any).object,
-            confidence: p.payload.confidence,
-            sourceEntryId: (p.payload as any).source_entry_id,
-            createdAt: p.payload.created_at,
-          }));
+          // Copilot fix #11: Use type guard instead of `as any`
+          facts = factPoints.map((p) => {
+            if (!isFactPayload(p.payload)) {
+              throw new Error(`Expected fact payload but got ${p.payload.kind}`);
+            }
+            return {
+              id: p.id,
+              agentId: p.payload.agent_id,
+              subject: p.payload.subject,
+              predicate: p.payload.predicate,
+              object: p.payload.object,
+              confidence: p.payload.confidence,
+              sourceEntryId: p.payload.source_entry_id,
+              createdAt: p.payload.created_at,
+            };
+          });
         }
       }
     }
