@@ -78,6 +78,8 @@ export class QdrantMemoryStore implements MemoryStore {
   private apiKey?: string;
   private embeddingModel: string;
   private embeddingDimensions: number;
+  // Copilot fix #13: Log-once guard to prevent embed() warning flood
+  private hasLoggedEmbedWarning = false;
 
   constructor(config: QdrantConfig) {
     this.url = config.url.replace(/\/$/, ''); // Remove trailing slash
@@ -183,11 +185,16 @@ export class QdrantMemoryStore implements MemoryStore {
 
   /**
    * Generate embedding for text (placeholder - requires external embedding service)
+   * 
+   * Copilot fix #13: Log warning only once to prevent log flooding
    */
   private async embed(text: string): Promise<number[]> {
     // TODO: Integrate with actual embedding service (OpenAI, Cohere, local model, etc.)
     // For now, return zero vector as placeholder
-    logger.warn('Embedding generation not implemented, returning zero vector');
+    if (!this.hasLoggedEmbedWarning) {
+      logger.warn('Embedding generation not implemented, returning zero vector (this warning will only appear once)');
+      this.hasLoggedEmbedWarning = true;
+    }
     return new Array(this.embeddingDimensions).fill(0);
   }
 
