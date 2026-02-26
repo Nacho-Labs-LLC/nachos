@@ -325,6 +325,26 @@ const CONFIG_SHAPE: SchemaNode = {
           max_connections: true,
         },
       },
+      sessions: {
+        provider: true,
+        sqlite: { dbPath: true },
+        postgres: {
+          connection_string: true,
+          schema: true,
+          ssl: true,
+          max_connections: true,
+        },
+      },
+      semantic: {
+        provider: true,
+        filesystem: { dir: true },
+        qdrant: {
+          url: true,
+          api_key: true,
+          collection_name: true,
+          vector_size: true,
+        },
+      },
       session: { provider: true, redis_url: true, ttl_seconds: true },
       prompt_report: {
         hash: true,

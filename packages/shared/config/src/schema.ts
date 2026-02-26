@@ -556,6 +556,46 @@ export interface SessionStateConfig {
   ttl_seconds?: number;
 }
 
+/**
+ * Sessions & Messages (conversation history) storage configuration
+ */
+export interface SessionsStorageSqliteConfig {
+  db_path?: string;
+}
+
+export interface SessionsStoragePostgresConfig {
+  connection_string?: string;
+  schema?: string;
+  ssl?: boolean;
+  max_connections?: number;
+}
+
+export interface SessionsStorageConfig {
+  provider?: 'sqlite' | 'postgres';
+  sqlite?: SessionsStorageSqliteConfig;
+  postgres?: SessionsStoragePostgresConfig;
+}
+
+/**
+ * Semantic search (embeddings) configuration
+ */
+export interface SemanticSearchLocalConfig {
+  model?: string;
+  cache_dir?: string;
+}
+
+export interface SemanticSearchQdrantConfig {
+  url?: string;
+  collection?: string;
+  api_key?: string;
+}
+
+export interface SemanticSearchConfig {
+  provider?: 'local' | 'qdrant';
+  local?: SemanticSearchLocalConfig;
+  qdrant?: SemanticSearchQdrantConfig;
+}
+
 export interface PromptReportConfig {
   hash?: 'sha256';
   include_tokens?: boolean;
@@ -570,6 +610,8 @@ export interface StateLayerConfig {
   user_profile?: StateStoreConfig;
   bootstrap?: StateStoreConfig;
   session?: SessionStateConfig;
+  sessions?: SessionsStorageConfig;
+  semantic?: SemanticSearchConfig;
   prompt_report?: PromptReportConfig;
 }
 

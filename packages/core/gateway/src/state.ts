@@ -153,7 +153,7 @@ export class StateStorage {
   /**
    * Create a new session
    */
-  createSession(data: CreateSessionData): Session {
+  async createSession(data: CreateSessionData): Promise<Session> {
     const now = new Date().toISOString();
     const id = uuid();
 
@@ -192,7 +192,7 @@ export class StateStorage {
    * Get or create a session atomically (C2: Race condition fix)
    * Uses a transaction to prevent TOCTOU race conditions
    */
-  getOrCreateSessionAtomic(data: CreateSessionData): { session: Session; created: boolean } {
+  async getOrCreateSessionAtomic(data: CreateSessionData): Promise<{ session: Session; created: boolean }> {
     const transaction = this.db.transaction((data: CreateSessionData) => {
       // Try to get existing session
       const getStmt = this.db.prepare(
@@ -212,8 +212,10 @@ export class StateStorage {
         );
         updateStmt.run('active', now, existingRow.id);
         
-        const updated = this.getSession(existingRow.id);
-        return { session: updated!, created: false };
+        // Fetch updated session synchronously within transaction
+        const updatedStmt = this.db.prepare('SELECT * FROM sessions WHERE id = ?');
+        const updatedRow = updatedStmt.get(existingRow.id) as SessionRow;
+        return { session: this.rowToSession(updatedRow), created: false };
       }
 
       // Create new session
@@ -259,7 +261,7 @@ export class StateStorage {
   /**
    * Get a session by ID
    */
-  getSession(id: string): Session | null {
+  async getSession(id: string): Promise<Session | null> {
     const stmt = this.db.prepare('SELECT * FROM sessions WHERE id = ?');
     const row = stmt.get(id) as SessionRow | undefined;
     return row ? this.rowToSession(row) : null;
@@ -268,7 +270,7 @@ export class StateStorage {
   /**
    * Get a session by channel and conversation ID
    */
-  getSessionByConversation(channel: string, conversationId: string): Session | null {
+  async getSessionByConversation(channel: string, conversationId: string): Promise<Session | null> {
     const stmt = this.db.prepare(
       'SELECT * FROM sessions WHERE channel = ? AND conversation_id = ?'
     );
@@ -279,9 +281,11 @@ export class StateStorage {
   /**
    * Update a session
    */
-  updateSession(id: string, data: UpdateSessionData): Session | null {
-    const session = this.getSession(id);
-    if (!session) {
+  async updateSession(id: string, data: UpdateSessionData): Promise<Session | null> {
+    // Fetch session synchronously for simplicity (SQLite is sync anyway)
+    const stmt = this.db.prepare('SELECT * FROM sessions WHERE id = ?');
+    const row = stmt.get(id) as SessionRow | undefined;
+    if (!row) {
       return null;
     }
 
@@ -308,16 +312,16 @@ export class StateStorage {
 
     values.push(id);
 
-    const stmt = this.db.prepare(`UPDATE sessions SET ${updates.join(', ')} WHERE id = ?`);
-    stmt.run(...values);
+    const updateStmt = this.db.prepare(`UPDATE sessions SET ${updates.join(', ')} WHERE id = ?`);
+    updateStmt.run(...values);
 
-    return this.getSession(id);
+    return await this.getSession(id);
   }
 
   /**
    * Delete a session and its messages
    */
-  deleteSession(id: string): boolean {
+  async deleteSession(id: string): Promise<boolean> {
     const deleteMessages = this.db.prepare('DELETE FROM messages WHERE session_id = ?');
     const deleteSession = this.db.prepare('DELETE FROM sessions WHERE id = ?');
 
@@ -333,12 +337,12 @@ export class StateStorage {
   /**
    * List sessions with optional filtering
    */
-  listSessions(options?: {
+  async listSessions(options?: {
     channel?: string;
     status?: SessionStatus;
     limit?: number;
     offset?: number;
-  }): Session[] {
+  }): Promise<Session[]> {
     const conditions: string[] = [];
     const values: unknown[] = [];
 
@@ -374,7 +378,7 @@ export class StateStorage {
   /**
    * Add a message to a session
    */
-  addMessage(data: CreateMessageData): Message {
+  async addMessage(data: CreateMessageData): Promise<Message> {
     const now = new Date().toISOString();
     const id = uuid();
 
@@ -409,7 +413,7 @@ export class StateStorage {
   /**
    * Get messages for a session
    */
-  getMessages(sessionId: string, options?: { limit?: number; offset?: number }): Message[] {
+  async getMessages(sessionId: string, options?: { limit?: number; offset?: number }): Promise<Message[]> {
     let sql = 'SELECT * FROM messages WHERE session_id = ? ORDER BY created_at ASC';
     const values: unknown[] = [sessionId];
 
@@ -430,20 +434,20 @@ export class StateStorage {
   /**
    * Get a session with its messages
    */
-  getSessionWithMessages(id: string): SessionWithMessages | null {
-    const session = this.getSession(id);
+  async getSessionWithMessages(id: string): Promise<SessionWithMessages | null> {
+    const session = await this.getSession(id);
     if (!session) {
       return null;
     }
 
-    const messages = this.getMessages(id);
+    const messages = await this.getMessages(id);
     return { ...session, messages };
   }
 
   /**
    * Get the count of messages in a session
    */
-  getMessageCount(sessionId: string): number {
+  async getMessageCount(sessionId: string): Promise<number> {
     const stmt = this.db.prepare('SELECT COUNT(*) as count FROM messages WHERE session_id = ?');
     const result = stmt.get(sessionId) as { count: number };
     return result.count;
@@ -459,7 +463,7 @@ export class StateStorage {
    * @param messages - New messages to insert
    * @returns Number of messages inserted
    */
-  replaceMessages(sessionId: string, messages: Message[]): number {
+  async replaceMessages(sessionId: string, messages: Message[]): Promise<number> {
     const transaction = this.db.transaction((sessionId: string, messages: Message[]) => {
       // Delete existing messages
       const deleteStmt = this.db.prepare('DELETE FROM messages WHERE session_id = ?');

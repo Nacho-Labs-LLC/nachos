@@ -328,6 +328,28 @@ provider = "postgres"
 connection_string = "postgres://nachos:nachos@postgres:5432/nachos"
 schema = "public"
 
+# Sessions & Messages (conversation history)
+[runtime.state.sessions]
+provider = "sqlite"                       # "sqlite" (default, fast) | "postgres" (multi-instance)
+# SQLite config (default):
+db_path = "./data/gateway.db"
+# Postgres config (uncomment for multi-instance):
+# [runtime.state.sessions.postgres]
+# connection_string = "postgres://nachos:nachos@postgres:5432/nachos"
+# schema = "public"
+
+# Semantic search (embeddings)
+[runtime.state.semantic]
+provider = "local"                        # "local" (default) | "qdrant" (production)
+# Local config (default - filesystem + Transformers.js):
+model = "Xenova/all-MiniLM-L6-v2"
+cache_dir = "./state/embeddings"
+# Qdrant config (uncomment for production semantic search):
+# [runtime.state.semantic.qdrant]
+# url = "http://qdrant:6333"
+# collection = "nachos-memory"
+# api_key = "${QDRANT_API_KEY}"            # optional
+
 [runtime.state.session]
 provider = "redis"                        # "redis" | "memory"
 redis_url = "redis://localhost:6379"

@@ -21,7 +21,8 @@ networks:
 volumes:
   nats-data:
   redis-data:
-  postgres-data:
+  # postgres-data:  # Uncomment if using Postgres
+  # qdrant-data:    # Uncomment if using Qdrant for semantic search
 
 # ==================== Common Config ====================
 
@@ -54,7 +55,6 @@ x-channel-defaults: &channel-defaults
     - nachos-egress
     - nachos-internal
   volumes:
-    - ./nachos.toml:/app/nachos.toml:ro
     - ./data/channels:/app/state
   logging: *default-logging
 
@@ -81,7 +81,6 @@ services:
       - "4222:4222"
     volumes:
       - nats-data:/data
-      - ./docker/nats/nats-server.conf:/etc/nats/nats-server.conf:ro
     command: ["-c", "/etc/nats/nats-server.conf", "--auth", "${NATS_TOKEN:-nachos-dev-token}"]
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8222/healthz"]
@@ -104,8 +103,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      postgres:
-        condition: service_healthy
+      # postgres:
+      #   condition: service_healthy
     networks:
       - nachos-egress
       - nachos-internal
@@ -122,11 +121,8 @@ services:
       BROWSER_TIMEOUT_MS: ${BROWSER_TIMEOUT_MS:-30000}
     shm_size: 256m
     volumes:
-      # nachos.toml is optional — env vars alone are sufficient for single-channel setups.
-      # If nachos.toml exists, it is loaded first; env vars overlay on top.
-      - ./nachos.toml:/app/nachos.toml:ro
-      - ./policies:/app/policies:ro
       - ./data/gateway:/app/data
+      - ./nachos.toml:/app/nachos.toml:ro
     develop:
       watch:
         - action: sync
@@ -162,26 +158,59 @@ services:
       start_period: 5s
     logging: *default-logging
 
-  # -------------------- Postgres (State Layer) --------------------
-  postgres:
-    container_name: nachos-postgres
-    image: postgres:16-alpine
-    restart: unless-stopped
-    networks:
-      - nachos-internal
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-nachos}
-      POSTGRES_USER: ${POSTGRES_USER:-nachos}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nachos}
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-      start_period: 5s
-    logging: *default-logging
+  # -------------------- Postgres (OPTIONAL - Multi-Instance Deployments) --------------------
+  # Uncomment if you need:
+  # - Multi-instance gateway deployments (shared sessions/messages)
+  # - Shared identity/memory across instances
+  # Default: SQLite (faster for single instance)
+  #
+  # postgres:
+  #   container_name: nachos-postgres
+  #   image: postgres:16-alpine
+  #   restart: unless-stopped
+  #   networks:
+  #     - nachos-internal
+  #   environment:
+  #     POSTGRES_DB: ${POSTGRES_DB:-nachos}
+  #     POSTGRES_USER: ${POSTGRES_USER:-nachos}
+  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nachos}
+  #   volumes:
+  #     - postgres-data:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+  #     interval: 10s
+  #     timeout: 3s
+  #     retries: 5
+  #     start_period: 5s
+  #   logging: *default-logging
+
+  # -------------------- Qdrant (OPTIONAL - Semantic Search) --------------------
+  # Uncomment if you want semantic search for memory/knowledge:
+  # - Fast vector similarity search
+  # - Hybrid search with metadata filtering
+  # - Better performance than local embeddings at scale
+  # Default: Filesystem + local embeddings (no service required)
+  #
+  # qdrant:
+  #   container_name: nachos-qdrant
+  #   image: qdrant/qdrant:latest
+  #   restart: unless-stopped
+  #   networks:
+  #     - nachos-internal
+  #   ports:
+  #     - "6333:6333"  # HTTP API
+  #     - "6334:6334"  # gRPC API
+  #   volumes:
+  #     - qdrant-data:/qdrant/storage
+  #   environment:
+  #     QDRANT__SERVICE__GRPC_PORT: "6334"
+  #   healthcheck:
+  #     test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:6333/healthz"]
+  #     interval: 10s
+  #     timeout: 3s
+  #     retries: 3
+  #     start_period: 5s
+  #   logging: *default-logging
 
   # -------------------- LLM Proxy --------------------
   llm-proxy:
@@ -255,9 +284,9 @@ services:
       GATEWAY_HEALTH_URL: http://gateway:3000/health
       NACHOS_ADMIN_TOKEN: ${NACHOS_ADMIN_TOKEN:-}
     volumes:
-      - ./nachos.toml:/app/nachos.toml:rw
       - ./data/gateway:/app/state:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./nachos.toml:/app/nachos.toml:ro
     develop:
       watch:
         - action: rebuild

@@ -1,7 +1,7 @@
 FROM nats:2.10-alpine
 
-# NATS will be used as-is from the official image
-# Configuration will be provided via docker-compose volumes
+# Copy NATS configuration into the image
+COPY docker/nats/nats-server.conf /etc/nats/nats-server.conf
 
 EXPOSE 4222 8222
 

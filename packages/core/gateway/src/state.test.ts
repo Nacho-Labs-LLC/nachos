@@ -5,17 +5,17 @@ import type { SessionStatus } from '@nachos/types';
 describe('StateStorage', () => {
   let storage: StateStorage;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     storage = new StateStorage(':memory:');
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     storage.close();
   });
 
   describe('Session operations', () => {
-    it('should create a session', () => {
-      const session = storage.createSession({
+    it('should create a session', async () => {
+      const session = await storage.createSession({
         channel: 'slack',
         conversationId: 'conv-123',
         userId: 'user-456',
@@ -30,8 +30,8 @@ describe('StateStorage', () => {
       expect(session.updatedAt).toBeDefined();
     });
 
-    it('should create a session with optional fields', () => {
-      const session = storage.createSession({
+    it('should create a session with optional fields', async () => {
+      const session = await storage.createSession({
         channel: 'discord',
         conversationId: 'conv-789',
         userId: 'user-abc',
@@ -45,52 +45,52 @@ describe('StateStorage', () => {
       expect(session.metadata).toEqual({ source: 'test' });
     });
 
-    it('should get a session by ID', () => {
-      const created = storage.createSession({
+    it('should get a session by ID', async () => {
+      const created = await storage.createSession({
         channel: 'slack',
         conversationId: 'conv-123',
         userId: 'user-456',
       });
 
-      const retrieved = storage.getSession(created.id);
+      const retrieved = await storage.getSession(created.id);
 
       expect(retrieved).not.toBeNull();
       expect(retrieved?.id).toBe(created.id);
       expect(retrieved?.channel).toBe('slack');
     });
 
-    it('should return null for non-existent session', () => {
-      const session = storage.getSession('non-existent-id');
+    it('should return null for non-existent session', async () => {
+      const session = await storage.getSession('non-existent-id');
       expect(session).toBeNull();
     });
 
-    it('should get a session by channel and conversation ID', () => {
-      storage.createSession({
+    it('should get a session by channel and conversation ID', async () => {
+      await storage.createSession({
         channel: 'slack',
         conversationId: 'conv-123',
         userId: 'user-456',
       });
 
-      const session = storage.getSessionByConversation('slack', 'conv-123');
+      const session = await storage.getSessionByConversation('slack', 'conv-123');
 
       expect(session).not.toBeNull();
       expect(session?.channel).toBe('slack');
       expect(session?.conversationId).toBe('conv-123');
     });
 
-    it('should return null for non-existent conversation', () => {
-      const session = storage.getSessionByConversation('non-existent', 'conv-123');
+    it('should return null for non-existent conversation', async () => {
+      const session = await storage.getSessionByConversation('non-existent', 'conv-123');
       expect(session).toBeNull();
     });
 
-    it('should update a session', () => {
-      const created = storage.createSession({
+    it('should update a session', async () => {
+      const created = await storage.createSession({
         channel: 'slack',
         conversationId: 'conv-123',
         userId: 'user-456',
       });
 
-      const updated = storage.updateSession(created.id, {
+      const updated = await storage.updateSession(created.id, {
         status: 'paused' as SessionStatus,
         systemPrompt: 'Updated prompt',
       });
@@ -100,131 +100,131 @@ describe('StateStorage', () => {
       expect(updated?.systemPrompt).toBe('Updated prompt');
     });
 
-    it('should return null when updating non-existent session', () => {
-      const result = storage.updateSession('non-existent', { status: 'paused' });
+    it('should return null when updating non-existent session', async () => {
+      const result = await storage.updateSession('non-existent', { status: 'paused' });
       expect(result).toBeNull();
     });
 
-    it('should delete a session', () => {
-      const created = storage.createSession({
+    it('should delete a session', async () => {
+      const created = await storage.createSession({
         channel: 'slack',
         conversationId: 'conv-123',
         userId: 'user-456',
       });
 
       // Add a message to test cascade delete
-      storage.addMessage({
+      await storage.addMessage({
         sessionId: created.id,
         role: 'user',
         content: 'Hello',
       });
 
-      const deleted = storage.deleteSession(created.id);
+      const deleted = await storage.deleteSession(created.id);
       expect(deleted).toBe(true);
 
-      const session = storage.getSession(created.id);
+      const session = await storage.getSession(created.id);
       expect(session).toBeNull();
 
       // Messages should also be deleted
-      const messages = storage.getMessages(created.id);
+      const messages = await storage.getMessages(created.id);
       expect(messages).toHaveLength(0);
     });
 
-    it('should return false when deleting non-existent session', () => {
-      const deleted = storage.deleteSession('non-existent');
+    it('should return false when deleting non-existent session', async () => {
+      const deleted = await storage.deleteSession('non-existent');
       expect(deleted).toBe(false);
     });
 
-    it('should list sessions', () => {
-      storage.createSession({
+    it('should list sessions', async () => {
+      await storage.createSession({
         channel: 'slack',
         conversationId: 'conv-1',
         userId: 'user-1',
       });
-      storage.createSession({
+      await storage.createSession({
         channel: 'slack',
         conversationId: 'conv-2',
         userId: 'user-2',
       });
-      storage.createSession({
+      await storage.createSession({
         channel: 'discord',
         conversationId: 'conv-3',
         userId: 'user-3',
       });
 
-      const allSessions = storage.listSessions();
+      const allSessions = await storage.listSessions();
       expect(allSessions).toHaveLength(3);
 
-      const slackSessions = storage.listSessions({ channel: 'slack' });
+      const slackSessions = await storage.listSessions({ channel: 'slack' });
       expect(slackSessions).toHaveLength(2);
     });
 
-    it('should list sessions with status filter', () => {
-      const session1 = storage.createSession({
+    it('should list sessions with status filter', async () => {
+      const session1 = await storage.createSession({
         channel: 'slack',
         conversationId: 'conv-1',
         userId: 'user-1',
       });
-      storage.createSession({
+      await storage.createSession({
         channel: 'slack',
         conversationId: 'conv-2',
         userId: 'user-2',
       });
 
-      storage.updateSession(session1.id, { status: 'ended' });
+      await storage.updateSession(session1.id, { status: 'ended' });
 
-      const activeSessions = storage.listSessions({ status: 'active' });
+      const activeSessions = await storage.listSessions({ status: 'active' });
       expect(activeSessions).toHaveLength(1);
 
-      const endedSessions = storage.listSessions({ status: 'ended' });
+      const endedSessions = await storage.listSessions({ status: 'ended' });
       expect(endedSessions).toHaveLength(1);
     });
 
-    it('should list sessions with pagination', () => {
+    it('should list sessions with pagination', async () => {
       for (let i = 0; i < 5; i++) {
-        storage.createSession({
+        await storage.createSession({
           channel: 'slack',
           conversationId: `conv-${i}`,
           userId: `user-${i}`,
         });
       }
 
-      const page1 = storage.listSessions({ limit: 2 });
+      const page1 = await storage.listSessions({ limit: 2 });
       expect(page1).toHaveLength(2);
 
-      const page2 = storage.listSessions({ limit: 2, offset: 2 });
+      const page2 = await storage.listSessions({ limit: 2, offset: 2 });
       expect(page2).toHaveLength(2);
 
-      const page3 = storage.listSessions({ limit: 2, offset: 4 });
+      const page3 = await storage.listSessions({ limit: 2, offset: 4 });
       expect(page3).toHaveLength(1);
     });
 
-    it('should enforce unique constraint on channel + conversation_id', () => {
-      storage.createSession({
+    it('should enforce unique constraint on channel + conversation_id', async () => {
+      await storage.createSession({
         channel: 'slack',
         conversationId: 'conv-123',
         userId: 'user-456',
       });
 
-      expect(() => {
-        storage.createSession({
+      await expect(async () => {
+        await storage.createSession({
           channel: 'slack',
           conversationId: 'conv-123',
           userId: 'user-789',
         });
-      }).toThrow();
+      }).rejects.toThrow();
     });
   });
 
   describe('Message operations', () => {
-    it('should add a message to a session', () => {
-      const session = storage.createSession({
+    it('should add a message to a session', async () => {
+      const session = await storage.createSession({
         channel: 'slack',
         conversationId: 'conv-123',
         userId: 'user-456',
       });
 
-      const message = storage.addMessage({
+      const message = await storage.addMessage({
         sessionId: session.id,
         role: 'user',
         content: 'Hello, world!',
@@ -237,15 +237,15 @@ describe('StateStorage', () => {
       expect(message.createdAt).toBeDefined();
     });
 
-    it('should add a message with tool calls', () => {
-      const session = storage.createSession({
+    it('should add a message with tool calls', async () => {
+      const session = await storage.createSession({
         channel: 'slack',
         conversationId: 'conv-123',
         userId: 'user-456',
       });
 
       const toolCalls = [{ name: 'search', arguments: { query: 'test' } }];
-      const message = storage.addMessage({
+      const message = await storage.addMessage({
         sessionId: session.id,
         role: 'assistant',
         content: 'Let me search for that',
@@ -255,30 +255,30 @@ describe('StateStorage', () => {
       expect(message.toolCalls).toEqual(toolCalls);
     });
 
-    it('should get messages for a session', () => {
-      const session = storage.createSession({
+    it('should get messages for a session', async () => {
+      const session = await storage.createSession({
         channel: 'slack',
         conversationId: 'conv-123',
         userId: 'user-456',
       });
 
-      storage.addMessage({
+      await storage.addMessage({
         sessionId: session.id,
         role: 'user',
         content: 'Message 1',
       });
-      storage.addMessage({
+      await storage.addMessage({
         sessionId: session.id,
         role: 'assistant',
         content: 'Message 2',
       });
-      storage.addMessage({
+      await storage.addMessage({
         sessionId: session.id,
         role: 'user',
         content: 'Message 3',
       });
 
-      const messages = storage.getMessages(session.id);
+      const messages = await storage.getMessages(session.id);
 
       expect(messages).toHaveLength(3);
       expect(messages[0]?.content).toBe('Message 1');
@@ -286,85 +286,85 @@ describe('StateStorage', () => {
       expect(messages[2]?.content).toBe('Message 3');
     });
 
-    it('should get messages with pagination', () => {
-      const session = storage.createSession({
+    it('should get messages with pagination', async () => {
+      const session = await storage.createSession({
         channel: 'slack',
         conversationId: 'conv-123',
         userId: 'user-456',
       });
 
       for (let i = 0; i < 5; i++) {
-        storage.addMessage({
+        await storage.addMessage({
           sessionId: session.id,
           role: 'user',
           content: `Message ${i}`,
         });
       }
 
-      const page1 = storage.getMessages(session.id, { limit: 2 });
+      const page1 = await storage.getMessages(session.id, { limit: 2 });
       expect(page1).toHaveLength(2);
       expect(page1[0]?.content).toBe('Message 0');
 
-      const page2 = storage.getMessages(session.id, { limit: 2, offset: 2 });
+      const page2 = await storage.getMessages(session.id, { limit: 2, offset: 2 });
       expect(page2).toHaveLength(2);
       expect(page2[0]?.content).toBe('Message 2');
     });
 
-    it('should get session with messages', () => {
-      const session = storage.createSession({
+    it('should get session with messages', async () => {
+      const session = await storage.createSession({
         channel: 'slack',
         conversationId: 'conv-123',
         userId: 'user-456',
       });
 
-      storage.addMessage({
+      await storage.addMessage({
         sessionId: session.id,
         role: 'user',
         content: 'Hello',
       });
-      storage.addMessage({
+      await storage.addMessage({
         sessionId: session.id,
         role: 'assistant',
         content: 'Hi there!',
       });
 
-      const sessionWithMessages = storage.getSessionWithMessages(session.id);
+      const sessionWithMessages = await storage.getSessionWithMessages(session.id);
 
       expect(sessionWithMessages).not.toBeNull();
       expect(sessionWithMessages?.messages).toHaveLength(2);
       expect(sessionWithMessages?.channel).toBe('slack');
     });
 
-    it('should return null when getting non-existent session with messages', () => {
-      const result = storage.getSessionWithMessages('non-existent');
+    it('should return null when getting non-existent session with messages', async () => {
+      const result = await storage.getSessionWithMessages('non-existent');
       expect(result).toBeNull();
     });
 
-    it('should get message count', () => {
-      const session = storage.createSession({
+    it('should get message count', async () => {
+      const session = await storage.createSession({
         channel: 'slack',
         conversationId: 'conv-123',
         userId: 'user-456',
       });
 
-      expect(storage.getMessageCount(session.id)).toBe(0);
+      expect(await storage.getMessageCount(session.id)).toBe(0);
 
-      storage.addMessage({
+      await storage.addMessage({
         sessionId: session.id,
         role: 'user',
         content: 'Message 1',
       });
-      storage.addMessage({
+      await storage.addMessage({
         sessionId: session.id,
         role: 'assistant',
         content: 'Message 2',
       });
 
-      expect(storage.getMessageCount(session.id)).toBe(2);
+      expect(await storage.getMessageCount(session.id)).toBe(2);
     });
 
     it('should update session updatedAt when adding message', async () => {
-      const session = storage.createSession({
+      const session = await storage.createSession({
         channel: 'slack',
         conversationId: 'conv-123',
         userId: 'user-456',
@@ -375,13 +375,13 @@ describe('StateStorage', () => {
       // Wait a bit to ensure timestamp difference
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      storage.addMessage({
+      await storage.addMessage({
         sessionId: session.id,
         role: 'user',
         content: 'Hello',
       });
 
-      const updatedSession = storage.getSession(session.id);
+      const updatedSession = await storage.getSession(session.id);
       expect(updatedSession?.updatedAt).not.toBe(originalUpdatedAt);
     });
   });

@@ -561,15 +561,7 @@ export class Gateway {
     }
 
     // Initialize storage (SQLite by default for backwards compatibility)
-    // Note: Postgres sessions store not yet wired to SessionManager
-    const sessionsProvider = options.stateLayerConfig?.sessions?.provider;
-    if (sessionsProvider && sessionsProvider !== 'sqlite') {
-      throw new Error(
-        `Sessions provider '${sessionsProvider}' is not yet supported. ` +
-        `Only 'sqlite' is currently wired to the SessionManager. ` +
-        `Postgres support is implemented in PostgresSessionsStore but not yet integrated.`
-      );
-    }
+    // Note: Postgres sessions store will be initialized in start() if configured
     const dbPath = options.stateLayerConfig?.sessions?.sqlite?.dbPath ?? options.dbPath ?? ':memory:';
     this.storage = new StateStorage(dbPath);
 
@@ -808,13 +800,13 @@ export class Gateway {
       }
     }
 
-    const existingSession = await this.sessionManager.getSessionByConversation(
+    const existingSession = this.sessionManager.getSessionByConversation(
       message.channel,
       message.conversation.id
     );
 
     // Get or create session for this conversation
-    let session = await this.sessionManager.getOrCreateSession({
+    let session = this.sessionManager.getOrCreateSession({
       channel: message.channel,
       conversationId: message.conversation.id,
       userId: message.sender.id,
@@ -1001,7 +993,7 @@ export class Gateway {
 
     // Add user message to session
     if (message.content.text) {
-      await this.sessionManager.addMessage(session.id, {
+      this.sessionManager.addMessage(session.id, {
         role: 'user',
         content: message.content.text,
       });
@@ -1293,7 +1285,7 @@ export class Gateway {
     if (['on', 'enable', 'enabled'].includes(action)) {
       contextManagement.enabled = true;
       contextManagement.updatedAt = new Date().toISOString();
-      await this.sessionManager.updateMetadata(session.id, {
+      this.sessionManager.updateMetadata(session.id, {
         ...metadata,
         contextManagement,
       });
@@ -1306,7 +1298,7 @@ export class Gateway {
     if (['off', 'disable', 'disabled'].includes(action)) {
       contextManagement.enabled = false;
       contextManagement.updatedAt = new Date().toISOString();
-      await this.sessionManager.updateMetadata(session.id, {
+      this.sessionManager.updateMetadata(session.id, {
         ...metadata,
         contextManagement,
       });
@@ -1325,7 +1317,7 @@ export class Gateway {
       } else {
         updatedMetadata.contextManagement = contextManagement;
       }
-      await this.sessionManager.updateMetadata(session.id, updatedMetadata);
+      this.sessionManager.updateMetadata(session.id, updatedMetadata);
       return {
         handled: true,
         replyText: '🔁 Context management reset to default for this session.',
@@ -1344,13 +1336,13 @@ export class Gateway {
     message: ChannelInboundMessage,
     securityMode: 'strict' | 'standard' | 'permissive'
   ): Promise<Session> {
-    const previous = await this.sessionManager.getSessionByConversation(
+    const previous = this.sessionManager.getSessionByConversation(
       message.channel,
       message.conversation.id
     );
 
     if (previous) {
-      await this.sessionManager.deleteSession(previous.id);
+      this.sessionManager.deleteSession(previous.id);
       if (this.stateLayer) {
         try {
           await this.stateLayer.deleteSessionState(previous.id, {
@@ -1366,7 +1358,7 @@ export class Gateway {
       }
     }
 
-    const newSession = await this.sessionManager.createSession({
+    const newSession = this.sessionManager.createSession({
       channel: message.channel,
       conversationId: message.conversation.id,
       userId: message.sender.id,
@@ -1401,7 +1393,7 @@ export class Gateway {
     extraMessages: LLMRequestType['messages'] = [],
     stream: boolean = false
   ): Promise<LLMRequestType & { systemPromptTokens?: number; promptReport?: PromptReport }> {
-    const session = await this.sessionManager.getSessionWithMessages(sessionId);
+    const session = this.sessionManager.getSessionWithMessages(sessionId);
     if (!session) {
       throw createSessionNotFoundError('Session not found', { component: 'gateway' });
     }
@@ -1458,7 +1450,7 @@ export class Gateway {
         promptReport = assembled.report;
         systemPromptTokens = assembled.report.totalTokens ?? 0;
 
-        await this.sessionManager.updateMetadata(sessionId, {
+        this.sessionManager.updateMetadata(sessionId, {
           promptReport: assembled.report,
           promptReportUpdatedAt: assembled.report.generatedAt,
         });
@@ -1790,7 +1782,7 @@ export class Gateway {
       throw createInvalidStateError('Tool coordinator not initialized', { component: 'gateway' });
     }
 
-    const session = await this.sessionManager.getSession(sessionId);
+    const session = this.sessionManager.getSession(sessionId);
 
     // Convert LLM tool calls to our ToolCall format
     const calls: ToolCall[] = toolCalls.map((tc) => {
@@ -2774,7 +2766,7 @@ export class Gateway {
 
     if (action === 'log') {
       const limit = this.readOptionalNumber(call.parameters.limit, { min: 1 }) ?? 50;
-      const log = await this.getSubagentLog(runId);
+      const log = this.getSubagentLog(runId);
       const messages = log?.messages ?? [];
       return {
         success: true,
@@ -3360,7 +3352,7 @@ export class Gateway {
         }
         // Fall through to send responseText
       } else {
-        await this.sessionManager.addMessage(sessionId, {
+        this.sessionManager.addMessage(sessionId, {
           role: 'assistant',
           content: responseText,
           toolCalls,
@@ -3374,7 +3366,7 @@ export class Gateway {
         // Store tool result messages in session so multi-turn history is complete
         // (tool_use blocks need matching tool_result blocks in subsequent requests)
         for (const toolMsg of toolMessages) {
-          await this.sessionManager.addMessage(sessionId, {
+          this.sessionManager.addMessage(sessionId, {
             role: 'tool',
             content: typeof toolMsg.content === 'string' ? toolMsg.content : JSON.stringify(toolMsg.content),
           });
@@ -3429,7 +3421,7 @@ export class Gateway {
     }
 
     if (responseText) {
-      await this.sessionManager.addMessage(sessionId, {
+      this.sessionManager.addMessage(sessionId, {
         role: 'assistant',
         content: responseText,
       });
@@ -3840,7 +3832,7 @@ export class Gateway {
     logger.info('Tool coordinator initialized');
 
     this.approvalManager.on('approval-requested', async (request) => {
-      const session = await this.sessionManager.getSession(request.sessionId);
+      const session = this.sessionManager.getSession(request.sessionId);
       if (!session) {
         logger.warn({ sessionId: request.sessionId }, 'Approval request for unknown session');
         return;
@@ -4320,7 +4312,7 @@ export class Gateway {
 
     this.memoryPipelineInterval = setInterval(async () => {
       try {
-        const sessions = await this.sessionManager.listSessions({ status: 'active' });
+        const sessions = this.sessionManager.listSessions({ status: 'active' });
         for (const session of sessions) {
           if (!this.isContextManagementEnabledForSession(session)) {
             continue;
@@ -4329,7 +4321,7 @@ export class Gateway {
           const shouldRun = await memoryPipeline.shouldRunPeriodic(session, context);
           if (!shouldRun) continue;
 
-          const withMessages = await this.sessionManager.getSessionWithMessages(session.id);
+          const withMessages = this.sessionManager.getSessionWithMessages(session.id);
           if (!withMessages) continue;
 
           await memoryPipeline.handleExtraction({
@@ -4427,14 +4419,14 @@ export class Gateway {
     return this.subagentOrchestrator?.getRun(runId) ?? null;
   }
 
-  async getSubagentLog(runId: string): Promise<{ runId: string; messages: Message[] } | null> {
+  getSubagentLog(runId: string): { runId: string; messages: Message[] } | null {
     const run = this.subagentOrchestrator?.getRun(runId);
     if (!run) {
       return null;
     }
     return {
       runId: run.runId,
-      messages: await this.sessionManager.getMessages(run.childSessionId),
+      messages: this.sessionManager.getMessages(run.childSessionId),
     };
   }
 
@@ -4470,7 +4462,7 @@ export class Gateway {
     const envelope = createEnvelope('test', 'channel.inbound', message);
     await this.handleInboundMessage(envelope);
 
-    const session = await this.sessionManager.getSessionByConversation(
+    const session = this.sessionManager.getSessionByConversation(
       message.channel,
       message.conversation.id
     );
