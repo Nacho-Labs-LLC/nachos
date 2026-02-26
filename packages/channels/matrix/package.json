@@ -1,0 +1,29 @@
+{
+  "name": "@nachos/channel-matrix",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@nachos/bus": "workspace:*",
+    "@nachos/types": "workspace:*",
+    "@nachos/channels-base": "workspace:*",
+    "matrix-js-sdk": "^34.14.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.3"
+  }
+}
