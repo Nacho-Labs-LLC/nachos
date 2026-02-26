@@ -387,6 +387,9 @@ describe('withValidation', () => {
         status: 'active',
         config: {},
         metadata: {},
+        isPinned: false,
+        isArchived: false,
+        lastActivity: '2024-01-15T10:00:00.000Z',
       },
     };
 

@@ -302,6 +302,9 @@ describe('SessionSchema', () => {
       metadata: {
         teamId: 'team-123',
       },
+      isPinned: false,
+      isArchived: false,
+      lastActivity: '2024-01-15T10:30:00.000Z',
     };
 
     expect(Value.Check(SessionSchema, session)).toBe(true);
@@ -318,6 +321,9 @@ describe('SessionSchema', () => {
       status: 'paused' as const,
       config: {},
       metadata: {},
+      isPinned: false,
+      isArchived: false,
+      lastActivity: '2024-01-15T10:00:00.000Z',
     };
 
     expect(Value.Check(SessionSchema, session)).toBe(true);
