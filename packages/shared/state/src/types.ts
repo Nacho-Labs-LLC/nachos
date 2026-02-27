@@ -36,6 +36,23 @@ export interface SessionStateConfig {
   ttlSeconds?: number;
 }
 
+export interface SessionsStoreSQLiteConfig {
+  dbPath: string;
+}
+
+export interface SessionsStorePostgresConfig {
+  connectionString: string;
+  schema?: string;
+  ssl?: boolean;
+  maxConnections?: number;
+}
+
+export interface SessionsStoreConfig {
+  provider: 'sqlite' | 'postgres';
+  sqlite?: SessionsStoreSQLiteConfig;
+  postgres?: SessionsStorePostgresConfig;
+}
+
 export interface PromptAssemblyConfig {
   hashAlgorithm?: 'sha256';
   includeTokenEstimates?: boolean;
@@ -44,12 +61,27 @@ export interface PromptAssemblyConfig {
   includeSessionState?: boolean;
 }
 
+export interface SemanticStoreConfig {
+  provider: 'local' | 'qdrant';
+  local?: {
+    model?: string;
+    cacheDir?: string;
+  };
+  qdrant?: {
+    url?: string;
+    collection?: string;
+    apiKey?: string;
+  };
+}
+
 export interface StateLayerConfig {
   identity: StateStoreConfig;
   memory: StateStoreConfig;
   userProfile: StateStoreConfig;
   bootstrap: StateStoreConfig;
   session: SessionStateConfig;
+  sessions?: SessionsStoreConfig; // Persistent sessions/messages storage
+  semantic?: SemanticStoreConfig; // Semantic/embedding storage
   prompt?: PromptAssemblyConfig;
 }
 

@@ -35,7 +35,7 @@ export interface ManagementDeps {
   listSubagents(): SubagentRunRecord[];
   getSubagentInfo(runId: string): SubagentRunRecord | null;
   stopSubagent(runId: string): boolean;
-  getSubagentLog(runId: string): { runId: string; messages: Message[] } | null;
+  getSubagentLog(runId: string): Promise<{ runId: string; messages: Message[] } | null>;
   buildSandboxDecisionSamples(): {
     main: { enabled: boolean; config?: unknown };
     subagent: { enabled: boolean; config?: unknown };
@@ -163,7 +163,7 @@ export async function registerManagementHandlers(deps: ManagementDeps): Promise<
       const payload = msg.payload as { runId?: string; limit?: number };
       const runId = typeof payload?.runId === 'string' ? payload.runId : '';
       const limit = payload?.limit && payload.limit > 0 ? Math.floor(payload.limit) : 50;
-      const log = runId ? deps.getSubagentLog(runId) : null;
+      const log = runId ? await deps.getSubagentLog(runId) : null;
       const messages = log?.messages ?? [];
       raw.respond({
         ok: true,
