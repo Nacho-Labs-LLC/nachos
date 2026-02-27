@@ -47,6 +47,10 @@ function isFactPayload(payload: QdrantPayload): payload is QdrantFactPayload {
   return payload.kind === 'fact';
 }
 
+function isEntryPayload(payload: QdrantPayload): payload is QdrantEntryPayload {
+  return payload.kind !== 'fact';
+}
+
 interface QdrantPoint {
   id: string;
   vector: number[];
@@ -76,7 +80,6 @@ export class QdrantMemoryStore implements MemoryStore {
   private url: string;
   private collection: string;
   private apiKey?: string;
-  private embeddingModel: string;
   private embeddingDimensions: number;
   private embedWarningLogged = false;
 
@@ -84,7 +87,7 @@ export class QdrantMemoryStore implements MemoryStore {
     this.url = config.url.replace(/\/$/, ''); // Remove trailing slash
     this.collection = config.collection;
     this.apiKey = config.apiKey;
-    this.embeddingModel = config.embeddingModel ?? 'text-embedding-ada-002';
+    // Note: embeddingModel from config is reserved for future use when actual embedding service is integrated
     this.embeddingDimensions = config.embeddingDimensions ?? 1536;
   }
 
@@ -188,7 +191,7 @@ export class QdrantMemoryStore implements MemoryStore {
    * 
    * Copilot fix #13: Log warning only once to prevent log flooding
    */
-  private async embed(text: string): Promise<number[]> {
+  private async embed(_text: string): Promise<number[]> {
     // TODO: Integrate with actual embedding service (OpenAI, Cohere, local model, etc.)
     // For now, return zero vector as placeholder
     if (!this.embedWarningLogged) {
@@ -314,18 +317,23 @@ export class QdrantMemoryStore implements MemoryStore {
         const entryResults = results.filter((r) => r.payload.kind !== 'fact');
         const factResults = results.filter((r) => r.payload.kind === 'fact');
 
-        entries = entryResults.map((r) => ({
-          id: r.id,
-          agentId: r.payload.agent_id,
-          kind: r.payload.kind as MemoryEntry['kind'],
-          content: r.payload.content,
-          tags: r.payload.tags,
-          confidence: r.payload.confidence,
-          provenance: r.payload.provenance as MemoryEntry['provenance'],
-          createdAt: r.payload.created_at,
-          updatedAt: r.payload.updated_at,
-          expiresAt: r.payload.expires_at,
-        }));
+        entries = entryResults.map((r) => {
+          if (!isEntryPayload(r.payload)) {
+            throw new Error(`Expected entry payload but got ${r.payload.kind}`);
+          }
+          return {
+            id: r.id,
+            agentId: r.payload.agent_id,
+            kind: r.payload.kind as MemoryEntry['kind'],
+            content: r.payload.content,
+            tags: r.payload.tags,
+            confidence: r.payload.confidence,
+            provenance: r.payload.provenance as MemoryEntry['provenance'],
+            createdAt: r.payload.created_at,
+            updatedAt: r.payload.updated_at,
+            expiresAt: r.payload.expires_at,
+          };
+        });
 
         if (factResults.length > 0) {
           facts = factResults.map((r) => {
@@ -362,18 +370,23 @@ export class QdrantMemoryStore implements MemoryStore {
         const entryPoints = points.filter((p) => p.payload.kind !== 'fact');
         const factPoints = points.filter((p) => p.payload.kind === 'fact');
 
-        entries = entryPoints.map((p) => ({
-          id: p.id,
-          agentId: p.payload.agent_id,
-          kind: p.payload.kind as MemoryEntry['kind'],
-          content: p.payload.content,
-          tags: p.payload.tags,
-          confidence: p.payload.confidence,
-          provenance: p.payload.provenance as MemoryEntry['provenance'],
-          createdAt: p.payload.created_at,
-          updatedAt: p.payload.updated_at,
-          expiresAt: p.payload.expires_at,
-        }));
+        entries = entryPoints.map((p) => {
+          if (!isEntryPayload(p.payload)) {
+            throw new Error(`Expected entry payload but got ${p.payload.kind}`);
+          }
+          return {
+            id: p.id,
+            agentId: p.payload.agent_id,
+            kind: p.payload.kind as MemoryEntry['kind'],
+            content: p.payload.content,
+            tags: p.payload.tags,
+            confidence: p.payload.confidence,
+            provenance: p.payload.provenance as MemoryEntry['provenance'],
+            createdAt: p.payload.created_at,
+            updatedAt: p.payload.updated_at,
+            expiresAt: p.payload.expires_at,
+          };
+        });
 
         if (factPoints.length > 0) {
           facts = factPoints.map((p) => {
