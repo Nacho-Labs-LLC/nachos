@@ -567,7 +567,7 @@ export class Gateway {
 
     // Initialize storage (SQLite by default for backwards compatibility)
     // Config path: stateLayerConfig.sessions (plural)
-    const sessionsConfig = (options.stateLayerConfig as any)?.sessions;
+    const sessionsConfig = options.stateLayerConfig?.sessions;
     const sessionsProvider = sessionsConfig?.provider ?? 'sqlite';
     const dbPath = sessionsConfig?.sqlite?.dbPath ?? options.dbPath ?? ':memory:';
     
@@ -578,14 +578,23 @@ export class Gateway {
         throw new Error('Postgres sessions provider requires connectionString in config');
       }
       
+      // Validate schema name to prevent SQL injection
+      const schema = pgConfig.schema ?? 'public';
+      if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(schema)) {
+        throw new Error(
+          `Invalid Postgres schema name '${schema}'. ` +
+          `Must match [a-zA-Z_][a-zA-Z0-9_]* (alphanumeric + underscores, cannot start with digit)`
+        );
+      }
+      
       this.postgresPool = new Pool({
         connectionString: pgConfig.connectionString,
         ssl: pgConfig.ssl,
         max: pgConfig.maxConnections ?? 10,
       });
       
-      this.storage = new PostgresSessionsStore(this.postgresPool, pgConfig.schema);
-      logger.info('Initialized Postgres sessions store');
+      this.storage = new PostgresSessionsStore(this.postgresPool, schema);
+      logger.info({ schema }, 'Initialized Postgres sessions store');
       
       // Keep SQLite for scheduler/cron jobs (separate concern)
       this.sqliteStorage = new StateStorage(dbPath);

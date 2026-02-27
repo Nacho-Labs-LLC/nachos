@@ -99,6 +99,37 @@ export class StateStorage implements SessionsStore {
     this.db.pragma('journal_mode = WAL');
     this.db.exec(INIT_SCHEMA);
     this.db.exec(SCHEDULER_SCHEMA);
+    this.migrateSchema();
+  }
+
+  /**
+   * Migrate existing sessions table to add new columns
+   */
+  private migrateSchema(): void {
+    const tableInfo = this.db.prepare('PRAGMA table_info(sessions)').all() as Array<{
+      name: string;
+      type: string;
+      notnull: number;
+      dflt_value: string | null;
+    }>;
+    
+    const columnNames = new Set(tableInfo.map(col => col.name));
+    
+    // Add is_pinned if missing
+    if (!columnNames.has('is_pinned')) {
+      this.db.exec('ALTER TABLE sessions ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0');
+    }
+    
+    // Add is_archived if missing
+    if (!columnNames.has('is_archived')) {
+      this.db.exec('ALTER TABLE sessions ADD COLUMN is_archived INTEGER NOT NULL DEFAULT 0');
+    }
+    
+    // Add last_activity if missing (backfill from updated_at)
+    if (!columnNames.has('last_activity')) {
+      this.db.exec('ALTER TABLE sessions ADD COLUMN last_activity TEXT NOT NULL DEFAULT ""');
+      this.db.exec('UPDATE sessions SET last_activity = updated_at WHERE last_activity = ""');
+    }
   }
 
   /**
@@ -515,11 +546,19 @@ export class StateStorage implements SessionsStore {
 
     let sql = `SELECT * FROM sessions WHERE ${conditions.join(' AND ')} ORDER BY is_pinned DESC, last_activity DESC`;
 
-    if (options?.limit) {
+    const hasLimit = typeof options?.limit === 'number';
+    const hasOffset = typeof options?.offset === 'number';
+
+    if (hasLimit) {
       sql += ' LIMIT ?';
       values.push(options.limit);
     }
-    if (options?.offset) {
+
+    if (hasOffset) {
+      // SQLite requires LIMIT when using OFFSET; use LIMIT -1 to mean "no limit"
+      if (!hasLimit) {
+        sql += ' LIMIT -1';
+      }
       sql += ' OFFSET ?';
       values.push(options.offset);
     }
@@ -558,11 +597,19 @@ export class StateStorage implements SessionsStore {
 
     let sql = `SELECT * FROM sessions WHERE ${conditions.join(' AND ')} ORDER BY updated_at DESC`;
 
-    if (options?.limit) {
+    const hasLimit = typeof options?.limit === 'number';
+    const hasOffset = typeof options?.offset === 'number';
+
+    if (hasLimit) {
       sql += ' LIMIT ?';
       values.push(options.limit);
     }
-    if (options?.offset) {
+
+    if (hasOffset) {
+      // SQLite requires LIMIT when using OFFSET; use LIMIT -1 to mean "no limit"
+      if (!hasLimit) {
+        sql += ' LIMIT -1';
+      }
       sql += ' OFFSET ?';
       values.push(options.offset);
     }
