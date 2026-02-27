@@ -224,19 +224,6 @@ tools = ["summarize"]
 [tools.groups.workspace]
 tools = ["gog"]
 
-# Per-tool policy overrides (optional)
-# Override group defaults for specific tools
-[tools.overrides.goplaces]
-# security_tier = 2                    # Override security tier (0=SAFE, 1=STANDARD, 2=ELEVATED, 3=RESTRICTED, 4=DANGEROUS)
-# rate_limit_per_minute = 10           # Tool-specific rate limit
-# require_approval = true              # Require user approval for this tool
-# max_timeout_ms = 60000               # Maximum execution timeout
-# enabled = true                       # Enable/disable individual tool
-
-[tools.overrides.summarize]
-# max_timeout_ms = 180000              # 3 minutes for video processing
-# rate_limit_per_minute = 5            # Lower rate limit for heavy operations
-
 [tools.claude_code_mcp]
 enabled = true
 max_prompt_length = 4000

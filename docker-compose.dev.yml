@@ -303,31 +303,31 @@ services:
 
   # ==================== Channels ====================
 
-  # -------------------- Slack --------------------
-  slack:
-    <<: *channel-defaults
-    container_name: nachos-channel-slack
-    build:
-      context: .
-      dockerfile: packages/channels/slack/Dockerfile
-    image: nachos-channel-slack:dev
-    ports:
-      - "3005:3005"
-    environment:
-      <<: *channel-env
-      SLACK_HTTP_PORT: "3005"
-      SLACK_APP_TOKEN: ${SLACK_APP_TOKEN:-}
-      SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN:-}
-      SLACK_SIGNING_SECRET: ${SLACK_SIGNING_SECRET:-}
-    develop:
-      watch:
-        - action: sync
-          path: ./packages/channels/slack/src
-          target: /app/packages/channels/slack/src
-        - action: rebuild
-          path: ./packages/channels/base
-        - action: rebuild
-          path: ./packages/shared
+  # -------------------- Slack (disabled — no tokens configured) --------------------
+  # slack:
+  #   <<: *channel-defaults
+  #   container_name: nachos-channel-slack
+  #   build:
+  #     context: .
+  #     dockerfile: packages/channels/slack/Dockerfile
+  #   image: nachos-channel-slack:dev
+  #   ports:
+  #     - "3005:3005"
+  #   environment:
+  #     <<: *channel-env
+  #     SLACK_HTTP_PORT: "3005"
+  #     SLACK_APP_TOKEN: ${SLACK_APP_TOKEN:-}
+  #     SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN:-}
+  #     SLACK_SIGNING_SECRET: ${SLACK_SIGNING_SECRET:-}
+  #   develop:
+  #     watch:
+  #       - action: sync
+  #         path: ./packages/channels/slack/src
+  #         target: /app/packages/channels/slack/src
+  #       - action: rebuild
+  #         path: ./packages/channels/base
+  #       - action: rebuild
+  #         path: ./packages/shared
 
   # -------------------- Discord --------------------
   discord:
@@ -357,53 +357,53 @@ services:
         - action: rebuild
           path: ./packages/shared
 
-  # -------------------- Telegram --------------------
-  telegram:
-    <<: *channel-defaults
-    container_name: nachos-channel-telegram
-    build:
-      context: .
-      dockerfile: packages/channels/telegram/Dockerfile
-    image: nachos-channel-telegram:dev
-    environment:
-      <<: *channel-env
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
-    develop:
-      watch:
-        - action: sync
-          path: ./packages/channels/telegram/src
-          target: /app/packages/channels/telegram/src
-        - action: rebuild
-          path: ./packages/channels/base
-        - action: rebuild
-          path: ./packages/shared
+  # -------------------- Telegram (disabled — no token configured) --------------------
+  # telegram:
+  #   <<: *channel-defaults
+  #   container_name: nachos-channel-telegram
+  #   build:
+  #     context: .
+  #     dockerfile: packages/channels/telegram/Dockerfile
+  #   image: nachos-channel-telegram:dev
+  #   environment:
+  #     <<: *channel-env
+  #     TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+  #   develop:
+  #     watch:
+  #       - action: sync
+  #         path: ./packages/channels/telegram/src
+  #         target: /app/packages/channels/telegram/src
+  #       - action: rebuild
+  #         path: ./packages/channels/base
+  #       - action: rebuild
+  #         path: ./packages/shared
 
-  # -------------------- WhatsApp --------------------
-  whatsapp:
-    <<: *channel-defaults
-    container_name: nachos-channel-whatsapp
-    build:
-      context: .
-      dockerfile: packages/channels/whatsapp/Dockerfile
-    image: nachos-channel-whatsapp:dev
-    ports:
-      - "3002:3002"
-    environment:
-      <<: *channel-env
-      WHATSAPP_HTTP_PORT: "3002"
-      WHATSAPP_TOKEN: ${WHATSAPP_TOKEN:-}
-      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
-      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-}
-      WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET:-}
-    develop:
-      watch:
-        - action: sync
-          path: ./packages/channels/whatsapp/src
-          target: /app/packages/channels/whatsapp/src
-        - action: rebuild
-          path: ./packages/channels/base
-        - action: rebuild
-          path: ./packages/shared
+  # -------------------- WhatsApp (disabled — no token configured) --------------------
+  # whatsapp:
+  #   <<: *channel-defaults
+  #   container_name: nachos-channel-whatsapp
+  #   build:
+  #     context: .
+  #     dockerfile: packages/channels/whatsapp/Dockerfile
+  #   image: nachos-channel-whatsapp:dev
+  #   ports:
+  #     - "3002:3002"
+  #   environment:
+  #     <<: *channel-env
+  #     WHATSAPP_HTTP_PORT: "3002"
+  #     WHATSAPP_TOKEN: ${WHATSAPP_TOKEN:-}
+  #     WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+  #     WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-}
+  #     WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET:-}
+  #   develop:
+  #     watch:
+  #       - action: sync
+  #         path: ./packages/channels/whatsapp/src
+  #         target: /app/packages/channels/whatsapp/src
+  #       - action: rebuild
+  #         path: ./packages/channels/base
+  #       - action: rebuild
+  #         path: ./packages/shared
 
   # ==================== Tools ====================
 
