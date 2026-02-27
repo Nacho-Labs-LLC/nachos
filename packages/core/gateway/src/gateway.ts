@@ -560,17 +560,8 @@ export class Gateway {
       });
     }
 
-    // Initialize storage (SQLite by default for backwards compatibility)
-    // Note: Postgres sessions store not yet wired to SessionManager
-    const sessionsProvider = options.stateLayerConfig?.sessions?.provider;
-    if (sessionsProvider && sessionsProvider !== 'sqlite') {
-      throw new Error(
-        `Sessions provider '${sessionsProvider}' is not yet supported. ` +
-        `Only 'sqlite' is currently wired to the SessionManager. ` +
-        `Postgres support is implemented in PostgresSessionsStore but not yet integrated.`
-      );
-    }
-    const dbPath = options.stateLayerConfig?.sessions?.sqlite?.dbPath ?? options.dbPath ?? ':memory:';
+    // Initialize storage (SQLite)
+    const dbPath = options.dbPath ?? ':memory:';
     this.storage = new StateStorage(dbPath);
 
     // Initialize session manager
@@ -3181,6 +3172,9 @@ export class Gateway {
       metadata: {},
       createdAt: now,
       updatedAt: now,
+      isPinned: false,
+      isArchived: false,
+      lastActivity: now,
     };
 
     const subagentSession: Session = {

@@ -91,6 +91,9 @@ interface SessionRow {
   metadata: string | null;
   created_at: string;
   updated_at: string;
+  is_pinned: number;
+  is_archived: number;
+  last_activity: string;
 }
 
 /**
@@ -133,6 +136,9 @@ export class StateStorage {
       metadata: row.metadata ? (JSON.parse(row.metadata) as Record<string, unknown>) : {},
       createdAt: row.created_at,
       updatedAt: row.updated_at,
+      isPinned: Boolean(row.is_pinned),
+      isArchived: Boolean(row.is_archived),
+      lastActivity: row.last_activity,
     };
   }
 
@@ -158,8 +164,8 @@ export class StateStorage {
     const id = uuid();
 
     const stmt = this.db.prepare(`
-      INSERT INTO sessions (id, channel, conversation_id, user_id, status, system_prompt, config, metadata, created_at, updated_at)
-      VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)
+      INSERT INTO sessions (id, channel, conversation_id, user_id, status, system_prompt, config, metadata, created_at, updated_at, is_pinned, is_archived, last_activity)
+      VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, 0, 0, ?)
     `);
 
     stmt.run(
@@ -170,6 +176,7 @@ export class StateStorage {
       data.systemPrompt ?? null,
       data.config ? JSON.stringify(data.config) : null,
       data.metadata ? JSON.stringify(data.metadata) : null,
+      now,
       now,
       now
     );
@@ -185,6 +192,9 @@ export class StateStorage {
       metadata: data.metadata ?? {},
       createdAt: now,
       updatedAt: now,
+      isPinned: false,
+      isArchived: false,
+      lastActivity: now,
     };
   }
 
@@ -223,8 +233,8 @@ export class StateStorage {
       const id = uuid();
 
       const insertStmt = this.db.prepare(`
-        INSERT INTO sessions (id, channel, conversation_id, user_id, status, system_prompt, config, metadata, created_at, updated_at)
-        VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)
+        INSERT INTO sessions (id, channel, conversation_id, user_id, status, system_prompt, config, metadata, created_at, updated_at, is_pinned, is_archived, last_activity)
+        VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, 0, 0, ?)
       `);
 
       insertStmt.run(
@@ -235,6 +245,7 @@ export class StateStorage {
         data.systemPrompt ?? null,
         data.config ? JSON.stringify(data.config) : null,
         data.metadata ? JSON.stringify(data.metadata) : null,
+        now,
         now,
         now
       );
@@ -250,6 +261,9 @@ export class StateStorage {
         metadata: data.metadata ?? {},
         createdAt: now,
         updatedAt: now,
+        isPinned: false,
+        isArchived: false,
+        lastActivity: now,
       };
 
       return { session, created: true };
