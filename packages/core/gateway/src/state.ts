@@ -12,15 +12,6 @@ import type {
 } from '@nachos/types';
 import { v4 as uuid } from 'uuid';
 import { SCHEDULER_SCHEMA } from './scheduler/schema.js';
-import type {
-  SessionsStore,
-  CreateSessionData,
-  UpdateSessionData,
-  CreateMessageData,
-} from './state-layer/sessions/sessions-store-interface.js';
-
-// Re-export types for backward compatibility
-export type { CreateSessionData, UpdateSessionData, CreateMessageData };
 
 /**
  * Schema initialization SQL
@@ -37,9 +28,6 @@ const INIT_SCHEMA = `
     metadata TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    is_pinned INTEGER NOT NULL DEFAULT 0,
-    is_archived INTEGER NOT NULL DEFAULT 0,
-    last_activity TEXT NOT NULL,
     UNIQUE(channel, conversation_id)
   );
 
@@ -56,6 +44,38 @@ const INIT_SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id);
   CREATE INDEX IF NOT EXISTS idx_sessions_channel_conversation ON sessions(channel, conversation_id);
 `;
+
+/**
+ * Data for creating a new session
+ */
+export interface CreateSessionData {
+  channel: string;
+  conversationId: string;
+  userId: string;
+  systemPrompt?: string;
+  config?: SessionConfig;
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Data for updating a session
+ */
+export interface UpdateSessionData {
+  status?: SessionStatus;
+  systemPrompt?: string;
+  config?: SessionConfig;
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Data for creating a new message
+ */
+export interface CreateMessageData {
+  sessionId: string;
+  role: MessageRole;
+  content: string;
+  toolCalls?: unknown;
+}
 
 /**
  * Row type for session database queries
@@ -91,7 +111,7 @@ interface MessageRow {
 /**
  * State storage class for managing sessions and messages in SQLite
  */
-export class StateStorage implements SessionsStore {
+export class StateStorage {
   private db: Database.Database;
 
   constructor(dbPath: string = ':memory:') {
@@ -99,37 +119,6 @@ export class StateStorage implements SessionsStore {
     this.db.pragma('journal_mode = WAL');
     this.db.exec(INIT_SCHEMA);
     this.db.exec(SCHEDULER_SCHEMA);
-    this.migrateSchema();
-  }
-
-  /**
-   * Migrate existing sessions table to add new columns
-   */
-  private migrateSchema(): void {
-    const tableInfo = this.db.prepare('PRAGMA table_info(sessions)').all() as Array<{
-      name: string;
-      type: string;
-      notnull: number;
-      dflt_value: string | null;
-    }>;
-    
-    const columnNames = new Set(tableInfo.map(col => col.name));
-    
-    // Add is_pinned if missing
-    if (!columnNames.has('is_pinned')) {
-      this.db.exec('ALTER TABLE sessions ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0');
-    }
-    
-    // Add is_archived if missing
-    if (!columnNames.has('is_archived')) {
-      this.db.exec('ALTER TABLE sessions ADD COLUMN is_archived INTEGER NOT NULL DEFAULT 0');
-    }
-    
-    // Add last_activity if missing (backfill from updated_at)
-    if (!columnNames.has('last_activity')) {
-      this.db.exec('ALTER TABLE sessions ADD COLUMN last_activity TEXT NOT NULL DEFAULT ""');
-      this.db.exec('UPDATE sessions SET last_activity = updated_at WHERE last_activity = ""');
-    }
   }
 
   /**
@@ -189,7 +178,7 @@ export class StateStorage implements SessionsStore {
       data.metadata ? JSON.stringify(data.metadata) : null,
       now,
       now,
-      now // last_activity
+      now
     );
 
     return {
@@ -258,7 +247,7 @@ export class StateStorage implements SessionsStore {
         data.metadata ? JSON.stringify(data.metadata) : null,
         now,
         now,
-        now // last_activity
+        now
       );
 
       const session: Session = {
@@ -421,9 +410,9 @@ export class StateStorage implements SessionsStore {
       now
     );
 
-    // Update session's updated_at and last_activity
-    const updateSession = this.db.prepare('UPDATE sessions SET updated_at = ?, last_activity = ? WHERE id = ?');
-    updateSession.run(now, now, data.sessionId);
+    // Update session's updated_at
+    const updateSession = this.db.prepare('UPDATE sessions SET updated_at = ? WHERE id = ?');
+    updateSession.run(now, data.sessionId);
 
     return {
       id,
@@ -523,133 +512,6 @@ export class StateStorage implements SessionsStore {
   }
 
   /**
-   * List active sessions (last activity within 24 hours OR pinned)
-   */
-  async listActive(options?: {
-    channel?: string;
-    userId?: string;
-    limit?: number;
-    offset?: number;
-  }): Promise<Session[]> {
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const conditions: string[] = ['is_archived = 0', '(last_activity >= ? OR is_pinned = 1)'];
-    const values: unknown[] = [twentyFourHoursAgo];
-
-    if (options?.channel) {
-      conditions.push('channel = ?');
-      values.push(options.channel);
-    }
-    if (options?.userId) {
-      conditions.push('user_id = ?');
-      values.push(options.userId);
-    }
-
-    let sql = `SELECT * FROM sessions WHERE ${conditions.join(' AND ')} ORDER BY is_pinned DESC, last_activity DESC`;
-
-    const hasLimit = typeof options?.limit === 'number';
-    const hasOffset = typeof options?.offset === 'number';
-
-    if (hasLimit) {
-      sql += ' LIMIT ?';
-      values.push(options.limit);
-    }
-
-    if (hasOffset) {
-      // SQLite requires LIMIT when using OFFSET; use LIMIT -1 to mean "no limit"
-      if (!hasLimit) {
-        sql += ' LIMIT -1';
-      }
-      sql += ' OFFSET ?';
-      values.push(options.offset);
-    }
-
-    const stmt = this.db.prepare(sql);
-    const rows = stmt.all(...values) as SessionRow[];
-    return rows.map(row => this.rowToSession(row));
-  }
-
-  /**
-   * List archived sessions
-   */
-  async listArchived(options?: {
-    channel?: string;
-    userId?: string;
-    search?: string;
-    limit?: number;
-    offset?: number;
-  }): Promise<Session[]> {
-    const conditions: string[] = ['is_archived = 1'];
-    const values: unknown[] = [];
-
-    if (options?.channel) {
-      conditions.push('channel = ?');
-      values.push(options.channel);
-    }
-    if (options?.userId) {
-      conditions.push('user_id = ?');
-      values.push(options.userId);
-    }
-    if (options?.search) {
-      conditions.push('(conversation_id LIKE ? OR system_prompt LIKE ?)');
-      const searchPattern = `%${options.search}%`;
-      values.push(searchPattern, searchPattern);
-    }
-
-    let sql = `SELECT * FROM sessions WHERE ${conditions.join(' AND ')} ORDER BY updated_at DESC`;
-
-    const hasLimit = typeof options?.limit === 'number';
-    const hasOffset = typeof options?.offset === 'number';
-
-    if (hasLimit) {
-      sql += ' LIMIT ?';
-      values.push(options.limit);
-    }
-
-    if (hasOffset) {
-      // SQLite requires LIMIT when using OFFSET; use LIMIT -1 to mean "no limit"
-      if (!hasLimit) {
-        sql += ' LIMIT -1';
-      }
-      sql += ' OFFSET ?';
-      values.push(options.offset);
-    }
-
-    const stmt = this.db.prepare(sql);
-    const rows = stmt.all(...values) as SessionRow[];
-    return rows.map(row => this.rowToSession(row));
-  }
-
-  /**
-   * Archive a session
-   */
-  async archive(sessionId: string): Promise<boolean> {
-    const now = new Date().toISOString();
-    const stmt = this.db.prepare('UPDATE sessions SET is_archived = 1, updated_at = ? WHERE id = ?');
-    const result = stmt.run(now, sessionId);
-    return result.changes > 0;
-  }
-
-  /**
-   * Restore a session from archive
-   */
-  async restore(sessionId: string): Promise<boolean> {
-    const now = new Date().toISOString();
-    const stmt = this.db.prepare('UPDATE sessions SET is_archived = 0, last_activity = ?, updated_at = ? WHERE id = ?');
-    const result = stmt.run(now, now, sessionId);
-    return result.changes > 0;
-  }
-
-  /**
-   * Pin or unpin a session
-   */
-  async pin(sessionId: string, pinned: boolean): Promise<boolean> {
-    const now = new Date().toISOString();
-    const stmt = this.db.prepare('UPDATE sessions SET is_pinned = ?, updated_at = ? WHERE id = ?');
-    const result = stmt.run(pinned ? 1 : 0, now, sessionId);
-    return result.changes > 0;
-  }
-
-  /**
    * Get the underlying database instance
    * Used by scheduler and other subsystems
    */
@@ -660,7 +522,7 @@ export class StateStorage implements SessionsStore {
   /**
    * Close the database connection
    */
-  async close(): Promise<void> {
+  close(): void {
     this.db.close();
   }
 }

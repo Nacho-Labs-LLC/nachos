@@ -298,8 +298,6 @@ function buildStateLayerConfig(runtime?: RuntimeConfig): StateLayerConfig {
   const bootstrapProvider = runtime?.state?.bootstrap?.provider ?? 'filesystem';
   const sessionProvider =
     runtime?.state?.session?.provider ?? (runtime?.redis_url ? 'redis' : 'memory');
-  const sessionsProvider = runtime?.state?.sessions?.provider ?? 'sqlite';
-  const semanticProvider = runtime?.state?.semantic?.provider ?? 'local';
 
   const identityDir = runtime?.state?.identity?.filesystem?.dir ?? path.join(stateDir, 'identity');
   const memoryDir = runtime?.state?.memory?.filesystem?.dir ?? path.join(stateDir, 'memory');
@@ -361,34 +359,6 @@ function buildStateLayerConfig(runtime?: RuntimeConfig): StateLayerConfig {
       provider: sessionProvider,
       redisUrl: runtime?.state?.session?.redis_url ?? runtime?.redis_url,
       ttlSeconds: runtime?.state?.session?.ttl_seconds,
-    },
-    sessions: {
-      provider: sessionsProvider,
-      sqlite: {
-        dbPath: runtime?.state?.sessions?.sqlite?.db_path ?? './data/gateway.db',
-      },
-      postgres: runtime?.state?.sessions?.postgres
-        ? {
-            connectionString: runtime.state.sessions.postgres.connection_string ?? '',
-            schema: runtime.state.sessions.postgres.schema,
-            ssl: runtime.state.sessions.postgres.ssl,
-            maxConnections: runtime.state.sessions.postgres.max_connections,
-          }
-        : undefined,
-    },
-    semantic: {
-      provider: semanticProvider,
-      local: {
-        model: runtime?.state?.semantic?.local?.model ?? 'Xenova/all-MiniLM-L6-v2',
-        cacheDir: runtime?.state?.semantic?.local?.cache_dir ?? './state/embeddings',
-      },
-      qdrant: runtime?.state?.semantic?.qdrant
-        ? {
-            url: runtime.state.semantic.qdrant.url ?? 'http://qdrant:6333',
-            collection: runtime.state.semantic.qdrant.collection ?? 'nachos-memory',
-            apiKey: runtime.state.semantic.qdrant.api_key,
-          }
-        : undefined,
     },
     prompt: {
       hashAlgorithm: runtime?.state?.prompt_report?.hash ?? 'sha256',
