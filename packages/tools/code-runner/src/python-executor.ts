@@ -124,8 +124,11 @@ export class PythonExecutor extends ToolService {
     if (p.workdir !== undefined) {
       if (typeof p.workdir !== 'string') {
         errors.push('workdir must be a string');
-      } else if (!path.resolve(p.workdir).startsWith('/tmp/')) {
-        errors.push('workdir must be within /tmp');
+      } else {
+        const resolved = path.resolve(p.workdir);
+        if (resolved !== '/tmp' && !resolved.startsWith('/tmp/')) {
+          errors.push('workdir must be within /tmp');
+        }
       }
     }
 

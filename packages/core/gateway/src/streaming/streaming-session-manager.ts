@@ -2,7 +2,7 @@
  * StreamingSessionManager — owns streaming session tracking, buffering, and sweep.
  * Extracted from Gateway to reduce the monolithic class.
  */
-import type { ChannelInboundMessage, ChannelOutboundMessage } from '@nachos/types';
+import type { ChannelInboundMessage, ChannelOutboundMessage, MessageEnvelope } from '@nachos/types';
 import type { NatsBusAdapter } from '../router.js';
 
 export interface StreamingState {
@@ -70,7 +70,8 @@ export class StreamingSessionManager {
    */
   async startSubscription(bus: NatsBusAdapter): Promise<void> {
     await bus.subscribe('nachos.llm.stream.*', async (data) => {
-      const chunk = data as { sessionId?: string; type?: string; delta?: string };
+      const envelope = data as MessageEnvelope;
+      const chunk = envelope.payload as { sessionId?: string; type?: string; delta?: string };
       if (!chunk.sessionId) return;
       const state = this.sessions.get(chunk.sessionId);
       if (!state) return;

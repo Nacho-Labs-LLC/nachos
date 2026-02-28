@@ -5,12 +5,12 @@
 import { connectToNats, setupShutdownHandlers } from '@nachos/tool-base';
 import { createLogger } from '@nachos/types';
 import { FilesystemReadTool } from './read-tool.js';
-
-const logger = createLogger('filesystem-tool');
 import { FilesystemWriteTool } from './write-tool.js';
 import { FilesystemEditTool } from './edit-tool.js';
 import { FilesystemPatchTool } from './patch-tool.js';
 import { ConfigPatchTool } from './config-tool.js';
+
+const logger = createLogger('filesystem-tool');
 
 // Export tools for testing
 export { FilesystemReadTool } from './read-tool.js';
