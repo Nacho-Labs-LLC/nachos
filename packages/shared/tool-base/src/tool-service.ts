@@ -44,7 +44,7 @@ export interface Logger {
  * Pino-backed logger implementation that satisfies the Logger interface
  */
 class PinoLogger implements Logger {
-  private pino;
+  private pino: ReturnType<typeof createLogger>;
   constructor(toolId: string) {
     this.pino = createLogger(toolId);
   }

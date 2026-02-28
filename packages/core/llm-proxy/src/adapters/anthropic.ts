@@ -206,7 +206,7 @@ export class AnthropicAdapter {
 
   async send(request: LLMRequestType, options: AdapterSendOptions): Promise<AdapterResponse> {
     const { apiKey, profileName } = this.resolveApiKey(options);
-    logger.debug({ keyType: isOAuthToken(apiKey) ? 'oauth' : 'api', keyPrefix: apiKey.slice(0, 15), model: options.model }, 'send()');
+    logger.debug({ keyType: isOAuthToken(apiKey) ? 'oauth' : 'api', keyPrefix: apiKey.slice(0, 7) + '...', model: options.model }, 'send()');
     try {
       const client = this.getClient(apiKey);
       const response = await client.messages.create(
