@@ -75,6 +75,8 @@ serve({ fetch: app.fetch, port: PORT }, (info) => {
   logger.info({ configPath: process.env['NACHOS_CONFIG_PATH'] ?? '/app/nachos.toml' }, 'Config path');
 
   if (!process.env['NACHOS_ADMIN_TOKEN']) {
-    logger.warn('NACHOS_ADMIN_TOKEN is not set. The admin API is accessible without authentication. Set NACHOS_ADMIN_TOKEN in your .env file to require a token.');
+    logger.warn(
+      'NACHOS_ADMIN_TOKEN is not set. A random admin token will be generated for this process. Set NACHOS_ADMIN_TOKEN in your environment to use a stable, operator-controlled token.'
+    );
   }
 });
