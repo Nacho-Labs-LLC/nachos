@@ -218,7 +218,7 @@ mode = "standard"
 
 [security.dlp]
 enabled = true
-action = "block"  # default action — also supports "warn", "audit", "redact", "allow"
+action = "block"  # default action — also supports "allow", "block", "redact", "alert"
 patterns = ["credit_card", "ssn", "api_key", "password"]
 
 [security.rate_limits]
