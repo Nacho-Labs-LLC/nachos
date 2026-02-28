@@ -30,8 +30,8 @@ x-common-env: &common-env
   NODE_ENV: development
   NATS_URL: nats://bus:4222
   NATS_SERVERS: nats://bus:4222
-  # WARNING: Set NATS_TOKEN in .env — generate with: openssl rand -hex 32
-  NATS_TOKEN: ${NATS_TOKEN:?NATS_TOKEN must be set in .env — generate with: openssl rand -hex 32}
+  # WARNING: Set NATS_TOKEN in .env - generate with: openssl rand -hex 32
+  NATS_TOKEN: ${NATS_TOKEN}
   LOG_LEVEL: debug
 
 x-channel-env: &channel-env
@@ -78,13 +78,13 @@ services:
     restart: unless-stopped
     networks:
       - nachos-internal
-    # No host-exposed ports — NATS is only accessible on the internal Docker network.
+    # No host-exposed ports - NATS is only accessible on the internal Docker network.
     # If you need host access for debugging, uncomment the following:
     # ports:
     #   - "127.0.0.1:4222:4222"
     volumes:
       - nats-data:/data
-    command: ["-c", "/etc/nats/nats-server.conf", "--auth", "${NATS_TOKEN:?NATS_TOKEN must be set in .env}"]
+    command: ["-c", "/etc/nats/nats-server.conf", "--auth", "${NATS_TOKEN:?Required}"]
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8222/healthz"]
       interval: 10s
@@ -115,9 +115,10 @@ services:
       - "${GATEWAY_PORT:-3000}:3000"
     environment:
       <<: *common-env
-      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env (generate with: openssl rand -hex 32)}@redis:6379
+      REDIS_URL: redis://:${REDIS_PASSWORD:?Required}@redis:6379
       PORT: "3000"
       NACHOS_CONFIG_PATH: /app/nachos.toml
+      GATEWAY_CHANNELS: discord
       # Browser tool (embedded via @playwright/mcp)
       BROWSER_ALLOWED_DOMAINS: ${BROWSER_ALLOWED_DOMAINS:-""}
       BROWSER_HEADLESS: ${BROWSER_HEADLESS:-true}
@@ -125,7 +126,6 @@ services:
     shm_size: 256m
     volumes:
       - ./data/gateway:/app/data
-      - ./nachos.toml:/app/nachos.toml:ro
     develop:
       watch:
         - action: sync
@@ -148,15 +148,15 @@ services:
     restart: unless-stopped
     networks:
       - nachos-internal
-    # No host-exposed ports — Redis is only accessible on the internal Docker network.
+    # No host-exposed ports - Redis is only accessible on the internal Docker network.
     # If you need host access for debugging, uncomment the following:
     # ports:
     #   - "127.0.0.1:6379:6379"
     volumes:
       - redis-data:/data
-    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env (generate with: openssl rand -hex 32)}"]
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?Required}"]
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env (generate with: openssl rand -hex 32)}", "--no-auth-warning", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:?Required}", "--no-auth-warning", "ping"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -231,7 +231,7 @@ services:
     networks:
       - nachos-egress
       - nachos-internal
-    # SECURITY: LLM proxy should not be host-exposed — it bypasses Cheese policy engine.
+    # SECURITY: LLM proxy should not be host-exposed - it bypasses Cheese policy engine.
     # Uncomment only for debugging and bind to localhost.
     # ports:
     #   - "127.0.0.1:3001:3001"
@@ -245,9 +245,7 @@ services:
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
       AWS_REGION: ${AWS_REGION:-us-east-1}
-      NACHOS_CONFIG: /app/nachos.toml
-    volumes:
-      - ./nachos.toml:/app/nachos.toml:ro
+      NACHOS_CONFIG: /app/nachos.toml.example
     develop:
       watch:
         - action: sync
@@ -285,12 +283,12 @@ services:
       NODE_ENV: development
       PORT: "8082"
       NATS_URL: nats://bus:4222
-      NATS_TOKEN: ${NATS_TOKEN:?NATS_TOKEN must be set in .env}
+      NATS_TOKEN: ${NATS_TOKEN:?Required}
       NACHOS_CONFIG_PATH: /app/nachos.toml
       NACHOS_STATE_DIR: /app/state
       GATEWAY_HEALTH_URL: http://gateway:3000/health
       NACHOS_ADMIN_TOKEN: ${NACHOS_ADMIN_TOKEN:-}
-      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env (generate with: openssl rand -hex 32)}@redis:6379
+      REDIS_URL: redis://:${REDIS_PASSWORD:?Required}@redis:6379
     volumes:
       - ./data/gateway:/app/state:ro
       # SECURITY WARNING: Docker socket mount grants full Docker API access to
@@ -316,7 +314,7 @@ services:
 
   # ==================== Channels ====================
 
-  # -------------------- Slack (disabled — no tokens configured) --------------------
+  # -------------------- Slack (disabled - no tokens configured) --------------------
   # slack:
   #   <<: *channel-defaults
   #   container_name: nachos-channel-slack
@@ -354,7 +352,7 @@ services:
       <<: *channel-env
       DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
       CHANNEL_DISCORD_ENABLED: ${CHANNEL_DISCORD_ENABLED:-}
-      # Guild/server access — set these in .env instead of nachos.toml for simple setups
+      # Guild/server access - set these in .env instead of nachos.toml for simple setups
       CHANNEL_DISCORD_GUILD_ID: ${CHANNEL_DISCORD_GUILD_ID:-}
       CHANNEL_DISCORD_CHANNEL_IDS: ${CHANNEL_DISCORD_CHANNEL_IDS:-}
       CHANNEL_DISCORD_USER_ALLOWLIST: ${CHANNEL_DISCORD_USER_ALLOWLIST:-}
@@ -370,7 +368,7 @@ services:
         - action: rebuild
           path: ./packages/shared
 
-  # -------------------- Telegram (disabled — no token configured) --------------------
+  # -------------------- Telegram (disabled - no token configured) --------------------
   # telegram:
   #   <<: *channel-defaults
   #   container_name: nachos-channel-telegram
@@ -391,7 +389,7 @@ services:
   #       - action: rebuild
   #         path: ./packages/shared
 
-  # -------------------- WhatsApp (disabled — no token configured) --------------------
+  # -------------------- WhatsApp (disabled - no token configured) --------------------
   # whatsapp:
   #   <<: *channel-defaults
   #   container_name: nachos-channel-whatsapp
@@ -420,7 +418,7 @@ services:
 
   # ==================== Tools ====================
 
-  # -------------------- Filesystem Read (SecurityTier 0 — read-only mount) --------------------
+  # -------------------- Filesystem Read (SecurityTier 0 - read-only mount) --------------------
   filesystem-read:
     container_name: nachos-tool-filesystem-read
     build:
@@ -450,7 +448,7 @@ services:
           path: ./packages/shared
     logging: *default-logging
 
-  # -------------------- Filesystem ReadWrite (SecurityTier 2 — write/edit/patch) --------------------
+  # -------------------- Filesystem ReadWrite (SecurityTier 2 - write/edit/patch) --------------------
   filesystem-readwrite:
     container_name: nachos-tool-filesystem-readwrite
     build:
@@ -559,7 +557,7 @@ services:
       start_period: 10s
     logging: *default-logging
 
-  # -------------------- Web Fetch (SecurityTier 1 — STANDARD) --------------------
+  # -------------------- Web Fetch (SecurityTier 1 - STANDARD) --------------------
   web-fetch:
     container_name: nachos-tool-web-fetch
     build:
