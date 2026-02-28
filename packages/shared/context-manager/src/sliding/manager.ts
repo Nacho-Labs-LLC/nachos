@@ -13,7 +13,10 @@ import type {
   ISlidingWindowManager,
   ContextMessage,
 } from '../types/index.js';
+import { createLogger } from '@nachos/types';
 import { tokenEstimator } from '../utils/token-counter.js';
+
+const logger = createLogger('sliding-manager');
 
 export class SlidingWindowManager implements ISlidingWindowManager {
   /**
@@ -101,7 +104,7 @@ export class SlidingWindowManager implements ISlidingWindowManager {
         return id === undefined || !preservedIds.has(id);
       });
 
-      console.log(`[SlidingManager] Preserved ${preservedMessages.length} important tool results`);
+      logger.info({ count: preservedMessages.length }, 'Preserved important tool results');
     }
 
     // Calculate tokens removed

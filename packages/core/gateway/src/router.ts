@@ -142,7 +142,7 @@ export class NatsBusAdapter implements MessageBus {
       // (critical for approval flow: approve commands must be received
       //  while tool execution is blocked waiting for approval)
       handler(envelope).catch((err) => {
-        console.error('[Router] Handler error:', err);
+        logger.error({ err }, 'Handler error');
       });
     });
     this.subscriptions.set(topic, subscription);

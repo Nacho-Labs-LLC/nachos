@@ -23,11 +23,17 @@
     "@nacho-labs/nachos-embeddings": "^0.2.0",
     "@nachos/types": "workspace:*",
     "pg": "^8.13.1",
-    "redis": "^4.7.0"
+    "redis": "^4.7.0",
+    "uuid": "^13.0.0"
+  },
+  "optionalDependencies": {
+    "better-sqlite3": "^12.6.2"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.10.5",
     "@types/pg": "^8.11.11",
+    "@types/uuid": "^11.0.0",
     "typescript": "^5.7.3",
     "vitest": "^2.1.8"
   }

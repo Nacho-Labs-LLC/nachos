@@ -10,7 +10,9 @@ import { join } from 'path';
 import { gzip, gunzip } from 'zlib';
 import { promisify } from 'util';
 import type { ContextMessage, ContextSnapshot, IContextSnapshotService } from '../types/index.js';
+import { createLogger } from '@nachos/types';
 
+const logger = createLogger('snapshot-service');
 const gzipAsync = promisify(gzip);
 const gunzipAsync = promisify(gunzip);
 
@@ -115,7 +117,7 @@ export class ContextSnapshotService implements IContextSnapshotService {
         messagesToStore = messages.slice(newMessagesStartIndex);
         baseSnapshotId = previousSnapshot.id;
         isIncremental = true;
-        console.log(`[SnapshotService] Differential snapshot: storing ${messagesToStore.length} new messages (base: ${baseSnapshotId})`);
+        logger.debug({ newMessages: messagesToStore.length, baseSnapshotId }, 'Differential snapshot');
       }
     }
 
@@ -163,11 +165,11 @@ export class ContextSnapshotService implements IContextSnapshotService {
       
       // C1: Validate channel and userId match if provided
       if (snapshot && channel && snapshot.channel && snapshot.channel !== channel) {
-        console.warn(`[SnapshotService] Channel mismatch: requested ${channel}, got ${snapshot.channel}`);
+        logger.warn({ requested: channel, actual: snapshot.channel }, 'Channel mismatch');
         return null;
       }
       if (snapshot && userId && snapshot.userId && snapshot.userId !== userId) {
-        console.warn(`[SnapshotService] UserId mismatch: requested ${userId}, got ${snapshot.userId}`);
+        logger.warn({ requested: userId, actual: snapshot.userId }, 'UserId mismatch');
         return null;
       }
       
@@ -369,7 +371,7 @@ export class ContextSnapshotService implements IContextSnapshotService {
 
       return JSON.parse(jsonData) as ContextSnapshot;
     } catch (error) {
-      console.error(`[SnapshotService] Failed to read snapshot ${filepath}:`, error);
+      logger.error({ err: error, filepath }, 'Failed to read snapshot');
       return null;
     }
   }

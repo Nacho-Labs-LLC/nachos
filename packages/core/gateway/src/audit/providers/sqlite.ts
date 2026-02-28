@@ -1,8 +1,12 @@
 import Database from 'better-sqlite3';
 import { existsSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { createHmac } from 'node:crypto';
+import { createLogger } from '@nachos/types';
 import type { AuditEvent } from '../types.js';
 import type { AuditProvider, AuditQueryFilter } from '../provider.js';
+
+const auditLogger = createLogger('audit-sqlite');
 
 const DEFAULT_BATCH_SIZE = 100;
 
@@ -17,8 +21,12 @@ export class SQLiteAuditProvider implements AuditProvider {
   private db: Database.Database | null = null;
   private buffer: AuditEvent[] = [];
   private flushTimer: NodeJS.Timeout | null = null;
+  private hmacSecret: string | undefined;
+  private hmacWarningLogged = false;
 
-  constructor(private readonly config: SQLiteAuditProviderConfig) {}
+  constructor(private readonly config: SQLiteAuditProviderConfig) {
+    this.hmacSecret = process.env['NACHOS_AUDIT_HMAC_SECRET'];
+  }
 
   async init(): Promise<void> {
     const directory = dirname(this.config.path);
@@ -43,6 +51,7 @@ export class SQLiteAuditProvider implements AuditProvider {
         security_mode TEXT NOT NULL,
         policy_matched TEXT,
         details TEXT,
+        _hmac TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
       CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_events(timestamp);
@@ -57,11 +66,21 @@ export class SQLiteAuditProvider implements AuditProvider {
   }
 
   async log(event: AuditEvent): Promise<void> {
+    if (!this.hmacSecret && !this.hmacWarningLogged) {
+      auditLogger.warn('NACHOS_AUDIT_HMAC_SECRET not set — audit entries will not be signed');
+      this.hmacWarningLogged = true;
+    }
     this.buffer.push(event);
     const batchSize = this.config.batchSize ?? DEFAULT_BATCH_SIZE;
     if (this.buffer.length >= batchSize) {
       await this.flush();
     }
+  }
+
+  private computeHmac(event: AuditEvent): string | null {
+    if (!this.hmacSecret) return null;
+    const serialized = JSON.stringify(event);
+    return createHmac('sha256', this.hmacSecret).update(serialized).digest('hex');
   }
 
   async flush(): Promise<void> {
@@ -85,8 +104,9 @@ export class SQLiteAuditProvider implements AuditProvider {
         reason,
         security_mode,
         policy_matched,
-        details
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING
+        details,
+        _hmac
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING
     `);
 
     const insert = this.db.transaction((entries: AuditEvent[]) => {
@@ -105,7 +125,8 @@ export class SQLiteAuditProvider implements AuditProvider {
           event.reason ?? null,
           event.securityMode,
           event.policyMatched ?? null,
-          event.details ? JSON.stringify(event.details) : null
+          event.details ? JSON.stringify(event.details) : null,
+          this.computeHmac(event)
         );
       }
     });

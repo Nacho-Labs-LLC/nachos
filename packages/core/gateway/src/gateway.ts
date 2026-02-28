@@ -15,7 +15,6 @@ import type {
 } from '@nachos/types';
 import {
   createSessionNotFoundError,
-  createInvalidStateError,
   createConfigError,
   createLogger,
 } from '@nachos/types';
@@ -23,65 +22,15 @@ import {
 const logger = createLogger('gateway');
 import { TOPICS } from '@nachos/bus';
 import {
-  SessionsSpawnToolSchema,
-  SessionsOrchestrateToolSchema,
-  SubagentsToolSchema,
-  SubagentProgressToolSchema,
-  BootstrapToolSchema,
-  UserProfileToolSchema,
   validateChannelInboundMessage,
 } from '@nachos/types';
-import {
-  MemorySearchToolSchema,
-  MemoryGetToolSchema,
-  executeMemorySearch,
-  executeMemoryGet,
-} from './tools/memory-tools.js';
-import {
-  WebSearchToolSchema,
-  executeWebSearch,
-  type WebSearchConfig,
-} from './tools/web-search-tools.js';
-import {
-  WebFetchNativeToolSchema,
-  executeWebFetchNative,
-  type WebFetchConfig,
-} from './tools/web-fetch-tools.js';
-import {
-  BitbucketToolSchema,
-  executeBitbucket,
-  type BitbucketConfig,
-} from './tools/bitbucket-tools.js';
-import {
-  ComposioToolSchema,
-  executeComposio,
-  initComposioClient,
-} from './tools/composio-tools.js';
-import {
-  GitHubToolSchema,
-  executeGitHub,
-  type GitHubConfig,
-} from './tools/github-tools.js';
-import {
-  CronAddToolSchema,
-  CronListToolSchema,
-  CronRemoveToolSchema,
-  CronUpdateToolSchema,
-  CronRunToolSchema,
-  executeCronAdd,
-  executeCronList,
-  executeCronRemove,
-  executeCronUpdate,
-  executeCronRun,
-} from './tools/cron-tools.js';
-import { getExternalToolDefinitions } from './tools/external-tool-definitions.js';
+import { initComposioClient } from './tools/composio-tools.js';
 import { Scheduler, HeartbeatManager, type SchedulerConfig, type HeartbeatConfig } from './scheduler/index.js';
 import type {
   AuditConfig,
   ContextManagementCommandsConfig,
   RuntimeToolSandboxConfig,
   SkillsConfig,
-  SubagentToolProfileConfig,
   SubagentToolPolicyConfig,
   ToolGroupConfig,
   ToolsConfig,
@@ -111,7 +60,6 @@ import {
 import { ToolCoordinator } from './tools/coordinator.js';
 import { ToolCache } from './tools/cache.js';
 import { ApprovalManager } from './tools/approval-manager.js';
-import type { ToolCall, ToolResult } from '@nachos/types';
 import {
   StateLayer,
   createStateLayer,
@@ -128,8 +76,6 @@ import type { ContextManager } from '@nachos/context-manager';
 import { SubagentManager } from './subagents/subagent-manager.js';
 import { SubagentOrchestrator } from './subagents/subagent-orchestrator.js';
 import {
-  listSubagentWorkspaceEntries,
-  readSubagentWorkspaceFile,
   resolveSubagentWorkspaceRoot,
 } from './subagents/workspace-utils.js';
 import type {
@@ -141,27 +87,13 @@ import type {
   SubagentTask,
 } from './subagents/types.js';
 import { SandboxManager } from './sandbox/sandbox-manager.js';
-import type { Skill } from './skills/skill-loader.js';
-import type { SkillToolConfig } from './tools/shell-tool.js';
 import {
-  readOptionalString,
-  readOptionalStringArray,
-  readOptionalNumber,
-  readOptionalBoolean,
-  readOptionalStringMap,
-  readTimeoutMs,
-  readCleanup,
-  stringifyToolParameters,
   coerceLLMContentText,
 } from './utils/parsing.js';
 import { registerManagementHandlers } from './management/management-handlers.js';
-
-const DEFAULT_SUBAGENT_DENY_TOOLS = new Set([
-  'sessions_list',
-  'sessions_history',
-  'sessions_send',
-  'sessions_spawn',
-]);
+import { SkillsManager } from './skills/skills-manager.js';
+import { StreamingSessionManager } from './streaming/streaming-session-manager.js';
+import { ToolExecutor } from './tools/tool-executor.js';
 
 const DEFAULT_TOOL_GROUPS: Record<string, string[]> = {
   lookup: ['web_fetch', 'goplaces'],
@@ -190,213 +122,6 @@ const DEFAULT_TOOL_GROUPS: Record<string, string[]> = {
     'browser_pdf_save',
   ],
 };
-
-/**
- * Browser tool definitions exposed to the LLM.
- * These map to @playwright/mcp tools and are executed locally in the gateway.
- * Disabled for now - uncomment when browser tools are ready
- */
-/* const BROWSER_TOOL_DEFINITIONS: Array<{
-  name: string;
-  description: string;
-  parameters: Record<string, unknown>;
-}> = [
-  {
-    name: 'browser_navigate',
-    description: 'Navigate to a URL in the browser.',
-    parameters: {
-      type: 'object',
-      properties: {
-        url: { type: 'string', description: 'URL to navigate to' },
-      },
-      required: ['url'],
-    },
-  },
-  {
-    name: 'browser_snapshot',
-    description:
-      'Capture an accessibility snapshot of the current page. Returns a structured ARIA tree with element references (ref) that can be used to target elements in subsequent actions like click, type, and fill.',
-    parameters: {
-      type: 'object',
-      properties: {
-        ref: { type: 'string', description: 'Specific element ref to snapshot (optional)' },
-      },
-    },
-  },
-  {
-    name: 'browser_click',
-    description: 'Click an element on the page using its ref from a snapshot.',
-    parameters: {
-      type: 'object',
-      properties: {
-        element: {
-          type: 'string',
-          description: 'Human-readable description of the element to click',
-        },
-        ref: { type: 'string', description: 'Exact ref value from the accessibility snapshot' },
-      },
-      required: ['element', 'ref'],
-    },
-  },
-  {
-    name: 'browser_type',
-    description: 'Type text into an editable element identified by its ref.',
-    parameters: {
-      type: 'object',
-      properties: {
-        element: { type: 'string', description: 'Human-readable description of the element' },
-        ref: { type: 'string', description: 'Exact ref value from the accessibility snapshot' },
-        text: { type: 'string', description: 'Text to type' },
-        submit: { type: 'boolean', description: 'Press Enter after typing (default: false)' },
-      },
-      required: ['element', 'ref', 'text'],
-    },
-  },
-  {
-    name: 'browser_fill',
-    description: 'Clear and fill an input field identified by its ref.',
-    parameters: {
-      type: 'object',
-      properties: {
-        element: { type: 'string', description: 'Human-readable description of the element' },
-        ref: { type: 'string', description: 'Exact ref value from the accessibility snapshot' },
-        value: { type: 'string', description: 'Value to fill' },
-      },
-      required: ['element', 'ref', 'value'],
-    },
-  },
-  {
-    name: 'browser_select_option',
-    description: 'Select an option in a dropdown identified by its ref.',
-    parameters: {
-      type: 'object',
-      properties: {
-        element: {
-          type: 'string',
-          description: 'Human-readable description of the select element',
-        },
-        ref: { type: 'string', description: 'Exact ref value from the accessibility snapshot' },
-        values: { type: 'array', items: { type: 'string' }, description: 'Values to select' },
-      },
-      required: ['element', 'ref', 'values'],
-    },
-  },
-  {
-    name: 'browser_hover',
-    description: 'Hover over an element identified by its ref.',
-    parameters: {
-      type: 'object',
-      properties: {
-        element: { type: 'string', description: 'Human-readable description of the element' },
-        ref: { type: 'string', description: 'Exact ref value from the accessibility snapshot' },
-      },
-      required: ['element', 'ref'],
-    },
-  },
-  {
-    name: 'browser_press_key',
-    description: 'Press a keyboard key or combination (e.g. "Enter", "Control+c", "ArrowDown").',
-    parameters: {
-      type: 'object',
-      properties: {
-        key: { type: 'string', description: 'Key or key combination to press' },
-      },
-      required: ['key'],
-    },
-  },
-  {
-    name: 'browser_screenshot',
-    description:
-      'Take a screenshot of the current page. Use browser_snapshot for structured data instead when possible.',
-    parameters: {
-      type: 'object',
-      properties: {},
-    },
-  },
-  {
-    name: 'browser_evaluate',
-    description: 'Execute JavaScript in the browser page context.',
-    parameters: {
-      type: 'object',
-      properties: {
-        expression: { type: 'string', description: 'JavaScript expression to evaluate' },
-      },
-      required: ['expression'],
-    },
-  },
-  {
-    name: 'browser_wait',
-    description: 'Wait for a specified amount of time.',
-    parameters: {
-      type: 'object',
-      properties: {
-        time: { type: 'number', description: 'Time to wait in seconds (max 10)' },
-      },
-      required: ['time'],
-    },
-  },
-  {
-    name: 'browser_close',
-    description: 'Close the current browser page.',
-    parameters: {
-      type: 'object',
-      properties: {},
-    },
-  },
-  {
-    name: 'browser_go_back',
-    description: 'Navigate back in browser history.',
-    parameters: {
-      type: 'object',
-      properties: {},
-    },
-  },
-  {
-    name: 'browser_go_forward',
-    description: 'Navigate forward in browser history.',
-    parameters: {
-      type: 'object',
-      properties: {},
-    },
-  },
-  {
-    name: 'browser_tab_new',
-    description: 'Open a new browser tab, optionally navigating to a URL.',
-    parameters: {
-      type: 'object',
-      properties: {
-        url: { type: 'string', description: 'URL to navigate the new tab to (optional)' },
-      },
-    },
-  },
-  {
-    name: 'browser_tab_close',
-    description: 'Close a browser tab by its index.',
-    parameters: {
-      type: 'object',
-      properties: {
-        index: { type: 'number', description: 'Tab index to close' },
-      },
-      required: ['index'],
-    },
-  },
-  {
-    name: 'browser_tab_list',
-    description: 'List all open browser tabs.',
-    parameters: {
-      type: 'object',
-      properties: {},
-    },
-  },
-  {
-    name: 'browser_pdf_save',
-    description: 'Save the current page as a PDF.',
-    parameters: {
-      type: 'object',
-      properties: {},
-    },
-  },
-]; */
 
 type ResolvedContextCommandConfig = {
   enabled: boolean;
@@ -514,32 +239,19 @@ export class Gateway {
   private subagentToolPolicy?: SubagentToolPolicyConfig;
   private subagentWorkspaceRoot?: string;
   private sandboxManager?: SandboxManager;
-  private streamingSessions: Map<
-    string,
-    {
-      inbound: ChannelInboundMessage;
-      buffer: string;
-      lastSentAt: number;
-      lastSentLength: number;
-      createdAt: number;
-    }
-  > = new Map();
-  private streamingSessionSweepInterval?: NodeJS.Timeout;
   private approvalAllowlist: Set<string>;
   private toolGroupMap: Map<string, string>;
-  private skillsPrompt: string | null = null;
-  private skillsDir: string | null = null;
-  private currentSkills: Skill[] = [];
-  private skillWatcher: any = null;
   private toolsConfig?: ToolsConfig;
   private skillsConfig?: SkillsConfig;
   private nachosConfig?: NachosConfig;
-  // H2: Memory tool rate limiting (10 calls per minute per session)
-  private memoryToolCalls: Map<string, number[]> = new Map();
   private scheduler?: Scheduler;
   private heartbeatManager?: HeartbeatManager;
   private schedulerConfig?: SchedulerConfig;
   private heartbeatConfig?: HeartbeatConfig;
+  // Extracted managers
+  private skillsManager: SkillsManager;
+  private streamingManager: StreamingSessionManager;
+  private toolExecutor: ToolExecutor;
 
   constructor(options: GatewayOptions = {}) {
     this.options = options;
@@ -607,7 +319,7 @@ export class Gateway {
       );
       // Initialize state layer (e.g., semantic search if enabled)
       this.stateLayer.init().catch((error) => {
-        console.error('[Gateway] Failed to initialize state layer:', error);
+        logger.error({ err: error }, 'Failed to initialize state layer');
       });
     }
 
@@ -674,6 +386,60 @@ export class Gateway {
         logger.info({ entityId, allowedApps }, 'Composio client initialized');
       }
     }
+
+    // Initialize extracted managers
+    this.skillsManager = new SkillsManager(
+      {
+        resolveToolGroup: (bin) => this.resolveToolGroup(bin),
+        getBus: () => {
+          const b = this.router.getBus();
+          return b instanceof NatsBusAdapter ? b : null;
+        },
+      },
+      {
+        skillsConfig: this.skillsConfig,
+        nachosConfig: this.nachosConfig,
+        toolsConfig: this.toolsConfig,
+      },
+    );
+
+    this.streamingManager = new StreamingSessionManager(
+      { sendToChannel: (outbound) => this.router.sendToChannel(outbound) },
+      {
+        streamingMinIntervalMs: options.streamingMinIntervalMs,
+        streamingChunkSize: options.streamingChunkSize,
+      },
+    );
+
+    this.toolExecutor = new ToolExecutor({
+      instanceId: this.instanceId,
+      securityMode: this.securityMode,
+      toolsConfig: this.toolsConfig,
+      toolCoordinator: this.toolCoordinator,
+      stateLayer: this.stateLayer,
+      dlp: this.dlp,
+      sandboxManager: this.sandboxManager,
+      subagentManager: this.subagentManager,
+      subagentOrchestrator: this.subagentOrchestrator,
+      subagentToolPolicy: this.subagentToolPolicy,
+      scheduler: this.scheduler,
+      resolveToolGroup: (tool) => this.resolveToolGroup(tool),
+      evaluatePolicy: (request) => this.evaluatePolicy(request as SecurityRequest),
+      logAuditEvent: (event) => this.logAuditEvent(event),
+      publishStatusEvent: (sessionId, status, channelId, channelMessageId, toolName) =>
+        this.publishStatusEvent(sessionId, status, channelId, channelMessageId, toolName),
+      getSession: (sessionId) => this.sessionManager.getSession(sessionId),
+      getMessages: (sessionId) => this.sessionManager.getMessages(sessionId),
+      getIdentityCompletionStatus: (session) => this.getIdentityCompletionStatus(session),
+      markIdentityCompleted: (agentId, content, context) =>
+        this.markIdentityCompleted(agentId, content, context),
+      resetIdentityForCommand: (session) => this.resetIdentityForCommand(session),
+      getSubagentInfo: (runId) => this.getSubagentInfo(runId),
+      listSubagents: () => this.listSubagents(),
+      stopSubagent: (runId) => this.stopSubagent(runId),
+      steerSubagent: (runId, message) => this.steerSubagent(runId, message),
+      getSubagentLog: (runId) => this.getSubagentLog(runId),
+    });
 
     // Register default handlers
     this.registerDefaultHandlers();
@@ -1018,13 +784,7 @@ export class Gateway {
     // Request LLM response and send back to channel
     try {
       if (this.options.streamingPassthrough) {
-        this.streamingSessions.set(session.id, {
-          inbound: message,
-          buffer: '',
-          lastSentAt: 0,
-          lastSentLength: 0,
-          createdAt: Date.now(),
-        });
+        this.streamingManager.register(session.id, message);
       }
 
       void this.publishStatusEvent(session.id, 'thinking', message.conversation.id, message.channelMessageId ?? undefined);
@@ -1091,28 +851,6 @@ export class Gateway {
       contextTriggers: (config.context_triggers ?? ['/context']).filter(Boolean),
       identityTriggers: (config.identity_triggers ?? ['/identity']).filter(Boolean),
     };
-  }
-
-  private buildSkillToolConfigs(skills: Skill[]): SkillToolConfig[] {
-    const configs = new Map<string, SkillToolConfig>();
-
-    for (const skill of skills) {
-      const bins = skill.metadata.nachos?.requires?.bins ?? [];
-      const requiredEnv = skill.metadata.nachos?.requires?.env ?? [];
-      for (const bin of bins) {
-        if (configs.has(bin)) {
-          continue;
-        }
-        const group = this.resolveToolGroup(bin) ?? 'shell';
-        configs.set(bin, {
-          bin,
-          group,
-          requiredEnv,
-        });
-      }
-    }
-
-    return Array.from(configs.values());
   }
 
   private parseContextCommand(
@@ -1441,7 +1179,7 @@ export class Gateway {
           memoryEntries: memory.entries,
           memoryFacts: memory.facts,
           sessionState,
-          skills: this.skillsPrompt,
+          skills: this.skillsManager.getSkillsPrompt(),
           includeMemoryInstructions: true, // Add memory recall instructions
         });
 
@@ -1498,7 +1236,7 @@ export class Gateway {
       messages.push(...extraMessages);
     }
 
-    const tools = this.buildToolDefinitions(session, { bootstrapLocked });
+    const tools = this.toolExecutor.buildToolDefinitions(session, { bootstrapLocked });
 
     return {
       sessionId,
@@ -1534,172 +1272,6 @@ export class Gateway {
     return session.userId ?? session.id;
   }
 
-  private buildToolDefinitions(
-    session: Session,
-    options?: { bootstrapLocked?: boolean }
-  ): LLMRequestType['tools'] {
-    if (this.isSubagentSession(session)) {
-      return this.buildSubagentToolDefinitions();
-    }
-
-    const tools: NonNullable<LLMRequestType['tools']> = [];
-    const bootstrapLocked = Boolean(options?.bootstrapLocked);
-
-    if (this.subagentManager) {
-      tools.push({
-        name: 'sessions_spawn',
-        description: 'Spawn a subagent to run a task and announce results back to the requester.',
-        parameters: this.sanitizeToolSchema(SessionsSpawnToolSchema),
-      });
-      tools.push({
-        name: 'sessions_orchestrate',
-        description:
-          'Orchestrate a multi-step workflow with dependencies. Steps execute in dependency order, with results passed to dependent steps.',
-        parameters: this.sanitizeToolSchema(SessionsOrchestrateToolSchema),
-      });
-      tools.push({
-        name: 'subagents',
-        description:
-          'Internal tool: inspect subagent runs, fetch logs, and read subagent workspace files.',
-        parameters: this.sanitizeToolSchema(SubagentsToolSchema),
-      });
-    }
-
-    // Memory tools - re-enabled with usage gating
-    // These tools allow the LLM to query stored memories
-    if (this.stateLayer && !bootstrapLocked) {
-      tools.push({
-        name: 'memory_search',
-        description: 'Search stored memories (past decisions, preferences, facts, tasks). Use ONLY when answering questions about prior work, user preferences, past decisions, or context from previous sessions. DO NOT use for current conversation context or general knowledge.',
-        parameters: this.sanitizeToolSchema(MemorySearchToolSchema),
-      });
-      
-      tools.push({
-        name: 'memory_get',
-        description: 'Read specific memory file sections (MEMORY.md, memory/YYYY-MM-DD.md, AGENTS.md, etc.). Use when you need full file content or specific line ranges. Complements memory_search for detailed context.',
-        parameters: this.sanitizeToolSchema(MemoryGetToolSchema),
-      });
-    }
-
-    // GitHub tool - interact with GitHub via gh CLI
-    if (this.toolsConfig?.github?.enabled && !bootstrapLocked) {
-      tools.push({
-        name: 'github',
-        description: 'Interact with GitHub: list/view/create issues and PRs, view CI status, search code, and more. All actions use the gh CLI.',
-        parameters: this.sanitizeToolSchema(GitHubToolSchema),
-      });
-    }
-    
-    // Cron scheduler tools - manage scheduled tasks
-    if (this.scheduler && !bootstrapLocked) {
-      tools.push({
-        name: 'nachos_cron_add',
-        description: 'Create a new scheduled task. Supports one-shot (at), interval (every), and cron expressions.',
-        parameters: this.sanitizeToolSchema(CronAddToolSchema),
-      });
-      
-      tools.push({
-        name: 'nachos_cron_list',
-        description: 'List scheduled tasks for this session or user.',
-        parameters: this.sanitizeToolSchema(CronListToolSchema),
-      });
-      
-      tools.push({
-        name: 'nachos_cron_remove',
-        description: 'Delete a scheduled task by ID.',
-        parameters: this.sanitizeToolSchema(CronRemoveToolSchema),
-      });
-      
-      tools.push({
-        name: 'nachos_cron_update',
-        description: 'Update an existing scheduled task.',
-        parameters: this.sanitizeToolSchema(CronUpdateToolSchema),
-      });
-      
-      tools.push({
-        name: 'nachos_cron_run',
-        description: 'Manually trigger a scheduled task immediately.',
-        parameters: this.sanitizeToolSchema(CronRunToolSchema),
-      });
-    }
-
-    // User profile tool - manage per-user preferences and settings
-    if (this.stateLayer) {
-      tools.push({
-        name: 'user_profile',
-        description: 'Manage user-specific preferences and settings. Get, set, or delete user profile data for personalization.',
-        parameters: this.sanitizeToolSchema(UserProfileToolSchema),
-      });
-    }
-
-    // Bootstrap tool - manage agent onboarding and identity
-    if (this.stateLayer && this.toolsConfig?.bootstrap?.enabled !== false && !bootstrapLocked) {
-      tools.push({
-        name: 'bootstrap',
-        description: 'Manage agent onboarding and identity configuration. Used during initial setup to gather agent information.',
-        parameters: this.sanitizeToolSchema(BootstrapToolSchema),
-      });
-    }
-
-    // Bitbucket tool - interact with Bitbucket repositories via REST API
-    if (this.toolsConfig?.bitbucket?.enabled && !bootstrapLocked) {
-      tools.push({
-        name: 'bitbucket',
-        description: 'Interact with Bitbucket: list/view/create issues and PRs, view pipeline status, search code, and more. All actions use the Bitbucket REST API v2.0.',
-        parameters: this.sanitizeToolSchema(BitbucketToolSchema),
-      });
-    }
-
-    // Composio tool - execute actions on integrated apps (Gmail, Calendar, Docs, etc.)
-    if (this.toolsConfig?.composio?.enabled && !bootstrapLocked) {
-      tools.push({
-        name: 'composio',
-        description: 'Execute actions on integrated productivity apps via Composio. Supports Gmail (send/read/search emails), Google Calendar (create/manage events), Google Docs (create/edit documents), Google Meet (schedule meetings), Google Drive (manage files), and LinkedIn (post updates). Use this when you need to interact with these external services.',
-        parameters: this.sanitizeToolSchema(ComposioToolSchema),
-      });
-    }
-
-    // Web search tool - native Brave Search API integration
-    if (this.toolsConfig?.web_search?.enabled && !bootstrapLocked) {
-      tools.push({
-        name: 'web_search',
-        description: 'Search the web using Brave Search API. Returns titles, URLs, and snippets. Use for finding information, news, documentation, or current events.',
-        parameters: this.sanitizeToolSchema(WebSearchToolSchema),
-      });
-    }
-
-    // Web fetch native tool - lightweight URL fetching without Docker
-    if (this.toolsConfig?.web_fetch?.enabled && !bootstrapLocked) {
-      tools.push({
-        name: 'web_fetch_native',
-        description: 'Fetch and extract readable content from a URL. Converts HTML to markdown or plain text. Lighter alternative to the Docker-based web_fetch tool.',
-        parameters: this.sanitizeToolSchema(WebFetchNativeToolSchema),
-      });
-    }
-
-    // Browser automation tools disabled temporarily — not needed for chat
-    // tools.push(...BROWSER_TOOL_DEFINITIONS);
-
-    // External container-based tools (filesystem, web_fetch, code_runner)
-    // These are executed via NATS request/reply to their respective containers
-    const externalTools = getExternalToolDefinitions(this.toolsConfig);
-    for (const extTool of externalTools) {
-      tools.push({
-        name: extTool.name,
-        description: extTool.description,
-        parameters: extTool.parameters,
-      });
-    }
-
-    return tools.length > 0 ? tools : undefined;
-  }
-
-  private sanitizeToolSchema(schema: Record<string, unknown>): Record<string, unknown> {
-    const cloned = JSON.parse(JSON.stringify(schema)) as Record<string, unknown>;
-    delete cloned.$id;
-    return cloned;
-  }
-
   private buildStateContext(session: Session): StateOperationContext {
     return {
       sessionId: session.id,
@@ -1707,24 +1279,6 @@ export class Gateway {
       securityMode: this.securityMode,
       channel: session.channel,
     };
-  }
-
-  /**
-   * Build tool definitions for subagent sessions.
-   * Subagents get a limited set of tools, primarily for reporting progress.
-   */
-  private buildSubagentToolDefinitions(): LLMRequestType['tools'] {
-    const tools: NonNullable<LLMRequestType['tools']> = [];
-
-    // Progress reporting tool - allows subagents to report progress
-    tools.push({
-      name: 'subagent_progress',
-      description:
-        'Report progress on the current task. Use this to keep the requester informed of your progress. The runId is automatically determined from your session context.',
-      parameters: this.sanitizeToolSchema(SubagentProgressToolSchema),
-    });
-
-    return tools;
   }
 
   private buildStateLayerDependencies(): StateLayerDependencies {
@@ -1771,1183 +1325,6 @@ export class Gateway {
     return 'call';
   }
 
-  private async executeToolCalls(
-    sessionId: string,
-    toolCalls: Array<{ id: string; name: string; arguments: string }>,
-    statusMeta?: { channelId: string; channelMessageId?: string }
-  ): Promise<LLMRequestType['messages']> {
-    logger.info({ sessionId, tools: toolCalls.map(tc => tc.name) }, 'Executing tool calls');
-    if (!this.toolCoordinator) {
-      throw createInvalidStateError('Tool coordinator not initialized', { component: 'gateway' });
-    }
-
-    const session = await this.sessionManager.getSession(sessionId);
-
-    // Convert LLM tool calls to our ToolCall format
-    const calls: ToolCall[] = toolCalls.map((tc) => {
-      let parameters: Record<string, unknown> = {};
-      try {
-        parameters = JSON.parse(tc.arguments || '{}') as Record<string, unknown>;
-      } catch {
-        parameters = { _parseError: 'Invalid tool arguments JSON' };
-      }
-
-      return {
-        id: tc.id,
-        tool: tc.name,
-        toolGroup: this.resolveToolGroup(tc.name),
-        sessionId,
-        userId: session?.userId,
-        parameters,
-        securityMode: this.options.policyConfig?.securityMode ?? 'standard',
-      };
-    });
-
-    const securityMode = this.options.policyConfig?.securityMode ?? 'standard';
-
-    const blockedResults: Array<{ index: number; result: ToolResult }> = [];
-    const allowedCalls: Array<{ index: number; call: ToolCall }> = [];
-    const localResults: Array<{ index: number; result: ToolResult }> = [];
-
-    for (let i = 0; i < calls.length; i += 1) {
-      const call = calls[i];
-      if (!call) continue;
-
-      if (this.isSubagentSession(session)) {
-        const policy = this.evaluateSubagentToolPolicy(call.tool, session);
-        if (!policy.allowed) {
-          void this.logAuditEvent({
-            id: `subagent-tool-policy-${call.id}`,
-            timestamp: new Date().toISOString(),
-            instanceId: this.instanceId,
-            userId: session?.userId ?? 'unknown',
-            sessionId,
-            channel: session?.channel ?? 'unknown',
-            eventType: 'policy_check',
-            action: 'policy.subagent.tool',
-            resource: call.tool,
-            outcome: 'denied',
-            reason: policy.reason,
-            securityMode,
-          });
-
-          blockedResults.push({
-            index: i,
-            result: this.formatToolError(
-              'POLICY_DENIED',
-              policy.reason ?? 'Tool blocked for subagent session'
-            ),
-          });
-          continue;
-        }
-      }
-
-      if (this.dlp) {
-        const paramText = this.stringifyToolParameters(call.parameters);
-        if (paramText) {
-          const scanResult = this.dlp.scan(paramText, session?.channel);
-          if (!scanResult.allowed) {
-            void this.logAuditEvent({
-              id: `dlp-tool-${call.id}`,
-              timestamp: new Date().toISOString(),
-              instanceId: this.instanceId,
-              userId: session?.userId ?? 'unknown',
-              sessionId,
-              channel: session?.channel ?? 'unknown',
-              eventType: 'dlp_block',
-              action: 'dlp.block.tool_input',
-              resource: call.tool,
-              outcome: 'blocked',
-              reason: scanResult.reason,
-              securityMode,
-              details: {
-                findingsCount: scanResult.findings.length,
-                action: scanResult.action,
-              },
-            });
-
-            blockedResults.push({
-              index: i,
-              result: {
-                success: false,
-                content: [],
-                error: {
-                  code: 'DLP_BLOCKED',
-                  message: scanResult.reason ?? 'Tool call blocked by DLP policy.',
-                },
-              },
-            });
-            continue;
-          }
-
-          if (scanResult.action === 'alert') {
-            void this.logAuditEvent({
-              id: `dlp-tool-alert-${call.id}`,
-              timestamp: new Date().toISOString(),
-              instanceId: this.instanceId,
-              userId: session?.userId ?? 'unknown',
-              sessionId,
-              channel: session?.channel ?? 'unknown',
-              eventType: 'dlp_scan',
-              action: 'dlp.alert.tool_input',
-              resource: call.tool,
-              outcome: 'allowed',
-              reason: scanResult.reason,
-              securityMode,
-              details: {
-                findingsCount: scanResult.findings.length,
-                action: scanResult.action,
-              },
-            });
-          }
-        }
-      }
-
-      const localResult = await this.executeLocalToolCall(call, session);
-      if (localResult) {
-        if (statusMeta) {
-          void this.publishStatusEvent(sessionId, 'tool', statusMeta.channelId, statusMeta.channelMessageId, call.tool);
-        }
-        localResults.push({ index: i, result: localResult });
-        continue;
-      }
-
-      if (this.sandboxManager) {
-        const sandboxDecision = this.sandboxManager.resolveToolSandbox(session);
-        if (sandboxDecision.enabled && sandboxDecision.config) {
-          call.sandbox = sandboxDecision.config;
-        }
-      }
-
-      if (statusMeta) {
-        void this.publishStatusEvent(sessionId, 'tool', statusMeta.channelId, statusMeta.channelMessageId, call.tool);
-      }
-      allowedCalls.push({ index: i, call });
-    }
-
-    const results: ToolResult[] = new Array(calls.length);
-
-    for (const blocked of blockedResults) {
-      results[blocked.index] = blocked.result;
-    }
-
-    for (const local of localResults) {
-      results[local.index] = local.result;
-    }
-
-    const executedResults = allowedCalls.length
-      ? await this.toolCoordinator.executeTools(allowedCalls.map((item) => item.call))
-      : [];
-
-    for (let i = 0; i < allowedCalls.length; i += 1) {
-      const allowed = allowedCalls[i];
-      if (!allowed) continue;
-      results[allowed.index] = executedResults[i] as ToolResult;
-    }
-
-    // Apply DLP to tool results
-    if (this.dlp) {
-      for (let i = 0; i < results.length; i += 1) {
-        const result = results[i];
-        const call = calls[i];
-        if (!result || !call || !result.success) continue;
-
-        const scanned = this.scanToolResult(result, session, call.tool, securityMode);
-        if (!scanned.allowed) {
-          results[i] = {
-            success: false,
-            content: [],
-            error: {
-              code: 'DLP_BLOCKED',
-              message: scanned.reason ?? 'Tool result blocked by DLP policy.',
-            },
-          };
-          continue;
-        }
-
-        if (scanned.redactedContent) {
-          results[i] = {
-            ...result,
-            content: scanned.redactedContent,
-          };
-        }
-      }
-    }
-
-    // Convert ToolResult[] to LLM message format
-    const toolMessages: LLMRequestType['messages'] = results.map((result, i) => {
-      const toolCall = calls[i];
-      if (!toolCall) {
-        return {
-          role: 'tool',
-          tool_call_id: `missing-${i}`,
-          content: [
-            {
-              type: 'tool_result',
-              tool_use_id: `missing-${i}`,
-              tool_result: result,
-            },
-          ],
-        };
-      }
-
-      // Extract result data from content blocks
-      let resultData: unknown = {};
-      if (result.success && result.content.length > 0) {
-        // If single text block, try to parse as JSON
-        const firstBlock = result.content[0];
-        if (result.content.length === 1 && firstBlock && firstBlock.type === 'text') {
-          try {
-            resultData = JSON.parse(firstBlock.text);
-          } catch {
-            resultData = firstBlock.text;
-          }
-        } else {
-          // Multiple content blocks, return structured
-          resultData = { content: result.content, metadata: result.metadata };
-        }
-      } else if (result.error) {
-        resultData = result.error;
-      }
-
-      return {
-        role: 'tool',
-        tool_call_id: toolCall.id,
-        content: [
-          {
-            type: 'tool_result',
-            tool_use_id: toolCall.id,
-            tool_result: resultData,
-          },
-        ],
-      };
-    });
-
-    return toolMessages;
-  }
-
-  private async executeLocalToolCall(
-    call: ToolCall,
-    session: Session | null
-  ): Promise<ToolResult | null> {
-    if (call.tool === 'sessions_spawn') {
-      if (!this.subagentOrchestrator) {
-        return this.formatToolError('SUBAGENT_DISABLED', 'Subagent execution is not configured');
-      }
-
-      if (!session) {
-        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found for subagent spawn');
-      }
-
-      const taskRaw = call.parameters.task;
-      const task = typeof taskRaw === 'string' ? taskRaw.trim() : '';
-      if (!task) {
-        return this.formatToolError('INVALID_PARAMETERS', 'task is required');
-      }
-
-      const label = this.readOptionalString(call.parameters.label);
-      const profile = this.readOptionalString(call.parameters.profile);
-      const agentId = this.readOptionalString(call.parameters.agentId);
-      const model = this.readOptionalString(call.parameters.model);
-      const thinking = this.readOptionalString(call.parameters.thinking);
-      const stream = typeof call.parameters.stream === 'boolean' ? call.parameters.stream : undefined;
-      const cleanup = this.readCleanup(call.parameters.cleanup);
-      const timeoutMs = this.readTimeoutMs(call.parameters.runTimeoutSeconds);
-
-      const runRequest: SubagentRunRequest = {
-        task,
-        label,
-        profile,
-        agentId,
-        model,
-        thinking,
-        stream,
-        cleanup,
-        timeoutMs,
-        sessionConfig: session.config,
-        requester: {
-          sessionId: session.id,
-          channel: session.channel,
-          conversationId: session.conversationId,
-          userId: session.userId,
-        },
-      };
-
-      const run = await this.subagentOrchestrator.enqueue(runRequest);
-
-      const payload = {
-        status: 'accepted',
-        runId: run.runId,
-        childSessionId: run.childSessionId,
-      };
-
-      return {
-        success: true,
-        content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
-      };
-    }
-
-    if (call.tool === 'sessions_orchestrate') {
-      if (!this.subagentOrchestrator) {
-        return this.formatToolError('SUBAGENT_DISABLED', 'Subagent execution is not configured');
-      }
-
-      if (!session) {
-        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found for workflow orchestration');
-      }
-
-      const steps = call.parameters.steps;
-      if (!Array.isArray(steps) || steps.length === 0) {
-        return this.formatToolError('INVALID_PARAMETERS', 'steps array is required');
-      }
-
-      // Build workflow definition
-      const workflow: import('./subagents/dependency-graph.js').WorkflowDefinition = {
-        steps: steps.map((step: unknown) => {
-          const s = step as {
-            id: string;
-            task: string;
-            dependsOn?: string[];
-            model?: string;
-            modelHint?: 'fast' | 'balanced' | 'thorough';
-            stream?: boolean;
-          };
-          return {
-            id: s.id,
-            task: s.task,
-            dependsOn: s.dependsOn,
-            model: this.readOptionalString(s.model),
-            modelHint: s.modelHint,
-            stream: typeof s.stream === 'boolean' ? s.stream : undefined,
-          };
-        }),
-      };
-
-      const workflowRecord = await this.subagentOrchestrator.enqueueWorkflow(workflow, {
-        sessionId: session.id,
-        channel: session.channel,
-        conversationId: session.conversationId,
-        userId: session.userId,
-      });
-
-      const payload = {
-        status: 'accepted',
-        workflowId: workflowRecord.workflowId,
-        totalBatches: workflowRecord.totalBatches,
-      };
-
-      return {
-        success: true,
-        content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
-      };
-    }
-
-    if (call.tool === 'subagent_progress') {
-      if (!this.subagentOrchestrator) {
-        return this.formatToolError('SUBAGENT_DISABLED', 'Subagent execution is not configured');
-      }
-
-      if (!session) {
-        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found');
-      }
-
-      // Extract runId from session metadata (only available in subagent sessions)
-      const subagentMetadata = session.metadata?.subagent as { runId?: string } | undefined;
-      const runId = subagentMetadata?.runId;
-      if (!runId) {
-        return this.formatToolError(
-          'NOT_SUBAGENT_SESSION',
-          'Progress reporting is only available within subagent sessions'
-        );
-      }
-
-      const status = this.readOptionalString(call.parameters.status);
-      if (!status) {
-        return this.formatToolError('INVALID_PARAMETERS', 'status is required');
-      }
-
-      const percentage =
-        typeof call.parameters.percentage === 'number' ? call.parameters.percentage : undefined;
-      const metadata =
-        typeof call.parameters.metadata === 'object' && call.parameters.metadata !== null
-          ? (call.parameters.metadata as Record<string, unknown>)
-          : undefined;
-
-      const success = this.subagentOrchestrator.reportProgress(runId, status, percentage, metadata);
-
-      if (!success) {
-        return this.formatToolError(
-          'PROGRESS_REPORT_FAILED',
-          'Failed to report progress (run may be completed or not found)'
-        );
-      }
-
-      return {
-        success: true,
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              status: 'recorded',
-              message: 'Progress update recorded successfully',
-            }),
-          },
-        ],
-      };
-    }
-
-    if (call.tool === 'subagents') {
-      return this.executeSubagentsToolCall(call, session);
-    }
-
-    if (call.tool === 'memory') {
-      return this.executeMemoryToolCall(call, session);
-    }
-
-    if (call.tool === 'memory_search') {
-      if (!this.stateLayer) {
-        return this.formatToolError('STATE_LAYER_DISABLED', 'Memory is not configured');
-      }
-      if (!session) {
-        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found for memory search');
-      }
-
-      // H2: Rate limit memory_search calls (10 per minute per session)
-      const rateLimitResult = this.checkMemoryToolRateLimit(session.id);
-      if (!rateLimitResult.allowed) {
-        return this.formatToolError(
-          'RATE_LIMIT_EXCEEDED',
-          `Memory tool rate limit exceeded. Try again in ${rateLimitResult.retryAfterSeconds} seconds.`
-        );
-      }
-
-      const context = { ...this.buildStateContext(session), internalTool: true };
-      return executeMemorySearch(call, this.stateLayer, context);
-    }
-
-    if (call.tool === 'memory_get') {
-      if (!this.stateLayer) {
-        return this.formatToolError('STATE_LAYER_DISABLED', 'Memory is not configured');
-      }
-      if (!session) {
-        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found for memory get');
-      }
-
-      // H2: Rate limit memory_get calls (10 per minute per session)
-      const rateLimitResult = this.checkMemoryToolRateLimit(session.id);
-      if (!rateLimitResult.allowed) {
-        return this.formatToolError(
-          'RATE_LIMIT_EXCEEDED',
-          `Memory tool rate limit exceeded. Try again in ${rateLimitResult.retryAfterSeconds} seconds.`
-        );
-      }
-
-      const context = { ...this.buildStateContext(session), internalTool: true };
-      return executeMemoryGet(call, this.stateLayer, context);
-    }
-
-    // GitHub tool
-    if (call.tool === 'github') {
-      if (!this.toolsConfig?.github?.enabled) {
-        return this.formatToolError('GITHUB_DISABLED', 'GitHub tool is not enabled');
-      }
-      if (!session) {
-        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found');
-      }
-      
-      const githubConfig: GitHubConfig = {
-        enabled: true,
-        default_repo: this.toolsConfig.github.default_repo,
-        token_env: this.toolsConfig.github.token_env || 'GITHUB_TOKEN',
-        repo_allowlist: this.toolsConfig.github.repo_allowlist,
-      };
-      return executeGitHub(call, githubConfig, session.userId);
-    }
-
-    // Cron scheduler tools
-    if (call.tool === 'nachos_cron_add') {
-      if (!this.scheduler) {
-        return this.formatToolError('SCHEDULER_DISABLED', 'Scheduler is not enabled');
-      }
-      if (!session) {
-        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found');
-      }
-      return executeCronAdd(call, this.scheduler, session.userId, session.id);
-    }
-
-    if (call.tool === 'nachos_cron_list') {
-      if (!this.scheduler) {
-        return this.formatToolError('SCHEDULER_DISABLED', 'Scheduler is not enabled');
-      }
-      if (!session) {
-        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found');
-      }
-      return executeCronList(call, this.scheduler, session.userId, session.id);
-    }
-
-    if (call.tool === 'nachos_cron_remove') {
-      if (!this.scheduler) {
-        return this.formatToolError('SCHEDULER_DISABLED', 'Scheduler is not enabled');
-      }
-      if (!session) {
-        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found');
-      }
-      return executeCronRemove(call, this.scheduler, session.userId);
-    }
-
-    if (call.tool === 'nachos_cron_update') {
-      if (!this.scheduler) {
-        return this.formatToolError('SCHEDULER_DISABLED', 'Scheduler is not enabled');
-      }
-      if (!session) {
-        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found');
-      }
-      return executeCronUpdate(call, this.scheduler, session.userId);
-    }
-
-    if (call.tool === 'nachos_cron_run') {
-      if (!this.scheduler) {
-        return this.formatToolError('SCHEDULER_DISABLED', 'Scheduler is not enabled');
-      }
-      if (!session) {
-        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found');
-      }
-      return executeCronRun(call, this.scheduler, session.userId);
-    }
-
-    if (call.tool === 'bootstrap') {
-      return this.executeBootstrapToolCall(call, session);
-    }
-
-    if (call.tool === 'user_profile') {
-      return this.executeUserProfileToolCall(call, session);
-    }
-
-    if (call.tool === 'bitbucket') {
-      if (!this.toolsConfig?.bitbucket?.enabled) {
-        return this.formatToolError('BITBUCKET_DISABLED', 'Bitbucket tool is not enabled');
-      }
-      if (!session) {
-        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found');
-      }
-      const bitbucketConfig: BitbucketConfig = {
-        enabled: true,
-        default_workspace: this.toolsConfig.bitbucket.default_workspace,
-        auth_type: this.toolsConfig.bitbucket.auth_type || 'app_password',
-        username_env: this.toolsConfig.bitbucket.username_env || 'BITBUCKET_USERNAME',
-        password_env: this.toolsConfig.bitbucket.password_env || 'BITBUCKET_APP_PASSWORD',
-        token_env: this.toolsConfig.bitbucket.token_env || 'BITBUCKET_TOKEN',
-        workspace_allowlist: this.toolsConfig.bitbucket.workspace_allowlist,
-      };
-      return executeBitbucket(call, bitbucketConfig, session.userId);
-    }
-
-    if (call.tool === 'composio') {
-      if (!this.toolsConfig?.composio?.enabled) {
-        return this.formatToolError('COMPOSIO_DISABLED', 'Composio tool is not enabled');
-      }
-      if (!session) {
-        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found for Composio tool');
-      }
-
-      const context = { ...this.buildStateContext(session), internalTool: false };
-      return executeComposio(call, this.stateLayer!, context);
-    }
-
-    if (call.tool === 'web_search') {
-      if (!this.toolsConfig?.web_search?.enabled) {
-        return this.formatToolError('WEB_SEARCH_DISABLED', 'Web search tool is not enabled');
-      }
-      if (!session) {
-        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found');
-      }
-
-      const apiKeyEnv = this.toolsConfig.web_search.api_key_env || 'BRAVE_API_KEY';
-      const apiKey = process.env[apiKeyEnv];
-      if (!apiKey) {
-        return this.formatToolError(
-          'API_KEY_MISSING',
-          `Brave Search API key not found in environment variable: ${apiKeyEnv}`
-        );
-      }
-
-      const webSearchConfig: WebSearchConfig = {
-        api_key: apiKey,
-        default_country: this.toolsConfig.web_search.default_country,
-        safe_search: this.toolsConfig.web_search.safe_search,
-        max_results: this.toolsConfig.web_search.max_results,
-      };
-
-      return executeWebSearch(call, webSearchConfig, session.userId);
-    }
-
-    if (call.tool === 'web_fetch_native') {
-      if (!this.toolsConfig?.web_fetch?.enabled) {
-        return this.formatToolError('WEB_FETCH_DISABLED', 'Web fetch tool is not enabled');
-      }
-      if (!session) {
-        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found');
-      }
-
-      const webFetchConfig: WebFetchConfig = {
-        timeout_ms: this.toolsConfig.web_fetch.timeout_ms,
-        max_chars: this.toolsConfig.web_fetch.max_chars,
-        domain_allowlist: this.toolsConfig.web_fetch.domain_allowlist,
-      };
-
-      return executeWebFetchNative(call, webFetchConfig, session.userId);
-    }
-
-    return null;
-  }
-
-  private async executeMemoryToolCall(
-    call: ToolCall,
-    session: Session | null
-  ): Promise<ToolResult> {
-    if (!this.stateLayer) {
-      return this.formatToolError('STATE_LAYER_DISABLED', 'State layer is not configured');
-    }
-
-    if (!session) {
-      return this.formatToolError('SESSION_NOT_FOUND', 'Session not found for memory tool');
-    }
-
-    const action = this.readOptionalString(call.parameters.action);
-    if (!action) {
-      return this.formatToolError('INVALID_PARAMETERS', 'action is required');
-    }
-
-    const agentId = this.resolveAgentId(session);
-    const context = { ...this.buildStateContext(session), internalTool: true };
-    const allowedKinds = new Set(['summary', 'preference', 'fact', 'decision', 'task', 'issue']);
-
-    if (action === 'query') {
-      const kinds = this.readOptionalStringArray(call.parameters.kinds);
-      const tags = this.readOptionalStringArray(call.parameters.tags);
-      const text = this.readOptionalString(call.parameters.text);
-      const limit = this.readOptionalNumber(call.parameters.limit, { min: 1 });
-      const offset = this.readOptionalNumber(call.parameters.offset, { min: 0 });
-
-      if (kinds) {
-        const invalid = kinds.filter((kind) => !allowedKinds.has(kind));
-        if (invalid.length > 0) {
-          return this.formatToolError(
-            'INVALID_PARAMETERS',
-            `unsupported memory kinds: ${invalid.join(', ')}`
-          );
-        }
-      }
-      const normalizedKinds = kinds as
-        | Array<'summary' | 'preference' | 'fact' | 'decision' | 'task' | 'issue'>
-        | undefined;
-
-      const result = await this.stateLayer.queryMemory(
-        {
-          agentId,
-          kinds: normalizedKinds ?? undefined,
-          tags: tags ?? undefined,
-          text,
-          limit,
-          offset,
-        },
-        context
-      );
-
-      return {
-        success: true,
-        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-      };
-    }
-
-    if (action === 'append_entry') {
-      const kind = this.readOptionalString(call.parameters.kind);
-      const content = this.readOptionalString(call.parameters.content);
-      if (!kind || !content) {
-        return this.formatToolError('INVALID_PARAMETERS', 'kind and content are required');
-      }
-
-      if (!allowedKinds.has(kind)) {
-        return this.formatToolError('INVALID_PARAMETERS', `unsupported memory kind: ${kind}`);
-      }
-
-      const tags = this.readOptionalStringArray(call.parameters.tags) ?? undefined;
-      const confidence = this.readOptionalNumber(call.parameters.confidence, { min: 0, max: 1 });
-      const expiresAt = this.readOptionalString(call.parameters.expiresAt);
-
-      const entry = await this.stateLayer.appendMemoryEntry(
-        {
-          id: randomUUID(),
-          agentId,
-          kind: kind as 'summary' | 'preference' | 'fact' | 'decision' | 'task' | 'issue',
-          content,
-          tags,
-          confidence,
-          provenance: {
-            source: 'tool.memory',
-            sessionId: session.id,
-          },
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          expiresAt: expiresAt ?? undefined,
-        },
-        context
-      );
-
-      return {
-        success: true,
-        content: [{ type: 'text', text: JSON.stringify({ entry }, null, 2) }],
-      };
-    }
-
-    if (action === 'append_facts') {
-      const factsInput = call.parameters.facts;
-      if (!Array.isArray(factsInput) || factsInput.length === 0) {
-        return this.formatToolError('INVALID_PARAMETERS', 'facts must be a non-empty array');
-      }
-
-      const now = new Date().toISOString();
-      const facts = factsInput
-        .map((fact) => {
-          if (!fact || typeof fact !== 'object') {
-            return null;
-          }
-          const subject = this.readOptionalString((fact as { subject?: unknown }).subject);
-          const predicate = this.readOptionalString((fact as { predicate?: unknown }).predicate);
-          const object = this.readOptionalString((fact as { object?: unknown }).object);
-          if (!subject || !predicate || !object) {
-            return null;
-          }
-          const confidence = this.readOptionalNumber(
-            (fact as { confidence?: unknown }).confidence,
-            { min: 0, max: 1 }
-          );
-          const sourceEntryId = this.readOptionalString(
-            (fact as { sourceEntryId?: unknown }).sourceEntryId
-          );
-          return {
-            id: randomUUID(),
-            agentId,
-            subject,
-            predicate,
-            object,
-            confidence,
-            sourceEntryId: sourceEntryId ?? undefined,
-            createdAt: now,
-          };
-        })
-        .filter((fact): fact is NonNullable<typeof fact> => Boolean(fact));
-
-      if (facts.length === 0) {
-        return this.formatToolError(
-          'INVALID_PARAMETERS',
-          'facts must include subject/predicate/object'
-        );
-      }
-
-      const stored = await this.stateLayer.appendMemoryFacts(facts, context);
-      return {
-        success: true,
-        content: [{ type: 'text', text: JSON.stringify({ facts: stored }, null, 2) }],
-      };
-    }
-
-    if (action === 'delete_entry') {
-      const id = this.readOptionalString(call.parameters.id);
-      if (!id) {
-        return this.formatToolError('INVALID_PARAMETERS', 'id is required');
-      }
-
-      await this.stateLayer.deleteMemoryEntry(id, agentId, context);
-      return {
-        success: true,
-        content: [{ type: 'text', text: JSON.stringify({ deleted: true, id }, null, 2) }],
-      };
-    }
-
-    return this.formatToolError('INVALID_PARAMETERS', `unknown memory action: ${action}`);
-  }
-
-  private async executeUserProfileToolCall(
-    call: ToolCall,
-    session: Session | null
-  ): Promise<ToolResult> {
-    if (!this.stateLayer) {
-      return this.formatToolError('STATE_LAYER_DISABLED', 'State layer is not configured');
-    }
-
-    if (!session) {
-      return this.formatToolError('SESSION_NOT_FOUND', 'Session not found for user profile tool');
-    }
-
-    const userId = session.userId;
-    if (!userId) {
-      return this.formatToolError('INVALID_PARAMETERS', 'userId is not available for this session');
-    }
-
-    const action = this.readOptionalString(call.parameters.action);
-    if (!action) {
-      return this.formatToolError('INVALID_PARAMETERS', 'action is required');
-    }
-
-    const agentId = this.resolveAgentId(session);
-    const context = { ...this.buildStateContext(session), internalTool: true };
-
-    if (action === 'get') {
-      const profile = await this.stateLayer.getUserProfile(agentId, userId, context);
-      return {
-        success: true,
-        content: [{ type: 'text', text: JSON.stringify({ profile }, null, 2) }],
-      };
-    }
-
-    if (action === 'set') {
-      const profileText = this.readOptionalString(call.parameters.profile);
-      if (!profileText) {
-        return this.formatToolError('INVALID_PARAMETERS', 'profile is required');
-      }
-
-      const current = await this.stateLayer.getUserProfile(agentId, userId, context);
-      const stored = await this.stateLayer.putUserProfile(
-        {
-          userId,
-          agentId,
-          profile: profileText,
-          updatedAt: new Date().toISOString(),
-          version: current?.version ? current.version + 1 : 1,
-        },
-        context
-      );
-
-      return {
-        success: true,
-        content: [{ type: 'text', text: JSON.stringify({ profile: stored }, null, 2) }],
-      };
-    }
-
-    if (action === 'delete') {
-      await this.stateLayer.deleteUserProfile(agentId, userId, context);
-      return {
-        success: true,
-        content: [{ type: 'text', text: JSON.stringify({ deleted: true }, null, 2) }],
-      };
-    }
-
-    return this.formatToolError('INVALID_PARAMETERS', `unknown user_profile action: ${action}`);
-  }
-
-  private async executeBootstrapToolCall(
-    call: ToolCall,
-    session: Session | null
-  ): Promise<ToolResult> {
-    if (this.toolsConfig?.bootstrap?.enabled === false) {
-      return this.formatToolError('TOOL_DISABLED', 'bootstrap tool is disabled');
-    }
-
-    if (!this.stateLayer) {
-      return this.formatToolError('STATE_LAYER_DISABLED', 'State layer is not configured');
-    }
-
-    if (!session) {
-      return this.formatToolError('SESSION_NOT_FOUND', 'Session not found for bootstrap tool');
-    }
-
-    const action = this.readOptionalString(call.parameters.action);
-    if (!action) {
-      return this.formatToolError('INVALID_PARAMETERS', 'action is required');
-    }
-
-    const identityCompleted = this.readOptionalBoolean(call.parameters.identityCompleted);
-
-    const agentId = this.resolveAgentId(session);
-    const context = { ...this.buildStateContext(session), internalTool: true };
-
-    if (await this.getIdentityCompletionStatus(session)) {
-      if (action !== 'get') {
-        return this.formatToolError(
-          'TOOL_DISABLED',
-          'bootstrap is locked after identity completion; use /identity reset to restart onboarding'
-        );
-      }
-    }
-
-    if (action === 'get') {
-      const profile = await this.stateLayer.getBootstrap(agentId, context);
-      return {
-        success: true,
-        content: [{ type: 'text', text: JSON.stringify({ profile }, null, 2) }],
-      };
-    }
-
-    if (action === 'set') {
-      const content = this.readOptionalStringMap(call.parameters.content);
-      if (!content) {
-        return this.formatToolError('INVALID_PARAMETERS', 'content is required');
-      }
-
-      const current = await this.stateLayer.getBootstrap(agentId, context);
-      const nextContent = { ...content };
-      if (identityCompleted) {
-        delete nextContent.bootstrap;
-      }
-      const stored = await this.stateLayer.putBootstrap(
-        {
-          agentId,
-          content: nextContent,
-          updatedAt: new Date().toISOString(),
-          version: current?.version ? current.version + 1 : 1,
-        },
-        context
-      );
-
-      if (identityCompleted) {
-        await this.markIdentityCompleted(agentId, nextContent, context);
-      }
-
-      return {
-        success: true,
-        content: [{ type: 'text', text: JSON.stringify({ profile: stored }, null, 2) }],
-      };
-    }
-
-    if (action === 'delete') {
-      await this.stateLayer.deleteBootstrap(agentId, context);
-      return {
-        success: true,
-        content: [{ type: 'text', text: JSON.stringify({ deleted: true }, null, 2) }],
-      };
-    }
-
-    return this.formatToolError('INVALID_PARAMETERS', `unknown bootstrap action: ${action}`);
-  }
-
-  private async executeSubagentsToolCall(
-    call: ToolCall,
-    session: Session | null
-  ): Promise<ToolResult> {
-    if (!this.subagentOrchestrator) {
-      return this.formatToolError('SUBAGENT_DISABLED', 'Subagent orchestration is not configured');
-    }
-
-    if (!session) {
-      return this.formatToolError('SESSION_NOT_FOUND', 'Session not found for subagent tool');
-    }
-
-    const action = this.readOptionalString(call.parameters.action);
-    if (!action) {
-      return this.formatToolError('INVALID_PARAMETERS', 'action is required');
-    }
-
-    if (action === 'list') {
-      const runs = this.filterSubagentRunsForSession(session, this.listSubagents());
-      return {
-        success: true,
-        content: [{ type: 'text', text: JSON.stringify({ runs }, null, 2) }],
-      };
-    }
-
-    const runId = this.readOptionalString(call.parameters.runId);
-    if (!runId) {
-      return this.formatToolError('INVALID_PARAMETERS', 'runId is required');
-    }
-
-    const run = this.getSubagentInfo(runId);
-    if (!run || !this.canAccessSubagentRun(session, run)) {
-      return this.formatToolError('NOT_FOUND', 'Subagent run not found');
-    }
-
-    if (action === 'info') {
-      return {
-        success: true,
-        content: [{ type: 'text', text: JSON.stringify({ run }, null, 2) }],
-      };
-    }
-
-    if (action === 'log') {
-      const limit = this.readOptionalNumber(call.parameters.limit, { min: 1 }) ?? 50;
-      const log = await this.getSubagentLog(runId);
-      const messages = log?.messages ?? [];
-      return {
-        success: true,
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({ runId, messages: messages.slice(-limit) }, null, 2),
-          },
-        ],
-      };
-    }
-
-    if (action === 'files_list') {
-      const workspaceDir = this.subagentOrchestrator.getRunWorkspaceDir(runId);
-      if (!workspaceDir) {
-        return this.formatToolError('NOT_FOUND', 'Subagent workspace not available');
-      }
-
-      const entries = await listSubagentWorkspaceEntries({
-        rootDir: workspaceDir,
-        relativePath: this.readOptionalString(call.parameters.path),
-        recursive: Boolean(call.parameters.recursive),
-        limit: this.readOptionalNumber(call.parameters.limit, { min: 1 }) ?? 200,
-      });
-
-      return {
-        success: true,
-        content: [{ type: 'text', text: JSON.stringify({ runId, entries }, null, 2) }],
-      };
-    }
-
-    if (action === 'files_get') {
-      const workspaceDir = this.subagentOrchestrator.getRunWorkspaceDir(runId);
-      if (!workspaceDir) {
-        return this.formatToolError('NOT_FOUND', 'Subagent workspace not available');
-      }
-
-      const relativePath = this.readOptionalString(call.parameters.path);
-      if (!relativePath) {
-        return this.formatToolError('INVALID_PARAMETERS', 'path is required');
-      }
-
-      const maxBytes = this.readOptionalNumber(call.parameters.maxBytes, { min: 1 }) ?? 65536;
-      const file = await readSubagentWorkspaceFile({
-        rootDir: workspaceDir,
-        relativePath,
-        maxBytes,
-      });
-
-      return {
-        success: true,
-        content: [{ type: 'text', text: JSON.stringify({ runId, file }, null, 2) }],
-      };
-    }
-
-    if (action === 'stop') {
-      const stopped = this.subagentOrchestrator.stopRun(runId);
-      return {
-        success: stopped,
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(
-              {
-                runId,
-                stopped,
-                message: stopped
-                  ? 'Subagent run stopped successfully'
-                  : 'Cannot stop run (already running or completed)',
-              },
-              null,
-              2
-            ),
-          },
-        ],
-      };
-    }
-
-    if (action === 'steer') {
-      const message = this.readOptionalString(call.parameters.message);
-      if (!message) {
-        return this.formatToolError('INVALID_PARAMETERS', 'message is required for steer action');
-      }
-
-      const steered = await this.steerSubagent(runId, message);
-      return {
-        success: steered,
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(
-              {
-                runId,
-                steered,
-                message: steered
-                  ? 'Message sent to subagent'
-                  : 'Cannot steer run (not running or already completed)',
-              },
-              null,
-              2
-            ),
-          },
-        ],
-      };
-    }
-
-    if (action === 'workflow_list') {
-      if (!this.subagentOrchestrator) {
-        return this.formatToolError('SUBAGENT_DISABLED', 'Workflow orchestration is not configured');
-      }
-
-      const workflows = this.subagentOrchestrator.listWorkflows();
-      // Convert Map to plain object for JSON serialization
-      const serializedWorkflows = workflows.map((wf) => ({
-        ...wf,
-        stepResults: Object.fromEntries(wf.stepResults),
-      }));
-
-      return {
-        success: true,
-        content: [{ type: 'text', text: JSON.stringify({ workflows: serializedWorkflows }, null, 2) }],
-      };
-    }
-
-    if (action === 'workflow_info') {
-      if (!this.subagentOrchestrator) {
-        return this.formatToolError('SUBAGENT_DISABLED', 'Workflow orchestration is not configured');
-      }
-
-      const workflowId = this.readOptionalString(call.parameters.workflowId);
-      if (!workflowId) {
-        return this.formatToolError('INVALID_PARAMETERS', 'workflowId is required for workflow_info action');
-      }
-
-      const workflow = this.subagentOrchestrator.getWorkflow(workflowId);
-      if (!workflow) {
-        return this.formatToolError('NOT_FOUND', 'Workflow not found');
-      }
-
-      // Convert Map to plain object for JSON serialization
-      const serialized = {
-        ...workflow,
-        stepResults: Object.fromEntries(workflow.stepResults),
-      };
-
-      return {
-        success: true,
-        content: [{ type: 'text', text: JSON.stringify({ workflow: serialized }, null, 2) }],
-      };
-    }
-
-    return this.formatToolError('INVALID_PARAMETERS', `unknown subagents action: ${action}`);
-  }
-
-  private formatToolError(code: string, message: string, details?: unknown): ToolResult {
-    return {
-      success: false,
-      content: [],
-      error: {
-        code,
-        message,
-        details,
-      },
-    };
-  }
-
-  private canAccessSubagentRun(session: Session, run: SubagentRunRecord): boolean {
-    if (session.id === run.requester.sessionId) {
-      return true;
-    }
-    if (session.userId && run.requester.userId && session.userId === run.requester.userId) {
-      return true;
-    }
-    return false;
-  }
-
-  private filterSubagentRunsForSession(
-    session: Session,
-    runs: SubagentRunRecord[]
-  ): SubagentRunRecord[] {
-    return runs.filter((run) => this.canAccessSubagentRun(session, run));
-  }
 
   private isSubagentSession(session: Session | null): boolean {
     if (!session?.metadata) {
@@ -3089,69 +1466,6 @@ export class Gateway {
     return this.toolGroupMap.get(normalized);
   }
 
-  private resolveSubagentProfile(session: Session | null): string | undefined {
-    const defaultProfile = this.readOptionalString(this.subagentToolPolicy?.default_profile);
-    if (!session?.metadata || typeof session.metadata !== 'object') {
-      return defaultProfile;
-    }
-
-    const metadata = session.metadata as { subagent?: { profile?: string } };
-    const profile = this.readOptionalString(metadata.subagent?.profile);
-    return profile ?? defaultProfile;
-  }
-
-  private resolveSubagentProfilePolicy(profile?: string): SubagentToolProfileConfig | undefined {
-    const profiles = this.subagentToolPolicy?.profiles;
-    if (!profile || !profiles) {
-      return undefined;
-    }
-
-    if (profiles[profile]) {
-      return profiles[profile];
-    }
-
-    const normalized = this.normalizeToolName(profile);
-    const match = Object.entries(profiles).find(
-      ([name]) => this.normalizeToolName(name) === normalized
-    );
-    return match?.[1];
-  }
-
-  private evaluateSubagentToolPolicy(
-    tool: string,
-    session?: Session | null
-  ): { allowed: boolean; reason?: string } {
-    const normalized = this.normalizeToolName(tool);
-    const policy = this.subagentToolPolicy;
-    const profileName = this.resolveSubagentProfile(session ?? null);
-    const profilePolicy = this.resolveSubagentProfilePolicy(profileName);
-    const denyList = new Set(
-      [
-        ...DEFAULT_SUBAGENT_DENY_TOOLS,
-        ...(policy?.deny ?? []).map((entry) => this.normalizeToolName(entry)),
-        ...(profilePolicy?.deny ?? []).map((entry) => this.normalizeToolName(entry)),
-      ].filter((entry) => entry.length > 0)
-    );
-
-    if (denyList.has(normalized)) {
-      return { allowed: false, reason: `Tool blocked for subagents: ${tool}` };
-    }
-
-    const allowListSource =
-      profilePolicy?.allow && profilePolicy.allow.length > 0
-        ? profilePolicy.allow
-        : (policy?.allow ?? []);
-    const allow = allowListSource.map((entry) => this.normalizeToolName(entry));
-    if (allow.length > 0 && !allow.includes(normalized)) {
-      const profileSuffix = profileName ? ` (profile: ${profileName})` : '';
-      return {
-        allowed: false,
-        reason: `Tool not allowlisted for subagents${profileSuffix}: ${tool}`,
-      };
-    }
-
-    return { allowed: true };
-  }
 
   private buildSandboxDecisionSamples(): {
     main: { enabled: boolean; config?: unknown };
@@ -3191,10 +1505,7 @@ export class Gateway {
   }
 
   // Utility parsing methods delegate to extracted functions in utils/parsing.ts
-  private readOptionalString(value: unknown) { return readOptionalString(value); }
-  private readOptionalStringArray(value: unknown) { return readOptionalStringArray(value); }
-  private readOptionalNumber(value: unknown, limits?: { min?: number; max?: number }) { return readOptionalNumber(value, limits); }
-  private readOptionalBoolean(value: unknown) { return readOptionalBoolean(value); }
+
 
   private async getIdentityCompletionStatus(session: Session): Promise<boolean> {
     if (!this.stateLayer) {
@@ -3329,9 +1640,7 @@ export class Gateway {
     );
   }
 
-  private readOptionalStringMap(value: unknown) { return readOptionalStringMap(value); }
-  private readTimeoutMs(value: unknown) { return readTimeoutMs(value); }
-  private readCleanup(value: unknown) { return readCleanup(value); }
+
 
   private static readonly MAX_TOOL_ITERATIONS = 10;
 
@@ -3360,7 +1669,7 @@ export class Gateway {
           toolCalls,
         });
 
-        const toolMessages = await this.executeToolCalls(sessionId, toolCalls, {
+        const toolMessages = await this.toolExecutor.executeToolCalls(sessionId, toolCalls, {
           channelId: inbound.conversation.id,
           channelMessageId: inbound.channelMessageId ?? undefined,
         });
@@ -3422,6 +1731,56 @@ export class Gateway {
       }
     }
 
+    // DLP scan outbound LLM response before sending to channel
+    if (responseText && this.dlp) {
+      const dlpResult = this.dlp.scan(responseText, inbound.channel);
+      if (!dlpResult.allowed) {
+        void this.logAuditEvent({
+          id: `${sessionId}-dlp-outbound-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          instanceId: this.instanceId,
+          userId: inbound.sender.id,
+          sessionId,
+          channel: inbound.channel,
+          eventType: 'dlp_block',
+          action: 'dlp.block',
+          resource: inbound.channel,
+          outcome: 'blocked',
+          reason: dlpResult.reason,
+          securityMode,
+          details: {
+            direction: 'outbound',
+            findingsCount: dlpResult.findings.length,
+            action: dlpResult.action,
+          },
+        });
+
+        responseText = dlpResult.reason ?? 'Response blocked by DLP policy.';
+      } else if (dlpResult.action === 'redact' && dlpResult.message) {
+        responseText = dlpResult.message;
+      } else if (dlpResult.action === 'alert') {
+        void this.logAuditEvent({
+          id: `${sessionId}-dlp-outbound-alert-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          instanceId: this.instanceId,
+          userId: inbound.sender.id,
+          sessionId,
+          channel: inbound.channel,
+          eventType: 'dlp_scan',
+          action: 'dlp.alert',
+          resource: inbound.channel,
+          outcome: 'allowed',
+          reason: dlpResult.reason,
+          securityMode,
+          details: {
+            direction: 'outbound',
+            findingsCount: dlpResult.findings.length,
+            action: dlpResult.action,
+          },
+        });
+      }
+    }
+
     if (responseText) {
       await this.sessionManager.addMessage(sessionId, {
         role: 'assistant',
@@ -3446,7 +1805,6 @@ export class Gateway {
     void this.publishStatusEvent(sessionId, 'done', inbound.conversation.id, inbound.channelMessageId ?? undefined);
   }
 
-  private stringifyToolParameters(parameters: Record<string, unknown>) { return stringifyToolParameters(parameters); }
   private coerceLLMContentText(content: unknown) { return coerceLLMContentText(content); }
 
   /**
@@ -3563,172 +1921,6 @@ export class Gateway {
     return metadata?.thread_ts ?? message.channelMessageId;
   }
 
-  /**
-   * H2: Check memory tool rate limit (10 calls per minute per session)
-   */
-  private checkMemoryToolRateLimit(sessionId: string): { allowed: boolean; retryAfterSeconds?: number } {
-    const now = Date.now();
-    const windowMs = 60 * 1000; // 1 minute
-    const maxCalls = 10;
-
-    // Get or initialize call timestamps for this session
-    const calls = this.memoryToolCalls.get(sessionId) ?? [];
-    
-    // Remove timestamps older than 1 minute
-    const recentCalls = calls.filter(timestamp => now - timestamp < windowMs);
-    
-    // Check if limit exceeded
-    if (recentCalls.length >= maxCalls) {
-      const oldestCall = Math.min(...recentCalls);
-      const retryAfterSeconds = Math.ceil((oldestCall + windowMs - now) / 1000);
-      return { allowed: false, retryAfterSeconds };
-    }
-
-    // Add current call and update map
-    recentCalls.push(now);
-    this.memoryToolCalls.set(sessionId, recentCalls);
-
-    return { allowed: true };
-  }
-
-  private scanToolResult(
-    result: ToolResult,
-    session: Session | null,
-    tool: string,
-    securityMode: 'strict' | 'standard' | 'permissive'
-  ): {
-    allowed: boolean;
-    reason?: string;
-    redactedContent?: ToolResult['content'];
-  } {
-    if (!this.dlp || result.content.length === 0) {
-      return { allowed: true };
-    }
-
-    const redactedContent: ToolResult['content'] = [];
-    let blocked = false;
-    let blockReason: string | undefined;
-
-    for (const block of result.content) {
-      // M4: Scan text content
-      if (block.type === 'text') {
-        const scanResult = this.dlp.scan(block.text, session?.channel);
-      if (!scanResult.allowed) {
-        blocked = true;
-        blockReason = scanResult.reason;
-        void this.logAuditEvent({
-          id: `dlp-tool-result-${Date.now()}`,
-          timestamp: new Date().toISOString(),
-          instanceId: this.instanceId,
-          userId: session?.userId ?? 'unknown',
-          sessionId: session?.id ?? 'unknown',
-          channel: session?.channel ?? 'unknown',
-          eventType: 'dlp_block',
-          action: 'dlp.block.tool_output',
-          resource: tool,
-          outcome: 'blocked',
-          reason: scanResult.reason,
-          securityMode,
-          details: {
-            findingsCount: scanResult.findings.length,
-            action: scanResult.action,
-          },
-        });
-        break;
-      }
-
-      if (scanResult.action === 'redact' && scanResult.message) {
-        redactedContent.push({
-          ...block,
-          text: scanResult.message,
-        });
-      } else {
-        redactedContent.push(block);
-      }
-
-        if (scanResult.action === 'alert') {
-          void this.logAuditEvent({
-            id: `dlp-tool-result-alert-${Date.now()}`,
-            timestamp: new Date().toISOString(),
-            instanceId: this.instanceId,
-            userId: session?.userId ?? 'unknown',
-            sessionId: session?.id ?? 'unknown',
-            channel: session?.channel ?? 'unknown',
-            eventType: 'dlp_scan',
-            action: 'dlp.alert.tool_output',
-            resource: tool,
-            outcome: 'allowed',
-            reason: scanResult.reason,
-            securityMode,
-            details: {
-              findingsCount: scanResult.findings.length,
-              action: scanResult.action,
-            },
-          });
-        }
-        continue;
-      }
-
-      // M4: Scan non-text content for metadata, paths, and structured data
-      const structuredText: string[] = [];
-      
-      // Extract scannable strings from structured content
-      if (typeof block === 'object' && block !== null) {
-        const extractStrings = (obj: unknown, depth = 0): void => {
-          if (depth > 5) return; // Prevent deep recursion
-          
-          if (typeof obj === 'string' && obj.length > 0) {
-            structuredText.push(obj);
-          } else if (Array.isArray(obj)) {
-            obj.forEach(item => extractStrings(item, depth + 1));
-          } else if (typeof obj === 'object' && obj !== null) {
-            Object.values(obj).forEach(value => extractStrings(value, depth + 1));
-          }
-        };
-        
-        extractStrings(block);
-      }
-
-      // Scan extracted strings
-      for (const text of structuredText) {
-        const scanResult = this.dlp.scan(text, session?.channel);
-        if (!scanResult.allowed) {
-          blocked = true;
-          blockReason = scanResult.reason;
-          void this.logAuditEvent({
-            id: `dlp-tool-result-structured-${Date.now()}`,
-            timestamp: new Date().toISOString(),
-            instanceId: this.instanceId,
-            userId: session?.userId ?? 'unknown',
-            sessionId: session?.id ?? 'unknown',
-            channel: session?.channel ?? 'unknown',
-            eventType: 'dlp_block',
-            action: 'dlp.block.tool_output.structured',
-            resource: tool,
-            outcome: 'blocked',
-            reason: scanResult.reason,
-            securityMode,
-            details: {
-              findingsCount: scanResult.findings.length,
-              action: scanResult.action,
-              contentType: block.type,
-            },
-          });
-          break;
-        }
-      }
-
-      if (blocked) break;
-      
-      redactedContent.push(block);
-    }
-
-    if (blocked) {
-      return { allowed: false, reason: blockReason };
-    }
-
-    return redactedContent.length > 0 ? { allowed: true, redactedContent } : { allowed: true };
-  }
 
   private async registerManagementHandlers(): Promise<void> {
     const bus = this.router.getBus();
@@ -3769,47 +1961,8 @@ export class Gateway {
     this.approvalManager = new ApprovalManager();
     this.toolCache = new ToolCache();
 
-    // Load skills for system prompt and exec allowlist
-    let skillToolConfigs: SkillToolConfig[] = [];
-    try {
-      const { formatSkillsForPrompt } = await import('./skills/skill-loader.js');
-      const { join } = await import('path');
-      const { fileURLToPath } = await import('url');
-      const { dirname } = await import('path');
-
-      // Resolve skills directory (relative to gateway package)
-      const currentDir = dirname(fileURLToPath(import.meta.url));
-      const skillsDir = join(currentDir, '..', '..', '..', '..', 'skills');
-      this.skillsDir = skillsDir;
-
-      // Initial skill load
-      const skillsForPrompt = await this.loadAndFilterSkills();
-      this.currentSkills = skillsForPrompt;
-
-      if (skillsForPrompt.length > 0) {
-        this.skillsPrompt = formatSkillsForPrompt(skillsForPrompt);
-        logger.info({ count: skillsForPrompt.length }, 'Loaded skills for LLM prompt');
-      } else {
-        logger.warn('No skills loaded');
-      }
-
-      skillToolConfigs = this.buildSkillToolConfigs(skillsForPrompt);
-
-      // Start skill watcher if hot reload is enabled
-      const hotReloadEnabled = this.skillsConfig?.hot_reload ?? (process.env.NODE_ENV !== 'production');
-      if (hotReloadEnabled) {
-        const { SkillWatcher } = await import('./skills/skill-watcher.js');
-        this.skillWatcher = new SkillWatcher({
-          skillsDir,
-          debounceMs: this.skillsConfig?.debounce_ms ?? 500,
-          onReload: async () => this.handleSkillReload(),
-        });
-        this.skillWatcher.start();
-        logger.info('Skill hot reload enabled');
-      }
-    } catch (error) {
-      logger.error({ err: error }, 'Failed to load skills');
-    }
+    // Load skills via SkillsManager
+    const skillToolConfigs = await this.skillsManager.init();
 
     // Initialize local tool handler for gateway-integrated tools (exec/shell)
     const { LocalToolHandler } = await import('./tools/local-tool-handler.js');
@@ -3833,6 +1986,13 @@ export class Gateway {
     });
     logger.info('Tool coordinator initialized');
 
+    // Update ToolExecutor with runtime deps that weren't available during construction
+    this.toolExecutor.updateDeps({
+      toolCoordinator: this.toolCoordinator,
+      dlp: this.dlp,
+      scheduler: this.scheduler,
+    });
+
     this.approvalManager.on('approval-requested', async (request) => {
       const session = await this.sessionManager.getSession(request.sessionId);
       if (!session) {
@@ -3854,58 +2014,7 @@ export class Gateway {
     });
 
     if (this.options.streamingPassthrough) {
-      await this.router.getBus().subscribe('nachos.llm.stream.*', async (data) => {
-        const chunk = data as { sessionId?: string; type?: string; delta?: string };
-        if (!chunk.sessionId) return;
-        const state = this.streamingSessions.get(chunk.sessionId);
-        if (!state) return;
-
-        if (chunk.type === 'done') {
-          this.streamingSessions.delete(chunk.sessionId);
-          return;
-        }
-
-        if (chunk.type === 'delta' && chunk.delta) {
-          state.buffer += chunk.delta;
-          const now = Date.now();
-          const minInterval = this.options.streamingMinIntervalMs ?? 500;
-          const chunkSize = this.options.streamingChunkSize ?? 200;
-          const shouldSend =
-            state.buffer.length - state.lastSentLength >= chunkSize &&
-            now - state.lastSentAt >= minInterval;
-
-          if (shouldSend) {
-            state.lastSentAt = now;
-            state.lastSentLength = state.buffer.length;
-            const outbound: ChannelOutboundMessage = {
-              channel: state.inbound.channel,
-              conversationId: state.inbound.conversation.id,
-              replyToMessageId: state.inbound.channelMessageId,
-              sessionId: chunk.sessionId,
-              content: {
-                text: state.buffer,
-                format: 'markdown',
-              },
-              options: {
-                ephemeral: true,
-              },
-            };
-            await this.router.sendToChannel(outbound);
-          }
-        }
-      });
-
-      // Sweep stale streaming sessions every 60s to prevent leaks if LLM proxy
-      // crashes without sending a 'done' event.
-      this.streamingSessionSweepInterval = setInterval(() => {
-        const maxAge = 300_000; // 5 minutes
-        const now = Date.now();
-        for (const [id, state] of this.streamingSessions) {
-          if (now - state.createdAt > maxAge) {
-            this.streamingSessions.delete(id);
-          }
-        }
-      }, 60_000);
+      await this.streamingManager.startSubscription(this.router.getBus() as NatsBusAdapter);
     }
 
     await this.registerManagementHandlers();
@@ -4119,10 +2228,7 @@ export class Gateway {
       this.memoryPipelineInterval = undefined;
     }
 
-    if (this.streamingSessionSweepInterval) {
-      clearInterval(this.streamingSessionSweepInterval);
-      this.streamingSessionSweepInterval = undefined;
-    }
+    this.streamingManager.stop();
 
     if (this.toolCache) {
       await this.toolCache.shutdown();
@@ -4140,10 +2246,7 @@ export class Gateway {
       await this.localToolHandler.close();
     }
 
-    if (this.skillWatcher) {
-      this.skillWatcher.stop();
-      this.skillWatcher = null;
-    }
+    this.skillsManager.stop();
 
     if (this.heartbeatManager) {
       await this.heartbeatManager.stop();
@@ -4159,92 +2262,6 @@ export class Gateway {
     logger.info('Gateway stopped');
   }
 
-  /**
-   * Load and filter skills for the system prompt
-   */
-  private async loadAndFilterSkills(): Promise<Skill[]> {
-    if (!this.skillsDir) {
-      return [];
-    }
-
-    const { loadSkills, filterSkillsForPrompt } = await import('./skills/skill-loader.js');
-    const skills = loadSkills({ skillsDir: this.skillsDir });
-    const shellEnabled = this.toolsConfig?.shell?.enabled !== false;
-    const allowlist = this.skillsConfig?.allow ?? this.skillsConfig?.enabled;
-    const filtered = filterSkillsForPrompt(skills, {
-      allow: allowlist,
-      deny: this.skillsConfig?.deny,
-      entries: this.skillsConfig?.entries,
-      config: this.nachosConfig,
-    });
-
-    return shellEnabled ? filtered : [];
-  }
-
-  /**
-   * Handle skill reload from watcher
-   */
-  private async handleSkillReload(): Promise<{
-    previous: Skill[];
-    current: Skill[];
-  }> {
-    const previous = this.currentSkills;
-    const current = await this.loadAndFilterSkills();
-
-    // Update skills prompt
-    const { formatSkillsForPrompt } = await import('./skills/skill-loader.js');
-    this.skillsPrompt = current.length > 0 ? formatSkillsForPrompt(current) : null;
-    this.currentSkills = current;
-
-    // Detect changes
-    const prevMap = new Map(previous.map((s) => [s.name, s]));
-    const currMap = new Map(current.map((s) => [s.name, s]));
-
-    const added: string[] = [];
-    const removed: string[] = [];
-    const modified: string[] = [];
-
-    for (const [name, skill] of currMap) {
-      const prevSkill = prevMap.get(name);
-      if (!prevSkill) {
-        added.push(name);
-      } else if (prevSkill.content !== skill.content) {
-        modified.push(name);
-      }
-    }
-
-    for (const name of prevMap.keys()) {
-      if (!currMap.has(name)) {
-        removed.push(name);
-      }
-    }
-
-    logger.info(
-      {
-        added,
-        removed,
-        modified,
-        total: current.length,
-      },
-      'Skills reloaded'
-    );
-
-    // Publish NATS event
-    try {
-      await this.router.getBus().publish(TOPICS.skills.reloaded, {
-        event: 'skills.reloaded',
-        added,
-        removed,
-        modified,
-        total: current.length,
-        timestamp: Date.now(),
-      });
-    } catch (error) {
-      logger.error({ err: error }, 'Failed to publish skills.reloaded event');
-    }
-
-    return { previous, current };
-  }
 
   /**
    * Setup signal handlers for graceful shutdown

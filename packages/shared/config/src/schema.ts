@@ -166,6 +166,18 @@ export interface WhatsappChannelConfig extends BaseChannelConfig {
 }
 
 /**
+ * Matrix channel configuration
+ */
+export interface MatrixChannelConfig extends BaseChannelConfig {
+  homeserver_url?: string;
+  access_token?: string;
+  user_id?: string;
+  device_id?: string;
+  dm?: ChannelDMConfig;
+  servers?: ChannelServerConfig[];
+}
+
+/**
  * All channel configurations
  */
 export interface ChannelsConfig {
@@ -174,6 +186,7 @@ export interface ChannelsConfig {
   discord?: DiscordChannelConfig;
   telegram?: TelegramChannelConfig;
   whatsapp?: WhatsappChannelConfig;
+  matrix?: MatrixChannelConfig;
 }
 
 /**

@@ -8,22 +8,13 @@
 import type { ToolCall, ToolResult } from '@nachos/types';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { ToolRateLimiter } from './tool-rate-limiter.js';
 
 const execFileAsync = promisify(execFile);
 
 const MAX_OUTPUT_SIZE = 50 * 1024; // 50KB limit for large diffs
 
-/**
- * Rate limiting state
- */
-interface RateLimitState {
-  calls: number;
-  windowStart: number;
-}
-
-const rateLimitState = new Map<string, RateLimitState>();
-const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
-const MAX_CALLS_PER_WINDOW = 30;
+const rateLimiter = new ToolRateLimiter(60 * 1000, 30, 'GitHub');
 
 /**
  * github tool schema
@@ -154,25 +145,7 @@ export interface GitHubConfig {
  * Check rate limit for a user/session
  */
 function checkRateLimit(userId: string): { allowed: boolean; message?: string } {
-  const now = Date.now();
-  let state = rateLimitState.get(userId);
-
-  if (!state || now - state.windowStart >= RATE_LIMIT_WINDOW_MS) {
-    // New window
-    state = { calls: 0, windowStart: now };
-    rateLimitState.set(userId, state);
-  }
-
-  if (state.calls >= MAX_CALLS_PER_WINDOW) {
-    const resetIn = Math.ceil((RATE_LIMIT_WINDOW_MS - (now - state.windowStart)) / 1000);
-    return {
-      allowed: false,
-      message: `Rate limit exceeded. Maximum ${MAX_CALLS_PER_WINDOW} GitHub calls per minute. Try again in ${resetIn}s.`,
-    };
-  }
-
-  state.calls++;
-  return { allowed: true };
+  return rateLimiter.check(userId);
 }
 
 /**
@@ -233,9 +206,9 @@ async function execGitHub(
       timeout: 30000, // 30s timeout
     });
     return result;
-  } catch (error: any) {
+  } catch (error: unknown) {
     // gh CLI returns error in stderr
-    if (error.code === 'ENOENT') {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       throw new Error('GitHub CLI (gh) is not installed or not in PATH');
     }
     throw error;
@@ -549,13 +522,14 @@ export async function executeGitHub(
         },
       ],
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const err = error as { stderr?: string; message?: string };
     return {
       success: false,
       content: [],
       error: {
         code: 'GITHUB_CLI_ERROR',
-        message: error.stderr || error.message || 'Unknown error executing GitHub CLI',
+        message: err.stderr || err.message || 'Unknown error executing GitHub CLI',
       },
     };
   }

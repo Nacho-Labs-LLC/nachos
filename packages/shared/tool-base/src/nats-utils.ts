@@ -6,6 +6,9 @@
 
 import { connect, type NatsConnection, type ConnectionOptions } from 'nats';
 import type { MessageEnvelope } from '@nachos/types';
+import { createLogger } from '@nachos/types';
+
+const logger = createLogger('tool-nats');
 
 /**
  * Connect to NATS server
@@ -23,9 +26,9 @@ export async function connectToNats(url?: string): Promise<NatsConnection> {
     ...(token ? { token } : {}),
   };
 
-  console.log(`Connecting to NATS at ${natsUrl}...`);
+  logger.info({ url: natsUrl }, 'Connecting to NATS');
   const nc = await connect(options);
-  console.log(`Connected to NATS: ${nc.getServer()}`);
+  logger.info({ server: nc.getServer() }, 'Connected to NATS');
 
   return nc;
 }
@@ -91,10 +94,10 @@ export async function waitForReady(nc: NatsConnection, timeoutMs: number = 30000
  * Gracefully close NATS connection
  */
 export async function closeNats(nc: NatsConnection): Promise<void> {
-  console.log('Closing NATS connection...');
+  logger.info('Closing NATS connection');
   await nc.drain();
   await nc.close();
-  console.log('NATS connection closed');
+  logger.info('NATS connection closed');
 }
 
 /**
@@ -102,7 +105,7 @@ export async function closeNats(nc: NatsConnection): Promise<void> {
  */
 export function setupShutdownHandlers(nc: NatsConnection, onShutdown?: () => Promise<void>): void {
   const shutdown = async (signal: string) => {
-    console.log(`Received ${signal}, shutting down gracefully...`);
+    logger.info({ signal }, 'Received signal, shutting down gracefully');
 
     try {
       // Call custom shutdown handler
@@ -115,7 +118,7 @@ export function setupShutdownHandlers(nc: NatsConnection, onShutdown?: () => Pro
 
       process.exit(0);
     } catch (error) {
-      console.error('Error during shutdown:', error);
+      logger.error({ err: error }, 'Error during shutdown');
       process.exit(1);
     }
   };

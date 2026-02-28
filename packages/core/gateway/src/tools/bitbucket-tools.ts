@@ -6,20 +6,11 @@
  */
 
 import type { ToolCall, ToolResult } from '@nachos/types';
+import { ToolRateLimiter } from './tool-rate-limiter.js';
 
 const MAX_OUTPUT_SIZE = 50 * 1024; // 50KB limit for large diffs
 
-/**
- * Rate limiting state
- */
-interface RateLimitState {
-  calls: number;
-  windowStart: number;
-}
-
-const rateLimitState = new Map<string, RateLimitState>();
-const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
-const MAX_CALLS_PER_WINDOW = 30;
+const rateLimiter = new ToolRateLimiter(60 * 1000, 30, 'Bitbucket');
 
 /**
  * bitbucket tool schema
@@ -145,25 +136,7 @@ export interface BitbucketConfig {
  * Check rate limit for a user/session
  */
 function checkRateLimit(userId: string): { allowed: boolean; message?: string } {
-  const now = Date.now();
-  let state = rateLimitState.get(userId);
-
-  if (!state || now - state.windowStart >= RATE_LIMIT_WINDOW_MS) {
-    // New window
-    state = { calls: 0, windowStart: now };
-    rateLimitState.set(userId, state);
-  }
-
-  if (state.calls >= MAX_CALLS_PER_WINDOW) {
-    const resetIn = Math.ceil((RATE_LIMIT_WINDOW_MS - (now - state.windowStart)) / 1000);
-    return {
-      allowed: false,
-      message: `Rate limit exceeded. Maximum ${MAX_CALLS_PER_WINDOW} Bitbucket calls per minute. Try again in ${resetIn}s.`,
-    };
-  }
-
-  state.calls++;
-  return { allowed: true };
+  return rateLimiter.check(userId);
 }
 
 /**
@@ -228,7 +201,7 @@ async function executeBitbucketAPI(
   endpoint: string,
   config: BitbucketConfig,
   options: RequestInit = {}
-): Promise<{ data: any; error?: string }> {
+): Promise<{ data: Record<string, unknown> | null; error?: string }> {
   const authHeaders = getAuthHeaders(config);
   if (!authHeaders) {
     return { data: null, error: 'Authentication not configured. Set BITBUCKET_USERNAME and BITBUCKET_APP_PASSWORD (or BITBUCKET_TOKEN for OAuth).' };
@@ -261,10 +234,10 @@ async function executeBitbucketAPI(
       return { data: null, error: errorMessage };
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as Record<string, unknown>;
     return { data };
-  } catch (error: any) {
-    return { data: null, error: error.message || 'Unknown error calling Bitbucket API' };
+  } catch (error: unknown) {
+    return { data: null, error: (error as Error).message || 'Unknown error calling Bitbucket API' };
   }
 }
 
@@ -275,8 +248,8 @@ async function paginateResults(
   endpoint: string,
   config: BitbucketConfig,
   limit: number
-): Promise<{ results: any[]; error?: string }> {
-  const results: any[] = [];
+): Promise<{ results: Record<string, unknown>[]; error?: string }> {
+  const results: Record<string, unknown>[] = [];
   let nextUrl: string | null = endpoint;
   
   while (nextUrl && results.length < limit) {
@@ -286,11 +259,11 @@ async function paginateResults(
       return { results, error };
     }
 
-    if (data.values) {
-      results.push(...data.values.slice(0, limit - results.length));
+    if (data && Array.isArray(data.values)) {
+      results.push(...(data.values as Record<string, unknown>[]).slice(0, limit - results.length));
     }
 
-    nextUrl = data.next || null;
+    nextUrl = (data?.next as string) || null;
     if (!nextUrl || results.length >= limit) {
       break;
     }
@@ -360,7 +333,7 @@ export async function executeBitbucket(
     }
 
     let resultText = '';
-    let apiResult: { data?: any; error?: string; results?: any[] } = {};
+    let apiResult: { data?: Record<string, unknown> | null; error?: string; results?: Record<string, unknown>[] } = {};
 
     switch (action) {
       case 'repo_list': {
@@ -418,9 +391,9 @@ export async function executeBitbucket(
             id: pr.id,
             title: pr.title,
             state: pr.state,
-            source: pr.source?.branch?.name,
-            destination: pr.destination?.branch?.name,
-            author: pr.author?.display_name,
+            source: (pr.source as Record<string, unknown>)?.branch && ((pr.source as Record<string, unknown>).branch as Record<string, unknown>)?.name,
+            destination: (pr.destination as Record<string, unknown>)?.branch && ((pr.destination as Record<string, unknown>).branch as Record<string, unknown>)?.name,
+            author: (pr.author as Record<string, unknown>)?.display_name,
             created_on: pr.created_on,
             updated_on: pr.updated_on,
           })), null, 2);
@@ -498,7 +471,7 @@ export async function executeBitbucket(
             error: { code: 'MISSING_PARAMETER', message: 'workspace, repo_slug, and pr_id are required for pr_merge' },
           };
         }
-        const mergeData: any = {};
+        const mergeData: Record<string, unknown> = {};
         if (params.merge_strategy) {
           mergeData.merge_strategy = params.merge_strategy;
         }
@@ -602,7 +575,7 @@ export async function executeBitbucket(
             error: { code: 'MISSING_PARAMETER', message: 'workspace, repo_slug, and title are required for issue_create' },
           };
         }
-        const issueData: any = {
+        const issueData: Record<string, unknown> = {
           title: params.title,
         };
         if (params.content) {
@@ -659,7 +632,7 @@ export async function executeBitbucket(
         if (apiResult.results) {
           resultText = JSON.stringify(apiResult.results.map(pipeline => ({
             uuid: pipeline.uuid,
-            state: pipeline.state?.name,
+            state: (pipeline.state as Record<string, unknown>)?.name,
             created_on: pipeline.created_on,
             completed_on: pipeline.completed_on,
             build_number: pipeline.build_number,
@@ -731,13 +704,13 @@ export async function executeBitbucket(
         },
       ],
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     return {
       success: false,
       content: [],
       error: {
         code: 'BITBUCKET_ERROR',
-        message: error.message || 'Unknown error executing Bitbucket API call',
+        message: (error as Error).message || 'Unknown error executing Bitbucket API call',
       },
     };
   }

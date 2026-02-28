@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages';
 import type { LLMRequestType, LLMMessageType } from '@nachos/types';
+import { createLogger } from '@nachos/types';
 import {
   ProviderError,
   type AdapterResponse,
@@ -151,6 +152,8 @@ function extractText(content: AnthropicContentBlock[] | undefined): string {
     .join('');
 }
 
+const logger = createLogger('anthropic-adapter');
+
 const DEFAULT_TIMEOUT_MS = 120_000;
 
 /** Detect OAuth / setup tokens (sk-ant-oat-*) */
@@ -203,7 +206,7 @@ export class AnthropicAdapter {
 
   async send(request: LLMRequestType, options: AdapterSendOptions): Promise<AdapterResponse> {
     const { apiKey, profileName } = this.resolveApiKey(options);
-    console.log(`[Anthropic] send() keyType=${isOAuthToken(apiKey) ? 'oauth' : 'api'} keyPrefix=${apiKey.slice(0, 15)}... model=${options.model}`);
+    logger.debug({ keyType: isOAuthToken(apiKey) ? 'oauth' : 'api', keyPrefix: apiKey.slice(0, 15), model: options.model }, 'send()');
     try {
       const client = this.getClient(apiKey);
       const response = await client.messages.create(
@@ -341,7 +344,7 @@ export class AnthropicAdapter {
   }
 
   private mapError(error: unknown): ProviderError {
-    console.error('[Anthropic] Raw error:', error);
+    logger.error({ err: error }, 'Raw error');
     if (error && typeof error === 'object' && 'status' in error) {
       const status = (error as { status?: number }).status ?? 0;
       if (status === 401 || status === 403) {

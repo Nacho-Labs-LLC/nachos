@@ -6,6 +6,46 @@ const logger = createLogger('audit-webhook');
 
 const DEFAULT_BATCH_SIZE = 50;
 
+const PRIVATE_IP_RANGES = [
+  /^10\./,
+  /^172\.(1[6-9]|2[0-9]|3[01])\./,
+  /^192\.168\./,
+  /^169\.254\./,
+  /^127\./,
+  /^0\./,
+  /^fc00:/i,
+  /^fe80:/i,
+  /^::1$/,
+  /^::$/,
+];
+
+function isPrivateHostname(hostname: string): boolean {
+  if (hostname === 'localhost' || hostname === '[::1]') {
+    return true;
+  }
+  return PRIVATE_IP_RANGES.some((pattern) => pattern.test(hostname));
+}
+
+function validateWebhookUrl(url: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error(`Invalid webhook URL: ${url}`);
+  }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error(`Webhook URL must use http or https protocol, got: ${parsed.protocol}`);
+  }
+
+  if (isPrivateHostname(parsed.hostname)) {
+    throw new Error(
+      `Webhook URL points to a private/internal address (${parsed.hostname}). ` +
+      'This is blocked to prevent SSRF attacks.'
+    );
+  }
+}
+
 export interface WebhookAuditProviderConfig {
   url: string;
   headers?: Record<string, string>;
@@ -21,6 +61,8 @@ export class WebhookAuditProvider implements AuditProvider {
   constructor(private readonly config: WebhookAuditProviderConfig) {}
 
   async init(): Promise<void> {
+    validateWebhookUrl(this.config.url);
+
     const interval = this.config.flushIntervalMs ?? 5000;
     this.flushTimer = setInterval(() => {
       void this.flush();
@@ -40,18 +82,43 @@ export class WebhookAuditProvider implements AuditProvider {
       return;
     }
     const events = this.buffer.splice(0);
-    try {
-      await fetch(this.config.url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...this.config.headers,
-        },
-        body: JSON.stringify({ events }),
-      });
-    } catch (error) {
-      logger.error({ err: error }, 'Webhook provider failed');
+    const maxAttempts = 3;
+    const baseDelayMs = 1000;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const response = await fetch(this.config.url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...this.config.headers,
+          },
+          body: JSON.stringify({ events }),
+        });
+        if (response.ok) {
+          return;
+        }
+        logger.warn(
+          { attempt, status: response.status, maxAttempts },
+          'Webhook provider received non-OK response'
+        );
+      } catch (error) {
+        logger.warn(
+          { err: error, attempt, maxAttempts },
+          'Webhook provider attempt failed'
+        );
+      }
+
+      if (attempt < maxAttempts) {
+        const delayMs = baseDelayMs * Math.pow(2, attempt - 1);
+        await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
+      }
     }
+
+    logger.error(
+      { eventsCount: events.length, maxAttempts },
+      'Webhook provider exhausted all retry attempts — events dropped'
+    );
   }
 
   async close(): Promise<void> {

@@ -8,9 +8,12 @@
 import type { NachosConfig } from './schema.js';
 import { loadConfig } from './loader.js';
 import { validateConfigOrThrow } from './validation.js';
+import { createLogger } from '@nachos/types';
 import * as dotenv from 'dotenv';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+
+const logger = createLogger('config');
 
 /**
  * Options for loading configuration
@@ -49,7 +52,7 @@ export function loadAndValidateConfig(options: LoadConfigOptions = {}): NachosCo
     if (fs.existsSync(resolvedEnvPath)) {
       dotenv.config({ path: resolvedEnvPath });
     } else if (envFilePath) {
-      console.warn(`[Config] .env file not found at ${resolvedEnvPath}`);
+      logger.warn({ path: resolvedEnvPath }, '.env file not found');
     }
   }
 

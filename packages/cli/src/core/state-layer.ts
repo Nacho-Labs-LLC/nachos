@@ -76,6 +76,22 @@ export function buildStateLayerConfig(runtime?: RuntimeConfig): StateLayerConfig
       redisUrl: runtime?.state?.session?.redis_url ?? runtime?.redis_url,
       ttlSeconds: runtime?.state?.session?.ttl_seconds,
     },
+    sessions: runtime?.state?.sessions
+      ? {
+          provider: runtime.state.sessions.provider ?? 'sqlite',
+          sqlite: runtime.state.sessions.sqlite
+            ? { dbPath: runtime.state.sessions.sqlite.db_path ?? path.join(stateDir, 'sessions.db') }
+            : undefined,
+          postgres: runtime.state.sessions.postgres
+            ? {
+                connectionString: runtime.state.sessions.postgres.connection_string ?? '',
+                schema: runtime.state.sessions.postgres.schema,
+                ssl: runtime.state.sessions.postgres.ssl,
+                maxConnections: runtime.state.sessions.postgres.max_connections,
+              }
+            : undefined,
+        }
+      : undefined,
     prompt: {
       hashAlgorithm: runtime?.state?.prompt_report?.hash ?? 'sha256',
       includeTokenEstimates: runtime?.state?.prompt_report?.include_tokens ?? true,

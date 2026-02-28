@@ -1,8 +1,9 @@
 import { Hono } from 'hono';
-import { logger } from 'hono/logger';
+import { logger as honoLogger } from 'hono/logger';
 import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
+import { createLogger } from '@nachos/types';
 import { authMiddleware } from './middleware/auth.js';
 import { configRouter } from './routes/config.js';
 import { statusRouter } from './routes/status.js';
@@ -16,6 +17,8 @@ import { webchatRouter } from './routes/webchat.js';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+const logger = createLogger('admin');
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env['PORT'] ?? '8082');
 
@@ -25,7 +28,7 @@ const publicDir = join(__dirname, 'public');
 
 const app = new Hono();
 
-app.use('*', logger());
+app.use('*', honoLogger());
 app.use(
   '/api/*',
   cors({
@@ -68,14 +71,10 @@ app.use('/*', serveStatic({ root: publicDir }));
 app.get('/*', serveStatic({ root: publicDir, path: '/index.html' }));
 
 serve({ fetch: app.fetch, port: PORT }, (info) => {
-  console.log(`[admin] Nachos Admin UI → http://localhost:${info.port}`);
-  console.log(`[admin] Config path: ${process.env['NACHOS_CONFIG_PATH'] ?? '/app/nachos.toml'}`);
+  logger.info({ port: info.port, url: `http://localhost:${info.port}` }, 'Nachos Admin UI started');
+  logger.info({ configPath: process.env['NACHOS_CONFIG_PATH'] ?? '/app/nachos.toml' }, 'Config path');
 
   if (!process.env['NACHOS_ADMIN_TOKEN']) {
-    console.warn('');
-    console.warn('  ⚠  WARNING: NACHOS_ADMIN_TOKEN is not set.');
-    console.warn('     The admin API is accessible without authentication.');
-    console.warn('     Set NACHOS_ADMIN_TOKEN in your .env file to require a token.');
-    console.warn('');
+    logger.warn('NACHOS_ADMIN_TOKEN is not set. The admin API is accessible without authentication. Set NACHOS_ADMIN_TOKEN in your .env file to require a token.');
   }
 });

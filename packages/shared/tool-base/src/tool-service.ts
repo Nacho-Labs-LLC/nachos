@@ -20,6 +20,7 @@ import type {
   ParameterSchema,
   MessageEnvelope,
 } from '@nachos/types';
+import { createLogger } from '@nachos/types';
 
 /**
  * Extended tool config that includes NATS connection
@@ -40,25 +41,28 @@ export interface Logger {
 }
 
 /**
- * Console logger implementation
+ * Pino-backed logger implementation that satisfies the Logger interface
  */
-class ConsoleLogger implements Logger {
-  constructor(private toolId: string) {}
+class PinoLogger implements Logger {
+  private pino;
+  constructor(toolId: string) {
+    this.pino = createLogger(toolId);
+  }
 
   info(message: string, ...args: unknown[]): void {
-    console.log(`[${this.toolId}] INFO:`, message, ...args);
+    this.pino.info({ args: args.length > 0 ? args : undefined }, message);
   }
 
   error(message: string, ...args: unknown[]): void {
-    console.error(`[${this.toolId}] ERROR:`, message, ...args);
+    this.pino.error({ args: args.length > 0 ? args : undefined }, message);
   }
 
   warn(message: string, ...args: unknown[]): void {
-    console.warn(`[${this.toolId}] WARN:`, message, ...args);
+    this.pino.warn({ args: args.length > 0 ? args : undefined }, message);
   }
 
   debug(message: string, ...args: unknown[]): void {
-    console.debug(`[${this.toolId}] DEBUG:`, message, ...args);
+    this.pino.debug({ args: args.length > 0 ? args : undefined }, message);
   }
 }
 
@@ -108,7 +112,7 @@ export abstract class ToolService implements Tool {
    */
   async start(config: ToolServiceConfig): Promise<void> {
     this.nats = config.nats;
-    this.logger = config.logger ?? new ConsoleLogger(this.toolId);
+    this.logger = config.logger ?? new PinoLogger(this.toolId);
     this.config = config;
 
     // Initialize tool-specific setup

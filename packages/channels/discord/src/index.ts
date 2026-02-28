@@ -22,7 +22,10 @@ import type {
   SendResult,
   HealthStatusType,
 } from '@nachos/types';
+import { createLogger, createConfigError, createInvalidStateError } from '@nachos/types';
 import { shouldAllowDm, shouldAllowGroupMessage } from '@nachos/utils';
+
+const logger = createLogger('discord-channel');
 import { randomUUID } from 'node:crypto';
 import {
   createDiscordStatusReactionController,
@@ -81,13 +84,13 @@ export class DiscordChannelAdapter implements ChannelAdapter {
 
   async start(): Promise<void> {
     if (!this.client || !this.config) {
-      throw new Error('Discord adapter not initialized');
+      throw createInvalidStateError('Discord adapter not initialized', { component: 'discord-channel' });
     }
 
     const channelConfig = this.config.config as DiscordChannelConfig;
     const token = this.resolveDiscordToken(channelConfig);
     if (!token) {
-      throw new Error('Discord token is required');
+      throw createConfigError('Discord token is required', { component: 'discord-channel' });
     }
 
     await this.client.login(token);
@@ -201,7 +204,7 @@ export class DiscordChannelAdapter implements ChannelAdapter {
       // Gracefully handle errors (permissions, deleted channel, etc.)
       // Stop the typing interval for this channel to avoid repeated errors
       this.stopTypingIndicator(channelId);
-      console.warn(`[Discord] Failed to send typing indicator for channel ${channelId}:`, error);
+      logger.warn({ channelId, err: error }, 'Failed to send typing indicator');
     }
   }
 
@@ -232,7 +235,7 @@ export class DiscordChannelAdapter implements ChannelAdapter {
 
   async sendMessage(message: OutboundMessage): Promise<SendResult> {
     if (!this.client) {
-      throw new Error('Discord adapter not initialized');
+      throw createInvalidStateError('Discord adapter not initialized', { component: 'discord-channel' });
     }
 
     try {
@@ -302,8 +305,8 @@ export class DiscordChannelAdapter implements ChannelAdapter {
   }
 
   private async handleMessage(message: Message): Promise<void> {
-    console.log(`[Discord] handleMessage from=${message.author?.tag} bot=${message.author?.bot} content="${(message.content ?? '').slice(0, 80)}"`);
-    if (!this.config) { console.log('[Discord] handleMessage: no config, dropping'); return; }
+    logger.debug({ from: message.author?.tag, bot: message.author?.bot, content: (message.content ?? '').slice(0, 80) }, 'handleMessage');
+    if (!this.config) { logger.debug('handleMessage: no config, dropping'); return; }
 
     // Bot message filtering: drop by default, allow if configured
     if (message.author?.bot) {
@@ -382,7 +385,7 @@ export class DiscordChannelAdapter implements ChannelAdapter {
       if (!allowed) return;
     }
 
-    console.log(`[Discord] Message passed filters, publishing inbound from ${userId}`);
+    logger.debug({ userId }, 'Message passed filters, publishing inbound');
     const inbound = {
       channel: this.channelId,
       channelMessageId: message.id,
@@ -547,7 +550,7 @@ export class DiscordChannelAdapter implements ChannelAdapter {
         await this.client.application.commands.set(commands);
       }
     } catch (error) {
-      console.warn('[Discord] Failed to register slash commands:', error);
+      logger.warn({ err: error }, 'Failed to register slash commands');
     }
   }
 

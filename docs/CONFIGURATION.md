@@ -218,7 +218,7 @@ mode = "standard"
 
 [security.dlp]
 enabled = true
-action = "warn"
+action = "block"  # default action — also supports "allow", "block", "redact", "alert"
 patterns = ["credit_card", "ssn", "api_key", "password"]
 
 [security.rate_limits]
@@ -294,6 +294,16 @@ Messaging platform connections. Each channel is optional and disabled by default
 | `api_version` | string | Meta API version |
 | `app_secret` | string | App secret for signature verification |
 
+#### `[channels.matrix]`
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `enabled` | boolean | Enable Matrix |
+| `homeserver_url` | string | Matrix homeserver URL (required when enabled) |
+| `access_token` | string | Bot access token (required when enabled) |
+| `user_id` | string | Bot user ID (e.g., `@bot:matrix.org`) |
+| `device_id` | string | Device ID for E2EE sessions |
+
 #### Channel Sub-Sections (all channels except webchat)
 
 **`[channels.<name>.commands]`** (Slack, Discord)
@@ -339,8 +349,8 @@ Tool configurations. Each tool is independently enabled/disabled.
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `enabled` | boolean | Enable browser tool |
-| `allowed_domains` | string[] | Allowed domains (`["*"]` for all) |
+| `enabled` | boolean | Enable browser tool (default: `false` — must be explicitly enabled) |
+| `allowed_domains` | string[] | Allowed domains (default: `[]` — requires explicit domain configuration) |
 | `headless` | boolean | Run headless |
 | `timeout` | number | Timeout in seconds (≥ 1) |
 

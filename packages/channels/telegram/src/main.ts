@@ -1,15 +1,16 @@
 import { createBusClient } from '@nachos/bus';
 import { createChannelBus } from '@nachos/channel-base';
 import { loadAndValidateConfig, type NachosConfig } from '@nachos/config';
-import type { ChannelAdapterConfig } from '@nachos/types';
+import { createLogger, type ChannelAdapterConfig } from '@nachos/types';
 import { TelegramChannelAdapter } from './index.js';
+
+const logger = createLogger('channel-telegram');
 
 function loadConfigSafe(): NachosConfig | undefined {
   try {
     return loadAndValidateConfig({ configPath: process.env.NACHOS_CONFIG_PATH });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.warn(`[Telegram] Failed to load config: ${message}`);
+    logger.warn({ err: error }, 'Failed to load config');
     return undefined;
   }
 }
@@ -24,9 +25,7 @@ function buildSecrets(): Record<string, string> {
 
 async function main(): Promise<void> {
   if (!process.env.TELEGRAM_BOT_TOKEN) {
-    console.warn(
-      '[Telegram] TELEGRAM_BOT_TOKEN not configured — channel disabled. Set the env var and restart to enable.'
-    );
+    logger.warn('TELEGRAM_BOT_TOKEN not configured — channel disabled. Set the env var and restart to enable.');
     await new Promise<void>((resolve) => {
       process.once('SIGTERM', resolve);
       process.once('SIGINT', resolve);
@@ -64,12 +63,16 @@ async function main(): Promise<void> {
 
   process.on('SIGTERM', () => void shutdown());
   process.on('SIGINT', () => void shutdown());
+  process.on('unhandledRejection', (reason) => {
+    logger.fatal({ err: reason }, 'Unhandled promise rejection');
+    process.exit(1);
+  });
 }
 
 // tsx watch compat: always run main
 {
   main().catch((error) => {
-    console.error('Telegram channel startup failed:', error);
+    logger.fatal({ err: error }, 'Telegram channel startup failed');
     process.exit(1);
   });
 }

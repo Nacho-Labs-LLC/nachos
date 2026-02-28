@@ -19,6 +19,7 @@ import type {
   SendResult,
   HealthStatusType,
 } from '@nachos/types';
+import { createConfigError, createInvalidStateError } from '@nachos/types';
 import {
   TOPICS,
   resolveDmPolicy,
@@ -74,13 +75,13 @@ export class MatrixChannelAdapter implements ChannelAdapter {
     this.matrixConfig = (config.config ?? {}) as MatrixChannelConfig;
 
     if (!this.matrixConfig.homeserver) {
-      throw new Error('Matrix homeserver is required');
+      throw createConfigError('Matrix homeserver is required', { component: 'matrix-channel' });
     }
     if (!this.matrixConfig.accessToken) {
-      throw new Error('Matrix access token is required');
+      throw createConfigError('Matrix access token is required', { component: 'matrix-channel' });
     }
     if (!this.matrixConfig.userId) {
-      throw new Error('Matrix user ID is required');
+      throw createConfigError('Matrix user ID is required', { component: 'matrix-channel' });
     }
 
     // Create Matrix client
@@ -95,14 +96,14 @@ export class MatrixChannelAdapter implements ChannelAdapter {
     this.botUserId = this.matrixConfig.userId;
 
     // Set up event handlers
-    this.client.on(sdk.RoomEvent.Timeline as any, (event: MatrixEvent) => {
+    this.client.on(sdk.RoomEvent.Timeline as unknown as string, (event: MatrixEvent) => {
       void this.handleTimelineEvent(event);
     });
   }
 
   async start(): Promise<void> {
     if (!this.client || !this.config) {
-      throw new Error('Matrix adapter not initialized');
+      throw createInvalidStateError('Matrix adapter not initialized', { component: 'matrix-channel' });
     }
 
     // Start the Matrix client sync

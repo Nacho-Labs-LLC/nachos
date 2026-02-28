@@ -6,8 +6,10 @@
   },
   "include": ["src/**/*"],
   "references": [
-    { "path": "../../bus" },
+    { "path": "../../core/bus" },
+    { "path": "../../shared/config" },
     { "path": "../../shared/types" },
+    { "path": "../../shared/utils" },
     { "path": "../base" }
   ]
 }

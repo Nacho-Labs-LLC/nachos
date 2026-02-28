@@ -18,6 +18,9 @@ import { ContextBudgetCalculator } from './budget/calculator.js';
 import { SlidingWindowManager } from './sliding/manager.js';
 import { DLPExtractionAdapter } from './extraction/dlp-adapter.js';
 import { MessageAdapter } from './integration/message-adapter.js';
+import { createLogger } from '@nachos/types';
+
+const logger = createLogger('context-manager');
 
 /**
  * Context Manager dependencies (optional)
@@ -212,7 +215,7 @@ export class ContextManager {
           } catch (error) {
             lastError = error instanceof Error ? error : new Error(String(error));
             attempt++;
-            console.warn(`[ContextManager] Summarization attempt ${attempt}/${maxRetries} failed:`, error);
+            logger.warn({ err: error, attempt, maxRetries }, 'Summarization attempt failed');
             
             if (attempt < maxRetries) {
               // Exponential backoff: 1s, 2s, 4s
@@ -224,7 +227,7 @@ export class ContextManager {
 
         // H1: If all retries exhausted, fall back to message concatenation
         if (!summaryText && lastError) {
-          console.error(`[ContextManager] Summarization failed after ${maxRetries} retries. Falling back to concatenation.`);
+          logger.error({ maxRetries }, 'Summarization failed after retries, falling back to concatenation');
           summaryText = this.fallbackMessageConcatenation(slidingResult.messagesDropped);
         }
       }
@@ -452,10 +455,10 @@ export class ContextManager {
         const insertIndex = messages.indexOf(lastUserMessage);
         messages.splice(insertIndex, 0, memoryMessage);
 
-        console.log(`[ContextManager] Injected ${searchResults.entries.length} semantic memory results`);
+        logger.debug({ count: searchResults.entries.length }, 'Injected semantic memory results');
       }
     } catch (error) {
-      console.warn('[ContextManager] Semantic memory injection failed:', error);
+      logger.warn({ err: error }, 'Semantic memory injection failed');
       // Non-critical, continue without memory injection
     }
   }

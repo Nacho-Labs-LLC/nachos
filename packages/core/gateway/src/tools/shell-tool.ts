@@ -204,7 +204,7 @@ const DEFAULT_SKILL_TOOLS: SkillToolConfig[] = [
   { bin: 'hostname', group: 'system-info', readonly: true },
   { bin: 'whoami', group: 'system-info', readonly: true },
   { bin: 'pwd', group: 'system-info', readonly: true },
-  { bin: 'env', group: 'system-info', readonly: true },
+  // 'env' removed: can bypass restrictions by launching arbitrary binaries
   { bin: 'date', group: 'system-info', readonly: true },
   { bin: 'uptime', group: 'system-info', readonly: true },
   { bin: 'free', group: 'system-info', readonly: true },
@@ -241,6 +241,20 @@ const DEFAULT_SKILL_TOOLS: SkillToolConfig[] = [
   { bin: 'gunzip', group: 'archive', readonly: true },
   { bin: 'bunzip2', group: 'archive', readonly: true },
 ];
+
+/**
+ * Flags that can cause write operations for tools marked as readonly.
+ * When a tool entry has `readonly: true`, any arguments matching these
+ * flags will cause the command to be rejected.
+ */
+const WRITE_FLAGS: Record<string, string[]> = {
+  sed: ['-i', '--in-place'],
+  find: ['-exec', '-execdir', '-delete', '-fls', '-fprint', '-fprint0', '-fprintf'],
+  curl: ['-o', '--output', '-O', '--remote-name', '--create-dirs'],
+  wget: ['-O', '--output-document', '-P', '--directory-prefix'],
+  tee: ['-a', '--append'], // tee always writes, but flag for completeness
+  tar: ['-c', '--create', '-x', '--extract', '-u', '--update', '--delete'],
+};
 
 /**
  * Shell tool for executing CLI commands
@@ -569,6 +583,44 @@ export class ShellTool {
         truncated: false,
         duration: 0,
       });
+    }
+
+    // Enforce readonly: reject write-capable flags for readonly tools
+    const toolConfig = this.allowedTools.get(binary);
+    if (toolConfig?.readonly) {
+      const writeFlags = WRITE_FLAGS[binary];
+      if (writeFlags) {
+        // Extract single-character write flag chars (e.g. 'i' from '-i')
+        const shortWriteChars = writeFlags
+          .filter((f) => f.startsWith('-') && !f.startsWith('--') && f.length === 2)
+          .map((f) => f[1]!);
+
+        const violatingFlag = args.find((arg) => {
+          // Exact match: -i, --in-place, -exec, etc.
+          if (writeFlags.includes(arg)) return true;
+          // Combined short flags: -ni, -ri, -oi etc. — check each char
+          if (arg.startsWith('-') && !arg.startsWith('--') && arg.length > 2) {
+            return [...arg.slice(1)].some((ch) => shortWriteChars.includes(ch));
+          }
+          return false;
+        });
+
+        if (violatingFlag) {
+          this.logger.warn(
+            { binary, flag: violatingFlag, args },
+            'Blocked write flag on readonly tool'
+          );
+          return Promise.resolve({
+            exitCode: 1,
+            signal: null,
+            stdout: '',
+            stderr: `Flag '${violatingFlag}' not allowed for read-only tool '${binary}'`,
+            timedOut: false,
+            truncated: false,
+            duration: 0,
+          });
+        }
+      }
     }
 
     const env: NodeJS.ProcessEnv = {
