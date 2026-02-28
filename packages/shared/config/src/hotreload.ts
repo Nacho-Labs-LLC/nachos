@@ -7,6 +7,9 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { watch, type FSWatcher } from 'chokidar';
+import { createLogger } from '@nachos/types';
+
+const logger = createLogger('hotreload');
 
 /**
  * Callback function type for file change events
@@ -118,12 +121,12 @@ export class HotReloadWatcher {
           try {
             await callback(filePath, content);
           } catch (error) {
-            console.error(`Error in hot-reload callback for ${filePath}:`, error);
+            logger.error({ err: error, filePath }, 'Error in hot-reload callback');
           }
         }
       }
     } catch (error) {
-      console.error(`Error reading file ${filePath}:`, error);
+      logger.error({ err: error, filePath }, 'Error reading file');
     }
   }
 
@@ -131,7 +134,7 @@ export class HotReloadWatcher {
    * Handle watcher errors
    */
   private handleError(error: Error): void {
-    console.error('Hot-reload watcher error:', error);
+    logger.error({ err: error }, 'Hot-reload watcher error');
   }
 
   /**

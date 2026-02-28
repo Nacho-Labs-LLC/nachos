@@ -44,12 +44,30 @@ export interface PromptAssemblyConfig {
   includeSessionState?: boolean;
 }
 
+export interface SessionsStoreSqliteConfig {
+  dbPath: string;
+}
+
+export interface SessionsStorePostgresConfig {
+  connectionString: string;
+  schema?: string;
+  ssl?: boolean;
+  maxConnections?: number;
+}
+
+export interface SessionsStoreConfig {
+  provider: 'sqlite' | 'postgres';
+  sqlite?: SessionsStoreSqliteConfig;
+  postgres?: SessionsStorePostgresConfig;
+}
+
 export interface StateLayerConfig {
   identity: StateStoreConfig;
   memory: StateStoreConfig;
   userProfile: StateStoreConfig;
   bootstrap: StateStoreConfig;
   session: SessionStateConfig;
+  sessions?: SessionsStoreConfig;
   prompt?: PromptAssemblyConfig;
 }
 

@@ -2,9 +2,9 @@ import { createBusClient } from '@nachos/bus';
 import { createChannelBus } from '@nachos/channel-base';
 import { loadAndValidateConfig, type NachosConfig } from '@nachos/config';
 import { createLogger, type ChannelAdapterConfig } from '@nachos/types';
-import { TelegramChannelAdapter } from './index.js';
+import { MatrixChannelAdapter } from './index.js';
 
-const logger = createLogger('channel-telegram');
+const logger = createLogger('channel-matrix');
 
 function loadConfigSafe(): NachosConfig | undefined {
   try {
@@ -17,15 +17,15 @@ function loadConfigSafe(): NachosConfig | undefined {
 
 function buildSecrets(): Record<string, string> {
   const secrets: Record<string, string> = {};
-  if (process.env.TELEGRAM_BOT_TOKEN) {
-    secrets.TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+  if (process.env.MATRIX_ACCESS_TOKEN) {
+    secrets.MATRIX_ACCESS_TOKEN = process.env.MATRIX_ACCESS_TOKEN;
   }
   return secrets;
 }
 
 async function main(): Promise<void> {
-  if (!process.env.TELEGRAM_BOT_TOKEN) {
-    logger.warn('TELEGRAM_BOT_TOKEN not configured — channel disabled. Set the env var and restart to enable.');
+  if (!process.env.MATRIX_ACCESS_TOKEN || !process.env.MATRIX_HOMESERVER_URL || !process.env.MATRIX_USER_ID) {
+    logger.warn('MATRIX_ACCESS_TOKEN, MATRIX_HOMESERVER_URL, and MATRIX_USER_ID are required — channel disabled. Set the env vars and restart to enable.');
     await new Promise<void>((resolve) => {
       process.once('SIGTERM', resolve);
       process.once('SIGINT', resolve);
@@ -34,17 +34,22 @@ async function main(): Promise<void> {
   }
 
   const config = loadConfigSafe();
-  const channelConfig = (config?.channels?.telegram ?? {}) as Record<string, unknown>;
+  const channelConfig = {
+    ...(config?.channels?.matrix ?? {}),
+    homeserver: process.env.MATRIX_HOMESERVER_URL,
+    accessToken: process.env.MATRIX_ACCESS_TOKEN,
+    userId: process.env.MATRIX_USER_ID,
+  } as Record<string, unknown>;
   const securityMode = config?.security?.mode ?? 'standard';
 
   const busClient = createBusClient({
     servers: process.env.NATS_URL ?? 'nats://bus:4222',
-    name: 'channel-telegram',
+    name: 'channel-matrix',
     token: process.env.NATS_TOKEN,
   });
   await busClient.connect();
 
-  const adapter = new TelegramChannelAdapter();
+  const adapter = new MatrixChannelAdapter();
   const adapterConfig: ChannelAdapterConfig = {
     config: channelConfig,
     secrets: buildSecrets(),
@@ -72,7 +77,7 @@ async function main(): Promise<void> {
 // tsx watch compat: always run main
 {
   main().catch((error) => {
-    logger.fatal({ err: error }, 'Telegram channel startup failed');
+    logger.fatal({ err: error }, 'Matrix channel startup failed');
     process.exit(1);
   });
 }

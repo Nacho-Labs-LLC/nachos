@@ -5,7 +5,9 @@
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import type { LLMRequestType } from '@nachos/types';
-import { createInvalidStateError, createValidationError } from '@nachos/types';
+import { createLogger, createInvalidStateError, createValidationError } from '@nachos/types';
+
+const logger = createLogger('subagent-orchestrator');
 import type { Router } from '../router.js';
 import type { SessionManager } from '../session.js';
 import type { SubagentManager } from './subagent-manager.js';
@@ -175,13 +177,7 @@ export class SubagentOrchestrator {
     this.userRunCounts.set(userId, currentCount + 1);
     
     // Audit log: Subagent spawned
-    console.warn('[AUDIT] Subagent spawned:', {
-      runId,
-      userId,
-      model: selectedModel,
-      stream: request.stream,
-      timestamp: new Date().toISOString(),
-    });
+    logger.info({ runId, userId, model: selectedModel, stream: request.stream }, 'Subagent spawned');
     
     this.drainQueue();
 
@@ -316,13 +312,7 @@ export class SubagentOrchestrator {
     this.workflows.set(workflowId, workflowRecord);
 
     // Audit log: Workflow orchestration started
-    console.warn('[AUDIT] Workflow orchestration started:', {
-      workflowId,
-      userId: requester.userId ?? requester.sessionId,
-      stepCount: workflow.steps.length,
-      totalBatches: plan.batches.length,
-      timestamp: new Date().toISOString(),
-    });
+    logger.info({ workflowId, userId: requester.userId ?? requester.sessionId, stepCount: workflow.steps.length, totalBatches: plan.batches.length }, 'Workflow orchestration started');
 
     // Start workflow execution
     void this.executeWorkflow(workflowId, plan, requester);

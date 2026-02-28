@@ -8,7 +8,10 @@
  * to reduce 10-20% error margin. Use 90% threshold instead of 95% for critical zone.
  */
 
+import { createLogger } from '@nachos/types';
 import type { ContextMessage, ContentBlock } from '../types/index.js';
+
+const logger = createLogger('token-estimator');
 
 /**
  * Token estimation configuration
@@ -237,7 +240,7 @@ export class TokenEstimator {
     // Log calibration data
     const ratio = actual / estimated;
     const accuracy = this.calculateAccuracy(estimated, actual);
-    console.log(`[TokenEstimator] Calibration: estimated=${estimated}, actual=${actual}, ratio=${ratio.toFixed(3)}, accuracy=${accuracy.toFixed(1)}%`);
+    logger.info({ estimated, actual, ratio: ratio.toFixed(3), accuracy: accuracy.toFixed(1) }, 'Calibration recorded');
   }
 
   /**
@@ -292,7 +295,7 @@ export class TokenEstimator {
     if (stats.avgAccuracy < 90) {
       this.charsPerToken = stats.recommendedCharsPerToken;
       this.safetyBuffer = stats.recommendedSafetyBuffer;
-      console.log(`[TokenEstimator] Calibration applied: charsPerToken=${this.charsPerToken.toFixed(2)}, safetyBuffer=${this.safetyBuffer.toFixed(2)}`);
+      logger.info({ charsPerToken: this.charsPerToken.toFixed(2), safetyBuffer: this.safetyBuffer.toFixed(2) }, 'Calibration applied');
       return true;
     }
 

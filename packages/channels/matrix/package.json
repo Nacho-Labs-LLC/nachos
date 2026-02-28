@@ -17,9 +17,11 @@
   },
   "dependencies": {
     "@nachos/bus": "workspace:*",
+    "@nachos/config": "workspace:*",
     "@nachos/types": "workspace:*",
-    "@nachos/channels-base": "workspace:*",
-    "matrix-js-sdk": "^34.14.0"
+    "@nachos/channel-base": "workspace:*",
+    "@nachos/utils": "workspace:*",
+    "matrix-js-sdk": "^41.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",

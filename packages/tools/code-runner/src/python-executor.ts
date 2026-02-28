@@ -122,7 +122,7 @@ export class PythonExecutor extends ToolService {
     if (p.workdir !== undefined) {
       if (typeof p.workdir !== 'string') {
         errors.push('workdir must be a string');
-      } else if (!p.workdir.startsWith('/tmp')) {
+      } else if (!path.resolve(p.workdir).startsWith('/tmp/')) {
         errors.push('workdir must be within /tmp');
       }
     }
@@ -311,7 +311,9 @@ export class PythonExecutor extends ToolService {
     }
 
     const maxKb = Math.max(Math.floor(this.maxMemoryBytes / 1024), 1);
-    return ['-lc', `ulimit -v ${maxKb}; python3 ${scriptPath}`];
+    // Single-quote the path and escape embedded single quotes to prevent shell injection
+    const quoted = `'${scriptPath.replace(/'/g, "'\\''")}'`;
+    return ['-lc', `ulimit -v ${maxKb}; python3 ${quoted}`];
   }
 
   private parseMemorySize(value: string | number): number {

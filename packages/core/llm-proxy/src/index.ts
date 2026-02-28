@@ -150,7 +150,31 @@ async function emitFailoverEvent(
   });
 }
 
-async function handleRequest(request: LLMRequestType): Promise<LLMResponseType> {
+/**
+ * Core provider attempt loop shared by handleRequest and handleStream.
+ * Iterates through primary + fallback providers, handling retries, cooldowns,
+ * and failover. Returns the final LLMResponseType.
+ */
+async function executeWithFallback(
+  request: LLMRequestType,
+  executeFn: (
+    adapter: LLMProviderAdapter,
+    attempt: { provider: string; model: string },
+    options: {
+      model: string;
+      temperature: number | undefined;
+      maxTokens: number | undefined;
+      getProfileList: () => string[];
+      getProfileApiKey: (name: string) => string | null;
+      onProfileCooldown: (name: string, reason: 'rate_limit' | 'billing') => void;
+    },
+  ) => Promise<Awaited<ReturnType<LLMProviderAdapter['send']>>>,
+  onSuccess?: (
+    response: Awaited<ReturnType<LLMProviderAdapter['send']>>,
+    attempt: { provider: string; model: string },
+    latencyMs: number,
+  ) => Promise<void>,
+): Promise<LLMResponseType> {
   const attempts = buildAttemptList(request);
   const hasFallback = attempts.length > 1;
   const maxTokens = request.options?.maxTokens ?? llmConfig.max_tokens;
@@ -163,47 +187,32 @@ async function handleRequest(request: LLMRequestType): Promise<LLMResponseType> 
     }
 
     const profileList = getProfileList(attempt.provider);
+    const options = {
+      model: attempt.model,
+      temperature,
+      maxTokens,
+      getProfileList: () => profileList,
+      getProfileApiKey: getApiKey,
+      onProfileCooldown: (profileName: string, reason: 'rate_limit' | 'billing') => {
+        cooldownManager.markFailure(profileName, reason);
+      },
+    };
 
     let response: Awaited<ReturnType<LLMProviderAdapter['send']>> | null = null;
-    const startTime = Date.now();
+    const attemptStart = Date.now();
 
     try {
       response = await retryWithBackoff(
-        async () => {
-          const sendOptions = {
-            model: attempt.model,
-            temperature,
-            maxTokens,
-            getProfileList: () => profileList,
-            getProfileApiKey: getApiKey,
-            onProfileCooldown: (profileName: string, reason: 'rate_limit' | 'billing') => {
-              cooldownManager.markFailure(profileName, reason);
-            },
-          };
-
-          return adapter.send(request, sendOptions);
-        },
+        () => executeFn(adapter, attempt, options),
         retryConfig,
-        (error) => error instanceof ProviderError && error.kind === 'rate_limit'
+        (error) => error instanceof ProviderError && error.kind === 'rate_limit',
       );
     } catch (error) {
       if (error instanceof ProviderError) {
-        if (error.kind === 'limit_reached' || error.kind === 'rate_limit') {
-          if (hasFallback) {
-            await emitFailoverEvent(request, attempt, error.kind);
-            continue;
-          }
-          return {
-            sessionId: request.sessionId,
-            success: false,
-            error: {
-              code: 'NACHOS_ERR_LLM_FAILED',
-              message: error.message,
-              providerCode: error.providerCode,
-            },
-          };
+        if ((error.kind === 'limit_reached' || error.kind === 'rate_limit') && hasFallback) {
+          await emitFailoverEvent(request, attempt, error.kind);
+          continue;
         }
-
         return {
           sessionId: request.sessionId,
           success: false,
@@ -214,7 +223,6 @@ async function handleRequest(request: LLMRequestType): Promise<LLMResponseType> 
           },
         };
       }
-
       throw error;
     }
 
@@ -222,16 +230,19 @@ async function handleRequest(request: LLMRequestType): Promise<LLMResponseType> 
       continue;
     }
 
-    const latencyMs = Date.now() - startTime;
+    const latencyMs = Date.now() - attemptStart;
 
-    // Emit metrics for successful request
     await emitMetrics(
       request.sessionId,
       response.provider ?? attempt.provider,
       response.model ?? attempt.model,
       latencyMs,
-      response.usage
+      response.usage,
     );
+
+    if (onSuccess) {
+      await onSuccess(response, attempt, latencyMs);
+    }
 
     return {
       sessionId: request.sessionId,
@@ -255,145 +266,57 @@ async function handleRequest(request: LLMRequestType): Promise<LLMResponseType> 
   };
 }
 
+async function handleRequest(request: LLMRequestType): Promise<LLMResponseType> {
+  return executeWithFallback(
+    request,
+    (adapter, _attempt, options) => adapter.send(request, options),
+  );
+}
+
 async function handleStream(
   request: LLMRequestType,
-  onChunk: (chunk: LLMStreamChunkType) => Promise<void>
+  onChunk: (chunk: LLMStreamChunkType) => Promise<void>,
 ): Promise<LLMResponseType> {
-  const attempts = buildAttemptList(request);
-  const hasFallback = attempts.length > 1;
-  const maxTokens = request.options?.maxTokens ?? llmConfig.max_tokens;
-  const temperature = request.options?.temperature ?? llmConfig.temperature;
+  let firstChunkTime: number | null = null;
+  const streamStart = Date.now();
 
-  for (const attempt of attempts) {
-    const adapter = adapterRegistry.getAdapter(attempt.provider) as LLMProviderAdapter | undefined;
-    if (!adapter) {
-      continue;
+  const wrappedOnChunk = async (chunk: LLMStreamChunkType) => {
+    if (firstChunkTime === null && chunk.type === 'delta') {
+      firstChunkTime = Date.now();
     }
-
-    const profileList = getProfileList(attempt.provider);
-
-    let response: Awaited<ReturnType<LLMProviderAdapter['send']>> | null = null;
-    const startTime = Date.now();
-    let firstChunkTime: number | null = null;
-
-    // Wrap onChunk to track time to first chunk
-    const wrappedOnChunk = async (chunk: LLMStreamChunkType) => {
-      if (firstChunkTime === null && chunk.type === 'delta') {
-        firstChunkTime = Date.now();
-      }
-      await onChunk(chunk);
-    };
-
-    try {
-      response = await retryWithBackoff(
-        async () => {
-          const streamOptions = {
-            sessionId: request.sessionId,
-            model: attempt.model,
-            temperature,
-            maxTokens,
-            getProfileList: () => profileList,
-            getProfileApiKey: getApiKey,
-            onProfileCooldown: (profileName: string, reason: 'rate_limit' | 'billing') => {
-              cooldownManager.markFailure(profileName, reason);
-            },
-          };
-
-          if (adapter.stream) {
-            return adapter.stream(request, streamOptions, wrappedOnChunk);
-          }
-          return adapter.send(request, streamOptions);
-        },
-        retryConfig,
-        (error) => error instanceof ProviderError && error.kind === 'rate_limit'
-      );
-    } catch (error) {
-      if (error instanceof ProviderError) {
-        if (error.kind === 'limit_reached' || error.kind === 'rate_limit') {
-          if (hasFallback) {
-            await emitFailoverEvent(request, attempt, error.kind);
-            continue;
-          }
-          return {
-            sessionId: request.sessionId,
-            success: false,
-            error: {
-              code: 'NACHOS_ERR_LLM_FAILED',
-              message: error.message,
-              providerCode: error.providerCode,
-            },
-          };
-        }
-
-        return {
-          sessionId: request.sessionId,
-          success: false,
-          error: {
-            code: 'NACHOS_ERR_LLM_FAILED',
-            message: error.message,
-            providerCode: error.providerCode,
-          },
-        };
-      }
-
-      throw error;
-    }
-
-    if (!response) {
-      continue;
-    }
-
-    const totalLatencyMs = Date.now() - startTime;
-    const timeToFirstChunkMs = firstChunkTime ? firstChunkTime - startTime : null;
-
-    // Emit metrics for successful streaming request
-    await emitMetrics(
-      request.sessionId,
-      response.provider ?? attempt.provider,
-      response.model ?? attempt.model,
-      totalLatencyMs,
-      response.usage
-    );
-
-    // Emit additional streaming-specific metrics
-    if (timeToFirstChunkMs !== null) {
-      await emitAudit({
-        userId: 'unknown',
-        sessionId: request.sessionId,
-        channel: 'internal',
-        eventType: 'llm_request',
-        action: 'llm.stream.metrics',
-        outcome: 'allowed',
-        securityMode: config.security.mode,
-        details: {
-          provider: response.provider ?? attempt.provider,
-          model: response.model ?? attempt.model,
-          timeToFirstChunkMs,
-          totalLatencyMs,
-        },
-      });
-    }
-
-    return {
-      sessionId: request.sessionId,
-      success: true,
-      message: response.message,
-      toolCalls: response.toolCalls,
-      usage: response.usage,
-      provider: response.provider,
-      model: response.model,
-      finishReason: response.finishReason,
-    };
-  }
-
-  return {
-    sessionId: request.sessionId,
-    success: false,
-    error: {
-      code: 'NACHOS_ERR_LLM_FAILED',
-      message: 'No available providers for request',
-    },
+    await onChunk(chunk);
   };
+
+  return executeWithFallback(
+    request,
+    (adapter, _attempt, options) => {
+      const streamOptions = { ...options, sessionId: request.sessionId };
+      if (adapter.stream) {
+        return adapter.stream(request, streamOptions, wrappedOnChunk);
+      }
+      return adapter.send(request, streamOptions);
+    },
+    async (response, attempt, totalLatencyMs) => {
+      const timeToFirstChunkMs = firstChunkTime ? firstChunkTime - streamStart : null;
+      if (timeToFirstChunkMs !== null) {
+        await emitAudit({
+          userId: 'unknown',
+          sessionId: request.sessionId,
+          channel: 'internal',
+          eventType: 'llm_request',
+          action: 'llm.stream.metrics',
+          outcome: 'allowed',
+          securityMode: config.security.mode,
+          details: {
+            provider: response.provider ?? attempt.provider,
+            model: response.model ?? attempt.model,
+            timeToFirstChunkMs,
+            totalLatencyMs,
+          },
+        });
+      }
+    },
+  );
 }
 
 async function start(): Promise<void> {
@@ -511,3 +434,7 @@ const shutdown = async (signal: string): Promise<void> => {
 
 process.on('SIGINT', () => void shutdown('SIGINT'));
 process.on('SIGTERM', () => void shutdown('SIGTERM'));
+process.on('unhandledRejection', (reason) => {
+  logger.fatal({ err: reason }, 'Unhandled promise rejection');
+  process.exit(1);
+});

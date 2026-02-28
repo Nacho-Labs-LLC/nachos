@@ -2,11 +2,14 @@ import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { createBusClient, TOPICS } from '@nachos/bus';
 import type { NachosBusClient } from '@nachos/bus';
-import type { 
+import type {
   ChannelInboundMessageType as ChannelInboundMessage,
-  ChannelOutboundMessageType as ChannelOutboundMessage 
+  ChannelOutboundMessageType as ChannelOutboundMessage
 } from '@nachos/types';
+import { createLogger } from '@nachos/types';
 import { randomUUID } from 'node:crypto';
+
+const logger = createLogger('admin-chat');
 
 const NATS_URL = process.env['NATS_URL'] ?? 'nats://localhost:4222';
 const NATS_TOKEN = process.env['NATS_TOKEN'] ?? '';
@@ -85,7 +88,7 @@ chatRouter.post('/send', async (c) => {
       messageId: randomUUID(),
     });
   } catch (err) {
-    console.error('[chat] Send error:', err);
+    logger.error({ err }, 'Send error');
     return c.json({ error: 'Failed to send message', details: String(err) }, 500);
   }
 });
@@ -139,7 +142,7 @@ chatRouter.get('/stream', async (c) => {
             });
           }
         } catch (err) {
-          console.error('[chat] Error processing outbound message:', err);
+          logger.error({ err }, 'Error processing outbound message');
         }
       });
 
@@ -169,7 +172,7 @@ chatRouter.get('/stream', async (c) => {
         });
       });
     } catch (err) {
-      console.error('[chat] SSE stream error:', err);
+      logger.error({ err }, 'SSE stream error');
       await stream.writeSSE({
         data: JSON.stringify({ type: 'error', error: String(err) }),
         event: 'error',

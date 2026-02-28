@@ -1,6 +1,6 @@
 /**
  * Interface for sessions and messages storage.
- * Implemented by both StateStorage (SQLite) and PostgresSessionsStore.
+ * Implemented by both SqliteSessionsStore and PostgresSessionsStore.
  */
 
 import type {

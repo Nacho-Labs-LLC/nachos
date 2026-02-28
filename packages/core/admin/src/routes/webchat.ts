@@ -1,12 +1,13 @@
 /**
  * WebChat HTTP → RPC Bridge Routes
- * 
+ *
  * Provides REST API endpoints that call the WebChatRPCService via NATS.
  */
 
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { createBusClient, type NachosBusClient } from '@nachos/bus';
+import { createLogger } from '@nachos/types';
 import type {
   ListSessionsResponse,
   ListArchivedResponse,
@@ -18,6 +19,8 @@ import type {
   SendMessageResponse,
   GetMessagesResponse,
 } from '../types/webchat-rpc-types.js';
+
+const logger = createLogger('admin-webchat');
 
 const NATS_URL = process.env['NATS_URL'] ?? 'nats://localhost:4222';
 const NATS_TOKEN = process.env['NATS_TOKEN'] ?? '';
@@ -40,10 +43,56 @@ async function getBusClient(): Promise<NachosBusClient> {
 }
 
 // Helper to extract userId from request (from auth middleware or headers)
-function getUserId(c: any): string {
+function getUserId(c: Context): string {
   // In a real implementation, this would come from the auth middleware
   // For now, use a header or default value
   return c.req.header('X-User-Id') || 'webchat-user';
+}
+
+// RPC request payload types
+interface ListSessionsRequest {
+  userId: string;
+  channel: string;
+  limit?: number;
+  offset?: number;
+}
+
+interface ListArchivedRequest {
+  userId: string;
+  channel: string;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}
+
+interface CreateSessionRequest {
+  userId: string;
+  channel: string;
+  systemPrompt?: string;
+}
+
+interface SessionActionRequest {
+  sessionId: string;
+  userId: string;
+}
+
+interface PinSessionRequest {
+  sessionId: string;
+  userId: string;
+  pinned: boolean;
+}
+
+interface SendMessageRpcRequest {
+  sessionId: string;
+  userId: string;
+  text: string;
+}
+
+interface GetMessagesRequest {
+  sessionId: string;
+  userId: string;
+  limit?: number;
+  offset?: number;
 }
 
 // GET /api/webchat/sessions/active
@@ -56,15 +105,15 @@ webchatRouter.get('/sessions/active', async (c) => {
     const offset = c.req.query('offset') ? parseInt(c.req.query('offset')!) : undefined;
 
     const bus = await getBusClient();
-    const response = await bus.request<any, ListSessionsResponse>(
+    const response = await bus.request<ListSessionsRequest, ListSessionsResponse>(
       'nachos.webchat.sessions.list',
       { userId, channel, limit, offset }
     );
 
     return c.json(response.payload);
   } catch (err) {
-    console.error('[webchat] Error listing sessions:', err);
-    return c.json({ error: 'Failed to list sessions', details: String(err) }, 500);
+    logger.error({ err }, 'Error listing sessions');
+    return c.json({ error: 'Failed to list sessions' }, 500);
   }
 });
 
@@ -79,15 +128,15 @@ webchatRouter.get('/sessions/archived', async (c) => {
     const offset = c.req.query('offset') ? parseInt(c.req.query('offset')!) : undefined;
 
     const bus = await getBusClient();
-    const response = await bus.request<any, ListArchivedResponse>(
+    const response = await bus.request<ListArchivedRequest, ListArchivedResponse>(
       'nachos.webchat.sessions.listArchived',
       { userId, channel, search, limit, offset }
     );
 
     return c.json(response.payload);
   } catch (err) {
-    console.error('[webchat] Error listing archived sessions:', err);
-    return c.json({ error: 'Failed to list archived sessions', details: String(err) }, 500);
+    logger.error({ err }, 'Error listing archived sessions');
+    return c.json({ error: 'Failed to list archived sessions' }, 500);
   }
 });
 
@@ -100,15 +149,15 @@ webchatRouter.post('/sessions/create', async (c) => {
     const channel = body.channel || 'webchat';
 
     const bus = await getBusClient();
-    const response = await bus.request<any, CreateSessionResponse>(
+    const response = await bus.request<CreateSessionRequest, CreateSessionResponse>(
       'nachos.webchat.sessions.create',
       { userId, channel, systemPrompt: body.systemPrompt }
     );
 
     return c.json(response.payload);
   } catch (err) {
-    console.error('[webchat] Error creating session:', err);
-    return c.json({ error: 'Failed to create session', details: String(err) }, 500);
+    logger.error({ err }, 'Error creating session');
+    return c.json({ error: 'Failed to create session' }, 500);
   }
 });
 
@@ -120,15 +169,15 @@ webchatRouter.post('/sessions/:sessionId/archive', async (c) => {
     const sessionId = c.req.param('sessionId');
 
     const bus = await getBusClient();
-    const response = await bus.request<any, ArchiveSessionResponse>(
+    const response = await bus.request<SessionActionRequest, ArchiveSessionResponse>(
       'nachos.webchat.sessions.archive',
       { sessionId, userId }
     );
 
     return c.json(response.payload);
   } catch (err) {
-    console.error('[webchat] Error archiving session:', err);
-    return c.json({ error: 'Failed to archive session', details: String(err) }, 500);
+    logger.error({ err }, 'Error archiving session');
+    return c.json({ error: 'Failed to archive session' }, 500);
   }
 });
 
@@ -140,15 +189,15 @@ webchatRouter.post('/sessions/:sessionId/restore', async (c) => {
     const sessionId = c.req.param('sessionId');
 
     const bus = await getBusClient();
-    const response = await bus.request<any, RestoreSessionResponse>(
+    const response = await bus.request<SessionActionRequest, RestoreSessionResponse>(
       'nachos.webchat.sessions.restore',
       { sessionId, userId }
     );
 
     return c.json(response.payload);
   } catch (err) {
-    console.error('[webchat] Error restoring session:', err);
-    return c.json({ error: 'Failed to restore session', details: String(err) }, 500);
+    logger.error({ err }, 'Error restoring session');
+    return c.json({ error: 'Failed to restore session' }, 500);
   }
 });
 
@@ -160,15 +209,15 @@ webchatRouter.delete('/sessions/:sessionId', async (c) => {
     const sessionId = c.req.param('sessionId');
 
     const bus = await getBusClient();
-    const response = await bus.request<any, DeleteSessionResponse>(
+    const response = await bus.request<SessionActionRequest, DeleteSessionResponse>(
       'nachos.webchat.sessions.delete',
       { sessionId, userId }
     );
 
     return c.json(response.payload);
   } catch (err) {
-    console.error('[webchat] Error deleting session:', err);
-    return c.json({ error: 'Failed to delete session', details: String(err) }, 500);
+    logger.error({ err }, 'Error deleting session');
+    return c.json({ error: 'Failed to delete session' }, 500);
   }
 });
 
@@ -181,15 +230,15 @@ webchatRouter.post('/sessions/:sessionId/pin', async (c) => {
     const body = await c.req.json<{ pinned: boolean }>();
 
     const bus = await getBusClient();
-    const response = await bus.request<any, PinSessionResponse>(
+    const response = await bus.request<PinSessionRequest, PinSessionResponse>(
       'nachos.webchat.sessions.pin',
       { sessionId, userId, pinned: body.pinned }
     );
 
     return c.json(response.payload);
   } catch (err) {
-    console.error('[webchat] Error pinning session:', err);
-    return c.json({ error: 'Failed to pin session', details: String(err) }, 500);
+    logger.error({ err }, 'Error pinning session');
+    return c.json({ error: 'Failed to pin session' }, 500);
   }
 });
 
@@ -201,15 +250,15 @@ webchatRouter.post('/messages/send', async (c) => {
     const body = await c.req.json<{ sessionId: string; text: string }>();
 
     const bus = await getBusClient();
-    const response = await bus.request<any, SendMessageResponse>(
+    const response = await bus.request<SendMessageRpcRequest, SendMessageResponse>(
       'nachos.webchat.messages.send',
       { sessionId: body.sessionId, userId, text: body.text }
     );
 
     return c.json(response.payload);
   } catch (err) {
-    console.error('[webchat] Error sending message:', err);
-    return c.json({ error: 'Failed to send message', details: String(err) }, 500);
+    logger.error({ err }, 'Error sending message');
+    return c.json({ error: 'Failed to send message' }, 500);
   }
 });
 
@@ -223,15 +272,15 @@ webchatRouter.get('/messages/:sessionId', async (c) => {
     const offset = c.req.query('offset') ? parseInt(c.req.query('offset')!) : undefined;
 
     const bus = await getBusClient();
-    const response = await bus.request<any, GetMessagesResponse>(
+    const response = await bus.request<GetMessagesRequest, GetMessagesResponse>(
       'nachos.webchat.messages.get',
       { sessionId, userId, limit, offset }
     );
 
     return c.json(response.payload);
   } catch (err) {
-    console.error('[webchat] Error getting messages:', err);
-    return c.json({ error: 'Failed to get messages', details: String(err) }, 500);
+    logger.error({ err }, 'Error getting messages');
+    return c.json({ error: 'Failed to get messages' }, 500);
   }
 });
 
@@ -254,7 +303,7 @@ webchatRouter.get('/messages/:sessionId/stream', async (c) => {
               event: 'message',
             });
           } catch (err) {
-            console.error('[webchat] Error writing SSE:', err);
+            logger.error({ err }, 'Error writing SSE');
           }
         });
 
@@ -285,15 +334,15 @@ webchatRouter.get('/messages/:sessionId/stream', async (c) => {
           });
         });
       } catch (err) {
-        console.error('[webchat] SSE stream error:', err);
+        logger.error({ err }, 'SSE stream error');
         await stream.writeSSE({
-          data: JSON.stringify({ type: 'error', error: String(err) }),
+          data: JSON.stringify({ type: 'error', error: 'Internal stream error' }),
           event: 'error',
         });
       }
     });
   } catch (err) {
-    console.error('[webchat] Error setting up stream:', err);
-    return c.json({ error: 'Failed to setup message stream', details: String(err) }, 500);
+    logger.error({ err }, 'Error setting up stream');
+    return c.json({ error: 'Failed to setup message stream' }, 500);
   }
 });

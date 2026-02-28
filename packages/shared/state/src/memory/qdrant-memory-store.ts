@@ -1,6 +1,6 @@
 /**
  * Qdrant MemoryStore implementation for semantic search.
- * 
+ *
  * Provides vector-based semantic search with metadata filtering,
  * offering an alternative to local filesystem + Transformers.js embeddings.
  */
@@ -16,7 +16,6 @@ import { createLogger } from '@nachos/types';
 
 const logger = createLogger('qdrant-memory-store');
 
-// Copilot fix #11: Define typed payloads to replace `as any` casts
 interface QdrantEntryPayload {
   agent_id: string;
   kind: 'decision' | 'observation' | 'conversation' | 'tool_result';
@@ -38,7 +37,7 @@ interface QdrantFactPayload {
   confidence?: number;
   source_entry_id?: string;
   created_at: string;
-  content: string; // Required by base payload structure
+  content: string;
 }
 
 type QdrantPayload = QdrantEntryPayload | QdrantFactPayload;
@@ -63,7 +62,7 @@ interface QdrantSearchResult {
   payload: QdrantPayload;
 }
 
-interface QdrantConfig {
+export interface QdrantConfig {
   url: string;
   collection: string;
   apiKey?: string;
@@ -84,10 +83,9 @@ export class QdrantMemoryStore implements MemoryStore {
   private embedWarningLogged = false;
 
   constructor(config: QdrantConfig) {
-    this.url = config.url.replace(/\/$/, ''); // Remove trailing slash
+    this.url = config.url.replace(/\/$/, '');
     this.collection = config.collection;
     this.apiKey = config.apiKey;
-    // Note: embeddingModel from config is reserved for future use when actual embedding service is integrated
     this.embeddingDimensions = config.embeddingDimensions ?? 1536;
   }
 
@@ -115,11 +113,9 @@ export class QdrantMemoryStore implements MemoryStore {
    */
   private async initCollection(): Promise<void> {
     try {
-      // Check if collection exists
       const checkResponse = await this.request(`/collections/${this.collection}`, 'GET');
-      
+
       if (checkResponse.status === 404) {
-        // Create collection
         await this.request('/collections', 'PUT', {
           name: this.collection,
           vectors: {
@@ -128,7 +124,6 @@ export class QdrantMemoryStore implements MemoryStore {
           },
         });
 
-        // Create payload indexes for filtering
         await this.request(`/collections/${this.collection}/index`, 'PUT', {
           field_name: 'agent_id',
           field_schema: 'keyword',
@@ -149,8 +144,6 @@ export class QdrantMemoryStore implements MemoryStore {
 
   /**
    * Make HTTP request to Qdrant API
-   * 
-   * Copilot fix #10: Throw on non-2xx responses instead of returning success with status
    */
   private async request(
     path: string,
@@ -188,12 +181,9 @@ export class QdrantMemoryStore implements MemoryStore {
 
   /**
    * Generate embedding for text (placeholder - requires external embedding service)
-   * 
-   * Copilot fix #13: Log warning only once to prevent log flooding
    */
   private async embed(_text: string): Promise<number[]> {
     // TODO: Integrate with actual embedding service (OpenAI, Cohere, local model, etc.)
-    // For now, return zero vector as placeholder
     if (!this.embedWarningLogged) {
       logger.warn('Embedding generation not implemented, returning zero vector');
       this.embedWarningLogged = true;
@@ -233,14 +223,13 @@ export class QdrantMemoryStore implements MemoryStore {
   }
 
   /**
-   * Append memory facts (stored as separate entries with kind='fact')
+   * Append memory facts
    */
   async appendFacts(facts: MemoryFact[]): Promise<MemoryFact[]> {
     await this.ensureCollection();
 
     if (facts.length === 0) return facts;
 
-    // Convert facts to searchable text and create points
     const points = await Promise.all(
       facts.map(async (fact) => {
         const text = `${fact.subject} ${fact.predicate} ${fact.object}`;
@@ -277,7 +266,6 @@ export class QdrantMemoryStore implements MemoryStore {
   async query(query: MemoryQuery): Promise<MemoryQueryResult> {
     await this.ensureCollection();
 
-    // Build filter conditions
     const filter: Record<string, unknown> = {
       must: [
         {
@@ -294,7 +282,6 @@ export class QdrantMemoryStore implements MemoryStore {
       });
     }
 
-    // Perform semantic search if text query provided
     let entries: MemoryEntry[] = [];
     let facts: MemoryFact[] | undefined = undefined;
 
@@ -313,7 +300,6 @@ export class QdrantMemoryStore implements MemoryStore {
       if (response.data && typeof response.data === 'object' && 'result' in response.data) {
         const results = response.data.result as QdrantSearchResult[];
 
-        // Separate entries and facts
         const entryResults = results.filter((r) => r.payload.kind !== 'fact');
         const factResults = results.filter((r) => r.payload.kind === 'fact');
 
@@ -354,7 +340,6 @@ export class QdrantMemoryStore implements MemoryStore {
         }
       }
     } else {
-      // Fallback to scroll/list if no semantic search
       const limit = query.limit ?? 100;
       const response = await this.request(`/collections/${this.collection}/points/scroll`, 'POST', {
         filter,
@@ -434,7 +419,6 @@ export class QdrantMemoryStore implements MemoryStore {
    * Close connections (no-op for HTTP-based Qdrant client)
    */
   async close(): Promise<void> {
-    // HTTP client doesn't need cleanup
     logger.info('Qdrant memory store closed');
   }
 }

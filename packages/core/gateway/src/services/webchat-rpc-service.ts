@@ -5,10 +5,19 @@
  * and message streaming via pub/sub.
  */
 
-import type { NachosBusClient, MessageHandler } from '@nachos/bus';
-import type { PostgresSessionsStore } from '../state-layer/sessions/postgres-sessions-store.js';
+import type { NachosBusClient, MessageHandler, MessageEnvelope } from '@nachos/bus';
+import type { PostgresSessionsStore } from '@nachos/state';
 import type { Message } from '@nachos/types';
 import { createLogger } from '@nachos/types';
+
+/**
+ * Raw NATS message interface for RPC responses
+ */
+interface RpcRawMsg {
+  subject: string;
+  reply?: string;
+  respond: (data: unknown) => boolean;
+}
 
 const logger = createLogger('webchat-rpc');
 
@@ -211,9 +220,9 @@ export class WebChatRPCService {
   /**
    * Handler: List active sessions
    */
-  private async handleListSessions(envelope: any, rawMsg: any): Promise<void> {
+  private async handleListSessions(envelope: MessageEnvelope<ListSessionsRequest>, rawMsg: RpcRawMsg): Promise<void> {
     try {
-      const request = envelope.payload as ListSessionsRequest;
+      const request = envelope.payload;
       logger.debug({ request }, 'Handling listSessions');
 
       const sessions = await this.store.listActive({
@@ -245,9 +254,9 @@ export class WebChatRPCService {
   /**
    * Handler: List archived sessions
    */
-  private async handleListArchived(envelope: any, rawMsg: any): Promise<void> {
+  private async handleListArchived(envelope: MessageEnvelope<ListArchivedRequest>, rawMsg: RpcRawMsg): Promise<void> {
     try {
-      const request = envelope.payload as ListArchivedRequest;
+      const request = envelope.payload;
       logger.debug({ request }, 'Handling listArchived');
 
       const sessions = await this.store.listArchived({
@@ -280,9 +289,9 @@ export class WebChatRPCService {
   /**
    * Handler: Create session
    */
-  private async handleCreateSession(envelope: any, rawMsg: any): Promise<void> {
+  private async handleCreateSession(envelope: MessageEnvelope<CreateSessionRequest>, rawMsg: RpcRawMsg): Promise<void> {
     try {
-      const request = envelope.payload as CreateSessionRequest;
+      const request = envelope.payload;
       logger.debug({ request }, 'Handling createSession');
 
       // Generate conversation ID if not provided
@@ -313,9 +322,9 @@ export class WebChatRPCService {
   /**
    * Handler: Archive session
    */
-  private async handleArchiveSession(envelope: any, rawMsg: any): Promise<void> {
+  private async handleArchiveSession(envelope: MessageEnvelope<ArchiveSessionRequest>, rawMsg: RpcRawMsg): Promise<void> {
     try {
-      const request = envelope.payload as ArchiveSessionRequest;
+      const request = envelope.payload;
       logger.debug({ request }, 'Handling archiveSession');
 
       // Verify user owns the session
@@ -338,9 +347,9 @@ export class WebChatRPCService {
   /**
    * Handler: Restore session
    */
-  private async handleRestoreSession(envelope: any, rawMsg: any): Promise<void> {
+  private async handleRestoreSession(envelope: MessageEnvelope<RestoreSessionRequest>, rawMsg: RpcRawMsg): Promise<void> {
     try {
-      const request = envelope.payload as RestoreSessionRequest;
+      const request = envelope.payload;
       logger.debug({ request }, 'Handling restoreSession');
 
       // Verify user owns the session
@@ -363,9 +372,9 @@ export class WebChatRPCService {
   /**
    * Handler: Delete session
    */
-  private async handleDeleteSession(envelope: any, rawMsg: any): Promise<void> {
+  private async handleDeleteSession(envelope: MessageEnvelope<DeleteSessionRequest>, rawMsg: RpcRawMsg): Promise<void> {
     try {
-      const request = envelope.payload as DeleteSessionRequest;
+      const request = envelope.payload;
       logger.debug({ request }, 'Handling deleteSession');
 
       // Verify user owns the session
@@ -388,9 +397,9 @@ export class WebChatRPCService {
   /**
    * Handler: Pin/unpin session
    */
-  private async handlePinSession(envelope: any, rawMsg: any): Promise<void> {
+  private async handlePinSession(envelope: MessageEnvelope<PinSessionRequest>, rawMsg: RpcRawMsg): Promise<void> {
     try {
-      const request = envelope.payload as PinSessionRequest;
+      const request = envelope.payload;
       logger.debug({ request }, 'Handling pinSession');
 
       // Verify user owns the session
@@ -413,9 +422,9 @@ export class WebChatRPCService {
   /**
    * Handler: Send message
    */
-  private async handleSendMessage(envelope: any, rawMsg: any): Promise<void> {
+  private async handleSendMessage(envelope: MessageEnvelope<SendMessageRequest>, rawMsg: RpcRawMsg): Promise<void> {
     try {
-      const request = envelope.payload as SendMessageRequest;
+      const request = envelope.payload;
       logger.debug({ request }, 'Handling sendMessage');
 
       // Verify user owns the session
@@ -459,9 +468,9 @@ export class WebChatRPCService {
   /**
    * Handler: Get messages (with pagination)
    */
-  private async handleGetMessages(envelope: any, rawMsg: any): Promise<void> {
+  private async handleGetMessages(envelope: MessageEnvelope<GetMessagesRequest>, rawMsg: RpcRawMsg): Promise<void> {
     try {
-      const request = envelope.payload as GetMessagesRequest;
+      const request = envelope.payload;
       logger.debug({ request }, 'Handling getMessages');
 
       // Verify user owns the session

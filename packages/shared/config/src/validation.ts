@@ -5,6 +5,9 @@
  */
 
 import type { NachosConfig } from './schema.js';
+import { createLogger } from '@nachos/types';
+
+const logger = createLogger('config-validation');
 
 type SchemaNode = true | { [key: string]: SchemaNode } | { __array: SchemaNode };
 
@@ -100,6 +103,23 @@ const CONFIG_SHAPE: SchemaNode = {
       webhook_path: true,
       api_version: true,
       app_secret: true,
+      dm: { user_allowlist: true, pairing: true },
+      servers: {
+        __array: {
+          id: true,
+          ids: true,
+          channel_ids: true,
+          user_allowlist: true,
+          mention_gating: true,
+        },
+      },
+    },
+    matrix: {
+      enabled: true,
+      homeserver_url: true,
+      access_token: true,
+      user_id: true,
+      device_id: true,
       dm: { user_allowlist: true, pairing: true },
       servers: {
         __array: {
@@ -1008,9 +1028,9 @@ export function validateConfigOrThrow(config: NachosConfig): void {
 
   // Log warnings if any
   if (result.warnings.length > 0) {
-    console.warn('Configuration warnings:');
+    logger.warn({ warnings: result.warnings }, 'Configuration warnings');
     for (const warning of result.warnings) {
-      console.warn(`  - ${warning}`);
+      logger.warn(warning);
     }
   }
 }

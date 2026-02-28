@@ -1,15 +1,16 @@
 import { createBusClient } from '@nachos/bus';
 import { createChannelBus } from '@nachos/channel-base';
 import { loadAndValidateConfig, type NachosConfig } from '@nachos/config';
-import type { ChannelAdapterConfig } from '@nachos/types';
+import { createLogger, type ChannelAdapterConfig } from '@nachos/types';
 import { WhatsappChannelAdapter } from './index.js';
+
+const logger = createLogger('channel-whatsapp');
 
 function loadConfigSafe(): NachosConfig | undefined {
   try {
     return loadAndValidateConfig({ configPath: process.env.NACHOS_CONFIG_PATH });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.warn(`[WhatsApp] Failed to load config: ${message}`);
+    logger.warn({ err: error }, 'Failed to load config');
     return undefined;
   }
 }
@@ -37,9 +38,7 @@ async function main(): Promise<void> {
     !process.env.WHATSAPP_PHONE_NUMBER_ID ||
     !process.env.WHATSAPP_VERIFY_TOKEN
   ) {
-    console.warn(
-      '[WhatsApp] WHATSAPP_TOKEN, WHATSAPP_PHONE_NUMBER_ID, and WHATSAPP_VERIFY_TOKEN are required — channel disabled. Set the env vars and restart to enable.'
-    );
+    logger.warn('WHATSAPP_TOKEN, WHATSAPP_PHONE_NUMBER_ID, and WHATSAPP_VERIFY_TOKEN are required — channel disabled. Set the env vars and restart to enable.');
     await new Promise<void>((resolve) => {
       process.once('SIGTERM', resolve);
       process.once('SIGINT', resolve);
@@ -77,12 +76,16 @@ async function main(): Promise<void> {
 
   process.on('SIGTERM', () => void shutdown());
   process.on('SIGINT', () => void shutdown());
+  process.on('unhandledRejection', (reason) => {
+    logger.fatal({ err: reason }, 'Unhandled promise rejection');
+    process.exit(1);
+  });
 }
 
 // tsx watch compat: always run main
 {
   main().catch((error) => {
-    console.error('WhatsApp channel startup failed:', error);
+    logger.fatal({ err: error }, 'WhatsApp channel startup failed');
     process.exit(1);
   });
 }

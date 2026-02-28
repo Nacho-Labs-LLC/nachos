@@ -3,14 +3,17 @@
  */
 
 import { connectToNats, setupShutdownHandlers } from '@nachos/tool-base';
+import { createLogger } from '@nachos/types';
 import { WebFetchTool } from './web-fetch-tool.js';
+
+const logger = createLogger('web-fetch');
 
 // Export for testing
 export { WebFetchTool } from './web-fetch-tool.js';
 export { SSRFProtection } from './ssrf-protection.js';
 
 async function main() {
-  console.log('Starting web_fetch tool...');
+  logger.info('Starting web_fetch tool...');
 
   const nats = await connectToNats();
   const tool = new WebFetchTool();
@@ -53,7 +56,7 @@ async function main() {
 // tsx watch compat: always run main
 {
   main().catch((error) => {
-    console.error('Fatal error:', error);
+    logger.fatal({ err: error }, 'Fatal error');
     process.exit(1);
   });
 }

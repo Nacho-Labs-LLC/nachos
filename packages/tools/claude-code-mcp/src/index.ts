@@ -3,12 +3,15 @@
  */
 
 import { connectToNats, setupShutdownHandlers } from '@nachos/tool-base';
+import { createLogger } from '@nachos/types';
 import { ClaudeCodeMcpTool } from './claude-code-mcp-tool.js';
+
+const logger = createLogger('claude-code-mcp');
 
 export { ClaudeCodeMcpTool } from './claude-code-mcp-tool.js';
 
 async function main(): Promise<void> {
-  console.log('Starting Claude Code MCP tool...');
+  logger.info('Starting Claude Code MCP tool...');
 
   const nats = await connectToNats();
   const tool = new ClaudeCodeMcpTool();
@@ -32,7 +35,7 @@ async function main(): Promise<void> {
 // tsx watch compat: always run main
 {
   main().catch((error) => {
-    console.error('Fatal error:', error);
+    logger.fatal({ err: error }, 'Fatal error');
     process.exit(1);
   });
 }

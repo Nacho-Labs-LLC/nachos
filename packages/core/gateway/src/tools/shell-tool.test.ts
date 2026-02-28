@@ -64,7 +64,7 @@ describe('ShellTool', () => {
       expect(shellTool.isCommandAllowed('hostname')).toBe(true);
       expect(shellTool.isCommandAllowed('whoami')).toBe(true);
       expect(shellTool.isCommandAllowed('pwd')).toBe(true);
-      expect(shellTool.isCommandAllowed('env')).toBe(true);
+      expect(shellTool.isCommandAllowed('env')).toBe(false); // env removed: can launch arbitrary binaries
       expect(shellTool.isCommandAllowed('date')).toBe(true);
       expect(shellTool.isCommandAllowed('uptime')).toBe(true);
       expect(shellTool.isCommandAllowed('free -h')).toBe(true);
@@ -432,14 +432,18 @@ describe('ShellTool', () => {
     });
 
     it('should respect working directory', async () => {
+      const dir = process.cwd();
       const result = await shellTool.execute({
         command: 'pwd',
-        cwd: '/tmp',
+        cwd: dir,
         timeout: 5000,
       });
 
       expect(result.exitCode).toBe(0);
-      expect(result.stdout.trim()).toBe('/tmp');
+      const expected = dir
+        .replace(/\\/g, '/')
+        .replace(/^([A-Za-z]):/, (_, d: string) => `/${d.toLowerCase()}`);
+      expect(result.stdout.trim()).toBe(expected);
     });
   });
 

@@ -14,8 +14,10 @@ import type {
   SendResult,
   HealthStatusType,
 } from '@nachos/types';
-import { validateChannelInboundMessage } from '@nachos/types';
+import { createLogger, createConfigError, createInvalidStateError, validateChannelInboundMessage } from '@nachos/types';
 import { shouldAllowDm } from '@nachos/utils';
+
+const logger = createLogger('whatsapp-channel');
 
 interface WhatsAppWebhookMessageText {
   body?: string;
@@ -97,17 +99,14 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
 
   async start(): Promise<void> {
     if (!this.config) {
-      throw new Error('WhatsApp adapter not initialized');
+      throw createInvalidStateError('WhatsApp adapter not initialized', { component: 'whatsapp-channel' });
     }
     if (!this.token || !this.phoneNumberId || !this.verifyToken) {
-      throw new Error('WhatsApp adapter requires token, phone_number_id, and verify_token');
+      throw createConfigError('WhatsApp adapter requires token, phone_number_id, and verify_token', { component: 'whatsapp-channel' });
     }
 
     if (!this.appSecret) {
-      console.warn(
-        '[WhatsApp] WARNING: appSecret is not configured. Webhook signature verification is disabled. ' +
-        'Set WHATSAPP_APP_SECRET to enable signature verification.'
-      );
+      logger.warn('appSecret is not configured. Webhook signature verification is disabled. Set WHATSAPP_APP_SECRET to enable signature verification.');
     }
 
     const port = Number(process.env.WHATSAPP_HTTP_PORT ?? 3002);
@@ -140,7 +139,7 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
 
   async sendMessage(message: OutboundMessage): Promise<SendResult> {
     if (!this.token || !this.phoneNumberId) {
-      throw new Error('WhatsApp adapter not initialized');
+      throw createInvalidStateError('WhatsApp adapter not initialized', { component: 'whatsapp-channel' });
     }
 
     const url = `https://graph.facebook.com/${this.apiVersion}/${this.phoneNumberId}/messages`;
@@ -260,7 +259,7 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
         return;
       }
     } else if (this.securityMode === 'strict') {
-      console.error('[WhatsApp] Rejecting unsigned webhook — appSecret not configured in strict security mode');
+      logger.error('Rejecting unsigned webhook — appSecret not configured in strict security mode');
       res.writeHead(403, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Webhook signature verification required in strict mode' }));
       return;
@@ -393,7 +392,7 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
 
           const validation = validateChannelInboundMessage(inbound);
           if (!validation.success) {
-            console.warn('[WhatsApp] Dropping invalid inbound message', validation.errors);
+            logger.warn({ errors: validation.errors }, 'Dropping invalid inbound message');
             continue;
           }
 

@@ -93,6 +93,10 @@ export function generateComposeFile(config: NachosConfig, projectRoot: string): 
       compose.services.whatsapp = buildWhatsappService(config, projectRoot);
     }
 
+    if (config.channels?.matrix?.enabled) {
+      compose.services.matrix = buildMatrixService(config, projectRoot);
+    }
+
     // Add tools (conditional - skip if Dockerfile doesn't exist)
     // Tools are Phase 6, so they may not be implemented yet
     if (config.tools?.filesystem?.enabled) {
@@ -105,12 +109,9 @@ export function generateComposeFile(config: NachosConfig, projectRoot: string): 
     }
 
     if (config.tools?.browser?.enabled) {
-      const dockerfilePath = join(projectRoot, 'packages/tools/browser/Dockerfile');
-      if (existsSync(dockerfilePath)) {
-        compose.services.browser = buildBrowserService(config, projectRoot);
-      } else {
-        console.warn('⚠️  Browser tool is enabled but not yet implemented (Phase 6)');
-      }
+      // Browser tool runs locally in the gateway via @playwright/mcp — no separate container needed.
+      // The gateway handles browser tool execution in-process.
+      console.warn('ℹ️  Browser tool is enabled — runs locally in the gateway (no container needed)');
     }
 
     if (config.tools?.code_runner?.enabled) {
@@ -670,6 +671,63 @@ function buildWhatsappService(_config: NachosConfig, projectRoot: string): Servi
   };
 }
 
+function buildMatrixService(_config: NachosConfig, projectRoot: string): Service {
+  const environment: Record<string, string> = {
+    NODE_ENV: 'development',
+    NATS_URL: 'nats://bus:4222',
+    LOG_LEVEL: 'debug',
+    NACHOS_STATE_DIR: '/app/state',
+  };
+
+  if (process.env.NACHOS_PAIRING_TOKEN) {
+    environment.NACHOS_PAIRING_TOKEN = process.env.NACHOS_PAIRING_TOKEN;
+  }
+  if (process.env.MATRIX_HOMESERVER_URL) {
+    environment.MATRIX_HOMESERVER_URL = process.env.MATRIX_HOMESERVER_URL;
+  }
+  if (process.env.MATRIX_ACCESS_TOKEN) {
+    environment.MATRIX_ACCESS_TOKEN = process.env.MATRIX_ACCESS_TOKEN;
+  }
+  if (process.env.MATRIX_USER_ID) {
+    environment.MATRIX_USER_ID = process.env.MATRIX_USER_ID;
+  }
+
+  return {
+    container_name: 'nachos-matrix',
+    build: {
+      context: projectRoot,
+      dockerfile: 'packages/channels/matrix/Dockerfile',
+    },
+    image: 'nachos-matrix:dev',
+    restart: 'unless-stopped',
+    depends_on: {
+      bus: { condition: 'service_healthy' },
+    },
+    networks: ['nachos-internal', 'nachos-egress'],
+    environment,
+    volumes: [
+      `${projectRoot}/packages/channels/matrix/src:/app/packages/channels/matrix/src:ro`,
+      `${projectRoot}/packages/channels/base:/app/packages/channels/base:ro`,
+      `${projectRoot}/packages/shared:/app/packages/shared:ro`,
+      `${projectRoot}/packages/core/bus:/app/packages/core/bus:ro`,
+      `${projectRoot}/tsconfig.base.json:/app/tsconfig.base.json:ro`,
+      `${projectRoot}/tsconfig.json:/app/tsconfig.json:ro`,
+      `${projectRoot}/data/channels:/app/state`,
+      '/app/node_modules',
+      '/app/packages/channels/matrix/node_modules',
+      'nachos-logs:/var/log/nachos',
+    ],
+    logging: {
+      driver: 'json-file',
+      options: {
+        'max-size': '10m',
+        'max-file': '3',
+        labels: 'service=matrix',
+      },
+    },
+  };
+}
+
 function buildFilesystemService(_config: NachosConfig, projectRoot: string): Service {
   return {
     container_name: 'nachos-filesystem',
@@ -700,35 +758,6 @@ function buildFilesystemService(_config: NachosConfig, projectRoot: string): Ser
   };
 }
 
-function buildBrowserService(_config: NachosConfig, projectRoot: string): Service {
-  return {
-    container_name: 'nachos-browser',
-    build: {
-      context: projectRoot,
-      dockerfile: 'packages/tools/browser/Dockerfile',
-    },
-    image: 'nachos-browser:dev',
-    restart: 'unless-stopped',
-    depends_on: {
-      bus: { condition: 'service_healthy' },
-    },
-    networks: ['nachos-internal', 'nachos-egress'],
-    environment: {
-      NODE_ENV: 'development',
-      NATS_URL: 'nats://bus:4222',
-      LOG_LEVEL: 'debug',
-    },
-    volumes: ['nachos-logs:/var/log/nachos'],
-    logging: {
-      driver: 'json-file',
-      options: {
-        'max-size': '10m',
-        'max-file': '3',
-        labels: 'service=browser',
-      },
-    },
-  };
-}
 
 function buildCodeRunnerService(_config: NachosConfig, projectRoot: string): Service {
   return {
