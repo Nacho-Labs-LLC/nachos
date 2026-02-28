@@ -11,6 +11,9 @@ import type {
   MemoryQueryResult,
   MemoryStore,
 } from '@nachos/types';
+import { createLogger } from '@nachos/types';
+
+const logger = createLogger('filesystem-memory-store');
 // Lazy import to avoid crashing on platforms without glibc (e.g., Alpine)
 type SemanticSearchType = import('@nacho-labs/nachos-embeddings').SemanticSearch<MemoryEntry>;
 
@@ -62,7 +65,7 @@ export class FilesystemMemoryStore implements MemoryStore {
           });
           await this.semanticSearch.init();
         } catch (err) {
-          console.warn('[FilesystemMemoryStore] Semantic search unavailable:', (err as Error).message);
+          logger.warn({ err: (err as Error).message }, 'Semantic search unavailable');
           this.semanticEnabled = false;
           return;
         }

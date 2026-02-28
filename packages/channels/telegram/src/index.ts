@@ -15,8 +15,10 @@ import type {
   SendResult,
   HealthStatusType,
 } from '@nachos/types';
-import { validateChannelInboundMessage } from '@nachos/types';
+import { createLogger, createConfigError, createInvalidStateError, validateChannelInboundMessage } from '@nachos/types';
 import { shouldAllowDm, shouldAllowGroupMessage } from '@nachos/utils';
+
+const logger = createLogger('telegram-channel');
 
 export class TelegramChannelAdapter implements ChannelAdapter {
   readonly channelId = 'telegram';
@@ -35,7 +37,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
     const channelConfig = config.config as TelegramChannelConfig;
     const token = channelConfig.token ?? config.secrets.TELEGRAM_BOT_TOKEN;
     if (!token) {
-      throw new Error('Telegram token is required');
+      throw createConfigError('Telegram token is required', { component: 'telegram-channel' });
     }
 
     this.bot = new Telegraf(token);
@@ -46,7 +48,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
 
   async start(): Promise<void> {
     if (!this.bot || !this.config) {
-      throw new Error('Telegram adapter not initialized');
+      throw createInvalidStateError('Telegram adapter not initialized', { component: 'telegram-channel' });
     }
 
     const me = await this.bot.telegram.getMe();
@@ -65,7 +67,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
 
   async sendMessage(message: OutboundMessage): Promise<SendResult> {
     if (!this.bot) {
-      throw new Error('Telegram adapter not initialized');
+      throw createInvalidStateError('Telegram adapter not initialized', { component: 'telegram-channel' });
     }
 
     try {
@@ -195,7 +197,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
 
     const validation = validateChannelInboundMessage(inbound);
     if (!validation.success) {
-      console.warn('[Telegram] Dropping invalid inbound message', validation.errors);
+      logger.warn({ errors: validation.errors }, 'Dropping invalid inbound message');
       return;
     }
 

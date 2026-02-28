@@ -1,9 +1,9 @@
 /**
  * Tests for PostgresSessionsStore
- * 
+ *
  * Note: These tests require a running PostgreSQL instance.
  * Set POSTGRES_TEST_URL environment variable to run these tests:
- * 
+ *
  * export POSTGRES_TEST_URL="postgres://nachos:nachos@localhost:5432/nachos_test"
  * npm test -- postgres-sessions-store.test.ts
  */
@@ -33,7 +33,7 @@ describeIfPostgres('PostgresSessionsStore', () => {
 
     // Create test schema
     await pool.query(`CREATE SCHEMA IF NOT EXISTS "${TEST_SCHEMA}"`);
-    
+
     store = new PostgresSessionsStore(pool, TEST_SCHEMA);
   });
 
@@ -356,14 +356,12 @@ describeIfPostgres('PostgresSessionsStore', () => {
       userId: 'user-123',
     });
 
-    // Pin the session
     const pinned = await store.pin(session.id, true);
     expect(pinned).toBe(true);
 
     const pinnedSession = await store.getSession(session.id);
     expect(pinnedSession!.isPinned).toBe(true);
 
-    // Unpin the session
     const unpinned = await store.pin(session.id, false);
     expect(unpinned).toBe(true);
 
@@ -378,14 +376,12 @@ describeIfPostgres('PostgresSessionsStore', () => {
       userId: 'user-123',
     });
 
-    // Archive the session
     const archived = await store.archive(session.id);
     expect(archived).toBe(true);
 
     const archivedSession = await store.getSession(session.id);
     expect(archivedSession!.isArchived).toBe(true);
 
-    // Restore the session
     const restored = await store.restore(session.id);
     expect(restored).toBe(true);
 
@@ -431,7 +427,6 @@ describeIfPostgres('PostgresSessionsStore', () => {
     // List active sessions
     const activeSessions = await store.listActive({ channel: 'discord', userId: 'user-123' });
 
-    // Should include recent session and pinned old session, but not unpinned old session
     const activeIds = activeSessions.map(s => s.id);
     expect(activeIds).toContain(recentSession.id);
     expect(activeIds).toContain(pinnedOldSession.id);
@@ -439,7 +434,6 @@ describeIfPostgres('PostgresSessionsStore', () => {
   });
 
   it('should list archived sessions', async () => {
-    // Create and archive sessions
     const session1 = await store.createSession({
       channel: 'discord',
       conversationId: 'test-conversation-17',
@@ -454,14 +448,12 @@ describeIfPostgres('PostgresSessionsStore', () => {
     });
     await store.archive(session2.id);
 
-    // Create an active session (should not appear)
     await store.createSession({
       channel: 'discord',
       conversationId: 'test-conversation-19',
       userId: 'user-123',
     });
 
-    // List archived sessions
     const archivedSessions = await store.listArchived({ channel: 'discord', userId: 'user-123' });
 
     const archivedIds = archivedSessions.map(s => s.id);
@@ -487,21 +479,19 @@ describeIfPostgres('PostgresSessionsStore', () => {
     });
     await store.archive(session2.id);
 
-    // Search for "foo"
-    const fooResults = await store.listArchived({ 
-      channel: 'discord', 
+    const fooResults = await store.listArchived({
+      channel: 'discord',
       userId: 'user-123',
-      search: 'foo' 
+      search: 'foo'
     });
 
     expect(fooResults.length).toBeGreaterThanOrEqual(1);
     expect(fooResults.some(s => s.id === session1.id)).toBe(true);
 
-    // Search for "coding"
-    const codingResults = await store.listArchived({ 
-      channel: 'discord', 
+    const codingResults = await store.listArchived({
+      channel: 'discord',
       userId: 'user-123',
-      search: 'coding' 
+      search: 'coding'
     });
 
     expect(codingResults.length).toBeGreaterThanOrEqual(1);
@@ -517,10 +507,8 @@ describeIfPostgres('PostgresSessionsStore', () => {
 
     const initialActivity = session.lastActivity;
 
-    // Wait a bit to ensure timestamp changes
     await new Promise(resolve => setTimeout(resolve, 10));
 
-    // Add a message
     await store.addMessage({
       sessionId: session.id,
       role: 'user',

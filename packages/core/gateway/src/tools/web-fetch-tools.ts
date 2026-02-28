@@ -7,8 +7,10 @@
  */
 
 import type { ToolCall, ToolResult } from '@nachos/types';
+import { SSRFProtection } from './ssrf-protection.js';
 
 const DEFAULT_TIMEOUT_MS = 10000;
+const MAX_REDIRECTS = 5;
 const DEFAULT_MAX_CHARS = 50000;
 
 /**
@@ -292,24 +294,85 @@ export async function executeWebFetchNative(
     }
 
     const url = validation.url!;
+
+    // SSRF protection: validate URL via DNS resolution to catch rebinding attacks
+    const ssrf = new SSRFProtection({
+      allowedDomains: config.domain_allowlist ?? ['*'],
+      blockPrivateIPs: true,
+      blockLocalhost: true,
+    });
+    const ssrfResult = await ssrf.validateURL(url.toString());
+    if (!ssrfResult.valid) {
+      return {
+        success: false,
+        content: [],
+        error: {
+          code: 'SSRF_BLOCKED',
+          message: ssrfResult.errors?.join('; ') || 'URL blocked by SSRF protection',
+        },
+      };
+    }
+
     const extractMode = params.extract_mode || 'markdown';
     const maxChars = params.max_chars || config.max_chars || DEFAULT_MAX_CHARS;
     const timeoutMs = config.timeout_ms || DEFAULT_TIMEOUT_MS;
 
-    // Fetch the page
+    // Fetch the page — manually follow redirects so each hop is SSRF-validated
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-    try {
-      const response = await fetch(url.toString(), {
+    const ssrfConfig = {
+      allowedDomains: config.domain_allowlist ?? ['*'],
+      blockPrivateIPs: true,
+      blockLocalhost: true,
+    };
+
+    let currentUrl = url.toString();
+    let response!: Response;
+    for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+      response = await fetch(currentUrl, {
         method: 'GET',
         headers: {
           'User-Agent': 'Mozilla/5.0 (compatible; NachosBot/1.0)',
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         },
         signal: controller.signal,
-        redirect: 'follow',
+        redirect: 'manual',
       });
+
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('location');
+        if (!location) break; // No Location header — treat as final response
+        if (hop === MAX_REDIRECTS) {
+          clearTimeout(timeoutId);
+          return {
+            success: false,
+            content: [],
+            error: { code: 'TOO_MANY_REDIRECTS', message: `Exceeded ${MAX_REDIRECTS} redirects` },
+          };
+        }
+        // Validate redirect target before following
+        const redirectUrl = new URL(location, currentUrl).toString();
+        const redirectSsrf = new SSRFProtection(ssrfConfig);
+        const redirectCheck = await redirectSsrf.validateURL(redirectUrl);
+        if (!redirectCheck.valid) {
+          clearTimeout(timeoutId);
+          return {
+            success: false,
+            content: [],
+            error: {
+              code: 'SSRF_BLOCKED',
+              message: `Redirect to blocked URL: ${redirectCheck.errors?.join('; ') || 'SSRF protection'}`,
+            },
+          };
+        }
+        currentUrl = redirectUrl;
+        continue;
+      }
+      break; // Non-redirect response — done
+    }
+
+    try {
 
       clearTimeout(timeoutId);
 
@@ -357,7 +420,7 @@ export async function executeWebFetchNative(
         content: [
           {
             type: 'text',
-            text: `Fetched content from: ${url.toString()}\n\n---\n\n${extracted}`,
+            text: `Fetched content from: ${currentUrl}\n\n---\n\n${extracted}`,
           },
         ],
       };

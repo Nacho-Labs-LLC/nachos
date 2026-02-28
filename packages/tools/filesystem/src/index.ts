@@ -3,7 +3,10 @@
  */
 
 import { connectToNats, setupShutdownHandlers } from '@nachos/tool-base';
+import { createLogger } from '@nachos/types';
 import { FilesystemReadTool } from './read-tool.js';
+
+const logger = createLogger('filesystem-tool');
 import { FilesystemWriteTool } from './write-tool.js';
 import { FilesystemEditTool } from './edit-tool.js';
 import { FilesystemPatchTool } from './patch-tool.js';
@@ -24,7 +27,7 @@ async function main() {
   // Determine which tool to run based on TOOL_MODE env var
   const toolMode = process.env.TOOL_MODE ?? 'read';
 
-  console.log(`Starting filesystem tool in mode: ${toolMode}`);
+  logger.info({ mode: toolMode }, 'Starting filesystem tool');
 
   // Connect to NATS
   const nats = await connectToNats();
@@ -67,7 +70,7 @@ async function main() {
       tools.push(new ConfigPatchTool());
       break;
     default:
-      console.error(`Unknown tool mode: ${toolMode}`);
+      logger.error({ mode: toolMode }, 'Unknown tool mode');
       process.exit(1);
   }
 
@@ -84,7 +87,7 @@ async function main() {
 // tsx watch compat: always run main
 {
   main().catch((error) => {
-    console.error('Fatal error:', error);
+    logger.fatal({ err: error }, 'Fatal error');
     process.exit(1);
   });
 }

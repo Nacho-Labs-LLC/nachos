@@ -11,11 +11,14 @@
 import { randomUUID } from 'node:crypto';
 import {
   SecurityTier,
+  createLogger,
   type ToolCall,
   type ToolResult,
   type ExecutionOptions,
   type MessageEnvelope,
 } from '@nachos/types';
+
+const logger = createLogger('tool-coordinator');
 import type { Cheese, SecurityRequest } from '../cheese/index.js';
 import type { ToolCache } from './cache.js';
 import type { MessageBus } from '../router.js';
@@ -114,8 +117,27 @@ export class ToolCoordinator {
     }
 
     try {
-      // 1. Check policy (if Cheese is configured)
-      if (this.cheese) {
+      // 1. Check policy (Cheese MUST be configured — fail-closed)
+      if (!this.cheese) {
+        logger.error(
+          { tool: call.tool, sessionId: call.sessionId },
+          'DENY: Cheese policy engine not configured — all tool calls blocked'
+        );
+        return {
+          success: false,
+          content: [],
+          error: {
+            code: 'POLICY_DENIED',
+            message:
+              'Tool execution denied: policy engine is not available. Cannot verify permissions.',
+          },
+          metadata: {
+            duration: Date.now() - startTime,
+          },
+        };
+      }
+
+      {
         const policyResult = await this.checkPolicy(call);
         if (!policyResult.allowed) {
           return {
@@ -416,7 +438,9 @@ export class ToolCoordinator {
     ruleId?: string;
   }> {
     if (!this.cheese) {
-      return { allowed: true };
+      // This path should never be reached — executeSingle already guards against null cheese.
+      // Fail closed as a safety net.
+      return { allowed: false, reason: 'Policy engine unavailable' };
     }
 
     const domain = this.resolveDomain(call.parameters);

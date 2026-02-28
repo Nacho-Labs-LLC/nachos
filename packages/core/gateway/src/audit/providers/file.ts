@@ -1,5 +1,6 @@
 import { createWriteStream, existsSync, mkdirSync, rename, stat, unlink } from 'node:fs';
 import { dirname } from 'node:path';
+import { createHmac } from 'node:crypto';
 import type { WriteStream } from 'node:fs';
 import { createValidationError, createLogger } from '@nachos/types';
 
@@ -26,8 +27,12 @@ export class FileAuditProvider implements AuditProvider {
   private flushTimer: NodeJS.Timeout | null = null;
   private isClosing = false;
   private flushPromise: Promise<void> | null = null;
+  private hmacSecret: string | undefined;
+  private hmacWarningLogged = false;
 
-  constructor(private readonly config: FileAuditProviderConfig) {}
+  constructor(private readonly config: FileAuditProviderConfig) {
+    this.hmacSecret = process.env['NACHOS_AUDIT_HMAC_SECRET'];
+  }
 
   async init(): Promise<void> {
     const directory = dirname(this.config.path);
@@ -59,7 +64,19 @@ export class FileAuditProvider implements AuditProvider {
   }
 
   async log(event: AuditEvent): Promise<void> {
-    this.buffer.push(JSON.stringify(event));
+    const serialized = JSON.stringify(event);
+
+    if (this.hmacSecret) {
+      const hmac = createHmac('sha256', this.hmacSecret).update(serialized).digest('hex');
+      this.buffer.push(JSON.stringify({ ...event, _hmac: hmac }));
+    } else {
+      if (!this.hmacWarningLogged) {
+        auditLogger.warn('NACHOS_AUDIT_HMAC_SECRET not set — audit entries will not be signed');
+        this.hmacWarningLogged = true;
+      }
+      this.buffer.push(serialized);
+    }
+
     const batchSize = this.config.batchSize ?? DEFAULT_BATCH_SIZE;
     if (this.buffer.length >= batchSize) {
       await this.flush();

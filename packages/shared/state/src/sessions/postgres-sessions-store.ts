@@ -1,7 +1,7 @@
 /**
  * PostgreSQL sessions and messages storage implementation.
- * 
- * This store implements the same interface as StateStorage (SQLite version)
+ *
+ * This store implements the same interface as SqliteSessionsStore
  * but uses PostgreSQL for multi-instance deployments with shared conversation history.
  */
 
@@ -18,6 +18,7 @@ import type {
   CreateSessionData,
   UpdateSessionData,
   CreateMessageData,
+  SessionsStore,
 } from './sessions-store-interface.js';
 
 /**
@@ -54,7 +55,7 @@ interface MessageRow {
 /**
  * PostgreSQL-based state storage for sessions and messages
  */
-export class PostgresSessionsStore {
+export class PostgresSessionsStore implements SessionsStore {
   private initialized = false;
   private schemaPromise: Promise<void> | null = null;
   private schema: string;
@@ -112,21 +113,21 @@ export class PostgresSessionsStore {
     );
 
     await this.pool.query(
-      `CREATE INDEX IF NOT EXISTS sessions_channel_conversation_idx 
+      `CREATE INDEX IF NOT EXISTS sessions_channel_conversation_idx
        ON ${this.qualified('sessions')}(channel, conversation_id)`
     );
 
     // Create index for active sessions query (optimized for listActive)
     await this.pool.query(
-      `CREATE INDEX IF NOT EXISTS sessions_active_idx 
-       ON ${this.qualified('sessions')}(channel, is_archived, last_activity) 
+      `CREATE INDEX IF NOT EXISTS sessions_active_idx
+       ON ${this.qualified('sessions')}(channel, is_archived, last_activity)
        WHERE is_archived = false`
     );
 
     // Create index for archived sessions query
     await this.pool.query(
-      `CREATE INDEX IF NOT EXISTS sessions_archived_idx 
-       ON ${this.qualified('sessions')}(channel, is_archived, updated_at) 
+      `CREATE INDEX IF NOT EXISTS sessions_archived_idx
+       ON ${this.qualified('sessions')}(channel, is_archived, updated_at)
        WHERE is_archived = true`
     );
 
@@ -144,7 +145,7 @@ export class PostgresSessionsStore {
     );
 
     await this.pool.query(
-      `CREATE INDEX IF NOT EXISTS messages_session_id_idx 
+      `CREATE INDEX IF NOT EXISTS messages_session_id_idx
        ON ${this.qualified('messages')}(session_id)`
     );
   }
@@ -200,7 +201,7 @@ export class PostgresSessionsStore {
     const id = uuid();
 
     await this.pool.query(
-      `INSERT INTO ${this.qualified('sessions')} 
+      `INSERT INTO ${this.qualified('sessions')}
        (id, channel, conversation_id, user_id, status, system_prompt, config, metadata, created_at, updated_at, is_pinned, is_archived, last_activity)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
       [
@@ -243,7 +244,7 @@ export class PostgresSessionsStore {
    */
   async getOrCreateSessionAtomic(data: CreateSessionData): Promise<{ session: Session; created: boolean }> {
     await this.ensureSchema();
-    
+
     const now = new Date().toISOString();
     const id = uuid();
 
@@ -254,19 +255,19 @@ export class PostgresSessionsStore {
       // UPSERT: INSERT new session, or UPDATE existing one if conflict occurs
       // This locks the row atomically and handles non-existent rows correctly
       const result = await client.query(
-        `INSERT INTO ${this.qualified('sessions')} 
+        `INSERT INTO ${this.qualified('sessions')}
          (id, channel, conversation_id, user_id, status, system_prompt, config, metadata, created_at, updated_at, is_pinned, is_archived, last_activity)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-         ON CONFLICT (channel, conversation_id) 
-         DO UPDATE SET 
-           status = CASE WHEN ${this.qualified('sessions')}.status = 'active' 
-                         THEN ${this.qualified('sessions')}.status 
+         ON CONFLICT (channel, conversation_id)
+         DO UPDATE SET
+           status = CASE WHEN ${this.qualified('sessions')}.status = 'active'
+                         THEN ${this.qualified('sessions')}.status
                          ELSE 'active' END,
-           updated_at = CASE WHEN ${this.qualified('sessions')}.status = 'active' 
-                             THEN ${this.qualified('sessions')}.updated_at 
+           updated_at = CASE WHEN ${this.qualified('sessions')}.status = 'active'
+                             THEN ${this.qualified('sessions')}.updated_at
                              ELSE $10 END,
-           last_activity = CASE WHEN ${this.qualified('sessions')}.status = 'active' 
-                                 THEN ${this.qualified('sessions')}.last_activity 
+           last_activity = CASE WHEN ${this.qualified('sessions')}.status = 'active'
+                                 THEN ${this.qualified('sessions')}.last_activity
                                  ELSE $13 END
          RETURNING *, (xmax = 0) AS inserted`,
         [
@@ -323,7 +324,7 @@ export class PostgresSessionsStore {
   async getSessionByConversation(channel: string, conversationId: string): Promise<Session | null> {
     await this.ensureSchema();
     const result = await this.pool.query(
-      `SELECT * FROM ${this.qualified('sessions')} 
+      `SELECT * FROM ${this.qualified('sessions')}
        WHERE channel = $1 AND conversation_id = $2`,
       [channel, conversationId]
     );
@@ -370,8 +371,8 @@ export class PostgresSessionsStore {
     values.push(id);
 
     await this.pool.query(
-      `UPDATE ${this.qualified('sessions')} 
-       SET ${updates.join(', ')} 
+      `UPDATE ${this.qualified('sessions')}
+       SET ${updates.join(', ')}
        WHERE id = $${paramIndex}`,
       values
     );
@@ -385,20 +386,20 @@ export class PostgresSessionsStore {
   async deleteSession(id: string): Promise<boolean> {
     await this.ensureSchema();
     const client = await this.pool.connect();
-    
+
     try {
       await client.query('BEGIN');
-      
+
       await client.query(
         `DELETE FROM ${this.qualified('messages')} WHERE session_id = $1`,
         [id]
       );
-      
+
       const result = await client.query(
         `DELETE FROM ${this.qualified('sessions')} WHERE id = $1`,
         [id]
       );
-      
+
       await client.query('COMMIT');
       return result.rowCount !== null && result.rowCount > 0;
     } catch (err) {
@@ -464,7 +465,7 @@ export class PostgresSessionsStore {
       await client.query('BEGIN');
 
       await client.query(
-        `INSERT INTO ${this.qualified('messages')} 
+        `INSERT INTO ${this.qualified('messages')}
          (id, session_id, role, content, tool_calls, created_at)
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [
@@ -479,8 +480,8 @@ export class PostgresSessionsStore {
 
       // Update session's updated_at and last_activity
       await client.query(
-        `UPDATE ${this.qualified('sessions')} 
-         SET updated_at = $1, last_activity = $1 
+        `UPDATE ${this.qualified('sessions')}
+         SET updated_at = $1, last_activity = $1
          WHERE id = $2`,
         [now, data.sessionId]
       );
@@ -564,7 +565,7 @@ export class PostgresSessionsStore {
   async replaceMessages(sessionId: string, messages: Message[]): Promise<number> {
     await this.ensureSchema();
     const client = await this.pool.connect();
-    
+
     try {
       await client.query('BEGIN');
 
@@ -577,7 +578,7 @@ export class PostgresSessionsStore {
       // Insert new messages
       for (const msg of messages) {
         await client.query(
-          `INSERT INTO ${this.qualified('messages')} 
+          `INSERT INTO ${this.qualified('messages')}
            (id, session_id, role, content, tool_calls, created_at)
            VALUES ($1, $2, $3, $4, $5, $6)`,
           [
@@ -594,8 +595,8 @@ export class PostgresSessionsStore {
       // Update session's updated_at timestamp
       const now = new Date().toISOString();
       await client.query(
-        `UPDATE ${this.qualified('sessions')} 
-         SET updated_at = $1 
+        `UPDATE ${this.qualified('sessions')}
+         SET updated_at = $1
          WHERE id = $2`,
         [now, sessionId]
       );
@@ -710,8 +711,8 @@ export class PostgresSessionsStore {
     const now = new Date().toISOString();
 
     const result = await this.pool.query(
-      `UPDATE ${this.qualified('sessions')} 
-       SET is_archived = true, updated_at = $1 
+      `UPDATE ${this.qualified('sessions')}
+       SET is_archived = true, updated_at = $1
        WHERE id = $2`,
       [now, sessionId]
     );
@@ -727,8 +728,8 @@ export class PostgresSessionsStore {
     const now = new Date().toISOString();
 
     const result = await this.pool.query(
-      `UPDATE ${this.qualified('sessions')} 
-       SET is_archived = false, last_activity = $1, updated_at = $1 
+      `UPDATE ${this.qualified('sessions')}
+       SET is_archived = false, last_activity = $1, updated_at = $1
        WHERE id = $2`,
       [now, sessionId]
     );
@@ -744,8 +745,8 @@ export class PostgresSessionsStore {
     const now = new Date().toISOString();
 
     const result = await this.pool.query(
-      `UPDATE ${this.qualified('sessions')} 
-       SET is_pinned = $1, updated_at = $2 
+      `UPDATE ${this.qualified('sessions')}
+       SET is_pinned = $1, updated_at = $2
        WHERE id = $3`,
       [pinned, now, sessionId]
     );

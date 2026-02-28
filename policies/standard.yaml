@@ -61,13 +61,9 @@ rules:
       action: "receive"
     effect: "allow"
 
-  - id: "standard-dm-send-allow"
-    description: "Allow sending DM responses (outbound)"
-    priority: 901
-    match:
-      resource: "dm"
-      action: "send"
-    effect: "allow"
+  # NOTE: DM send is governed by the pairing rules above (priorities 900/899).
+  # Paired users can send; unpaired users are denied. Do NOT add an unconditional
+  # allow rule for action: "send" here — it would bypass the pairing requirement.
 
   # ============================================================================
   # Channel Messages - Allow
@@ -188,7 +184,7 @@ rules:
   # Bitbucket tool - Standard tier, allows interaction with Bitbucket via REST API
   - id: "standard-tool-bitbucket"
     description: "Allow Bitbucket tool (SecurityTier: STANDARD)"
-    priority: 795
+    priority: 794
     match:
       resource: "tool"
       resourceId: "bitbucket"
@@ -203,14 +199,36 @@ rules:
       resourceId: "web_search"
     effect: "allow"
 
-  # Web fetch native tool - Standard tier, allows fetching URLs directly
-  - id: "standard-tool-web-fetch-native"
-    description: "Allow web fetch native tool (SecurityTier: STANDARD)"
+  # Web fetch native tool - domain-restricted, same allowlist as web_fetch
+  - id: "standard-tool-web-fetch-native-allow"
+    description: "Allow web_fetch_native only for allowlisted domains"
+    priority: 786
+    match:
+      resource: "tool"
+      resourceId: "web_fetch_native"
+      action: "execute"
+    conditions:
+      - field: "metadata.domain"
+        operator: "in"
+        value:
+          - "github.com"
+          - "docs.google.com"
+          - "learn.microsoft.com"
+          - "developer.apple.com"
+          - "stackoverflow.com"
+          - "httpbin.org"
+          - "example.com"
+    effect: "allow"
+
+  - id: "standard-tool-web-fetch-native-deny"
+    description: "Deny web_fetch_native outside allowlisted domains"
     priority: 785
     match:
       resource: "tool"
       resourceId: "web_fetch_native"
-    effect: "allow"
+      action: "execute"
+    effect: "deny"
+    reason: "web_fetch_native is restricted to allowlisted domains in standard mode"
 
   # GitHub tool - Standard tier, allows interaction with GitHub via gh CLI
   - id: "standard-tool-github"

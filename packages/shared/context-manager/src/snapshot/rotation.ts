@@ -6,6 +6,9 @@
 
 import { promises as fs } from 'fs';
 import { join } from 'path';
+import { createLogger } from '@nachos/types';
+
+const logger = createLogger('snapshot-rotation');
 
 /**
  * Snapshot cleanup configuration
@@ -74,7 +77,7 @@ export class SnapshotRotation {
         } catch (error) {
           // Skip sessions without snapshots or with access errors
           if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-            console.warn(`[SnapshotRotation] Error cleaning session ${sessionId}:`, error);
+            logger.warn({ sessionId, err: error }, 'Error cleaning session');
           }
         }
       }

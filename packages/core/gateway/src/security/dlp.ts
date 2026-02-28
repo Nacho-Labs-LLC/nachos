@@ -168,16 +168,55 @@ export class DLPSecurityLayer {
       };
     }
 
-    // Check if this is a secure channel
+    // Check if this is a secure channel — apply reduced ruleset (high-severity only)
     const channelConfig = channelId ? this.channelConfigs.get(channelId) : undefined;
     if (channelConfig?.isSecure) {
-      // Secure channels can contain secrets - skip DLP scanning
-      return {
-        allowed: true,
-        action: 'allow',
-        findings: [],
-        reason: 'Secure channel - DLP scanning bypassed',
-      };
+      const findings = this.scanner.scan(message);
+      // Only enforce critical/high severity patterns (private keys, credentials)
+      // Skip PII and lower-severity patterns for secure channels
+      const highSeverityFindings = findings.filter(
+        (f) => f.severity === 'critical' || f.severity === 'high'
+      );
+
+      if (highSeverityFindings.length === 0) {
+        return {
+          allowed: true,
+          action: 'allow',
+          findings: [],
+          reason: 'Secure channel - reduced DLP ruleset passed',
+        };
+      }
+
+      const policy = channelConfig.policy ?? this.config.globalPolicy;
+      if (policy.logFindings) {
+        this.logFindings(highSeverityFindings, channelId);
+      }
+
+      const action = policy.action;
+      switch (action) {
+        case 'allow':
+          return { allowed: true, action: 'allow', findings: highSeverityFindings };
+        case 'block':
+          return {
+            allowed: false,
+            action: 'block',
+            findings: highSeverityFindings,
+            reason: `Secure channel blocked: ${highSeverityFindings.length} high-severity pattern(s) detected`,
+          };
+        case 'redact': {
+          const redactedMessage = redact(message, highSeverityFindings);
+          return { allowed: true, action: 'redact', findings: highSeverityFindings, message: redactedMessage };
+        }
+        case 'alert':
+          return {
+            allowed: true,
+            action: 'alert',
+            findings: highSeverityFindings,
+            reason: `Secure channel alert: ${highSeverityFindings.length} high-severity pattern(s) detected`,
+          };
+        default:
+          return { allowed: false, action: 'block', findings: highSeverityFindings, reason: 'Unknown DLP action' };
+      }
     }
 
     // Get applicable policy (channel-specific or global)
@@ -374,7 +413,7 @@ export function createDefaultDLPConfig(): DLPConfig {
   return {
     enabled: true,
     globalPolicy: {
-      action: 'alert', // Default to alert mode
+      action: 'block', // Default to block — deny by default
       minConfidence: 0.6,
       severities: ['critical', 'high'], // Only check critical and high severity
       logFindings: true,

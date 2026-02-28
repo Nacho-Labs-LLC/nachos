@@ -12,7 +12,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { Pool } from 'pg';
 import { createBusClient, type NachosBusClient } from '@nachos/bus';
-import { PostgresSessionsStore } from '../state-layer/sessions/postgres-sessions-store.js';
+import { PostgresSessionsStore } from '@nachos/state';
 import { WebChatRPCService } from './webchat-rpc-service.js';
 import type {
   ListSessionsResponse,

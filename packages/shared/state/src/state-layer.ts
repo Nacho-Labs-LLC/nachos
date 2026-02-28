@@ -2,6 +2,7 @@
  * State layer composition and policy-enforced operations.
  */
 
+import { createRequire } from 'node:module';
 import pg from 'pg';
 import type { Pool } from 'pg';
 import { createConfigError, createPolicyDeniedError, createLogger } from '@nachos/types';
@@ -25,6 +26,7 @@ import type {
   UserProfileStore,
 } from '@nachos/types';
 import type { StateLayerConfig, StateLayerDependencies, StatePolicyRequest } from './types.js';
+import type { StateStorePostgresConfig, SessionsStorePostgresConfig } from './types.js';
 import { FilesystemIdentityStore } from './identity/filesystem-identity-store.js';
 import { PostgresIdentityStore } from './identity/postgres-identity-store.js';
 import { FilesystemBootstrapStore } from './bootstrap/filesystem-bootstrap-store.js';
@@ -39,9 +41,11 @@ import {
   InMemorySessionStateStore,
   RedisSessionStateStore,
 } from './session/redis-session-state-store.js';
+import type { SessionsStore } from './sessions/sessions-store-interface.js';
+import { PostgresSessionsStore } from './sessions/postgres-sessions-store.js';
+import { SqliteSessionsStore } from './sessions/sqlite-sessions-store.js';
 import { PromptAssembler } from './prompt/prompt-assembler.js';
 import type { PromptAssemblyParams } from './prompt/prompt-assembler.js';
-import type { StateStorePostgresConfig } from './types.js';
 
 export interface StateOperationContext {
   sessionId: string;
@@ -57,6 +61,7 @@ export class StateLayer {
   private memoryStore: MemoryStore;
   private userProfileStore: UserProfileStore;
   private sessionStateStore: SessionStateStore;
+  private _sessionsStore: SessionsStore | undefined;
   private promptAssembler: PromptAssembler;
   private dependencies: StateLayerDependencies;
   private pgPools: Pool[];
@@ -67,6 +72,7 @@ export class StateLayer {
     memoryStore: MemoryStore;
     userProfileStore: UserProfileStore;
     sessionStateStore: SessionStateStore;
+    sessionsStore?: SessionsStore;
     promptAssembler: PromptAssembler;
     dependencies?: StateLayerDependencies;
     pgPools?: Pool[];
@@ -76,6 +82,7 @@ export class StateLayer {
     this.memoryStore = params.memoryStore;
     this.userProfileStore = params.userProfileStore;
     this.sessionStateStore = params.sessionStateStore;
+    this._sessionsStore = params.sessionsStore;
     this.promptAssembler = params.promptAssembler;
     this.dependencies = params.dependencies ?? {};
     this.pgPools = params.pgPools ?? [];
@@ -97,6 +104,14 @@ export class StateLayer {
     if ('init' in this.memoryStore && typeof this.memoryStore.init === 'function') {
       await this.memoryStore.init();
     }
+  }
+
+  /**
+   * Get the sessions store (conversation history).
+   * Returns undefined if no sessions store was configured.
+   */
+  get sessionsStore(): SessionsStore | undefined {
+    return this._sessionsStore;
   }
 
   async getIdentity(
@@ -336,7 +351,8 @@ export class StateLayer {
       this.memoryStore,
       this.userProfileStore,
       this.sessionStateStore,
-    ] as Array<{
+      this._sessionsStore,
+    ].filter(Boolean) as Array<{
       close?: () => Promise<void>;
     }>;
     for (const store of closers) {
@@ -450,6 +466,9 @@ export function createStateLayer(
   const memoryStore = createMemoryStore(config, getOrCreatePool);
   const userProfileStore = createUserProfileStore(config, getOrCreatePool);
   const sessionStore = createSessionStateStore(config);
+  const sessionsStore = config.sessions
+    ? createSessionsStore(config, getOrCreatePool)
+    : undefined;
   const promptAssembler = new PromptAssembler(config.prompt);
 
   return new StateLayer({
@@ -458,6 +477,7 @@ export function createStateLayer(
     memoryStore,
     userProfileStore,
     sessionStateStore: sessionStore,
+    sessionsStore,
     promptAssembler,
     dependencies: deps,
     pgPools,
@@ -557,6 +577,44 @@ function createSessionStateStore(config: StateLayerConfig): SessionStateStore {
 
   logger.warn('Using in-memory session store — active sessions will be lost on gateway restart. Configure session.provider=redis for persistence.');
   return new InMemorySessionStateStore();
+}
+
+function createSessionsStore(
+  config: StateLayerConfig,
+  getOrCreatePool: (settings: SessionsStorePostgresConfig) => Pool
+): SessionsStore {
+  const sessionsConfig = config.sessions;
+  if (!sessionsConfig) {
+    throw createConfigError('Sessions store config required', { component: 'state-layer' });
+  }
+
+  if (sessionsConfig.provider === 'postgres') {
+    const settings = sessionsConfig.postgres;
+    if (!settings?.connectionString) {
+      throw createConfigError('Postgres sessions store requires connectionString', { component: 'state-layer' });
+    }
+    return new PostgresSessionsStore(getOrCreatePool(settings), settings.schema);
+  }
+
+  if (sessionsConfig.provider === 'sqlite') {
+    const dbPath = sessionsConfig.sqlite?.dbPath;
+    if (!dbPath) {
+      throw createConfigError('SQLite sessions store requires dbPath', { component: 'state-layer' });
+    }
+    try {
+      const esmRequire = createRequire(import.meta.url);
+      const Database = esmRequire('better-sqlite3') as typeof import('better-sqlite3');
+      const db = new Database(dbPath);
+      return new SqliteSessionsStore(db);
+    } catch {
+      throw createConfigError(
+        'SQLite sessions store requires better-sqlite3. Install it with: pnpm add better-sqlite3',
+        { component: 'state-layer' }
+      );
+    }
+  }
+
+  throw createConfigError(`Unknown sessions provider: ${sessionsConfig.provider}`, { component: 'state-layer' });
 }
 
 function createPgPool(settings: StateStorePostgresConfig): Pool {

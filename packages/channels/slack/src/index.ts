@@ -15,9 +15,11 @@ import type {
   SendResult,
   HealthStatusType,
 } from '@nachos/types';
-import { validateChannelInboundMessage } from '@nachos/types';
+import { createLogger, createConfigError, createInvalidStateError, validateChannelInboundMessage } from '@nachos/types';
 import { shouldAllowDm, shouldAllowGroupMessage } from '@nachos/utils';
 import { randomUUID } from 'node:crypto';
+
+const logger = createLogger('slack-channel');
 
 interface StatusEvent {
   sessionId: string;
@@ -78,7 +80,7 @@ export class SlackChannelAdapter implements ChannelAdapter {
 
     if (this.mode === 'socket') {
       if (!appToken || !botToken) {
-        throw new Error('Slack socket mode requires app_token and bot_token');
+        throw createConfigError('Slack socket mode requires app_token and bot_token', { component: 'slack-channel' });
       }
       this.app = new boltPkg.App({
         token: botToken,
@@ -87,10 +89,10 @@ export class SlackChannelAdapter implements ChannelAdapter {
       });
     } else {
       if (!botToken || !signingSecret) {
-        throw new Error('Slack http mode requires bot_token and signing_secret');
+        throw createConfigError('Slack http mode requires bot_token and signing_secret', { component: 'slack-channel' });
       }
       if (!webhookPath) {
-        throw new Error('Slack http mode requires webhook_path');
+        throw createConfigError('Slack http mode requires webhook_path', { component: 'slack-channel' });
       }
       this.app = new boltPkg.App({
         token: botToken,
@@ -116,7 +118,7 @@ export class SlackChannelAdapter implements ChannelAdapter {
 
   async start(): Promise<void> {
     if (!this.app) {
-      throw new Error('Slack adapter not initialized');
+      throw createInvalidStateError('Slack adapter not initialized', { component: 'slack-channel' });
     }
 
     if (this.mode === 'socket') {
@@ -161,7 +163,7 @@ export class SlackChannelAdapter implements ChannelAdapter {
     
     // Log status events for debugging (can be removed in production)
     if (event.status === 'thinking') {
-      console.debug(`[Slack] Status event: thinking in channel ${event.channelId}`);
+      logger.debug({ channelId: event.channelId }, 'Status event: thinking');
     }
   }
 
@@ -173,7 +175,7 @@ export class SlackChannelAdapter implements ChannelAdapter {
 
   async sendMessage(message: OutboundMessage): Promise<SendResult> {
     if (!this.app) {
-      throw new Error('Slack adapter not initialized');
+      throw createInvalidStateError('Slack adapter not initialized', { component: 'slack-channel' });
     }
 
     try {
@@ -345,7 +347,7 @@ export class SlackChannelAdapter implements ChannelAdapter {
 
     const validation = validateChannelInboundMessage(inbound);
     if (!validation.success) {
-      console.warn('[Slack] Dropping invalid inbound message', validation.errors);
+      logger.warn({ errors: validation.errors }, 'Dropping invalid inbound message');
       return;
     }
 
