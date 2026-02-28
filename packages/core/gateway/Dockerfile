@@ -84,6 +84,9 @@ RUN pnpm install --frozen-lockfile
 # Copy remaining source code
 COPY --chown=nachos:nachos . .
 
+# Create skills directory (prevents scandir error at runtime)
+RUN mkdir -p /app/packages/skills
+
 # Copy prebuilt config dist from shared builder
 COPY --from=config --chown=nachos:nachos /app/packages/shared/config/dist ./packages/shared/config/dist
 
