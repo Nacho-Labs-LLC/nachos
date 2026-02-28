@@ -7,8 +7,11 @@
  */
 
 import { connectToNats, setupShutdownHandlers } from '@nachos/tool-base';
+import { createLogger } from '@nachos/types';
 import { PythonExecutor } from './python-executor.js';
 import { JavaScriptExecutor } from './javascript-executor.js';
+
+const logger = createLogger('code-runner');
 
 // Export for testing
 export { PythonExecutor } from './python-executor.js';
@@ -21,7 +24,7 @@ export { OutputFormatter } from './output-formatter.js';
 async function main() {
   const language = process.env.LANGUAGE ?? 'python';
 
-  console.log(`Starting code runner tool (language: ${language})...`);
+  logger.info({ language }, 'Starting code runner tool');
 
   // Connect to NATS
   const nats = await connectToNats();
@@ -64,7 +67,7 @@ async function main() {
 // tsx watch compat: always run main
 {
   main().catch((error) => {
-    console.error('Fatal error:', error);
+    logger.fatal({ err: error }, 'Fatal error');
     process.exit(1);
   });
 }

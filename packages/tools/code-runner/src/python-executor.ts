@@ -23,8 +23,10 @@ import type {
   ParameterSchema,
   ContentBlock,
 } from '@nachos/types';
-import { SecurityTier } from '@nachos/types';
+import { SecurityTier, createLogger } from '@nachos/types';
 import { OutputFormatter, type ExecutionOutput } from './output-formatter.js';
+
+const logger = createLogger('code-runner:python');
 
 /**
  * Python executor parameters
@@ -77,7 +79,7 @@ export class PythonExecutor extends ToolService {
   private maxMemoryBytes?: number;
 
   async initialize(config: ToolConfig): Promise<void> {
-    console.log('Python executor initialized');
+    logger.info('Python executor initialized');
 
     // Override max timeout from config if provided
     const configuredTimeout =
@@ -224,7 +226,7 @@ export class PythonExecutor extends ToolService {
       await fs.unlink(scriptPath);
     } catch (error) {
       // Ignore cleanup errors
-      console.warn(`Failed to cleanup temp file ${scriptPath}:`, error);
+      logger.warn({ err: error, scriptPath }, 'Failed to cleanup temp file');
     }
   }
 

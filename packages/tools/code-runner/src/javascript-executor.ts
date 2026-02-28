@@ -23,8 +23,10 @@ import type {
   ParameterSchema,
   ContentBlock,
 } from '@nachos/types';
-import { SecurityTier } from '@nachos/types';
+import { SecurityTier, createLogger } from '@nachos/types';
 import { OutputFormatter, type ExecutionOutput } from './output-formatter.js';
+
+const logger = createLogger('code-runner:javascript');
 
 /**
  * JavaScript executor parameters
@@ -77,7 +79,7 @@ export class JavaScriptExecutor extends ToolService {
   private maxMemoryBytes?: number;
 
   async initialize(config: ToolConfig): Promise<void> {
-    console.log('JavaScript executor initialized');
+    logger.info('JavaScript executor initialized');
 
     // Override max timeout from config if provided
     const configuredTimeout =
@@ -224,7 +226,7 @@ export class JavaScriptExecutor extends ToolService {
       await fs.unlink(scriptPath);
     } catch (error) {
       // Ignore cleanup errors
-      console.warn(`Failed to cleanup temp file ${scriptPath}:`, error);
+      logger.warn({ err: error, scriptPath }, 'Failed to cleanup temp file');
     }
   }
 

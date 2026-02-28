@@ -19,8 +19,25 @@ import { shouldAllowDm } from '@nachos/utils';
 
 const logger = createLogger('whatsapp-channel');
 
+/** Maps WhatsApp media message types to attachment type strings. */
+const WHATSAPP_MEDIA_TYPE_MAP: Record<string, string> = {
+  image: 'image',
+  document: 'file',
+  video: 'video',
+  audio: 'audio',
+  sticker: 'image',
+};
+
 interface WhatsAppWebhookMessageText {
   body?: string;
+}
+
+interface WhatsAppWebhookMediaInfo {
+  id?: string;
+  mime_type?: string;
+  sha256?: string;
+  caption?: string;
+  filename?: string;
 }
 
 interface WhatsAppWebhookMessage {
@@ -29,6 +46,11 @@ interface WhatsAppWebhookMessage {
   timestamp?: string;
   type?: string;
   text?: WhatsAppWebhookMessageText;
+  image?: WhatsAppWebhookMediaInfo;
+  document?: WhatsAppWebhookMediaInfo;
+  video?: WhatsAppWebhookMediaInfo;
+  audio?: WhatsAppWebhookMediaInfo;
+  sticker?: WhatsAppWebhookMediaInfo;
 }
 
 interface WhatsAppWebhookContactProfile {
@@ -67,6 +89,14 @@ interface WhatsAppWebhookPayload {
   entry?: WhatsAppWebhookEntry[];
 }
 
+interface StatusEvent {
+  sessionId: string;
+  status: 'thinking' | 'tool' | 'done' | 'error';
+  channelId: string;
+  channelMessageId?: string;
+  toolName?: string;
+}
+
 export class WhatsappChannelAdapter implements ChannelAdapter {
   readonly channelId = 'whatsapp';
   readonly name = 'WhatsApp';
@@ -84,6 +114,7 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
     stateDir: process.env.RUNTIME_STATE_DIR ?? process.env.NACHOS_STATE_DIR,
   });
   private pairingToken = process.env.NACHOS_PAIRING_TOKEN;
+  private readReceiptSent: Set<string> = new Set();
 
   async initialize(config: ChannelAdapterConfig): Promise<void> {
     this.config = config;
@@ -122,6 +153,69 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
     await this.config.bus.subscribe(TOPICS.channel.outbound(this.channelId), async (payload) => {
       await this.sendMessage(payload as OutboundMessage);
     });
+
+    // Subscribe to status events for read receipts (typing indicator equivalent)
+    await this.subscribeToStatusEvents();
+  }
+
+  private async subscribeToStatusEvents(): Promise<void> {
+    if (!this.config) return;
+
+    const handler = async (event: unknown) => this.handleStatusEvent(event as StatusEvent);
+    await this.config.bus.subscribe(TOPICS.status.thinking('*'), handler);
+    await this.config.bus.subscribe(TOPICS.status.tool('*'), handler);
+    await this.config.bus.subscribe(TOPICS.status.done('*'), handler);
+    await this.config.bus.subscribe(TOPICS.status.error('*'), handler);
+  }
+
+  private async handleStatusEvent(event: StatusEvent): Promise<void> {
+    if (!event.channelId) return;
+
+    // WhatsApp does not support a true typing indicator via the Cloud API.
+    // The best equivalent is marking messages as "read" so the user sees
+    // blue checkmarks, indicating the bot is processing.
+    if (event.status === 'thinking' && event.channelMessageId) {
+      // Only send read receipt once per message
+      if (this.readReceiptSent.has(event.channelMessageId)) return;
+      this.readReceiptSent.add(event.channelMessageId);
+
+      // Prevent unbounded growth of the set
+      if (this.readReceiptSent.size > 1000) {
+        const iter = this.readReceiptSent.values();
+        const first = iter.next().value;
+        if (first !== undefined) {
+          this.readReceiptSent.delete(first);
+        }
+      }
+
+      await this.markMessageAsRead(event.channelMessageId);
+    }
+  }
+
+  /**
+   * Mark a WhatsApp message as read (blue checkmarks).
+   * This is the closest equivalent to a typing indicator in the WhatsApp Cloud API.
+   */
+  private async markMessageAsRead(messageId: string): Promise<void> {
+    if (!this.token || !this.phoneNumberId) return;
+
+    const url = `https://graph.facebook.com/${this.apiVersion}/${this.phoneNumberId}/messages`;
+    try {
+      await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          status: 'read',
+          message_id: messageId,
+        }),
+      });
+    } catch (error) {
+      logger.warn({ messageId, err: error }, 'Failed to mark message as read');
+    }
   }
 
   async stop(): Promise<void> {
@@ -143,6 +237,13 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
     }
 
     const url = `https://graph.facebook.com/${this.apiVersion}/${this.phoneNumberId}/messages`;
+
+    // Send a read receipt before replying (best-effort typing indication)
+    if (message.replyToMessageId) {
+      await this.markMessageAsRead(message.replyToMessageId);
+    }
+
+    // Send text message
     const payload: Record<string, unknown> = {
       messaging_product: 'whatsapp',
       to: message.conversationId,
@@ -182,9 +283,18 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
         };
       }
 
+      const textMessageId = responseBody.messages?.[0]?.id;
+
+      // Send any media attachments
+      const attachments = message.content.attachments ?? [];
+      for (const attachment of attachments) {
+        if (!attachment) continue;
+        await this.sendOutboundMedia(message.conversationId, attachment, message.replyToMessageId);
+      }
+
       return {
         success: true,
-        messageId: responseBody.messages?.[0]?.id,
+        messageId: textMessageId,
       };
     } catch (error) {
       const err = error as Error & { code?: string };
@@ -196,6 +306,81 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
           retryable: true,
         },
       };
+    }
+  }
+
+  /**
+   * Send a media attachment as a WhatsApp media message.
+   */
+  private async sendOutboundMedia(
+    to: string,
+    attachment: { type: string; data: unknown; name?: string },
+    replyToMessageId?: string
+  ): Promise<void> {
+    if (!this.token || !this.phoneNumberId) return;
+
+    const url = `https://graph.facebook.com/${this.apiVersion}/${this.phoneNumberId}/messages`;
+
+    // Determine the WhatsApp media type
+    let waMediaType: string;
+    if (attachment.type === 'image' || attachment.type === 'photo') {
+      waMediaType = 'image';
+    } else if (attachment.type === 'video') {
+      waMediaType = 'video';
+    } else if (attachment.type === 'audio') {
+      waMediaType = 'audio';
+    } else {
+      waMediaType = 'document';
+    }
+
+    const data = attachment.data;
+
+    // Only support URL-based media sending via WhatsApp Cloud API
+    if (typeof data !== 'string' || !(data.startsWith('http://') || data.startsWith('https://'))) {
+      logger.warn({ attachmentType: attachment.type }, 'WhatsApp outbound media requires a URL; skipping non-URL attachment');
+      return;
+    }
+
+    const mediaPayload: Record<string, unknown> = {
+      messaging_product: 'whatsapp',
+      to,
+      type: waMediaType,
+    };
+
+    const mediaObj: Record<string, string> = {
+      link: data,
+    };
+    if (attachment.name) {
+      if (waMediaType === 'document') {
+        mediaObj.filename = attachment.name;
+      }
+      mediaObj.caption = attachment.name;
+    }
+    mediaPayload[waMediaType] = mediaObj;
+
+    if (replyToMessageId) {
+      mediaPayload.context = { message_id: replyToMessageId };
+    }
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(mediaPayload),
+      });
+
+      if (!response.ok) {
+        const errorBody = (await response.json()) as { error?: { message?: string } };
+        logger.warn(
+          { to, mediaType: waMediaType, err: errorBody.error?.message },
+          'Failed to send outbound media'
+        );
+      }
+    } catch (error) {
+      logger.warn({ to, mediaType: waMediaType, err: error }, 'Failed to send outbound media');
     }
   }
 
@@ -335,11 +520,21 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
         const metadata = value.metadata;
 
         for (const message of value.messages) {
-          if (message.type !== 'text') continue;
           if (!message.from || !message.id) continue;
 
+          const messageType = message.type ?? 'text';
+          const isTextMessage = messageType === 'text';
+          const isMediaMessage = messageType in WHATSAPP_MEDIA_TYPE_MAP;
+
+          if (!isTextMessage && !isMediaMessage) continue;
+
+          const textBody = isTextMessage ? (message.text?.body ?? '') : '';
+          const caption = isMediaMessage ? this.extractMediaCaption(message, messageType) : '';
+          const pairingCheckText = isTextMessage ? textBody : caption;
+
+          // Handle pairing
           if (dmPolicy.pairing) {
-            const command = parsePairingCommand(message.text?.body ?? '');
+            const command = parsePairingCommand(pairingCheckText);
             if (command) {
               if (this.pairingToken && command.token !== this.pairingToken) {
                 await this.sendMessage({
@@ -368,6 +563,34 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
 
           if (!allowed) continue;
 
+          // Mark message as read (typing indication equivalent)
+          await this.markMessageAsRead(message.id);
+
+          // Build inbound message
+          let contentText: string;
+          let attachments: Array<{ type: string; url: string; name?: string; mimeType?: string }> | undefined;
+
+          if (isMediaMessage) {
+            const mediaInfo = this.extractMediaInfo(message, messageType);
+            contentText = caption || `[${messageType}]`;
+
+            if (mediaInfo?.id) {
+              const mediaUrl = await this.getMediaUrl(mediaInfo.id);
+              if (mediaUrl) {
+                attachments = [
+                  {
+                    type: WHATSAPP_MEDIA_TYPE_MAP[messageType] ?? 'file',
+                    url: mediaUrl,
+                    name: mediaInfo.filename,
+                    mimeType: mediaInfo.mime_type,
+                  },
+                ];
+              }
+            }
+          } else {
+            contentText = textBody;
+          }
+
           const inbound = {
             channel: this.channelId,
             channelMessageId: message.id,
@@ -381,12 +604,14 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
               type: 'dm' as const,
             },
             content: {
-              text: message.text?.body ?? '',
+              text: contentText,
+              attachments: attachments && attachments.length > 0 ? attachments : undefined,
             },
             metadata: {
               timestamp: message.timestamp,
               phoneNumberId: metadata?.phone_number_id,
               displayPhoneNumber: metadata?.display_phone_number,
+              mediaType: isMediaMessage ? messageType : undefined,
             },
           };
 
@@ -399,6 +624,66 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
           await this.config.bus.publish(TOPICS.channel.inbound(this.channelId), inbound);
         }
       }
+    }
+  }
+
+  /**
+   * Extract the media info object from a WhatsApp webhook message based on type.
+   */
+  private extractMediaInfo(
+    message: WhatsAppWebhookMessage,
+    mediaType: string
+  ): WhatsAppWebhookMediaInfo | undefined {
+    switch (mediaType) {
+      case 'image':
+        return message.image;
+      case 'document':
+        return message.document;
+      case 'video':
+        return message.video;
+      case 'audio':
+        return message.audio;
+      case 'sticker':
+        return message.sticker;
+      default:
+        return undefined;
+    }
+  }
+
+  /**
+   * Extract caption from a media message.
+   */
+  private extractMediaCaption(message: WhatsAppWebhookMessage, mediaType: string): string {
+    const mediaInfo = this.extractMediaInfo(message, mediaType);
+    return mediaInfo?.caption ?? '';
+  }
+
+  /**
+   * Get the download URL for a WhatsApp media object by its ID.
+   * Uses the WhatsApp Cloud API: GET /{media-id} to get the URL.
+   */
+  private async getMediaUrl(mediaId: string): Promise<string | undefined> {
+    if (!this.token) return undefined;
+
+    const url = `https://graph.facebook.com/${this.apiVersion}/${mediaId}`;
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+        },
+      });
+
+      if (!response.ok) {
+        logger.warn({ mediaId, status: response.status }, 'Failed to get media URL from WhatsApp');
+        return undefined;
+      }
+
+      const body = (await response.json()) as { url?: string };
+      return body.url;
+    } catch (error) {
+      logger.warn({ mediaId, err: error }, 'Failed to get media URL from WhatsApp');
+      return undefined;
     }
   }
 }
