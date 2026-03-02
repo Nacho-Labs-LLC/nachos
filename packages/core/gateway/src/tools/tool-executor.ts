@@ -4,13 +4,12 @@
  * Extracted from Gateway to reduce the monolithic class.
  */
 import { createLogger } from '@nachos/types';
+import type { LLMRequestType, Session, ToolCall, ToolResult } from '@nachos/types';
 import type {
-  LLMRequestType,
-  Session,
-  ToolCall,
-  ToolResult,
-} from '@nachos/types';
-import type { ToolsConfig, SubagentToolPolicyConfig, SubagentToolProfileConfig } from '@nachos/config';
+  ToolsConfig,
+  SubagentToolPolicyConfig,
+  SubagentToolProfileConfig,
+} from '@nachos/config';
 import type { StateLayer, StateOperationContext } from '@nachos/state';
 import type { AuditEvent } from '../audit/types.js';
 import type { DLPSecurityLayer } from '../security/dlp.js';
@@ -33,30 +32,15 @@ import {
   executeMemorySearch,
   executeMemoryGet,
 } from './memory-tools.js';
-import {
-  WebSearchToolSchema,
-  executeWebSearch,
-  type WebSearchConfig,
-} from './web-search-tools.js';
+import { WebSearchToolSchema, executeWebSearch, type WebSearchConfig } from './web-search-tools.js';
 import {
   WebFetchNativeToolSchema,
   executeWebFetchNative,
   type WebFetchConfig,
 } from './web-fetch-tools.js';
-import {
-  BitbucketToolSchema,
-  executeBitbucket,
-  type BitbucketConfig,
-} from './bitbucket-tools.js';
-import {
-  ComposioToolSchema,
-  executeComposio,
-} from './composio-tools.js';
-import {
-  GitHubToolSchema,
-  executeGitHub,
-  type GitHubConfig,
-} from './github-tools.js';
+import { BitbucketToolSchema, executeBitbucket, type BitbucketConfig } from './bitbucket-tools.js';
+import { ComposioToolSchema, executeComposio } from './composio-tools.js';
+import { GitHubToolSchema, executeGitHub, type GitHubConfig } from './github-tools.js';
 import {
   CronAddToolSchema,
   CronListToolSchema,
@@ -113,7 +97,7 @@ export interface ToolExecutorDeps {
     status: 'thinking' | 'tool' | 'done' | 'error',
     channelId: string,
     channelMessageId?: string,
-    toolName?: string,
+    toolName?: string
   ): Promise<void>;
   /** Get session by ID */
   getSession(sessionId: string): Promise<Session | null>;
@@ -125,7 +109,7 @@ export interface ToolExecutorDeps {
   markIdentityCompleted(
     agentId: string,
     bootstrapContent: Record<string, string>,
-    context: StateOperationContext,
+    context: StateOperationContext
   ): Promise<void>;
   /** Reset identity for command */
   resetIdentityForCommand(session: Session): Promise<void>;
@@ -163,7 +147,7 @@ export class ToolExecutor {
 
   buildToolDefinitions(
     session: Session,
-    options?: { bootstrapLocked?: boolean },
+    options?: { bootstrapLocked?: boolean }
   ): LLMRequestType['tools'] {
     if (this.isSubagentSession(session)) {
       return this.buildSubagentToolDefinitions();
@@ -175,8 +159,7 @@ export class ToolExecutor {
     if (this.deps.subagentManager) {
       tools.push({
         name: 'sessions_spawn',
-        description:
-          'Spawn a subagent to run a task and announce results back to the requester.',
+        description: 'Spawn a subagent to run a task and announce results back to the requester.',
         parameters: this.sanitizeToolSchema(SessionsSpawnToolSchema),
       });
       tools.push({
@@ -340,7 +323,7 @@ export class ToolExecutor {
   async executeToolCalls(
     sessionId: string,
     toolCalls: Array<{ id: string; name: string; arguments: string }>,
-    statusMeta?: { channelId: string; channelMessageId?: string },
+    statusMeta?: { channelId: string; channelMessageId?: string }
   ): Promise<LLMRequestType['messages']> {
     logger.info({ sessionId, tools: toolCalls.map((tc) => tc.name) }, 'Executing tool calls');
     if (!this.deps.toolCoordinator) {
@@ -401,7 +384,7 @@ export class ToolExecutor {
             index: i,
             result: this.formatToolError(
               'POLICY_DENIED',
-              policy.reason ?? 'Tool blocked for subagent session',
+              policy.reason ?? 'Tool blocked for subagent session'
             ),
           });
           continue;
@@ -478,7 +461,7 @@ export class ToolExecutor {
             'tool',
             statusMeta.channelId,
             statusMeta.channelMessageId,
-            call.tool,
+            call.tool
           );
         }
         localResults.push({ index: i, result: localResult });
@@ -499,7 +482,7 @@ export class ToolExecutor {
           'tool',
           statusMeta.channelId,
           statusMeta.channelMessageId,
-          call.tool,
+          call.tool
         );
       }
       allowedCalls.push({ index: i, call });
@@ -594,7 +577,7 @@ export class ToolExecutor {
 
   private async executeLocalToolCall(
     call: ToolCall,
-    session: Session | null,
+    session: Session | null
   ): Promise<ToolResult | null> {
     if (call.tool === 'sessions_spawn') {
       if (!this.deps.subagentOrchestrator) {
@@ -648,7 +631,7 @@ export class ToolExecutor {
             text: JSON.stringify(
               { status: 'accepted', runId: run.runId, childSessionId: run.childSessionId },
               null,
-              2,
+              2
             ),
           },
         ],
@@ -662,7 +645,7 @@ export class ToolExecutor {
       if (!session) {
         return this.formatToolError(
           'SESSION_NOT_FOUND',
-          'Session not found for workflow orchestration',
+          'Session not found for workflow orchestration'
         );
       }
 
@@ -711,7 +694,7 @@ export class ToolExecutor {
                 totalBatches: workflowRecord.totalBatches,
               },
               null,
-              2,
+              2
             ),
           },
         ],
@@ -731,7 +714,7 @@ export class ToolExecutor {
       if (!runId) {
         return this.formatToolError(
           'NOT_SUBAGENT_SESSION',
-          'Progress reporting is only available within subagent sessions',
+          'Progress reporting is only available within subagent sessions'
         );
       }
 
@@ -751,13 +734,13 @@ export class ToolExecutor {
         runId,
         status,
         percentage,
-        metadata,
+        metadata
       );
 
       if (!success) {
         return this.formatToolError(
           'PROGRESS_REPORT_FAILED',
-          'Failed to report progress (run may be completed or not found)',
+          'Failed to report progress (run may be completed or not found)'
         );
       }
 
@@ -766,7 +749,10 @@ export class ToolExecutor {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({ status: 'recorded', message: 'Progress update recorded successfully' }),
+            text: JSON.stringify({
+              status: 'recorded',
+              message: 'Progress update recorded successfully',
+            }),
           },
         ],
       };
@@ -792,7 +778,7 @@ export class ToolExecutor {
       if (!rateLimitResult.allowed) {
         return this.formatToolError(
           'RATE_LIMIT_EXCEEDED',
-          `Memory tool rate limit exceeded. Try again in ${rateLimitResult.retryAfterSeconds} seconds.`,
+          `Memory tool rate limit exceeded. Try again in ${rateLimitResult.retryAfterSeconds} seconds.`
         );
       }
 
@@ -812,7 +798,7 @@ export class ToolExecutor {
       if (!rateLimitResult.allowed) {
         return this.formatToolError(
           'RATE_LIMIT_EXCEEDED',
-          `Memory tool rate limit exceeded. Try again in ${rateLimitResult.retryAfterSeconds} seconds.`,
+          `Memory tool rate limit exceeded. Try again in ${rateLimitResult.retryAfterSeconds} seconds.`
         );
       }
 
@@ -940,7 +926,7 @@ export class ToolExecutor {
       if (!apiKey) {
         return this.formatToolError(
           'API_KEY_MISSING',
-          `Brave Search API key not found in environment variable: ${apiKeyEnv}`,
+          `Brave Search API key not found in environment variable: ${apiKeyEnv}`
         );
       }
 
@@ -980,7 +966,7 @@ export class ToolExecutor {
 
   private async executeMemoryToolCall(
     call: ToolCall,
-    session: Session | null,
+    session: Session | null
   ): Promise<ToolResult> {
     if (!this.deps.stateLayer) {
       return this.formatToolError('STATE_LAYER_DISABLED', 'State layer is not configured');
@@ -1010,7 +996,7 @@ export class ToolExecutor {
         if (invalid.length > 0) {
           return this.formatToolError(
             'INVALID_PARAMETERS',
-            `unsupported memory kinds: ${invalid.join(', ')}`,
+            `unsupported memory kinds: ${invalid.join(', ')}`
           );
         }
       }
@@ -1027,7 +1013,7 @@ export class ToolExecutor {
           limit,
           offset,
         },
-        context,
+        context
       );
 
       return {
@@ -1064,7 +1050,7 @@ export class ToolExecutor {
           updatedAt: new Date().toISOString(),
           expiresAt: expiresAt ?? undefined,
         },
-        context,
+        context
       );
 
       return {
@@ -1087,12 +1073,12 @@ export class ToolExecutor {
           const predicate = readOptionalString((fact as { predicate?: unknown }).predicate);
           const object = readOptionalString((fact as { object?: unknown }).object);
           if (!subject || !predicate || !object) return null;
-          const confidence = readOptionalNumber(
-            (fact as { confidence?: unknown }).confidence,
-            { min: 0, max: 1 },
-          );
+          const confidence = readOptionalNumber((fact as { confidence?: unknown }).confidence, {
+            min: 0,
+            max: 1,
+          });
           const sourceEntryId = readOptionalString(
-            (fact as { sourceEntryId?: unknown }).sourceEntryId,
+            (fact as { sourceEntryId?: unknown }).sourceEntryId
           );
           return {
             id: randomUUID(),
@@ -1110,7 +1096,7 @@ export class ToolExecutor {
       if (facts.length === 0) {
         return this.formatToolError(
           'INVALID_PARAMETERS',
-          'facts must include subject/predicate/object',
+          'facts must include subject/predicate/object'
         );
       }
 
@@ -1143,7 +1129,7 @@ export class ToolExecutor {
 
   private async executeUserProfileToolCall(
     call: ToolCall,
-    session: Session | null,
+    session: Session | null
   ): Promise<ToolResult> {
     if (!this.deps.stateLayer) {
       return this.formatToolError('STATE_LAYER_DISABLED', 'State layer is not configured');
@@ -1154,10 +1140,7 @@ export class ToolExecutor {
 
     const userId = session.userId;
     if (!userId) {
-      return this.formatToolError(
-        'INVALID_PARAMETERS',
-        'userId is not available for this session',
-      );
+      return this.formatToolError('INVALID_PARAMETERS', 'userId is not available for this session');
     }
 
     const action = readOptionalString(call.parameters.action);
@@ -1191,7 +1174,7 @@ export class ToolExecutor {
           updatedAt: new Date().toISOString(),
           version: current?.version ? current.version + 1 : 1,
         },
-        context,
+        context
       );
 
       return {
@@ -1217,7 +1200,7 @@ export class ToolExecutor {
 
   private async executeBootstrapToolCall(
     call: ToolCall,
-    session: Session | null,
+    session: Session | null
   ): Promise<ToolResult> {
     if (this.deps.toolsConfig?.bootstrap?.enabled === false) {
       return this.formatToolError('TOOL_DISABLED', 'bootstrap tool is disabled');
@@ -1242,7 +1225,7 @@ export class ToolExecutor {
       if (action !== 'get') {
         return this.formatToolError(
           'TOOL_DISABLED',
-          'bootstrap is locked after identity completion; use /identity reset to restart onboarding',
+          'bootstrap is locked after identity completion; use /identity reset to restart onboarding'
         );
       }
     }
@@ -1273,7 +1256,7 @@ export class ToolExecutor {
           updatedAt: new Date().toISOString(),
           version: current?.version ? current.version + 1 : 1,
         },
-        context,
+        context
       );
 
       if (identityCompleted) {
@@ -1303,13 +1286,10 @@ export class ToolExecutor {
 
   private async executeSubagentsToolCall(
     call: ToolCall,
-    session: Session | null,
+    session: Session | null
   ): Promise<ToolResult> {
     if (!this.deps.subagentOrchestrator) {
-      return this.formatToolError(
-        'SUBAGENT_DISABLED',
-        'Subagent orchestration is not configured',
-      );
+      return this.formatToolError('SUBAGENT_DISABLED', 'Subagent orchestration is not configured');
     }
     if (!session) {
       return this.formatToolError('SESSION_NOT_FOUND', 'Session not found for subagent tool');
@@ -1419,7 +1399,7 @@ export class ToolExecutor {
                   : 'Cannot stop run (already running or completed)',
               },
               null,
-              2,
+              2
             ),
           },
         ],
@@ -1429,10 +1409,7 @@ export class ToolExecutor {
     if (action === 'steer') {
       const message = readOptionalString(call.parameters.message);
       if (!message) {
-        return this.formatToolError(
-          'INVALID_PARAMETERS',
-          'message is required for steer action',
-        );
+        return this.formatToolError('INVALID_PARAMETERS', 'message is required for steer action');
       }
 
       const steered = await this.deps.steerSubagent(runId, message);
@@ -1450,7 +1427,7 @@ export class ToolExecutor {
                   : 'Cannot steer run (not running or already completed)',
               },
               null,
-              2,
+              2
             ),
           },
         ],
@@ -1480,7 +1457,7 @@ export class ToolExecutor {
       if (!workflowId) {
         return this.formatToolError(
           'INVALID_PARAMETERS',
-          'workflowId is required for workflow_info action',
+          'workflowId is required for workflow_info action'
         );
       }
 
@@ -1552,7 +1529,7 @@ export class ToolExecutor {
 
   private filterSubagentRunsForSession(
     session: Session,
-    runs: SubagentRunRecord[],
+    runs: SubagentRunRecord[]
   ): SubagentRunRecord[] {
     return runs.filter((run) => this.canAccessSubagentRun(session, run));
   }
@@ -1570,7 +1547,7 @@ export class ToolExecutor {
 
   private evaluateSubagentToolPolicy(
     tool: string,
-    session?: Session | null,
+    session?: Session | null
   ): { allowed: boolean; reason?: string } {
     const DEFAULT_SUBAGENT_DENY_TOOLS = new Set([
       'sessions_list',
@@ -1588,7 +1565,7 @@ export class ToolExecutor {
         ...DEFAULT_SUBAGENT_DENY_TOOLS,
         ...(policy?.deny ?? []).map((entry) => this.normalizeToolName(entry)),
         ...(profilePolicy?.deny ?? []).map((entry) => this.normalizeToolName(entry)),
-      ].filter((entry) => entry.length > 0),
+      ].filter((entry) => entry.length > 0)
     );
 
     if (denyList.has(normalized)) {
@@ -1621,9 +1598,7 @@ export class ToolExecutor {
     return profile ?? defaultProfile;
   }
 
-  private resolveSubagentProfilePolicy(
-    profile?: string,
-  ): SubagentToolProfileConfig | undefined {
+  private resolveSubagentProfilePolicy(profile?: string): SubagentToolProfileConfig | undefined {
     const profiles = this.deps.subagentToolPolicy?.profiles;
     if (!profile || !profiles) return undefined;
 
@@ -1631,14 +1606,15 @@ export class ToolExecutor {
 
     const normalized = this.normalizeToolName(profile);
     const match = Object.entries(profiles).find(
-      ([name]) => this.normalizeToolName(name) === normalized,
+      ([name]) => this.normalizeToolName(name) === normalized
     );
     return match?.[1];
   }
 
-  private checkMemoryToolRateLimit(
-    sessionId: string,
-  ): { allowed: boolean; retryAfterSeconds?: number } {
+  private checkMemoryToolRateLimit(sessionId: string): {
+    allowed: boolean;
+    retryAfterSeconds?: number;
+  } {
     const now = Date.now();
     const windowMs = 60 * 1000;
     const maxCalls = 10;
@@ -1661,7 +1637,7 @@ export class ToolExecutor {
     result: ToolResult,
     session: Session | null,
     tool: string,
-    securityMode: 'strict' | 'standard' | 'permissive',
+    securityMode: 'strict' | 'standard' | 'permissive'
   ): {
     allowed: boolean;
     reason?: string;
@@ -1828,7 +1804,8 @@ function getBrowserToolDefinitions(): Array<{
     },
     {
       name: 'browser_type',
-      description: 'Type text using keyboard. Each character generates keydown, keypress/input, and keyup events.',
+      description:
+        'Type text using keyboard. Each character generates keydown, keypress/input, and keyup events.',
       parameters: {
         type: 'object',
         properties: {

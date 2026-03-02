@@ -142,19 +142,19 @@ describe('PlatformHints', () => {
   it('should provide Discord hints', () => {
     const hints = PlatformHints.discord();
     expect(hints.length).toBeGreaterThan(0);
-    expect(hints.some(h => h.includes('Discord') || h.includes('markdown tables'))).toBe(true);
+    expect(hints.some((h) => h.includes('Discord') || h.includes('markdown tables'))).toBe(true);
   });
 
   it('should provide Telegram hints', () => {
     const hints = PlatformHints.telegram();
     expect(hints.length).toBeGreaterThan(0);
-    expect(hints.some(h => h.includes('Telegram'))).toBe(true);
+    expect(hints.some((h) => h.includes('Telegram'))).toBe(true);
   });
 
   it('should provide Slack hints', () => {
     const hints = PlatformHints.slack();
     expect(hints.length).toBeGreaterThan(0);
-    expect(hints.some(h => h.includes('Slack'))).toBe(true);
+    expect(hints.some((h) => h.includes('Slack'))).toBe(true);
   });
 
   it('should provide general hints', () => {

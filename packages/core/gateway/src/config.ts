@@ -143,7 +143,9 @@ function parseSecurityMode(value: string | undefined): 'strict' | 'standard' | '
  */
 export function validateConfig(config: GatewayConfig): void {
   if (config.healthPort < 1 || config.healthPort > 65535) {
-    throw createValidationError(`Invalid health port: ${config.healthPort}`, { component: 'gateway' });
+    throw createValidationError(`Invalid health port: ${config.healthPort}`, {
+      component: 'gateway',
+    });
   }
 
   if (!config.dbPath) {
@@ -162,24 +164,34 @@ export function validateConfig(config: GatewayConfig): void {
       config.rateLimiter.limits;
 
     if (messagesPerMinute !== undefined && messagesPerMinute < 1) {
-      throw createValidationError('Rate limiter messagesPerMinute must be at least 1', { component: 'gateway' });
+      throw createValidationError('Rate limiter messagesPerMinute must be at least 1', {
+        component: 'gateway',
+      });
     }
 
     if (toolCallsPerMinute !== undefined && toolCallsPerMinute < 1) {
-      throw createValidationError('Rate limiter toolCallsPerMinute must be at least 1', { component: 'gateway' });
+      throw createValidationError('Rate limiter toolCallsPerMinute must be at least 1', {
+        component: 'gateway',
+      });
     }
 
     if (llmRequestsPerMinute !== undefined && llmRequestsPerMinute < 1) {
-      throw createValidationError('Rate limiter llmRequestsPerMinute must be at least 1', { component: 'gateway' });
+      throw createValidationError('Rate limiter llmRequestsPerMinute must be at least 1', {
+        component: 'gateway',
+      });
     }
   }
 
   if (config.streamingChunkSize !== undefined && config.streamingChunkSize < 1) {
-    throw createValidationError('Streaming chunk size must be at least 1', { component: 'gateway' });
+    throw createValidationError('Streaming chunk size must be at least 1', {
+      component: 'gateway',
+    });
   }
 
   if (config.streamingMinIntervalMs !== undefined && config.streamingMinIntervalMs < 0) {
-    throw createValidationError('Streaming min interval must be non-negative', { component: 'gateway' });
+    throw createValidationError('Streaming min interval must be non-negative', {
+      component: 'gateway',
+    });
   }
 }
 

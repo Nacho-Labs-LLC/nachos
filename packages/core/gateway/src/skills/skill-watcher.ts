@@ -61,13 +61,9 @@ export class SkillWatcher {
 
     try {
       // Use fs.watch with recursive option to watch the entire skills directory tree
-      this.watcher = watch(
-        this.config.skillsDir,
-        { recursive: true },
-        (eventType, filename) => {
-          this.handleFileChange(eventType, filename);
-        }
-      );
+      this.watcher = watch(this.config.skillsDir, { recursive: true }, (eventType, filename) => {
+        this.handleFileChange(eventType, filename);
+      });
 
       this.isRunning = true;
       logger.info(

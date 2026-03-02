@@ -32,17 +32,14 @@ export class HeartbeatManager {
       return;
     }
 
-    logger.info(
-      { intervalMinutes: this.config.intervalMinutes },
-      'Starting heartbeat system'
-    );
+    logger.info({ intervalMinutes: this.config.intervalMinutes }, 'Starting heartbeat system');
 
     // Check if heartbeat job already exists
     const existingJobs = this.scheduler.listJobs({
       userId: HEARTBEAT_USER_ID,
     });
 
-    const existingJob = existingJobs.find(j => j.name === HEARTBEAT_JOB_NAME);
+    const existingJob = existingJobs.find((j) => j.name === HEARTBEAT_JOB_NAME);
 
     if (existingJob) {
       // Update existing job with current config
@@ -114,7 +111,11 @@ export class HeartbeatManager {
 
     // Update the job with new config
     await this.scheduler.updateJob(this.jobId, {
-      scheduleValue: ((config.intervalMinutes ?? this.config.intervalMinutes) * 60 * 1000).toString(),
+      scheduleValue: (
+        (config.intervalMinutes ?? this.config.intervalMinutes) *
+        60 *
+        1000
+      ).toString(),
       actionData: {
         type: 'systemEvent',
         text: config.prompt ?? this.config.prompt,

@@ -94,7 +94,10 @@ export class LocalToolHandler {
         },
       };
     } catch (error) {
-      this.logger.error({ error: error instanceof Error ? error.message : error }, 'Local tool execution error');
+      this.logger.error(
+        { error: error instanceof Error ? error.message : error },
+        'Local tool execution error'
+      );
       return {
         success: false,
         content: [],

@@ -4,8 +4,7 @@ import { loadTomlFile, type NachosConfig } from '@nachos/config';
 import type { GatewayHealth, ConfigStatus, StatusResponse } from '../types.js';
 
 const CONFIG_PATH = process.env['NACHOS_CONFIG_PATH'] ?? '/app/nachos.toml';
-const GATEWAY_HEALTH_URL =
-  process.env['GATEWAY_HEALTH_URL'] ?? 'http://gateway:3000/health';
+const GATEWAY_HEALTH_URL = process.env['GATEWAY_HEALTH_URL'] ?? 'http://gateway:3000/health';
 
 const KNOWN_TOOLS = [
   'filesystem',

@@ -76,16 +76,13 @@ describe('SubagentOrchestrator - Progress Updates', () => {
       updatedRun = orchestrator.getRun(run.runId);
       attempts++;
     }
-    
+
     expect(updatedRun?.status).toBe('running');
 
     // Report progress
-    const success = orchestrator.reportProgress(
-      run.runId,
-      'Processing data',
-      25,
-      { step: 'validation' }
-    );
+    const success = orchestrator.reportProgress(run.runId, 'Processing data', 25, {
+      step: 'validation',
+    });
 
     expect(success).toBe(true);
 

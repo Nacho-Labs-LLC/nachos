@@ -111,7 +111,9 @@ export function generateComposeFile(config: NachosConfig, projectRoot: string): 
     if (config.tools?.browser?.enabled) {
       // Browser tool runs locally in the gateway via @playwright/mcp — no separate container needed.
       // The gateway handles browser tool execution in-process.
-      console.warn('ℹ️  Browser tool is enabled — runs locally in the gateway (no container needed)');
+      console.warn(
+        'ℹ️  Browser tool is enabled — runs locally in the gateway (no container needed)'
+      );
     }
 
     if (config.tools?.code_runner?.enabled) {
@@ -757,7 +759,6 @@ function buildFilesystemService(_config: NachosConfig, projectRoot: string): Ser
     },
   };
 }
-
 
 function buildCodeRunnerService(_config: NachosConfig, projectRoot: string): Service {
   return {

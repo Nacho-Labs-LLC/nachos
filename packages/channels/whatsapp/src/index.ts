@@ -14,7 +14,12 @@ import type {
   SendResult,
   HealthStatusType,
 } from '@nachos/types';
-import { createLogger, createConfigError, createInvalidStateError, validateChannelInboundMessage } from '@nachos/types';
+import {
+  createLogger,
+  createConfigError,
+  createInvalidStateError,
+  validateChannelInboundMessage,
+} from '@nachos/types';
 import { shouldAllowDm } from '@nachos/utils';
 
 const logger = createLogger('whatsapp-channel');
@@ -130,14 +135,21 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
 
   async start(): Promise<void> {
     if (!this.config) {
-      throw createInvalidStateError('WhatsApp adapter not initialized', { component: 'whatsapp-channel' });
+      throw createInvalidStateError('WhatsApp adapter not initialized', {
+        component: 'whatsapp-channel',
+      });
     }
     if (!this.token || !this.phoneNumberId || !this.verifyToken) {
-      throw createConfigError('WhatsApp adapter requires token, phone_number_id, and verify_token', { component: 'whatsapp-channel' });
+      throw createConfigError(
+        'WhatsApp adapter requires token, phone_number_id, and verify_token',
+        { component: 'whatsapp-channel' }
+      );
     }
 
     if (!this.appSecret) {
-      logger.warn('appSecret is not configured. Webhook signature verification is disabled. Set WHATSAPP_APP_SECRET to enable signature verification.');
+      logger.warn(
+        'appSecret is not configured. Webhook signature verification is disabled. Set WHATSAPP_APP_SECRET to enable signature verification.'
+      );
     }
 
     const port = Number(process.env.WHATSAPP_HTTP_PORT ?? 3002);
@@ -233,7 +245,9 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
 
   async sendMessage(message: OutboundMessage): Promise<SendResult> {
     if (!this.token || !this.phoneNumberId) {
-      throw createInvalidStateError('WhatsApp adapter not initialized', { component: 'whatsapp-channel' });
+      throw createInvalidStateError('WhatsApp adapter not initialized', {
+        component: 'whatsapp-channel',
+      });
     }
 
     const url = `https://graph.facebook.com/${this.apiVersion}/${this.phoneNumberId}/messages`;
@@ -337,7 +351,10 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
 
     // Only support URL-based media sending via WhatsApp Cloud API
     if (typeof data !== 'string' || !(data.startsWith('http://') || data.startsWith('https://'))) {
-      logger.warn({ attachmentType: attachment.type }, 'WhatsApp outbound media requires a URL; skipping non-URL attachment');
+      logger.warn(
+        { attachmentType: attachment.type },
+        'WhatsApp outbound media requires a URL; skipping non-URL attachment'
+      );
       return;
     }
 
@@ -568,7 +585,9 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
 
           // Build inbound message
           let contentText: string;
-          let attachments: Array<{ type: string; url: string; name?: string; mimeType?: string }> | undefined;
+          let attachments:
+            | Array<{ type: string; url: string; name?: string; mimeType?: string }>
+            | undefined;
 
           if (isMediaMessage) {
             const mediaInfo = this.extractMediaInfo(message, messageType);

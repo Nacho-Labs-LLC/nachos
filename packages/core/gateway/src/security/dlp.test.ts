@@ -122,7 +122,7 @@ describe('DLPSecurityLayer', () => {
   });
 
   describe('Secure Channels', () => {
-    it('should bypass DLP scanning for secure channels', () => {
+    it('should apply reduced DLP ruleset for secure channels', () => {
       const config: DLPConfig = {
         enabled: true,
         globalPolicy: {
@@ -138,7 +138,34 @@ describe('DLPSecurityLayer', () => {
       };
       dlp = new DLPSecurityLayer(config);
 
+      // High-severity secret (AWS key = critical) is still caught by reduced ruleset
       const message = 'AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE';
+      const result = dlp.scan(message, 'dm-secure-123');
+
+      expect(result.allowed).toBe(false);
+      expect(result.action).toBe('block');
+      expect(result.findings.length).toBeGreaterThan(0);
+      expect(result.reason).toContain('Secure channel');
+    });
+
+    it('should allow low-severity patterns on secure channels (reduced ruleset)', () => {
+      const config: DLPConfig = {
+        enabled: true,
+        globalPolicy: {
+          action: 'block',
+          minConfidence: 0.1,
+        },
+        channels: [
+          {
+            channelId: 'dm-secure-123',
+            isSecure: true,
+          },
+        ],
+      };
+      dlp = new DLPSecurityLayer(config);
+
+      // Low-severity content (email) should pass the reduced ruleset
+      const message = 'Email: user@example.com';
       const result = dlp.scan(message, 'dm-secure-123');
 
       expect(result.allowed).toBe(true);
@@ -174,6 +201,7 @@ describe('DLPSecurityLayer', () => {
       dlp.registerSecureChannel('new-dm-channel');
       expect(dlp.isSecureChannel('new-dm-channel')).toBe(true);
 
+      // With reduced ruleset, critical-severity secrets are still caught
       const message = 'AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE';
       const config: DLPConfig = {
         enabled: true,
@@ -185,7 +213,14 @@ describe('DLPSecurityLayer', () => {
       dlp.registerSecureChannel('new-dm-channel');
 
       const result = dlp.scan(message, 'new-dm-channel');
-      expect(result.allowed).toBe(true);
+      // Secure channels use reduced ruleset (critical/high only), but AWS key is critical
+      expect(result.allowed).toBe(false);
+      expect(result.action).toBe('block');
+      expect(result.findings.length).toBeGreaterThan(0);
+
+      // Low-severity content should pass on dynamically registered secure channels
+      const cleanResult = dlp.scan('Email: user@example.com', 'new-dm-channel');
+      expect(cleanResult.allowed).toBe(true);
     });
 
     it('should unregister secure channels', () => {

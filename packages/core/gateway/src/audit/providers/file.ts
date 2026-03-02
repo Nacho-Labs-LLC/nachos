@@ -45,19 +45,24 @@ export class FileAuditProvider implements AuditProvider {
       return;
     }
     if (flushIntervalMs <= 0) {
-      throw createValidationError('Audit file flushIntervalMs must be greater than 0', { component: 'gateway' });
+      throw createValidationError('Audit file flushIntervalMs must be greater than 0', {
+        component: 'gateway',
+      });
     }
     this.flushTimer = setInterval(() => {
       if (this.isClosing) {
         return;
       }
       void this.flush().catch((error) => {
-        auditLogger.error({
-          err: error,
-          path: this.config.path,
-          bufferSize: this.buffer.length,
-          note: 'Audit events will retry on the next flush; persistent failures may drop events.',
-        }, 'Failed to flush file audit buffer');
+        auditLogger.error(
+          {
+            err: error,
+            path: this.config.path,
+            bufferSize: this.buffer.length,
+            note: 'Audit events will retry on the next flush; persistent failures may drop events.',
+          },
+          'Failed to flush file audit buffer'
+        );
       });
     }, flushIntervalMs);
     this.flushTimer.unref();

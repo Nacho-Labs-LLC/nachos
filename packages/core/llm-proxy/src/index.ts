@@ -167,13 +167,13 @@ async function executeWithFallback(
       getProfileList: () => string[];
       getProfileApiKey: (name: string) => string | null;
       onProfileCooldown: (name: string, reason: 'rate_limit' | 'billing') => void;
-    },
+    }
   ) => Promise<Awaited<ReturnType<LLMProviderAdapter['send']>>>,
   onSuccess?: (
     response: Awaited<ReturnType<LLMProviderAdapter['send']>>,
     attempt: { provider: string; model: string },
-    latencyMs: number,
-  ) => Promise<void>,
+    latencyMs: number
+  ) => Promise<void>
 ): Promise<LLMResponseType> {
   const attempts = buildAttemptList(request);
   const hasFallback = attempts.length > 1;
@@ -205,7 +205,7 @@ async function executeWithFallback(
       response = await retryWithBackoff(
         () => executeFn(adapter, attempt, options),
         retryConfig,
-        (error) => error instanceof ProviderError && error.kind === 'rate_limit',
+        (error) => error instanceof ProviderError && error.kind === 'rate_limit'
       );
     } catch (error) {
       if (error instanceof ProviderError) {
@@ -237,7 +237,7 @@ async function executeWithFallback(
       response.provider ?? attempt.provider,
       response.model ?? attempt.model,
       latencyMs,
-      response.usage,
+      response.usage
     );
 
     if (onSuccess) {
@@ -267,15 +267,14 @@ async function executeWithFallback(
 }
 
 async function handleRequest(request: LLMRequestType): Promise<LLMResponseType> {
-  return executeWithFallback(
-    request,
-    (adapter, _attempt, options) => adapter.send(request, options),
+  return executeWithFallback(request, (adapter, _attempt, options) =>
+    adapter.send(request, options)
   );
 }
 
 async function handleStream(
   request: LLMRequestType,
-  onChunk: (chunk: LLMStreamChunkType) => Promise<void>,
+  onChunk: (chunk: LLMStreamChunkType) => Promise<void>
 ): Promise<LLMResponseType> {
   let firstChunkTime: number | null = null;
   const streamStart = Date.now();
@@ -315,7 +314,7 @@ async function handleStream(
           },
         });
       }
-    },
+    }
   );
 }
 

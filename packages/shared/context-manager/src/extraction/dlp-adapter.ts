@@ -194,7 +194,7 @@ export class DLPExtractionAdapter {
 
   /**
    * M2: Deduplicate extracted items using semantic similarity
-   * 
+   *
    * Uses a simple character-based similarity metric (Jaccard similarity on words).
    * Items with >80% similarity are considered duplicates.
    */
@@ -212,13 +212,13 @@ export class DLPExtractionAdapter {
       // Compare with existing unique items
       for (const existingItem of unique) {
         const similarity = this.calculateTextSimilarity(item.content, existingItem.content);
-        
+
         if (similarity >= similarityThreshold) {
           isDuplicate = true;
           // Keep the item with higher confidence
           const itemConfidence = (item.metadata?.confidence as number) ?? 0;
           const existingConfidence = (existingItem.metadata?.confidence as number) ?? 0;
-          
+
           if (itemConfidence > existingConfidence) {
             // Replace existing with higher confidence item
             const index = unique.indexOf(existingItem);
@@ -238,19 +238,19 @@ export class DLPExtractionAdapter {
 
   /**
    * M2: Calculate semantic similarity between two text strings
-   * 
+   *
    * Uses Jaccard similarity on word sets (simple but effective)
    * Returns a score from 0.0 (completely different) to 1.0 (identical)
    */
   private calculateTextSimilarity(text1: string, text2: string): number {
     // Normalize and tokenize
     const normalize = (text: string) => text.toLowerCase().trim().split(/\s+/);
-    
+
     const words1 = new Set(normalize(text1));
     const words2 = new Set(normalize(text2));
 
     // Calculate Jaccard similarity
-    const intersection = new Set([...words1].filter(w => words2.has(w)));
+    const intersection = new Set([...words1].filter((w) => words2.has(w)));
     const union = new Set([...words1, ...words2]);
 
     if (union.size === 0) {

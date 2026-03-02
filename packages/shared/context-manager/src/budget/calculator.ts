@@ -60,7 +60,7 @@ export class ContextBudgetCalculator implements IContextBudgetCalculator {
 
   /**
    * Get default thresholds
-   * 
+   *
    * NOTE: emergency threshold reduced from 0.95 to 0.90 for safety buffer
    * This accounts for token estimation errors (10-20% margin) and prevents
    * context overflow in critical situations.
@@ -70,7 +70,7 @@ export class ContextBudgetCalculator implements IContextBudgetCalculator {
       proactivePrune: 0.6,
       lightCompaction: 0.75,
       aggressiveCompaction: 0.85,
-      emergency: 0.90, // Changed from 0.95 to 0.90 for safety buffer
+      emergency: 0.9, // Changed from 0.95 to 0.90 for safety buffer
     };
   }
 

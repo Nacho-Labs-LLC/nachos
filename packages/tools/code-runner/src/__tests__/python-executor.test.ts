@@ -17,8 +17,12 @@ vi.mock('child_process', () => ({
 // Mock @nachos/tool-base
 vi.mock('@nachos/tool-base', () => ({
   ToolService: class {
-    start() { return Promise.resolve(); }
-    stop() { return Promise.resolve(); }
+    start() {
+      return Promise.resolve();
+    }
+    stop() {
+      return Promise.resolve();
+    }
   },
   connectToNats: vi.fn(),
   setupShutdownHandlers: vi.fn(),
@@ -198,22 +202,23 @@ describe('PythonExecutor', () => {
       expect(result.valid).toBe(true);
     });
 
-    it.skipIf(process.platform === 'win32')('accepts deeply nested workdir within /tmp/ on Linux', () => {
-      const result = executor.validate({
-        sessionId: 'test',
-        code: 'print(1)',
-        workdir: '/tmp/nachos/sandbox/agent-1',
-      });
+    it.skipIf(process.platform === 'win32')(
+      'accepts deeply nested workdir within /tmp/ on Linux',
+      () => {
+        const result = executor.validate({
+          sessionId: 'test',
+          code: 'print(1)',
+          workdir: '/tmp/nachos/sandbox/agent-1',
+        });
 
-      expect(result.valid).toBe(true);
-    });
+        expect(result.valid).toBe(true);
+      }
+    );
   });
 
   describe('execute', () => {
     it('executes python code and returns stdout', async () => {
-      mockSpawn.mockReturnValue(
-        createMockProcess({ stdout: 'Hello from Python\n', exitCode: 0 })
-      );
+      mockSpawn.mockReturnValue(createMockProcess({ stdout: 'Hello from Python\n', exitCode: 0 }));
 
       const result = await executor.execute({
         sessionId: 'test',
@@ -228,7 +233,7 @@ describe('PythonExecutor', () => {
     it('captures stderr on error', async () => {
       mockSpawn.mockReturnValue(
         createMockProcess({
-          stderr: 'NameError: name \'x\' is not defined',
+          stderr: "NameError: name 'x' is not defined",
           exitCode: 1,
         })
       );
@@ -243,9 +248,7 @@ describe('PythonExecutor', () => {
     });
 
     it('handles spawn errors gracefully', async () => {
-      mockSpawn.mockReturnValue(
-        createMockProcess({ error: new Error('spawn python3 ENOENT') })
-      );
+      mockSpawn.mockReturnValue(createMockProcess({ error: new Error('spawn python3 ENOENT') }));
 
       const result = await executor.execute({
         sessionId: 'test',
@@ -271,9 +274,7 @@ describe('PythonExecutor', () => {
     });
 
     it('spawns python3 with restricted environment', async () => {
-      mockSpawn.mockReturnValue(
-        createMockProcess({ stdout: 'ok', exitCode: 0 })
-      );
+      mockSpawn.mockReturnValue(createMockProcess({ stdout: 'ok', exitCode: 0 }));
 
       await executor.execute({
         sessionId: 'test',
@@ -294,9 +295,7 @@ describe('PythonExecutor', () => {
     });
 
     it('passes timeout in milliseconds to spawn options', async () => {
-      mockSpawn.mockReturnValue(
-        createMockProcess({ stdout: 'ok', exitCode: 0 })
-      );
+      mockSpawn.mockReturnValue(createMockProcess({ stdout: 'ok', exitCode: 0 }));
 
       await executor.execute({
         sessionId: 'test',
@@ -314,9 +313,7 @@ describe('PythonExecutor', () => {
     });
 
     it('defaults timeout to 30 seconds', async () => {
-      mockSpawn.mockReturnValue(
-        createMockProcess({ stdout: 'ok', exitCode: 0 })
-      );
+      mockSpawn.mockReturnValue(createMockProcess({ stdout: 'ok', exitCode: 0 }));
 
       await executor.execute({
         sessionId: 'test',
@@ -333,9 +330,7 @@ describe('PythonExecutor', () => {
     });
 
     it('returns no-output placeholder when stdout and stderr are empty', async () => {
-      mockSpawn.mockReturnValue(
-        createMockProcess({ stdout: '', stderr: '', exitCode: 0 })
-      );
+      mockSpawn.mockReturnValue(createMockProcess({ stdout: '', stderr: '', exitCode: 0 }));
 
       const result = await executor.execute({
         sessionId: 'test',
@@ -394,9 +389,7 @@ describe('PythonExecutor', () => {
         securityMode: 'standard',
       });
 
-      mockSpawn.mockReturnValue(
-        createMockProcess({ stdout: 'ok', exitCode: 0 })
-      );
+      mockSpawn.mockReturnValue(createMockProcess({ stdout: 'ok', exitCode: 0 }));
 
       await executor.execute({
         sessionId: 'test',
@@ -417,20 +410,14 @@ describe('PythonExecutor', () => {
         securityMode: 'standard',
       });
 
-      mockSpawn.mockReturnValue(
-        createMockProcess({ stdout: 'ok', exitCode: 0 })
-      );
+      mockSpawn.mockReturnValue(createMockProcess({ stdout: 'ok', exitCode: 0 }));
 
       await executor.execute({
         sessionId: 'test',
         code: 'print("ok")',
       });
 
-      expect(mockSpawn).toHaveBeenCalledWith(
-        'python3',
-        expect.any(Array),
-        expect.any(Object)
-      );
+      expect(mockSpawn).toHaveBeenCalledWith('python3', expect.any(Array), expect.any(Object));
     });
   });
 
@@ -483,9 +470,7 @@ describe('PythonExecutor', () => {
         limits: { maxMemory: 67108864 }, // 64MB in bytes
       });
 
-      mockSpawn.mockReturnValue(
-        createMockProcess({ stdout: 'ok', exitCode: 0 })
-      );
+      mockSpawn.mockReturnValue(createMockProcess({ stdout: 'ok', exitCode: 0 }));
 
       await executor.execute({
         sessionId: 'test',

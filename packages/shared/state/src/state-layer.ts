@@ -88,7 +88,9 @@ export class StateLayer {
     this.pgPools = params.pgPools ?? [];
 
     if (!this.dependencies.policyCheck) {
-      logger.warn('No policyCheck provided — all state operations will be permitted without enforcement.');
+      logger.warn(
+        'No policyCheck provided — all state operations will be permitted without enforcement.'
+      );
     }
     if (!this.dependencies.auditLogger) {
       logger.warn('No auditLogger provided — state operations will not be audited.');
@@ -134,7 +136,7 @@ export class StateLayer {
     if (profile.identityCompleted) {
       const soul = profile.soul?.trim();
       const identity = profile.identity?.trim();
-      
+
       if (!soul || !identity) {
         throw createConfigError(
           'Cannot mark identity as completed with empty soul or identity fields',
@@ -390,7 +392,9 @@ export class StateLayer {
     const decision = await this.dependencies.policyCheck(request);
     if (!decision.allowed) {
       await this.auditDenied(action, context, resource, decision.reason, decision.ruleId);
-      throw createPolicyDeniedError(decision.reason ?? `Policy denied ${action}`, { component: 'gateway' });
+      throw createPolicyDeniedError(decision.reason ?? `Policy denied ${action}`, {
+        component: 'gateway',
+      });
     }
   }
 
@@ -466,9 +470,7 @@ export function createStateLayer(
   const memoryStore = createMemoryStore(config, getOrCreatePool);
   const userProfileStore = createUserProfileStore(config, getOrCreatePool);
   const sessionStore = createSessionStateStore(config);
-  const sessionsStore = config.sessions
-    ? createSessionsStore(config, getOrCreatePool)
-    : undefined;
+  const sessionsStore = config.sessions ? createSessionsStore(config, getOrCreatePool) : undefined;
   const promptAssembler = new PromptAssembler(config.prompt);
 
   return new StateLayer({
@@ -491,7 +493,9 @@ function createIdentityStore(
   if (config.identity.provider === 'postgres') {
     const settings = config.identity.postgres;
     if (!settings?.connectionString) {
-      throw createConfigError('Postgres identity store requires connectionString', { component: 'gateway' });
+      throw createConfigError('Postgres identity store requires connectionString', {
+        component: 'gateway',
+      });
     }
     return new PostgresIdentityStore(getOrCreatePool(settings), settings.schema);
   }
@@ -510,7 +514,9 @@ function createBootstrapStore(
   if (config.bootstrap.provider === 'postgres') {
     const settings = config.bootstrap.postgres;
     if (!settings?.connectionString) {
-      throw createConfigError('Postgres bootstrap store requires connectionString', { component: 'gateway' });
+      throw createConfigError('Postgres bootstrap store requires connectionString', {
+        component: 'gateway',
+      });
     }
     return new PostgresBootstrapStore(getOrCreatePool(settings), settings.schema);
   }
@@ -529,7 +535,9 @@ function createMemoryStore(
   if (config.memory.provider === 'postgres') {
     const settings = config.memory.postgres;
     if (!settings?.connectionString) {
-      throw createConfigError('Postgres memory store requires connectionString', { component: 'gateway' });
+      throw createConfigError('Postgres memory store requires connectionString', {
+        component: 'gateway',
+      });
     }
     return new PostgresMemoryStore(getOrCreatePool(settings), settings.schema);
   }
@@ -538,7 +546,7 @@ function createMemoryStore(
   if (!dir) {
     throw createConfigError('Filesystem memory store requires dir', { component: 'gateway' });
   }
-  
+
   return new FilesystemMemoryStore({
     baseDir: dir,
     enableSemantic: config.memory.semantic?.enabled ?? false,
@@ -554,7 +562,9 @@ function createUserProfileStore(
   if (config.userProfile.provider === 'postgres') {
     const settings = config.userProfile.postgres;
     if (!settings?.connectionString) {
-      throw createConfigError('Postgres user profile store requires connectionString', { component: 'gateway' });
+      throw createConfigError('Postgres user profile store requires connectionString', {
+        component: 'gateway',
+      });
     }
     return new PostgresUserProfileStore(getOrCreatePool(settings), settings.schema);
   }
@@ -570,12 +580,16 @@ function createSessionStateStore(config: StateLayerConfig): SessionStateStore {
   if (config.session.provider === 'redis') {
     const redisUrl = config.session.redisUrl;
     if (!redisUrl) {
-      throw createConfigError('Redis session state store requires redisUrl', { component: 'gateway' });
+      throw createConfigError('Redis session state store requires redisUrl', {
+        component: 'gateway',
+      });
     }
     return new RedisSessionStateStore(redisUrl, config.session.ttlSeconds);
   }
 
-  logger.warn('Using in-memory session store — active sessions will be lost on gateway restart. Configure session.provider=redis for persistence.');
+  logger.warn(
+    'Using in-memory session store — active sessions will be lost on gateway restart. Configure session.provider=redis for persistence.'
+  );
   return new InMemorySessionStateStore();
 }
 
@@ -591,7 +605,9 @@ function createSessionsStore(
   if (sessionsConfig.provider === 'postgres') {
     const settings = sessionsConfig.postgres;
     if (!settings?.connectionString) {
-      throw createConfigError('Postgres sessions store requires connectionString', { component: 'state-layer' });
+      throw createConfigError('Postgres sessions store requires connectionString', {
+        component: 'state-layer',
+      });
     }
     return new PostgresSessionsStore(getOrCreatePool(settings), settings.schema);
   }
@@ -599,7 +615,9 @@ function createSessionsStore(
   if (sessionsConfig.provider === 'sqlite') {
     const dbPath = sessionsConfig.sqlite?.dbPath;
     if (!dbPath) {
-      throw createConfigError('SQLite sessions store requires dbPath', { component: 'state-layer' });
+      throw createConfigError('SQLite sessions store requires dbPath', {
+        component: 'state-layer',
+      });
     }
     try {
       const esmRequire = createRequire(import.meta.url);
@@ -614,7 +632,9 @@ function createSessionsStore(
     }
   }
 
-  throw createConfigError(`Unknown sessions provider: ${sessionsConfig.provider}`, { component: 'state-layer' });
+  throw createConfigError(`Unknown sessions provider: ${sessionsConfig.provider}`, {
+    component: 'state-layer',
+  });
 }
 
 function createPgPool(settings: StateStorePostgresConfig): Pool {

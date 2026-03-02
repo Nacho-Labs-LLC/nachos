@@ -137,7 +137,10 @@ export class QdrantMemoryStore implements MemoryStore {
         logger.info({ collection: this.collection }, 'Created Qdrant collection');
       }
     } catch (error) {
-      logger.error({ error, collection: this.collection }, 'Failed to initialize Qdrant collection');
+      logger.error(
+        { error, collection: this.collection },
+        'Failed to initialize Qdrant collection'
+      );
       throw error;
     }
   }
@@ -166,9 +169,7 @@ export class QdrantMemoryStore implements MemoryStore {
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => 'Unknown error');
-      throw new Error(
-        `Qdrant API error: ${response.status} ${response.statusText} - ${errorText}`
-      );
+      throw new Error(`Qdrant API error: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
     const data = await response.json();

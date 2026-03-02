@@ -20,7 +20,7 @@ vi.mock('@nachos/types', () => ({
 }));
 
 import { FilesystemMemoryStore } from './filesystem-memory-store.js';
-import type { MemoryEntry, MemoryFact, MemoryQuery } from '@nachos/types';
+import type { MemoryEntry, MemoryFact } from '@nachos/types';
 
 describe('FilesystemMemoryStore', () => {
   let tempDir: string;
@@ -245,17 +245,13 @@ describe('FilesystemMemoryStore', () => {
     it('does not throw when deleting non-existent entry', async () => {
       await store.appendEntry(makeEntry());
 
-      await expect(
-        store.deleteEntry('non-existent-id', 'agent-1')
-      ).resolves.not.toThrow();
+      await expect(store.deleteEntry('non-existent-id', 'agent-1')).resolves.not.toThrow();
     });
 
     it('throws when agent directory does not exist', async () => {
       // deleteEntry reads entries (returns []) but then tries to write
       // the filtered list back, which fails because the directory is missing
-      await expect(
-        store.deleteEntry('some-id', 'no-such-agent')
-      ).rejects.toThrow('ENOENT');
+      await expect(store.deleteEntry('some-id', 'no-such-agent')).rejects.toThrow('ENOENT');
     });
   });
 

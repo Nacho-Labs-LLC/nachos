@@ -1,6 +1,6 @@
 /**
  * Web fetch tool schemas for LLM tool calling
- * 
+ *
  * This tool enables the LLM to fetch and read individual web pages.
  * It runs natively in the gateway process (no container required).
  * This complements the Docker-based web-fetch tool with a lighter alternative.
@@ -49,7 +49,8 @@ export const WebFetchNativeToolSchema = {
     extract_mode: {
       type: 'string',
       enum: ['markdown', 'text'],
-      description: 'Extraction mode: "markdown" for structured content, "text" for plain text (default: "markdown")',
+      description:
+        'Extraction mode: "markdown" for structured content, "text" for plain text (default: "markdown")',
     },
     max_chars: {
       type: 'number',
@@ -86,7 +87,10 @@ function checkRateLimit(userId: string): boolean {
 /**
  * Validate URL and check domain allowlist
  */
-function validateUrl(urlString: string, domainAllowlist?: string[]): { valid: boolean; error?: string; url?: URL } {
+function validateUrl(
+  urlString: string,
+  domainAllowlist?: string[]
+): { valid: boolean; error?: string; url?: URL } {
   try {
     const url = new URL(urlString);
 
@@ -123,7 +127,7 @@ function validateUrl(urlString: string, domainAllowlist?: string[]): { valid: bo
 
     // Check domain allowlist if configured
     if (domainAllowlist && domainAllowlist.length > 0) {
-      const allowed = domainAllowlist.some(domain => {
+      const allowed = domainAllowlist.some((domain) => {
         const normalizedDomain = domain.toLowerCase();
         return hostname === normalizedDomain || hostname.endsWith(`.${normalizedDomain}`);
       });
@@ -140,7 +144,7 @@ function validateUrl(urlString: string, domainAllowlist?: string[]): { valid: bo
       valid: true,
       url,
     };
-  } catch (error) {
+  } catch {
     return {
       valid: false,
       error: 'Invalid URL format',
@@ -334,7 +338,7 @@ export async function executeWebFetchNative(
         method: 'GET',
         headers: {
           'User-Agent': 'Mozilla/5.0 (compatible; NachosBot/1.0)',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         },
         signal: controller.signal,
         redirect: 'manual',
@@ -373,7 +377,6 @@ export async function executeWebFetchNative(
     }
 
     try {
-
       clearTimeout(timeoutId);
 
       if (!response.ok) {
@@ -389,7 +392,11 @@ export async function executeWebFetchNative(
 
       // Check content type
       const contentType = response.headers.get('content-type') || '';
-      if (!contentType.includes('text/html') && !contentType.includes('text/plain') && !contentType.includes('application/xhtml')) {
+      if (
+        !contentType.includes('text/html') &&
+        !contentType.includes('text/plain') &&
+        !contentType.includes('application/xhtml')
+      ) {
         return {
           success: false,
           content: [],
@@ -412,7 +419,8 @@ export async function executeWebFetchNative(
 
       // Truncate if necessary
       if (extracted.length > maxChars) {
-        extracted = extracted.substring(0, maxChars) + '\n\n[Content truncated due to length limit]';
+        extracted =
+          extracted.substring(0, maxChars) + '\n\n[Content truncated due to length limit]';
       }
 
       return {

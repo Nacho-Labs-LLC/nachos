@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import type { StatusResponse } from '../../types.js';
 
 let tempDir: string;
 let configPath: string;
@@ -21,10 +22,7 @@ afterEach(async () => {
   }
 });
 
-async function createStatusApp(opts: {
-  configFilePath: string;
-  gatewayHealthUrl?: string;
-}) {
+async function createStatusApp(opts: { configFilePath: string; gatewayHealthUrl?: string }) {
   process.env['NACHOS_CONFIG_PATH'] = opts.configFilePath;
   process.env['GATEWAY_HEALTH_URL'] = opts.gatewayHealthUrl ?? 'http://localhost:1/health';
 
@@ -53,7 +51,7 @@ async function createStatusApp(opts: {
       }
       return {};
     },
-    parseToml: (content: string) => ({}),
+    parseToml: (_content: string) => ({}),
   }));
 
   // Mock @nachos/types
@@ -106,20 +104,21 @@ mode = "standard"
       const res = await app.request('/api/status');
       expect(res.status).toBe(200);
 
-      const body = await res.json();
+      const body = (await res.json()) as StatusResponse;
 
       // Gateway should be unreachable since we pointed to a dead URL
       expect(body.gateway).toEqual({ status: 'unreachable' });
 
       // Config status should be populated
       expect(body.config).toBeDefined();
-      expect(body.config.llm.provider).toBe('anthropic');
-      expect(body.config.llm.model).toBe('claude-3');
-      expect(body.config.channels.slack).toEqual({ enabled: true });
-      expect(body.config.channels.discord).toEqual({ enabled: false });
-      expect(body.config.tools.filesystem).toEqual({ enabled: true });
-      expect(body.config.tools.code_runner).toEqual({ enabled: false });
-      expect(body.config.security.mode).toBe('standard');
+      const config = body.config!;
+      expect(config.llm.provider).toBe('anthropic');
+      expect(config.llm.model).toBe('claude-3');
+      expect(config.channels.slack).toEqual({ enabled: true });
+      expect(config.channels.discord).toEqual({ enabled: false });
+      expect(config.tools.filesystem).toEqual({ enabled: true });
+      expect(config.tools.code_runner).toEqual({ enabled: false });
+      expect(config.security.mode).toBe('standard');
 
       // Timestamp should be present
       expect(body.timestamp).toBeDefined();
@@ -136,7 +135,7 @@ mode = "standard"
       const res = await app.request('/api/status');
       expect(res.status).toBe(200);
 
-      const body = await res.json();
+      const body = (await res.json()) as StatusResponse;
       expect(body.config).toBeNull();
       expect(body.gateway).toEqual({ status: 'unreachable' });
       expect(body.timestamp).toBeDefined();
@@ -154,7 +153,7 @@ mode = "strict"
 
       const app = await createStatusApp({ configFilePath: configPath });
       const res = await app.request('/api/status');
-      const body = await res.json();
+      const body = (await res.json()) as StatusResponse;
 
       // Verify required top-level fields
       expect(body).toHaveProperty('gateway');

@@ -17,7 +17,7 @@ describe('SubagentOrchestrator - Streaming Results', () => {
   let mockSubagentManager: SubagentManager;
   let mockSessionManager: SessionManager;
   let mockRouter: Router;
-  let streamHandlers: Map<string, ((data: unknown) => Promise<void>)>;
+  let streamHandlers: Map<string, (data: unknown) => Promise<void>>;
 
   beforeEach(() => {
     streamHandlers = new Map();
@@ -44,18 +44,22 @@ describe('SubagentOrchestrator - Streaming Results', () => {
       sendToChannel: vi.fn().mockResolvedValue(undefined),
     } as unknown as Router;
 
-    const buildLLMRequest = vi.fn().mockImplementation((sessionId: string, _extraMessages, stream: boolean) => {
-      return Promise.resolve({
-        messages: [],
-        options: {},
-        stream,
-        sessionId,
-      } as LLMRequestType);
-    });
+    const buildLLMRequest = vi
+      .fn()
+      .mockImplementation((sessionId: string, _extraMessages, stream: boolean) => {
+        return Promise.resolve({
+          messages: [],
+          options: {},
+          stream,
+          sessionId,
+        } as LLMRequestType);
+      });
 
-    const subscribe = vi.fn().mockImplementation(async (topic: string, handler: (data: unknown) => Promise<void>) => {
-      streamHandlers.set(topic, handler);
-    });
+    const subscribe = vi
+      .fn()
+      .mockImplementation(async (topic: string, handler: (data: unknown) => Promise<void>) => {
+        streamHandlers.set(topic, handler);
+      });
 
     const unsubscribe = vi.fn().mockImplementation(async (topic: string) => {
       streamHandlers.delete(topic);

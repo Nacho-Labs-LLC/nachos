@@ -5,11 +5,7 @@
  * sessions (conversation history), and prompt assembly.
  */
 
-export {
-  StateLayer,
-  createStateLayer,
-  type StateOperationContext,
-} from './state-layer.js';
+export { StateLayer, createStateLayer, type StateOperationContext } from './state-layer.js';
 export type {
   StateLayerConfig,
   StateLayerDependencies,
@@ -48,4 +44,7 @@ export { SqliteSessionsStore } from './sessions/sqlite-sessions-store.js';
 
 // Memory stores
 export { QdrantMemoryStore, type QdrantConfig } from './memory/qdrant-memory-store.js';
-export { FilesystemMemoryStore, type FilesystemMemoryStoreConfig } from './memory/filesystem-memory-store.js';
+export {
+  FilesystemMemoryStore,
+  type FilesystemMemoryStoreConfig,
+} from './memory/filesystem-memory-store.js';

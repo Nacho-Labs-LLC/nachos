@@ -96,10 +96,10 @@ export class SlidingWindowManager implements ISlidingWindowManager {
     if (preservedMessages.length > 0) {
       // Add preserved messages to kept messages
       messagesKept = [...preservedMessages, ...messagesKept];
-      
+
       // Remove preserved messages from dropped list
-      const preservedIds = new Set(preservedMessages.map(m => m.id || m.timestamp));
-      messagesDropped = messagesDropped.filter(m => {
+      const preservedIds = new Set(preservedMessages.map((m) => m.id || m.timestamp));
+      messagesDropped = messagesDropped.filter((m) => {
         const id = m.id || m.timestamp;
         return id === undefined || !preservedIds.has(id);
       });
@@ -386,10 +386,10 @@ export class SlidingWindowManager implements ISlidingWindowManager {
 
   /**
    * M4: Preserve important tool results from dropped messages
-   * 
+   *
    * Identifies and extracts important tool results (file operations, searches)
    * to prevent loss of critical context during sliding.
-   * 
+   *
    * Returns the N most important messages to preserve.
    */
   private preserveImportantMessages(
@@ -398,29 +398,27 @@ export class SlidingWindowManager implements ISlidingWindowManager {
   ): ContextMessage[] {
     // Determine how many important messages to preserve based on action severity
     const maxToPreserve = this.getMaxPreservableMessages(action);
-    
+
     if (maxToPreserve === 0) {
       return [];
     }
 
     // Score messages by importance
     const scoredMessages = messages
-      .map(msg => ({
+      .map((msg) => ({
         message: msg,
         score: this.getMessageImportance(msg),
       }))
-      .filter(item => item.score > 0) // Only consider messages with importance
+      .filter((item) => item.score > 0) // Only consider messages with importance
       .sort((a, b) => b.score - a.score); // Highest score first
 
     // Take top N most important
-    return scoredMessages
-      .slice(0, maxToPreserve)
-      .map(item => item.message);
+    return scoredMessages.slice(0, maxToPreserve).map((item) => item.message);
   }
 
   /**
    * M4: Calculate importance score for a message
-   * 
+   *
    * Scores based on content type and patterns:
    * - File operations (read, write, edit): 100
    * - Search results: 80
@@ -434,15 +432,16 @@ export class SlidingWindowManager implements ISlidingWindowManager {
       return 0;
     }
 
-    const content = typeof message.content === 'string'
-      ? message.content
-      : message.content
-          .map(block => {
-            if (block.type === 'text') return block.text || block.content || '';
-            if (block.type === 'tool_result') return block.content || '';
-            return '';
-          })
-          .join(' ');
+    const content =
+      typeof message.content === 'string'
+        ? message.content
+        : message.content
+            .map((block) => {
+              if (block.type === 'text') return block.text || block.content || '';
+              if (block.type === 'tool_result') return block.content || '';
+              return '';
+            })
+            .join(' ');
 
     const lowerContent = content.toLowerCase();
 
@@ -460,7 +459,7 @@ export class SlidingWindowManager implements ISlidingWindowManager {
     // Search results
     if (
       lowerContent.includes('search result') ||
-      lowerContent.includes('found') && lowerContent.includes('match') ||
+      (lowerContent.includes('found') && lowerContent.includes('match')) ||
       /\d+\s+(result|match|hit)s?\s+found/i.test(content)
     ) {
       return 80;
@@ -471,7 +470,7 @@ export class SlidingWindowManager implements ISlidingWindowManager {
       lowerContent.includes('error:') ||
       lowerContent.includes('failed') ||
       lowerContent.includes('exception') ||
-      /\berror\b/i.test(content) && content.length < 1000
+      (/\berror\b/i.test(content) && content.length < 1000)
     ) {
       return 70;
     }

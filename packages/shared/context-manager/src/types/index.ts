@@ -475,7 +475,12 @@ export interface IContextSnapshotService {
   }): Promise<ContextSnapshot>;
 
   /** Get snapshot by ID */
-  getSnapshot(sessionId: string, snapshotId: string, channel?: string, userId?: string): Promise<ContextSnapshot | null>;
+  getSnapshot(
+    sessionId: string,
+    snapshotId: string,
+    channel?: string,
+    userId?: string
+  ): Promise<ContextSnapshot | null>;
 
   /** List all snapshots for session */
   listSnapshots(
@@ -486,10 +491,19 @@ export interface IContextSnapshotService {
   ): Promise<ContextSnapshot[]>;
 
   /** Get latest snapshot for session */
-  getLatestSnapshot(sessionId: string, channel?: string, userId?: string): Promise<ContextSnapshot | null>;
+  getLatestSnapshot(
+    sessionId: string,
+    channel?: string,
+    userId?: string
+  ): Promise<ContextSnapshot | null>;
 
   /** Delete snapshot */
-  deleteSnapshot(sessionId: string, snapshotId: string, channel?: string, userId?: string): Promise<boolean>;
+  deleteSnapshot(
+    sessionId: string,
+    snapshotId: string,
+    channel?: string,
+    userId?: string
+  ): Promise<boolean>;
 
   /** Delete all snapshots for session */
   deleteAllSnapshots(sessionId: string, channel?: string, userId?: string): Promise<number>;

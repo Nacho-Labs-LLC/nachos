@@ -27,7 +27,9 @@ export async function loadAuditProvider(config: AuditConfig): Promise<AuditProvi
       });
     case 'webhook':
       if (!config.url) {
-        throw createConfigError('Audit webhook provider requires security.audit.url', { component: 'gateway' });
+        throw createConfigError('Audit webhook provider requires security.audit.url', {
+          component: 'gateway',
+        });
       }
       return new WebhookAuditProvider({
         url: config.url,
@@ -37,7 +39,9 @@ export async function loadAuditProvider(config: AuditConfig): Promise<AuditProvi
       });
     case 'custom': {
       if (!config.custom_path) {
-        throw createConfigError('Audit custom provider requires security.audit.custom_path', { component: 'gateway' });
+        throw createConfigError('Audit custom provider requires security.audit.custom_path', {
+          component: 'gateway',
+        });
       }
       const resolvedPath = config.custom_path.startsWith('file:')
         ? config.custom_path
@@ -49,14 +53,19 @@ export async function loadAuditProvider(config: AuditConfig): Promise<AuditProvi
       const module = await import(resolvedPath);
       const Provider = module.default ?? module.AuditProvider;
       if (!Provider) {
-        throw createConfigError('Audit custom provider module must export default or AuditProvider', { component: 'gateway' });
+        throw createConfigError(
+          'Audit custom provider module must export default or AuditProvider',
+          { component: 'gateway' }
+        );
       }
       return new Provider(config.custom_config ?? {});
     }
     case 'composite': {
       const providerNames = config.providers ?? [];
       if (providerNames.includes('composite')) {
-        throw createValidationError('Composite audit provider cannot include itself', { component: 'gateway' });
+        throw createValidationError('Composite audit provider cannot include itself', {
+          component: 'gateway',
+        });
       }
       const baseConfig: AuditConfig = {
         enabled: config.enabled,

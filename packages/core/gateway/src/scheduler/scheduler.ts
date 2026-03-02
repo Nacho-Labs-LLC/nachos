@@ -22,7 +22,9 @@ const logger = createLogger('scheduler');
 /**
  * Job executor callback
  */
-export type JobExecutor = (job: CronJob) => Promise<{ success: boolean; result?: string; error?: string }>;
+export type JobExecutor = (
+  job: CronJob
+) => Promise<{ success: boolean; result?: string; error?: string }>;
 
 /**
  * Scheduler service
@@ -77,10 +79,7 @@ export class Scheduler {
     }
 
     this.running = true;
-    logger.info(
-      { checkIntervalSeconds: this.config.checkIntervalSeconds },
-      'Starting scheduler'
-    );
+    logger.info({ checkIntervalSeconds: this.config.checkIntervalSeconds }, 'Starting scheduler');
 
     // Calculate next run times for all enabled jobs
     await this.recalculateAllNextRunTimes();
@@ -120,7 +119,7 @@ export class Scheduler {
     const timeout = 30000; // 30 seconds
     const start = Date.now();
     while (this.runningJobs.size > 0 && Date.now() - start < timeout) {
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
     }
 
     if (this.runningJobs.size > 0) {
@@ -161,7 +160,7 @@ export class Scheduler {
       }
 
       // Run job asynchronously
-      this.runJob(job).catch(error => {
+      this.runJob(job).catch((error) => {
         logger.error({ jobId: job.id, error }, 'Error running job');
       });
     }
@@ -190,7 +189,7 @@ export class Scheduler {
    */
   private async recalculateAllNextRunTimes(): Promise<void> {
     const jobs = this.storage.listJobs({ enabled: true });
-    
+
     logger.info({ count: jobs.length }, 'Recalculating next run times for all jobs');
 
     for (const job of jobs) {
@@ -221,10 +220,11 @@ export class Scheduler {
 
     // Publish job fired event
     if (this.messageBus) {
-      await this.messageBus.publish(
-        TOPICS.scheduler.jobFired,
-        { jobId: job.id, runId: run.id, timestamp: new Date().toISOString() }
-      );
+      await this.messageBus.publish(TOPICS.scheduler.jobFired, {
+        jobId: job.id,
+        runId: run.id,
+        timestamp: new Date().toISOString(),
+      });
     }
 
     try {
@@ -236,22 +236,16 @@ export class Scheduler {
         error: result.error,
       });
 
-      logger.info(
-        { jobId: job.id, runId: run.id, success: result.success },
-        'Job completed'
-      );
+      logger.info({ jobId: job.id, runId: run.id, success: result.success }, 'Job completed');
 
       // Publish job completed event
       if (this.messageBus) {
-        await this.messageBus.publish(
-          TOPICS.scheduler.jobCompleted,
-          {
-            jobId: job.id,
-            runId: run.id,
-            status: result.success ? 'success' : 'failed',
-            timestamp: new Date().toISOString(),
-          }
-        );
+        await this.messageBus.publish(TOPICS.scheduler.jobCompleted, {
+          jobId: job.id,
+          runId: run.id,
+          status: result.success ? 'success' : 'failed',
+          timestamp: new Date().toISOString(),
+        });
       }
     } catch (error) {
       logger.error({ jobId: job.id, runId: run.id, error }, 'Job execution failed');
@@ -266,7 +260,7 @@ export class Scheduler {
       // Calculate and update next run time
       const now = new Date();
       const nextRunAt = calculateNextRunTime(job, now);
-      
+
       this.storage.updateJobRunTimes(job.id, now, nextRunAt ?? undefined);
 
       // If it's a one-shot job (at) and it's done, disable it
@@ -286,21 +280,17 @@ export class Scheduler {
     // Calculate initial next run time
     const nextRunAt = calculateNextRunTime(job);
     if (nextRunAt) {
-      this.storage.updateJobRunTimes(
-        job.id,
-        new Date(),
-        nextRunAt
-      );
+      this.storage.updateJobRunTimes(job.id, new Date(), nextRunAt);
     }
 
     logger.info({ jobId: job.id, jobName: job.name }, 'Created cron job');
 
     // Publish job created event
     if (this.messageBus) {
-      await this.messageBus.publish(
-        TOPICS.scheduler.jobCreated,
-        { jobId: job.id, timestamp: new Date().toISOString() }
-      );
+      await this.messageBus.publish(TOPICS.scheduler.jobCreated, {
+        jobId: job.id,
+        timestamp: new Date().toISOString(),
+      });
     }
 
     return this.storage.getJob(job.id) || job;
@@ -311,7 +301,7 @@ export class Scheduler {
    */
   async updateJob(id: string, options: UpdateCronJobOptions): Promise<CronJob | null> {
     const updated = this.storage.updateJob(id, options);
-    
+
     if (!updated) {
       return null;
     }
@@ -328,10 +318,10 @@ export class Scheduler {
 
     // Publish job updated event
     if (this.messageBus) {
-      await this.messageBus.publish(
-        TOPICS.scheduler.jobUpdated,
-        { jobId: id, timestamp: new Date().toISOString() }
-      );
+      await this.messageBus.publish(TOPICS.scheduler.jobUpdated, {
+        jobId: id,
+        timestamp: new Date().toISOString(),
+      });
     }
 
     return this.storage.getJob(id);
@@ -342,16 +332,16 @@ export class Scheduler {
    */
   async deleteJob(id: string): Promise<boolean> {
     const deleted = this.storage.deleteJob(id);
-    
+
     if (deleted) {
       logger.info({ jobId: id }, 'Deleted cron job');
 
       // Publish job deleted event
       if (this.messageBus) {
-        await this.messageBus.publish(
-          TOPICS.scheduler.jobDeleted,
-          { jobId: id, timestamp: new Date().toISOString() }
-        );
+        await this.messageBus.publish(TOPICS.scheduler.jobDeleted, {
+          jobId: id,
+          timestamp: new Date().toISOString(),
+        });
       }
     }
 
@@ -384,7 +374,7 @@ export class Scheduler {
    */
   async triggerJob(id: string): Promise<{ success: boolean; runId?: string; error?: string }> {
     const job = this.storage.getJob(id);
-    
+
     if (!job) {
       return { success: false, error: 'Job not found' };
     }
@@ -407,7 +397,7 @@ export class Scheduler {
       return { success: result.success, runId: run.id, error: result.error };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      
+
       this.storage.updateRun(run.id, {
         status: 'failed',
         error: errorMsg,

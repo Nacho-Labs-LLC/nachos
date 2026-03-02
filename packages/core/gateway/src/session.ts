@@ -89,7 +89,9 @@ export class SessionManager {
   /**
    * Reset the session for a conversation by deleting the existing session and creating a new one.
    */
-  async resetSession(options: CreateSessionOptions): Promise<{ previous?: Session; session: Session }> {
+  async resetSession(
+    options: CreateSessionOptions
+  ): Promise<{ previous?: Session; session: Session }> {
     const existing = await this.getSessionByConversation(options.channel, options.conversationId);
     if (existing) {
       await this.storage.deleteSession(existing.id);
@@ -184,7 +186,10 @@ export class SessionManager {
   /**
    * Update session metadata
    */
-  async updateMetadata(sessionId: string, metadata: Record<string, unknown>): Promise<Session | null> {
+  async updateMetadata(
+    sessionId: string,
+    metadata: Record<string, unknown>
+  ): Promise<Session | null> {
     const session = await this.getSession(sessionId);
     if (!session) {
       return null;
@@ -233,7 +238,7 @@ export class SessionManager {
 
     // M2: Check message count and warn if approaching limit
     const currentCount = await this.storage.getMessageCount(sessionId);
-    
+
     if (currentCount >= this.maxMessagesPerSession) {
       logger.warn(
         { sessionId, messageCount: currentCount, maxMessages: this.maxMessagesPerSession },
@@ -260,7 +265,10 @@ export class SessionManager {
   /**
    * Get messages for a session
    */
-  async getMessages(sessionId: string, options?: { limit?: number; offset?: number }): Promise<Message[]> {
+  async getMessages(
+    sessionId: string,
+    options?: { limit?: number; offset?: number }
+  ): Promise<Message[]> {
     return await this.storage.getMessages(sessionId, options);
   }
 

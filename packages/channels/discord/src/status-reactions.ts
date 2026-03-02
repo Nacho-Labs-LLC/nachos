@@ -1,6 +1,6 @@
 /**
  * Discord Status Reactions Controller
- * 
+ *
  * Provides real-time status feedback via emoji reactions during bot operations.
  * Ported from OpenClaw's emoji status system.
  */

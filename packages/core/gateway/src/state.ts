@@ -28,6 +28,9 @@ const INIT_SCHEMA = `
     metadata TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
+    is_pinned INTEGER NOT NULL DEFAULT 0,
+    is_archived INTEGER NOT NULL DEFAULT 0,
+    last_activity TEXT,
     UNIQUE(channel, conversation_id)
   );
 
@@ -202,7 +205,9 @@ export class StateStorage {
    * Get or create a session atomically (C2: Race condition fix)
    * Uses a transaction to prevent TOCTOU race conditions
    */
-  async getOrCreateSessionAtomic(data: CreateSessionData): Promise<{ session: Session; created: boolean }> {
+  async getOrCreateSessionAtomic(
+    data: CreateSessionData
+  ): Promise<{ session: Session; created: boolean }> {
     const transaction = this.db.transaction((data: CreateSessionData) => {
       // Try to get existing session
       const getStmt = this.db.prepare(
@@ -221,7 +226,7 @@ export class StateStorage {
           'UPDATE sessions SET status = ?, updated_at = ? WHERE id = ?'
         );
         updateStmt.run('active', now, existingRow.id);
-        
+
         // Fetch updated session synchronously within transaction
         const updatedStmt = this.db.prepare('SELECT * FROM sessions WHERE id = ?');
         const updatedRow = updatedStmt.get(existingRow.id) as SessionRow;
@@ -427,7 +432,10 @@ export class StateStorage {
   /**
    * Get messages for a session
    */
-  async getMessages(sessionId: string, options?: { limit?: number; offset?: number }): Promise<Message[]> {
+  async getMessages(
+    sessionId: string,
+    options?: { limit?: number; offset?: number }
+  ): Promise<Message[]> {
     let sql = 'SELECT * FROM messages WHERE session_id = ? ORDER BY created_at ASC';
     const values: unknown[] = [sessionId];
 
@@ -509,6 +517,121 @@ export class StateStorage {
     });
 
     return transaction(sessionId, messages);
+  }
+
+  /**
+   * Pin or unpin a session
+   */
+  async pin(id: string, pinned = true): Promise<boolean> {
+    const stmt = this.db.prepare('UPDATE sessions SET is_pinned = ?, updated_at = ? WHERE id = ?');
+    const result = stmt.run(pinned ? 1 : 0, new Date().toISOString(), id);
+    return result.changes > 0;
+  }
+
+  /**
+   * Archive a session
+   */
+  async archive(id: string): Promise<boolean> {
+    const stmt = this.db.prepare('UPDATE sessions SET is_archived = 1, updated_at = ? WHERE id = ?');
+    const result = stmt.run(new Date().toISOString(), id);
+    return result.changes > 0;
+  }
+
+  /**
+   * Restore an archived session
+   */
+  async restore(id: string): Promise<boolean> {
+    const stmt = this.db.prepare('UPDATE sessions SET is_archived = 0, updated_at = ? WHERE id = ?');
+    const result = stmt.run(new Date().toISOString(), id);
+    return result.changes > 0;
+  }
+
+  /**
+   * List active sessions (recent activity within 24h or pinned, not archived)
+   */
+  async listActive(options?: {
+    channel?: string;
+    userId?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<Session[]> {
+    const conditions: string[] = ['is_archived = 0'];
+    const values: unknown[] = [];
+
+    // Active = pinned OR last_activity within 24h
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    conditions.push('(is_pinned = 1 OR last_activity > ?)');
+    values.push(cutoff);
+
+    if (options?.channel) {
+      conditions.push('channel = ?');
+      values.push(options.channel);
+    }
+    if (options?.userId) {
+      conditions.push('user_id = ?');
+      values.push(options.userId);
+    }
+
+    let sql = `SELECT * FROM sessions WHERE ${conditions.join(' AND ')} ORDER BY is_pinned DESC, last_activity DESC`;
+
+    if (options?.limit) {
+      sql += ' LIMIT ?';
+      values.push(options.limit);
+    } else if (options?.offset) {
+      sql += ' LIMIT -1';
+    }
+    if (options?.offset) {
+      sql += ' OFFSET ?';
+      values.push(options.offset);
+    }
+
+    const stmt = this.db.prepare(sql);
+    const rows = stmt.all(...values) as SessionRow[];
+    return rows.map((row) => this.rowToSession(row));
+  }
+
+  /**
+   * List archived sessions
+   */
+  async listArchived(options?: {
+    channel?: string;
+    userId?: string;
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<Session[]> {
+    const conditions: string[] = ['is_archived = 1'];
+    const values: unknown[] = [];
+
+    if (options?.channel) {
+      conditions.push('channel = ?');
+      values.push(options.channel);
+    }
+    if (options?.userId) {
+      conditions.push('user_id = ?');
+      values.push(options.userId);
+    }
+    if (options?.search) {
+      conditions.push('conversation_id LIKE ?');
+      values.push(`%${options.search}%`);
+    }
+
+    let sql = `SELECT * FROM sessions WHERE ${conditions.join(' AND ')} ORDER BY updated_at DESC`;
+
+    if (options?.limit) {
+      sql += ' LIMIT ?';
+      values.push(options.limit);
+    } else if (options?.offset) {
+      sql += ' LIMIT -1';
+    }
+    if (options?.offset) {
+      sql += ' OFFSET ?';
+      values.push(options.offset);
+    }
+
+    const stmt = this.db.prepare(sql);
+    const rows = stmt.all(...values) as SessionRow[];
+    return rows.map((row) => this.rowToSession(row));
   }
 
   /**

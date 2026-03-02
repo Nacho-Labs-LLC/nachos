@@ -1,6 +1,6 @@
 /**
  * Tests for Bitbucket tool
- * 
+ *
  * Comprehensive tests covering all Bitbucket actions, rate limiting, and error handling.
  */
 
@@ -10,7 +10,7 @@ import type { ToolCall } from '@nachos/types';
 
 // Mock fetch
 const mockFetch = vi.fn();
-global.fetch = mockFetch as any;
+global.fetch = mockFetch as unknown as typeof fetch;
 
 const mockConfig: BitbucketConfig = {
   enabled: true,

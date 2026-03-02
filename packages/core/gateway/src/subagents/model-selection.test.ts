@@ -13,53 +13,33 @@ import {
 describe('Model Selection', () => {
   describe('selectModel', () => {
     it('should use explicit model when provided', () => {
-      const model = selectModel(
-        'Simple task',
-        { model: 'opus' },
-        {}
-      );
-      
+      const model = selectModel('Simple task', { model: 'opus' }, {});
+
       expect(model).toBe(DEFAULT_MODEL_ALIASES['opus']);
     });
 
     it('should resolve full model IDs without aliases', () => {
       const fullModelId = 'anthropic.claude-3-sonnet-20240229-v1:0';
-      const model = selectModel(
-        'Simple task',
-        { model: fullModelId },
-        {}
-      );
-      
+      const model = selectModel('Simple task', { model: fullModelId }, {});
+
       expect(model).toBe(fullModelId);
     });
 
     it('should use modelHint when provided', () => {
-      const model = selectModel(
-        'Simple task',
-        { modelHint: 'fast' },
-        {}
-      );
-      
+      const model = selectModel('Simple task', { modelHint: 'fast' }, {});
+
       expect(model).toBe(DEFAULT_MODEL_ALIASES['fast']);
     });
 
     it('should prioritize explicit model over modelHint', () => {
-      const model = selectModel(
-        'Simple task',
-        { model: 'opus', modelHint: 'fast' },
-        {}
-      );
-      
+      const model = selectModel('Simple task', { model: 'opus', modelHint: 'fast' }, {});
+
       expect(model).toBe(DEFAULT_MODEL_ALIASES['opus']);
     });
 
     it('should auto-select haiku for simple short tasks', () => {
-      const model = selectModel(
-        'Check syntax',
-        {},
-        { autoSelect: true }
-      );
-      
+      const model = selectModel('Check syntax', {}, { autoSelect: true });
+
       expect(model).toBe(DEFAULT_MODEL_ALIASES['fast']);
     });
 
@@ -69,7 +49,7 @@ describe('Model Selection', () => {
         {},
         { autoSelect: true }
       );
-      
+
       expect(model).toBe(DEFAULT_MODEL_ALIASES['thorough']);
     });
 
@@ -79,7 +59,7 @@ describe('Model Selection', () => {
         {},
         { autoSelect: true }
       );
-      
+
       expect(model).toBe(DEFAULT_MODEL_ALIASES['thorough']);
     });
 
@@ -89,7 +69,7 @@ describe('Model Selection', () => {
         {},
         { autoSelect: true }
       );
-      
+
       expect(model).toBe(DEFAULT_MODEL_ALIASES['thorough']);
     });
 
@@ -99,7 +79,7 @@ describe('Model Selection', () => {
         {},
         { autoSelect: true }
       );
-      
+
       expect(model).toBe(DEFAULT_MODEL_ALIASES['balanced']);
     });
 
@@ -113,7 +93,7 @@ describe('Model Selection', () => {
           },
         }
       );
-      
+
       expect(model).toBe('my-custom-model-id');
     });
 
@@ -121,18 +101,15 @@ describe('Model Selection', () => {
       const config = {
         aliases: {
           'My-Custom-Fast': 'my-custom-model-id',
-          'CUSTOM_SLOW': 'another-model-id',
+          CUSTOM_SLOW: 'another-model-id',
         },
       };
 
-      expect(selectModel('Task', { model: 'my-custom-fast' }, config))
-        .toBe('my-custom-model-id');
-      
-      expect(selectModel('Task', { model: 'custom_slow' }, config))
-        .toBe('another-model-id');
-      
-      expect(selectModel('Task', { model: 'CUSTOM_SLOW' }, config))
-        .toBe('another-model-id');
+      expect(selectModel('Task', { model: 'my-custom-fast' }, config)).toBe('my-custom-model-id');
+
+      expect(selectModel('Task', { model: 'custom_slow' }, config)).toBe('another-model-id');
+
+      expect(selectModel('Task', { model: 'CUSTOM_SLOW' }, config)).toBe('another-model-id');
     });
 
     it('should use defaultModel from config when no auto-select', () => {
@@ -144,17 +121,13 @@ describe('Model Selection', () => {
           defaultModel: 'opus',
         }
       );
-      
+
       expect(model).toBe(DEFAULT_MODEL_ALIASES['opus']);
     });
 
     it('should fallback to sonnet when no hints or config', () => {
-      const model = selectModel(
-        'Some task',
-        {},
-        { autoSelect: false }
-      );
-      
+      const model = selectModel('Some task', {}, { autoSelect: false });
+
       expect(model).toBe(DEFAULT_MODEL_ALIASES['balanced']);
     });
 
@@ -167,24 +140,20 @@ describe('Model Selection', () => {
         {},
         { autoSelect: true }
       );
-      
+
       expect(model).toBe(DEFAULT_MODEL_ALIASES['thorough']);
     });
 
     it('should handle very long task descriptions', () => {
       const longTask = 'word '.repeat(60) + 'end'; // 61 words
-      const model = selectModel(
-        longTask,
-        {},
-        { autoSelect: true }
-      );
-      
+      const model = selectModel(longTask, {}, { autoSelect: true });
+
       expect(model).toBe(DEFAULT_MODEL_ALIASES['thorough']);
     });
 
     it('should recognize all model hint values', () => {
       const hints: Array<'fast' | 'balanced' | 'thorough'> = ['fast', 'balanced', 'thorough'];
-      
+
       for (const hint of hints) {
         const model = selectModel('Task', { modelHint: hint }, {});
         expect(model).toBe(DEFAULT_MODEL_ALIASES[hint]);
@@ -192,12 +161,8 @@ describe('Model Selection', () => {
     });
 
     it('should handle case-insensitive alias resolution', () => {
-      const model = selectModel(
-        'Task',
-        { model: 'HAIKU' },
-        {}
-      );
-      
+      const model = selectModel('Task', { model: 'HAIKU' }, {});
+
       expect(model).toBe(DEFAULT_MODEL_ALIASES['haiku']);
     });
   });
@@ -240,44 +205,28 @@ describe('Model Selection', () => {
 
   describe('Edge Cases', () => {
     it('should handle empty task string', () => {
-      const model = selectModel(
-        '',
-        {},
-        { autoSelect: true }
-      );
-      
+      const model = selectModel('', {}, { autoSelect: true });
+
       // Empty task is short, should select Haiku
       expect(model).toBe(DEFAULT_MODEL_ALIASES['fast']);
     });
 
     it('should handle task with only whitespace', () => {
-      const model = selectModel(
-        '   \n   \t   ',
-        {},
-        { autoSelect: true }
-      );
-      
+      const model = selectModel('   \n   \t   ', {}, { autoSelect: true });
+
       expect(model).toBe(DEFAULT_MODEL_ALIASES['fast']);
     });
 
     it('should handle task with special characters', () => {
-      const model = selectModel(
-        'Fix bug: @#$%^&*()',
-        {},
-        { autoSelect: true }
-      );
-      
+      const model = selectModel('Fix bug: @#$%^&*()', {}, { autoSelect: true });
+
       // Short task, should use Haiku
       expect(model).toBe(DEFAULT_MODEL_ALIASES['fast']);
     });
 
     it('should handle undefined options gracefully', () => {
-      const model = selectModel(
-        'Simple task',
-        {},
-        undefined
-      );
-      
+      const model = selectModel('Simple task', {}, undefined);
+
       expect(model).toBe(DEFAULT_MODEL_ALIASES['balanced']);
     });
   });

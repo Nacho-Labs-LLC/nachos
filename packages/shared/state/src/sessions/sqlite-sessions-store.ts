@@ -162,25 +162,29 @@ export class SqliteSessionsStore implements SessionsStore {
     const now = new Date().toISOString();
     const id = uuid();
 
-    this.db.prepare(`
+    this.db
+      .prepare(
+        `
       INSERT INTO sessions
         (id, channel, conversation_id, user_id, status, system_prompt, config, metadata, created_at, updated_at, is_pinned, is_archived, last_activity)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      id,
-      data.channel,
-      data.conversationId,
-      data.userId,
-      'active',
-      data.systemPrompt ?? null,
-      data.config ? JSON.stringify(data.config) : null,
-      data.metadata ? JSON.stringify(data.metadata) : null,
-      now,
-      now,
-      0, // is_pinned
-      0, // is_archived
-      now, // last_activity
-    );
+    `
+      )
+      .run(
+        id,
+        data.channel,
+        data.conversationId,
+        data.userId,
+        'active',
+        data.systemPrompt ?? null,
+        data.config ? JSON.stringify(data.config) : null,
+        data.metadata ? JSON.stringify(data.metadata) : null,
+        now,
+        now,
+        0, // is_pinned
+        0, // is_archived
+        now // last_activity
+      );
 
     return {
       id,
@@ -199,12 +203,14 @@ export class SqliteSessionsStore implements SessionsStore {
     };
   }
 
-  async getOrCreateSessionAtomic(data: CreateSessionData): Promise<{ session: Session; created: boolean }> {
+  async getOrCreateSessionAtomic(
+    data: CreateSessionData
+  ): Promise<{ session: Session; created: boolean }> {
     // SQLite is single-writer, so we use a transaction for atomicity
     const txn = this.db.transaction(() => {
-      const existing = this.db.prepare(
-        'SELECT * FROM sessions WHERE channel = ? AND conversation_id = ?'
-      ).get(data.channel, data.conversationId) as SessionRow | undefined;
+      const existing = this.db
+        .prepare('SELECT * FROM sessions WHERE channel = ? AND conversation_id = ?')
+        .get(data.channel, data.conversationId) as SessionRow | undefined;
 
       if (existing) {
         return { session: this.rowToSession(existing), created: false };
@@ -213,25 +219,29 @@ export class SqliteSessionsStore implements SessionsStore {
       const now = new Date().toISOString();
       const id = uuid();
 
-      this.db.prepare(`
+      this.db
+        .prepare(
+          `
         INSERT INTO sessions
           (id, channel, conversation_id, user_id, status, system_prompt, config, metadata, created_at, updated_at, is_pinned, is_archived, last_activity)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        id,
-        data.channel,
-        data.conversationId,
-        data.userId,
-        'active',
-        data.systemPrompt ?? null,
-        data.config ? JSON.stringify(data.config) : null,
-        data.metadata ? JSON.stringify(data.metadata) : null,
-        now,
-        now,
-        0,
-        0,
-        now,
-      );
+      `
+        )
+        .run(
+          id,
+          data.channel,
+          data.conversationId,
+          data.userId,
+          'active',
+          data.systemPrompt ?? null,
+          data.config ? JSON.stringify(data.config) : null,
+          data.metadata ? JSON.stringify(data.metadata) : null,
+          now,
+          now,
+          0,
+          0,
+          now
+        );
 
       const session: Session = {
         id,
@@ -256,14 +266,16 @@ export class SqliteSessionsStore implements SessionsStore {
   }
 
   async getSession(id: string): Promise<Session | null> {
-    const row = this.db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as SessionRow | undefined;
+    const row = this.db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as
+      | SessionRow
+      | undefined;
     return row ? this.rowToSession(row) : null;
   }
 
   async getSessionByConversation(channel: string, conversationId: string): Promise<Session | null> {
-    const row = this.db.prepare(
-      'SELECT * FROM sessions WHERE channel = ? AND conversation_id = ?'
-    ).get(channel, conversationId) as SessionRow | undefined;
+    const row = this.db
+      .prepare('SELECT * FROM sessions WHERE channel = ? AND conversation_id = ?')
+      .get(channel, conversationId) as SessionRow | undefined;
     return row ? this.rowToSession(row) : null;
   }
 
@@ -294,9 +306,7 @@ export class SqliteSessionsStore implements SessionsStore {
 
     values.push(id);
 
-    this.db.prepare(
-      `UPDATE sessions SET ${updates.join(', ')} WHERE id = ?`
-    ).run(...values);
+    this.db.prepare(`UPDATE sessions SET ${updates.join(', ')} WHERE id = ?`).run(...values);
 
     return await this.getSession(id);
   }
@@ -352,21 +362,25 @@ export class SqliteSessionsStore implements SessionsStore {
     const id = uuid();
 
     const txn = this.db.transaction(() => {
-      this.db.prepare(`
+      this.db
+        .prepare(
+          `
         INSERT INTO messages (id, session_id, role, content, tool_calls, created_at)
         VALUES (?, ?, ?, ?, ?, ?)
-      `).run(
-        id,
-        data.sessionId,
-        data.role,
-        data.content,
-        data.toolCalls ? JSON.stringify(data.toolCalls) : null,
-        now,
-      );
+      `
+        )
+        .run(
+          id,
+          data.sessionId,
+          data.role,
+          data.content,
+          data.toolCalls ? JSON.stringify(data.toolCalls) : null,
+          now
+        );
 
-      this.db.prepare(
-        'UPDATE sessions SET updated_at = ?, last_activity = ? WHERE id = ?'
-      ).run(now, now, data.sessionId);
+      this.db
+        .prepare('UPDATE sessions SET updated_at = ?, last_activity = ? WHERE id = ?')
+        .run(now, now, data.sessionId);
     });
 
     txn();
@@ -381,7 +395,10 @@ export class SqliteSessionsStore implements SessionsStore {
     };
   }
 
-  async getMessages(sessionId: string, options?: { limit?: number; offset?: number }): Promise<Message[]> {
+  async getMessages(
+    sessionId: string,
+    options?: { limit?: number; offset?: number }
+  ): Promise<Message[]> {
     let sql = 'SELECT * FROM messages WHERE session_id = ? ORDER BY created_at ASC';
     const values: unknown[] = [sessionId];
 
@@ -407,9 +424,9 @@ export class SqliteSessionsStore implements SessionsStore {
   }
 
   async getMessageCount(sessionId: string): Promise<number> {
-    const row = this.db.prepare(
-      'SELECT COUNT(*) as count FROM messages WHERE session_id = ?'
-    ).get(sessionId) as { count: number };
+    const row = this.db
+      .prepare('SELECT COUNT(*) as count FROM messages WHERE session_id = ?')
+      .get(sessionId) as { count: number };
     return row.count;
   }
 
@@ -429,7 +446,7 @@ export class SqliteSessionsStore implements SessionsStore {
           msg.role,
           msg.content,
           msg.toolCalls ? JSON.stringify(msg.toolCalls) : null,
-          msg.createdAt,
+          msg.createdAt
         );
       }
 
@@ -499,7 +516,7 @@ export class SqliteSessionsStore implements SessionsStore {
       values.push(options.userId);
     }
     if (options?.search) {
-      conditions.push("(conversation_id LIKE ? OR system_prompt LIKE ?)");
+      conditions.push('(conversation_id LIKE ? OR system_prompt LIKE ?)');
       values.push(`%${options.search}%`, `%${options.search}%`);
     }
 
@@ -521,25 +538,27 @@ export class SqliteSessionsStore implements SessionsStore {
 
   async archive(sessionId: string): Promise<boolean> {
     const now = new Date().toISOString();
-    const result = this.db.prepare(
-      'UPDATE sessions SET is_archived = 1, updated_at = ? WHERE id = ?'
-    ).run(now, sessionId);
+    const result = this.db
+      .prepare('UPDATE sessions SET is_archived = 1, updated_at = ? WHERE id = ?')
+      .run(now, sessionId);
     return result.changes > 0;
   }
 
   async restore(sessionId: string): Promise<boolean> {
     const now = new Date().toISOString();
-    const result = this.db.prepare(
-      'UPDATE sessions SET is_archived = 0, last_activity = ?, updated_at = ? WHERE id = ?'
-    ).run(now, now, sessionId);
+    const result = this.db
+      .prepare(
+        'UPDATE sessions SET is_archived = 0, last_activity = ?, updated_at = ? WHERE id = ?'
+      )
+      .run(now, now, sessionId);
     return result.changes > 0;
   }
 
   async pin(sessionId: string, pinned: boolean): Promise<boolean> {
     const now = new Date().toISOString();
-    const result = this.db.prepare(
-      'UPDATE sessions SET is_pinned = ?, updated_at = ? WHERE id = ?'
-    ).run(pinned ? 1 : 0, now, sessionId);
+    const result = this.db
+      .prepare('UPDATE sessions SET is_pinned = ?, updated_at = ? WHERE id = ?')
+      .run(pinned ? 1 : 0, now, sessionId);
     return result.changes > 0;
   }
 

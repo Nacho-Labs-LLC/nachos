@@ -176,9 +176,7 @@ const CODE_RUNNER_PYTHON: ExternalToolDefinition = {
  * Get external tool definitions based on nachos.toml config.
  * Only returns tools that are enabled in config.
  */
-export function getExternalToolDefinitions(
-  toolsConfig?: ToolsConfig
-): ExternalToolDefinition[] {
+export function getExternalToolDefinitions(toolsConfig?: ToolsConfig): ExternalToolDefinition[] {
   if (!toolsConfig) {
     return [];
   }

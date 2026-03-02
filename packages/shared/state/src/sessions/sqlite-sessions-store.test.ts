@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Database from 'better-sqlite3';
 import { SqliteSessionsStore } from './sqlite-sessions-store.js';
-import type { CreateSessionData, CreateMessageData } from './sessions-store-interface.js';
+import type { CreateSessionData } from './sessions-store-interface.js';
 
 describe('SqliteSessionsStore', () => {
   let db: Database.Database;
@@ -66,9 +66,7 @@ describe('SqliteSessionsStore', () => {
     it('enforces unique channel + conversationId constraint', async () => {
       await store.createSession(defaultSession);
 
-      await expect(
-        store.createSession(defaultSession)
-      ).rejects.toThrow();
+      await expect(store.createSession(defaultSession)).rejects.toThrow();
     });
   });
 
@@ -476,8 +474,10 @@ describe('SqliteSessionsStore', () => {
       await store.pin(session.id, true);
 
       // Manually set last_activity to an old date
-      db.prepare('UPDATE sessions SET last_activity = ? WHERE id = ?')
-        .run('2020-01-01T00:00:00.000Z', session.id);
+      db.prepare('UPDATE sessions SET last_activity = ? WHERE id = ?').run(
+        '2020-01-01T00:00:00.000Z',
+        session.id
+      );
 
       const active = await store.listActive();
       expect(active.some((s) => s.id === session.id)).toBe(true);

@@ -24,8 +24,14 @@ function buildSecrets(): Record<string, string> {
 }
 
 async function main(): Promise<void> {
-  if (!process.env.MATRIX_ACCESS_TOKEN || !process.env.MATRIX_HOMESERVER_URL || !process.env.MATRIX_USER_ID) {
-    logger.warn('MATRIX_ACCESS_TOKEN, MATRIX_HOMESERVER_URL, and MATRIX_USER_ID are required — channel disabled. Set the env vars and restart to enable.');
+  if (
+    !process.env.MATRIX_ACCESS_TOKEN ||
+    !process.env.MATRIX_HOMESERVER_URL ||
+    !process.env.MATRIX_USER_ID
+  ) {
+    logger.warn(
+      'MATRIX_ACCESS_TOKEN, MATRIX_HOMESERVER_URL, and MATRIX_USER_ID are required — channel disabled. Set the env vars and restart to enable.'
+    );
     await new Promise<void>((resolve) => {
       process.once('SIGTERM', resolve);
       process.once('SIGINT', resolve);

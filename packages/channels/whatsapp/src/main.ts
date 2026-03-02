@@ -38,7 +38,9 @@ async function main(): Promise<void> {
     !process.env.WHATSAPP_PHONE_NUMBER_ID ||
     !process.env.WHATSAPP_VERIFY_TOKEN
   ) {
-    logger.warn('WHATSAPP_TOKEN, WHATSAPP_PHONE_NUMBER_ID, and WHATSAPP_VERIFY_TOKEN are required — channel disabled. Set the env vars and restart to enable.');
+    logger.warn(
+      'WHATSAPP_TOKEN, WHATSAPP_PHONE_NUMBER_ID, and WHATSAPP_VERIFY_TOKEN are required — channel disabled. Set the env vars and restart to enable.'
+    );
     await new Promise<void>((resolve) => {
       process.once('SIGTERM', resolve);
       process.once('SIGINT', resolve);

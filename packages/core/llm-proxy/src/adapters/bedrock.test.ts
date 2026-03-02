@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createBedrockAdapter } from './bedrock.js';
 import { ProviderError } from './types.js';
-import type { BedrockRuntimeClient } from '@aws-sdk/client-bedrock-runtime';
-
 // Mock the AWS SDK
 const mockSend = vi.fn();
 vi.mock('@aws-sdk/client-bedrock-runtime', () => {
@@ -35,27 +33,31 @@ describe('BedrockAdapter', () => {
 
     it('should accept custom AWS credentials', () => {
       // Verify it doesn't throw - actual auth tested via integration
-      expect(() => createBedrockAdapter('us-west-2', {
-        accessKeyId: 'test-key',
-        secretAccessKey: 'test-secret',
-      })).not.toThrow();
+      expect(() =>
+        createBedrockAdapter('us-west-2', {
+          accessKeyId: 'test-key',
+          secretAccessKey: 'test-secret',
+        })
+      ).not.toThrow();
     });
   });
 
   describe('send - message transformation', () => {
     it('should correctly transform simple text responses', async () => {
       const adapter = createBedrockAdapter();
-      
+
       mockSend.mockResolvedValue({
-        body: new TextEncoder().encode(JSON.stringify({
-          id: 'msg_123',
-          type: 'message',
-          role: 'assistant',
-          content: [{ type: 'text', text: 'Hello there!' }],
-          model: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
-          stop_reason: 'end_turn',
-          usage: { input_tokens: 10, output_tokens: 5 },
-        })),
+        body: new TextEncoder().encode(
+          JSON.stringify({
+            id: 'msg_123',
+            type: 'message',
+            role: 'assistant',
+            content: [{ type: 'text', text: 'Hello there!' }],
+            model: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+            stop_reason: 'end_turn',
+            usage: { input_tokens: 10, output_tokens: 5 },
+          })
+        ),
       });
 
       const response = await adapter.send(
@@ -73,20 +75,22 @@ describe('BedrockAdapter', () => {
 
     it('should handle multiple text blocks by concatenating', async () => {
       const adapter = createBedrockAdapter();
-      
+
       mockSend.mockResolvedValue({
-        body: new TextEncoder().encode(JSON.stringify({
-          id: 'msg_123',
-          type: 'message',
-          role: 'assistant',
-          content: [
-            { type: 'text', text: 'First part. ' },
-            { type: 'text', text: 'Second part.' },
-          ],
-          model: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
-          stop_reason: 'end_turn',
-          usage: { input_tokens: 10, output_tokens: 8 },
-        })),
+        body: new TextEncoder().encode(
+          JSON.stringify({
+            id: 'msg_123',
+            type: 'message',
+            role: 'assistant',
+            content: [
+              { type: 'text', text: 'First part. ' },
+              { type: 'text', text: 'Second part.' },
+            ],
+            model: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+            stop_reason: 'end_turn',
+            usage: { input_tokens: 10, output_tokens: 8 },
+          })
+        ),
       });
 
       const response = await adapter.send(
@@ -99,17 +103,19 @@ describe('BedrockAdapter', () => {
 
     it('should correctly separate system messages from user messages', async () => {
       const adapter = createBedrockAdapter();
-      
+
       mockSend.mockResolvedValue({
-        body: new TextEncoder().encode(JSON.stringify({
-          id: 'msg_123',
-          type: 'message',
-          role: 'assistant',
-          content: [{ type: 'text', text: 'Response' }],
-          model: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
-          stop_reason: 'end_turn',
-          usage: { input_tokens: 20, output_tokens: 10 },
-        })),
+        body: new TextEncoder().encode(
+          JSON.stringify({
+            id: 'msg_123',
+            type: 'message',
+            role: 'assistant',
+            content: [{ type: 'text', text: 'Response' }],
+            model: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+            stop_reason: 'end_turn',
+            usage: { input_tokens: 20, output_tokens: 10 },
+          })
+        ),
       });
 
       await adapter.send(
@@ -125,7 +131,7 @@ describe('BedrockAdapter', () => {
       // Verify the command was called with system separated
       const commandCall = mockSend.mock.calls[0][0];
       const bodyJson = JSON.parse(commandCall.body);
-      
+
       expect(bodyJson.system).toBe('You are helpful');
       expect(bodyJson.messages).toHaveLength(1);
       expect(bodyJson.messages[0].role).toBe('user');
@@ -135,42 +141,46 @@ describe('BedrockAdapter', () => {
   describe('send - tool calling', () => {
     it('should transform tool use blocks into toolCalls array', async () => {
       const adapter = createBedrockAdapter();
-      
+
       mockSend.mockResolvedValue({
-        body: new TextEncoder().encode(JSON.stringify({
-          id: 'msg_123',
-          type: 'message',
-          role: 'assistant',
-          content: [
-            { type: 'text', text: 'Let me check that.' },
-            { 
-              type: 'tool_use', 
-              id: 'tool_abc', 
-              name: 'get_weather', 
-              input: { city: 'San Francisco', units: 'celsius' } 
-            },
-          ],
-          model: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
-          stop_reason: 'tool_use',
-          usage: { input_tokens: 30, output_tokens: 15 },
-        })),
+        body: new TextEncoder().encode(
+          JSON.stringify({
+            id: 'msg_123',
+            type: 'message',
+            role: 'assistant',
+            content: [
+              { type: 'text', text: 'Let me check that.' },
+              {
+                type: 'tool_use',
+                id: 'tool_abc',
+                name: 'get_weather',
+                input: { city: 'San Francisco', units: 'celsius' },
+              },
+            ],
+            model: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+            stop_reason: 'tool_use',
+            usage: { input_tokens: 30, output_tokens: 15 },
+          })
+        ),
       });
 
       const response = await adapter.send(
         {
           messages: [{ role: 'user', content: 'Weather in SF?' }],
-          tools: [{
-            name: 'get_weather',
-            description: 'Get weather',
-            input_schema: {
-              type: 'object',
-              properties: { 
-                city: { type: 'string' },
-                units: { type: 'string' }
+          tools: [
+            {
+              name: 'get_weather',
+              description: 'Get weather',
+              input_schema: {
+                type: 'object',
+                properties: {
+                  city: { type: 'string' },
+                  units: { type: 'string' },
+                },
+                required: ['city'],
               },
-              required: ['city'],
             },
-          }],
+          ],
         },
         { model: 'anthropic.claude-3-5-sonnet-20241022-v2:0' }
       );
@@ -179,7 +189,7 @@ describe('BedrockAdapter', () => {
       expect(response.toolCalls).toHaveLength(1);
       expect(response.toolCalls![0].id).toBe('tool_abc');
       expect(response.toolCalls![0].name).toBe('get_weather');
-      
+
       const args = JSON.parse(response.toolCalls![0].arguments);
       expect(args.city).toBe('San Francisco');
       expect(args.units).toBe('celsius');
@@ -188,28 +198,38 @@ describe('BedrockAdapter', () => {
 
     it('should handle multiple tool calls in single response', async () => {
       const adapter = createBedrockAdapter();
-      
+
       mockSend.mockResolvedValue({
-        body: new TextEncoder().encode(JSON.stringify({
-          id: 'msg_123',
-          type: 'message',
-          role: 'assistant',
-          content: [
-            { type: 'tool_use', id: 'tool_1', name: 'get_weather', input: { city: 'SF' } },
-            { type: 'tool_use', id: 'tool_2', name: 'get_time', input: { timezone: 'PST' } },
-          ],
-          model: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
-          stop_reason: 'tool_use',
-          usage: { input_tokens: 30, output_tokens: 20 },
-        })),
+        body: new TextEncoder().encode(
+          JSON.stringify({
+            id: 'msg_123',
+            type: 'message',
+            role: 'assistant',
+            content: [
+              { type: 'tool_use', id: 'tool_1', name: 'get_weather', input: { city: 'SF' } },
+              { type: 'tool_use', id: 'tool_2', name: 'get_time', input: { timezone: 'PST' } },
+            ],
+            model: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+            stop_reason: 'tool_use',
+            usage: { input_tokens: 30, output_tokens: 20 },
+          })
+        ),
       });
 
       const response = await adapter.send(
         {
           messages: [{ role: 'user', content: 'Weather and time in SF?' }],
           tools: [
-            { name: 'get_weather', description: 'Weather', input_schema: { type: 'object', properties: {}, required: [] } },
-            { name: 'get_time', description: 'Time', input_schema: { type: 'object', properties: {}, required: [] } },
+            {
+              name: 'get_weather',
+              description: 'Weather',
+              input_schema: { type: 'object', properties: {}, required: [] },
+            },
+            {
+              name: 'get_time',
+              description: 'Time',
+              input_schema: { type: 'object', properties: {}, required: [] },
+            },
           ],
         },
         { model: 'anthropic.claude-3-5-sonnet-20241022-v2:0' }
@@ -222,34 +242,39 @@ describe('BedrockAdapter', () => {
 
     it('should convert Nachos tool schema to Bedrock format', async () => {
       const adapter = createBedrockAdapter();
-      
+
       mockSend.mockResolvedValue({
-        body: new TextEncoder().encode(JSON.stringify({
-          id: 'msg_123',
-          type: 'message',
-          role: 'assistant',
-          content: [{ type: 'text', text: 'Ok' }],
-          model: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
-          stop_reason: 'end_turn',
-          usage: { input_tokens: 50, output_tokens: 5 },
-        })),
+        body: new TextEncoder().encode(
+          JSON.stringify({
+            id: 'msg_123',
+            type: 'message',
+            role: 'assistant',
+            content: [{ type: 'text', text: 'Ok' }],
+            model: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+            stop_reason: 'end_turn',
+            usage: { input_tokens: 50, output_tokens: 5 },
+          })
+        ),
       });
 
       await adapter.send(
         {
           messages: [{ role: 'user', content: 'Test' }],
-          tools: [{
-            name: 'search',
-            description: 'Search the web',
-            parameters: {  // Nachos uses 'parameters'
-              type: 'object',
-              properties: {
-                query: { type: 'string', description: 'Search query' },
-                limit: { type: 'number' },
+          tools: [
+            {
+              name: 'search',
+              description: 'Search the web',
+              parameters: {
+                // Nachos uses 'parameters'
+                type: 'object',
+                properties: {
+                  query: { type: 'string', description: 'Search query' },
+                  limit: { type: 'number' },
+                },
+                required: ['query'],
               },
-              required: ['query'],
             },
-          }],
+          ],
         },
         { model: 'anthropic.claude-3-5-sonnet-20241022-v2:0' }
       );
@@ -257,7 +282,7 @@ describe('BedrockAdapter', () => {
       // Verify transformation to Bedrock's input_schema
       const commandCall = mockSend.mock.calls[0][0];
       const bodyJson = JSON.parse(commandCall.body);
-      
+
       expect(bodyJson.tools).toHaveLength(1);
       expect(bodyJson.tools[0].input_schema).toBeDefined(); // Bedrock uses input_schema
       expect(bodyJson.tools[0].input_schema.properties.query).toBeDefined();
@@ -267,7 +292,7 @@ describe('BedrockAdapter', () => {
   describe('send - error handling', () => {
     it('should throw ProviderError with rate_limit kind for ThrottlingException', async () => {
       const adapter = createBedrockAdapter();
-      
+
       mockSend.mockRejectedValue({
         name: 'ThrottlingException',
         message: 'Rate limit exceeded',
@@ -294,7 +319,7 @@ describe('BedrockAdapter', () => {
 
     it('should throw ProviderError with invalid_request kind for ValidationException', async () => {
       const adapter = createBedrockAdapter();
-      
+
       mockSend.mockRejectedValue({
         name: 'ValidationException',
         message: 'Invalid model ID',
@@ -314,7 +339,7 @@ describe('BedrockAdapter', () => {
 
     it('should throw ProviderError with auth kind for AccessDeniedException', async () => {
       const adapter = createBedrockAdapter();
-      
+
       mockSend.mockRejectedValue({
         name: 'AccessDeniedException',
         message: 'User not authorized',
@@ -335,7 +360,7 @@ describe('BedrockAdapter', () => {
 
     it('should throw ProviderError with limit_reached kind for ServiceQuotaExceededException', async () => {
       const adapter = createBedrockAdapter();
-      
+
       mockSend.mockRejectedValue({
         name: 'ServiceQuotaExceededException',
         message: 'Service quota exceeded',
@@ -354,7 +379,7 @@ describe('BedrockAdapter', () => {
 
     it('should throw generic ProviderError for unknown errors', async () => {
       const adapter = createBedrockAdapter();
-      
+
       mockSend.mockRejectedValue(new Error('Network timeout'));
 
       try {
@@ -373,22 +398,24 @@ describe('BedrockAdapter', () => {
   describe('send - request formatting', () => {
     it('should include temperature when specified', async () => {
       const adapter = createBedrockAdapter();
-      
+
       mockSend.mockResolvedValue({
-        body: new TextEncoder().encode(JSON.stringify({
-          id: 'msg_123',
-          type: 'message',
-          role: 'assistant',
-          content: [{ type: 'text', text: 'Response' }],
-          model: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
-          stop_reason: 'end_turn',
-          usage: { input_tokens: 10, output_tokens: 5 },
-        })),
+        body: new TextEncoder().encode(
+          JSON.stringify({
+            id: 'msg_123',
+            type: 'message',
+            role: 'assistant',
+            content: [{ type: 'text', text: 'Response' }],
+            model: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+            stop_reason: 'end_turn',
+            usage: { input_tokens: 10, output_tokens: 5 },
+          })
+        ),
       });
 
       await adapter.send(
         { messages: [{ role: 'user', content: 'Hi' }] },
-        { 
+        {
           model: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
           temperature: 0.7,
         }
@@ -396,28 +423,30 @@ describe('BedrockAdapter', () => {
 
       const commandCall = mockSend.mock.calls[0][0];
       const bodyJson = JSON.parse(commandCall.body);
-      
+
       expect(bodyJson.temperature).toBe(0.7);
     });
 
     it('should use maxTokens from options', async () => {
       const adapter = createBedrockAdapter();
-      
+
       mockSend.mockResolvedValue({
-        body: new TextEncoder().encode(JSON.stringify({
-          id: 'msg_123',
-          type: 'message',
-          role: 'assistant',
-          content: [{ type: 'text', text: 'Response' }],
-          model: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
-          stop_reason: 'end_turn',
-          usage: { input_tokens: 10, output_tokens: 5 },
-        })),
+        body: new TextEncoder().encode(
+          JSON.stringify({
+            id: 'msg_123',
+            type: 'message',
+            role: 'assistant',
+            content: [{ type: 'text', text: 'Response' }],
+            model: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+            stop_reason: 'end_turn',
+            usage: { input_tokens: 10, output_tokens: 5 },
+          })
+        ),
       });
 
       await adapter.send(
         { messages: [{ role: 'user', content: 'Hi' }] },
-        { 
+        {
           model: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
           maxTokens: 2000,
         }
@@ -425,23 +454,25 @@ describe('BedrockAdapter', () => {
 
       const commandCall = mockSend.mock.calls[0][0];
       const bodyJson = JSON.parse(commandCall.body);
-      
+
       expect(bodyJson.max_tokens).toBe(2000);
     });
 
     it('should default to 4096 max_tokens if not specified', async () => {
       const adapter = createBedrockAdapter();
-      
+
       mockSend.mockResolvedValue({
-        body: new TextEncoder().encode(JSON.stringify({
-          id: 'msg_123',
-          type: 'message',
-          role: 'assistant',
-          content: [{ type: 'text', text: 'Response' }],
-          model: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
-          stop_reason: 'end_turn',
-          usage: { input_tokens: 10, output_tokens: 5 },
-        })),
+        body: new TextEncoder().encode(
+          JSON.stringify({
+            id: 'msg_123',
+            type: 'message',
+            role: 'assistant',
+            content: [{ type: 'text', text: 'Response' }],
+            model: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+            stop_reason: 'end_turn',
+            usage: { input_tokens: 10, output_tokens: 5 },
+          })
+        ),
       });
 
       await adapter.send(
@@ -451,7 +482,7 @@ describe('BedrockAdapter', () => {
 
       const commandCall = mockSend.mock.calls[0][0];
       const bodyJson = JSON.parse(commandCall.body);
-      
+
       expect(bodyJson.max_tokens).toBe(4096);
     });
   });

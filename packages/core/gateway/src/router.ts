@@ -114,7 +114,10 @@ export class NatsBusAdapter implements MessageBus {
     // NachosBusClient.publish wraps data in an envelope, but we already have an envelope
     // So we need to extract the payload if data is already an envelope
     if (!isMessageEnvelope(data)) {
-      throw createInvalidMessageError('Invalid message envelope: data must be a valid MessageEnvelope', { component: 'gateway' });
+      throw createInvalidMessageError(
+        'Invalid message envelope: data must be a valid MessageEnvelope',
+        { component: 'gateway' }
+      );
     }
     this.client.publish(topic, data.payload, {
       type: data.type,
@@ -150,7 +153,10 @@ export class NatsBusAdapter implements MessageBus {
 
   async request(topic: string, data: unknown, timeout?: number): Promise<unknown> {
     if (!isMessageEnvelope(data)) {
-      throw createInvalidMessageError('Invalid message envelope: data must be a valid MessageEnvelope', { component: 'gateway' });
+      throw createInvalidMessageError(
+        'Invalid message envelope: data must be a valid MessageEnvelope',
+        { component: 'gateway' }
+      );
     }
     const response = await this.client.request(topic, data.payload, {
       type: data.type,
@@ -535,7 +541,10 @@ export class Router {
 
     // Replace messages in StateStorage (atomic operation)
     const messageCount = this.sessionManager.getMessageCount(sessionId);
-    logger.info({ before: messageCount, after: compactedNachosMessages.length }, 'Replacing messages with compacted messages');
+    logger.info(
+      { before: messageCount, after: compactedNachosMessages.length },
+      'Replacing messages with compacted messages'
+    );
 
     // Atomically replace messages in storage
     this.sessionManager.replaceMessages(sessionId, compactedNachosMessages);
@@ -613,7 +622,10 @@ export class Router {
     }
 
     logger.info(
-      { tokensBefore: check.budget.currentUsage, tokensAfter: compactionResult.budget.currentUsage },
+      {
+        tokensBefore: check.budget.currentUsage,
+        tokensAfter: compactionResult.budget.currentUsage,
+      },
       'Context compaction completed'
     );
   }

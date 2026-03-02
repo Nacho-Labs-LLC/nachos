@@ -4,7 +4,7 @@ import { createBusClient, TOPICS } from '@nachos/bus';
 import type { NachosBusClient } from '@nachos/bus';
 import type {
   ChannelInboundMessageType as ChannelInboundMessage,
-  ChannelOutboundMessageType as ChannelOutboundMessage
+  ChannelOutboundMessageType as ChannelOutboundMessage,
 } from '@nachos/types';
 import { createLogger } from '@nachos/types';
 import { randomUUID } from 'node:crypto';

@@ -202,7 +202,10 @@ export class BrowserLocalTool {
         metadata: { duration: Date.now() - startTime },
       };
     } catch (error) {
-      this.logger.error({ error: error instanceof Error ? error.message : error }, 'Browser tool execution error');
+      this.logger.error(
+        { error: error instanceof Error ? error.message : error },
+        'Browser tool execution error'
+      );
       return {
         success: false,
         content: [],
@@ -256,11 +259,14 @@ export class BrowserLocalTool {
       },
     })) as unknown as MCPServer;
 
-    this.logger.info({
-      headless: this.headless,
-      executablePath: executablePath ?? 'default',
-      allowedDomains: this.ssrfProtection.getAllowedDomains(),
-    }, 'Browser tool initialized successfully');
+    this.logger.info(
+      {
+        headless: this.headless,
+        executablePath: executablePath ?? 'default',
+        allowedDomains: this.ssrfProtection.getAllowedDomains(),
+      },
+      'Browser tool initialized successfully'
+    );
   }
 
   /**
@@ -271,7 +277,10 @@ export class BrowserLocalTool {
       try {
         await this.mcpServer.close();
       } catch (error) {
-        this.logger.warn({ error: error instanceof Error ? error.message : error }, 'Error closing browser MCP server');
+        this.logger.warn(
+          { error: error instanceof Error ? error.message : error },
+          'Error closing browser MCP server'
+        );
       }
       this.mcpServer = null;
     }

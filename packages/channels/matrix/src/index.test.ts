@@ -4,16 +4,16 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { MatrixChannelAdapter } from './index.js';
-import type { ChannelAdapterConfig } from '@nachos/types';
+import type { ChannelAdapterConfig, ChannelBus, ChannelGroupPolicy } from '@nachos/types';
 
 describe('MatrixChannelAdapter', () => {
   let adapter: MatrixChannelAdapter;
   let mockConfig: ChannelAdapterConfig;
-  let mockBus: any;
+  let mockBus: ChannelBus;
 
   beforeEach(() => {
     adapter = new MatrixChannelAdapter();
-    
+
     mockBus = {
       publish: vi.fn(),
       subscribe: vi.fn(),
@@ -39,7 +39,7 @@ describe('MatrixChannelAdapter', () => {
         mentionGating: true,
         channelIds: ['!room123:example.com'],
         userAllowlist: ['@alice:example.com'],
-      },
+      } as ChannelGroupPolicy,
     };
   });
 
@@ -50,22 +50,26 @@ describe('MatrixChannelAdapter', () => {
 
     it('should throw error if homeserver is missing', async () => {
       const invalidConfig = { ...mockConfig };
-      delete (invalidConfig.config as any).homeserver;
-      
-      await expect(adapter.initialize(invalidConfig)).rejects.toThrow('Matrix homeserver is required');
+      delete (invalidConfig.config as Record<string, unknown>).homeserver;
+
+      await expect(adapter.initialize(invalidConfig)).rejects.toThrow(
+        'Matrix homeserver is required'
+      );
     });
 
     it('should throw error if accessToken is missing', async () => {
       const invalidConfig = { ...mockConfig };
-      delete (invalidConfig.config as any).accessToken;
-      
-      await expect(adapter.initialize(invalidConfig)).rejects.toThrow('Matrix access token is required');
+      delete (invalidConfig.config as Record<string, unknown>).accessToken;
+
+      await expect(adapter.initialize(invalidConfig)).rejects.toThrow(
+        'Matrix access token is required'
+      );
     });
 
     it('should throw error if userId is missing', async () => {
       const invalidConfig = { ...mockConfig };
-      delete (invalidConfig.config as any).userId;
-      
+      delete (invalidConfig.config as Record<string, unknown>).userId;
+
       await expect(adapter.initialize(invalidConfig)).rejects.toThrow('Matrix user ID is required');
     });
   });
@@ -92,7 +96,7 @@ describe('MatrixChannelAdapter', () => {
       };
 
       const result = await adapter.sendMessage(message);
-      
+
       expect(result.success).toBe(false);
       expect(result.error?.code).toBe('CLIENT_NOT_INITIALIZED');
     });
@@ -101,9 +105,7 @@ describe('MatrixChannelAdapter', () => {
   describe('healthCheck', () => {
     it('should return unhealthy if client not running', async () => {
       const health = await adapter.healthCheck();
-      
-      expect(health.status).toBe('unhealthy');
-      expect(health.details?.message).toContain('not running');
+      expect(health).toBe('unhealthy');
     });
   });
 });

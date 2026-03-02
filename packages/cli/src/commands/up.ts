@@ -188,9 +188,7 @@ function buildServiceUrls(config: ServiceConfig): {
     webchat: config.channels?.webchat?.enabled
       ? `http://localhost:${config.channels.webchat.port || 8080}`
       : undefined,
-    admin: config.admin?.enabled
-      ? `http://localhost:${config.admin.port ?? 8082}`
-      : undefined,
+    admin: config.admin?.enabled ? `http://localhost:${config.admin.port ?? 8082}` : undefined,
     nats_monitoring: 'http://localhost:8222',
   };
 }

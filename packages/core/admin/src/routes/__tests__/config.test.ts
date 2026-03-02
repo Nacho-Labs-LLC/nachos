@@ -97,7 +97,7 @@ describe('configRouter', () => {
       const res = await app.request('/api/config');
       expect(res.status).toBe(404);
 
-      const body = await res.json();
+      const body = (await res.json()) as { error: string };
       expect(body.error).toBe('nachos.toml not found');
     });
 
@@ -110,7 +110,7 @@ describe('configRouter', () => {
       const res = await app.request('/api/config');
       expect(res.status).toBe(200);
 
-      const body = await res.json();
+      const body = (await res.json()) as { content: string; parsed: unknown };
       expect(body.content).toBe(tomlContent);
       expect(body.parsed).toBeDefined();
     });
@@ -128,7 +128,7 @@ describe('configRouter', () => {
       });
 
       expect(res.status).toBe(400);
-      const body = await res.json();
+      const body = (await res.json()) as { error: string };
       expect(body.error).toBe('content is required');
     });
 
@@ -143,7 +143,7 @@ describe('configRouter', () => {
       });
 
       expect(res.status).toBe(400);
-      const body = await res.json();
+      const body = (await res.json()) as { error: string };
       expect(body.error).toBe('Invalid TOML syntax');
     });
 
@@ -161,7 +161,7 @@ describe('configRouter', () => {
       });
 
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = (await res.json()) as { ok: boolean };
       expect(body.ok).toBe(true);
 
       // Verify file was written
@@ -186,7 +186,7 @@ describe('configRouter', () => {
       });
 
       expect(res.status).toBe(400);
-      const body = await res.json();
+      const body = (await res.json()) as { error: string };
       expect(body.error).toBe('path and value are required');
     });
 
@@ -216,7 +216,7 @@ describe('configRouter', () => {
       });
 
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = (await res.json()) as { ok: boolean; parsed: unknown };
       expect(body.ok).toBe(true);
       expect(body.parsed).toBeDefined();
     });

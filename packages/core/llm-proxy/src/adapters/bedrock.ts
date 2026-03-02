@@ -42,14 +42,16 @@ function toBedrockMessages(messages: LLMRequestType['messages']): unknown[] {
       if (message.role === 'tool') {
         const contentArray = Array.isArray(message.content) ? message.content : [];
         const toolResultBlocks = contentArray
-          .filter((block: unknown): block is ToolResultBlock =>
-            typeof block === 'object' && block !== null && (block as ToolResultBlock).type === 'tool_result'
+          .filter(
+            (block: unknown): block is ToolResultBlock =>
+              typeof block === 'object' &&
+              block !== null &&
+              (block as ToolResultBlock).type === 'tool_result'
           )
           .map((block: ToolResultBlock) => {
             const resultContent = block.tool_result ?? block.content ?? '';
-            const contentStr = typeof resultContent === 'string'
-              ? resultContent
-              : JSON.stringify(resultContent);
+            const contentStr =
+              typeof resultContent === 'string' ? resultContent : JSON.stringify(resultContent);
             return {
               type: 'tool_result' as const,
               tool_use_id: block.tool_use_id,
@@ -68,23 +70,24 @@ function toBedrockMessages(messages: LLMRequestType['messages']): unknown[] {
         // Fallback for OpenAI-style tool_call_id
         const toolCallId = (message as Record<string, unknown>).tool_call_id as string | undefined;
         if (toolCallId) {
-          const contentStr = typeof message.content === 'string'
-            ? message.content
-            : JSON.stringify(message.content);
+          const contentStr =
+            typeof message.content === 'string' ? message.content : JSON.stringify(message.content);
           return {
             role: 'user' as const,
-            content: [{
-              type: 'tool_result' as const,
-              tool_use_id: toolCallId,
-              content: contentStr,
-            }],
+            content: [
+              {
+                type: 'tool_result' as const,
+                tool_use_id: toolCallId,
+                content: contentStr,
+              },
+            ],
           };
         }
       }
 
       // Handle assistant messages with tool_use blocks
       if (message.role === 'assistant' && Array.isArray(message.content)) {
-        const hasToolUse = (message.content as Array<{type?: string}>).some(
+        const hasToolUse = (message.content as Array<{ type?: string }>).some(
           (block) => block && typeof block === 'object' && block.type === 'tool_use'
         );
         if (hasToolUse) {
@@ -158,7 +161,13 @@ type BedrockResponseBody = {
 };
 
 type BedrockStreamChunk = {
-  type: 'message_start' | 'content_block_start' | 'content_block_delta' | 'content_block_stop' | 'message_delta' | 'message_stop';
+  type:
+    | 'message_start'
+    | 'content_block_start'
+    | 'content_block_delta'
+    | 'content_block_stop'
+    | 'message_delta'
+    | 'message_stop';
   index?: number;
   message?: {
     id: string;
@@ -250,15 +259,28 @@ export function createBedrockAdapter(
         };
       } catch (error: unknown) {
         if (error && typeof error === 'object' && 'name' in error) {
-          const awsError = error as { name: string; message: string; $metadata?: { httpStatusCode?: number } };
-          
-          if (awsError.name === 'ThrottlingException' || awsError.$metadata?.httpStatusCode === 429) {
+          const awsError = error as {
+            name: string;
+            message: string;
+            $metadata?: { httpStatusCode?: number };
+          };
+
+          if (
+            awsError.name === 'ThrottlingException' ||
+            awsError.$metadata?.httpStatusCode === 429
+          ) {
             throw new ProviderError('Rate limit exceeded', 'rate_limit', awsError.name);
           }
-          if (awsError.name === 'ValidationException' || awsError.$metadata?.httpStatusCode === 400) {
+          if (
+            awsError.name === 'ValidationException' ||
+            awsError.$metadata?.httpStatusCode === 400
+          ) {
             throw new ProviderError(awsError.message, 'invalid_request', awsError.name);
           }
-          if (awsError.name === 'AccessDeniedException' || awsError.$metadata?.httpStatusCode === 403) {
+          if (
+            awsError.name === 'AccessDeniedException' ||
+            awsError.$metadata?.httpStatusCode === 403
+          ) {
             throw new ProviderError('Authentication failed', 'auth', awsError.name);
           }
           if (awsError.name === 'ServiceQuotaExceededException') {
@@ -300,7 +322,7 @@ export function createBedrockAdapter(
 
       try {
         const response = await client.send(command);
-        
+
         let fullText = '';
         let modelName = '';
         let inputTokens = 0;
@@ -339,7 +361,11 @@ export function createBedrockAdapter(
                   sessionId: options.sessionId,
                   index: chunkIndex++,
                 });
-              } else if (chunkData.delta.type === 'input_json_delta' && chunkData.delta.partial_json && chunkData.index !== undefined) {
+              } else if (
+                chunkData.delta.type === 'input_json_delta' &&
+                chunkData.delta.partial_json &&
+                chunkData.index !== undefined
+              ) {
                 const toolCall = toolCalls[chunkData.index];
                 if (toolCall) {
                   toolInputBuffers[toolCall.id] += chunkData.delta.partial_json;
@@ -380,15 +406,28 @@ export function createBedrockAdapter(
         };
       } catch (error: unknown) {
         if (error && typeof error === 'object' && 'name' in error) {
-          const awsError = error as { name: string; message: string; $metadata?: { httpStatusCode?: number } };
-          
-          if (awsError.name === 'ThrottlingException' || awsError.$metadata?.httpStatusCode === 429) {
+          const awsError = error as {
+            name: string;
+            message: string;
+            $metadata?: { httpStatusCode?: number };
+          };
+
+          if (
+            awsError.name === 'ThrottlingException' ||
+            awsError.$metadata?.httpStatusCode === 429
+          ) {
             throw new ProviderError('Rate limit exceeded', 'rate_limit', awsError.name);
           }
-          if (awsError.name === 'ValidationException' || awsError.$metadata?.httpStatusCode === 400) {
+          if (
+            awsError.name === 'ValidationException' ||
+            awsError.$metadata?.httpStatusCode === 400
+          ) {
             throw new ProviderError(awsError.message, 'invalid_request', awsError.name);
           }
-          if (awsError.name === 'AccessDeniedException' || awsError.$metadata?.httpStatusCode === 403) {
+          if (
+            awsError.name === 'AccessDeniedException' ||
+            awsError.$metadata?.httpStatusCode === 403
+          ) {
             throw new ProviderError('Authentication failed', 'auth', awsError.name);
           }
           if (awsError.name === 'ServiceQuotaExceededException') {
