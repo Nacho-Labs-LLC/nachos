@@ -41,7 +41,7 @@ function validateWebhookUrl(url: string): void {
   if (isPrivateHostname(parsed.hostname)) {
     throw new Error(
       `Webhook URL points to a private/internal address (${parsed.hostname}). ` +
-      'This is blocked to prevent SSRF attacks.'
+        'This is blocked to prevent SSRF attacks.'
     );
   }
 }
@@ -103,10 +103,7 @@ export class WebhookAuditProvider implements AuditProvider {
           'Webhook provider received non-OK response'
         );
       } catch (error) {
-        logger.warn(
-          { err: error, attempt, maxAttempts },
-          'Webhook provider attempt failed'
-        );
+        logger.warn({ err: error, attempt, maxAttempts }, 'Webhook provider attempt failed');
       }
 
       if (attempt < maxAttempts) {

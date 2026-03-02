@@ -115,7 +115,12 @@ export class FilesystemMemoryStore implements MemoryStore {
 
   async query(query: MemoryQuery): Promise<MemoryQueryResult> {
     // Use semantic search if enabled and requested
-    if (query.semantic && query.text && this.semanticEnabled && this.semanticSearch?.isInitialized()) {
+    if (
+      query.semantic &&
+      query.text &&
+      this.semanticEnabled &&
+      this.semanticSearch?.isInitialized()
+    ) {
       return this.querySemantic(query);
     }
 

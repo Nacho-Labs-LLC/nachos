@@ -4,7 +4,7 @@
  * Tests validation, initialization, and execution with mocked child_process.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { EventEmitter } from 'node:events';
 import type { ChildProcess } from 'node:child_process';
 
@@ -17,8 +17,12 @@ vi.mock('child_process', () => ({
 // Mock @nachos/tool-base
 vi.mock('@nachos/tool-base', () => ({
   ToolService: class {
-    start() { return Promise.resolve(); }
-    stop() { return Promise.resolve(); }
+    start() {
+      return Promise.resolve();
+    }
+    stop() {
+      return Promise.resolve();
+    }
   },
   connectToNats: vi.fn(),
   setupShutdownHandlers: vi.fn(),
@@ -226,9 +230,7 @@ describe('JavaScriptExecutor', () => {
 
   describe('execute', () => {
     it('executes code and returns stdout', async () => {
-      mockSpawn.mockReturnValue(
-        createMockProcess({ stdout: 'Hello World\n', exitCode: 0 })
-      );
+      mockSpawn.mockReturnValue(createMockProcess({ stdout: 'Hello World\n', exitCode: 0 }));
 
       const result = await executor.execute({
         sessionId: 'test',
@@ -260,9 +262,7 @@ describe('JavaScriptExecutor', () => {
     });
 
     it('handles spawn errors gracefully', async () => {
-      mockSpawn.mockReturnValue(
-        createMockProcess({ error: new Error('spawn ENOENT') })
-      );
+      mockSpawn.mockReturnValue(createMockProcess({ error: new Error('spawn ENOENT') }));
 
       const result = await executor.execute({
         sessionId: 'test',
@@ -289,9 +289,7 @@ describe('JavaScriptExecutor', () => {
     });
 
     it('spawns node with restricted environment', async () => {
-      mockSpawn.mockReturnValue(
-        createMockProcess({ stdout: 'ok', exitCode: 0 })
-      );
+      mockSpawn.mockReturnValue(createMockProcess({ stdout: 'ok', exitCode: 0 }));
 
       await executor.execute({
         sessionId: 'test',
@@ -311,9 +309,7 @@ describe('JavaScriptExecutor', () => {
     });
 
     it('passes timeout to spawn options', async () => {
-      mockSpawn.mockReturnValue(
-        createMockProcess({ stdout: 'ok', exitCode: 0 })
-      );
+      mockSpawn.mockReturnValue(createMockProcess({ stdout: 'ok', exitCode: 0 }));
 
       await executor.execute({
         sessionId: 'test',
@@ -331,9 +327,7 @@ describe('JavaScriptExecutor', () => {
     });
 
     it('uses /tmp as default workdir', async () => {
-      mockSpawn.mockReturnValue(
-        createMockProcess({ stdout: 'ok', exitCode: 0 })
-      );
+      mockSpawn.mockReturnValue(createMockProcess({ stdout: 'ok', exitCode: 0 }));
 
       await executor.execute({
         sessionId: 'test',
@@ -365,9 +359,7 @@ describe('JavaScriptExecutor', () => {
         securityMode: 'standard',
       });
 
-      mockSpawn.mockReturnValue(
-        createMockProcess({ stdout: 'ok', exitCode: 0 })
-      );
+      mockSpawn.mockReturnValue(createMockProcess({ stdout: 'ok', exitCode: 0 }));
 
       await executor.execute({
         sessionId: 'test',
@@ -389,20 +381,14 @@ describe('JavaScriptExecutor', () => {
         securityMode: 'standard',
       });
 
-      mockSpawn.mockReturnValue(
-        createMockProcess({ stdout: 'ok', exitCode: 0 })
-      );
+      mockSpawn.mockReturnValue(createMockProcess({ stdout: 'ok', exitCode: 0 }));
 
       await executor.execute({
         sessionId: 'test',
         code: 'console.log("ok")',
       });
 
-      expect(mockSpawn).toHaveBeenCalledWith(
-        'node',
-        expect.any(Array),
-        expect.any(Object)
-      );
+      expect(mockSpawn).toHaveBeenCalledWith('node', expect.any(Array), expect.any(Object));
     });
   });
 });

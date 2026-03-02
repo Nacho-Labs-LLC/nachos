@@ -81,7 +81,7 @@ function matchesCronPart(part: string, value: number): boolean {
 
   // Handle lists (e.g., 1,3,5)
   if (part.includes(',')) {
-    const values = part.split(',').map(n => parseInt(n, 10));
+    const values = part.split(',').map((n) => parseInt(n, 10));
     return values.includes(value);
   }
 

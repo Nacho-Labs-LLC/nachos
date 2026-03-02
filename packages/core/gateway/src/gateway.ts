@@ -13,19 +13,18 @@ import type {
   PromptReport,
   BootstrapProfile,
 } from '@nachos/types';
-import {
-  createSessionNotFoundError,
-  createConfigError,
-  createLogger,
-} from '@nachos/types';
+import { createSessionNotFoundError, createConfigError, createLogger } from '@nachos/types';
 
 const logger = createLogger('gateway');
 import { TOPICS } from '@nachos/bus';
-import {
-  validateChannelInboundMessage,
-} from '@nachos/types';
+import { validateChannelInboundMessage } from '@nachos/types';
 import { initComposioClient } from './tools/composio-tools.js';
-import { Scheduler, HeartbeatManager, type SchedulerConfig, type HeartbeatConfig } from './scheduler/index.js';
+import {
+  Scheduler,
+  HeartbeatManager,
+  type SchedulerConfig,
+  type HeartbeatConfig,
+} from './scheduler/index.js';
 import type {
   AuditConfig,
   ContextManagementCommandsConfig,
@@ -75,9 +74,7 @@ import { tokenEstimator } from '@nachos/context-manager';
 import type { ContextManager } from '@nachos/context-manager';
 import { SubagentManager } from './subagents/subagent-manager.js';
 import { SubagentOrchestrator } from './subagents/subagent-orchestrator.js';
-import {
-  resolveSubagentWorkspaceRoot,
-} from './subagents/workspace-utils.js';
+import { resolveSubagentWorkspaceRoot } from './subagents/workspace-utils.js';
 import type {
   SubagentManagerConfig,
   SubagentOrchestratorConfig,
@@ -87,9 +84,7 @@ import type {
   SubagentTask,
 } from './subagents/types.js';
 import { SandboxManager } from './sandbox/sandbox-manager.js';
-import {
-  coerceLLMContentText,
-} from './utils/parsing.js';
+import { coerceLLMContentText } from './utils/parsing.js';
 import { registerManagementHandlers } from './management/management-handlers.js';
 import { SkillsManager } from './skills/skills-manager.js';
 import { StreamingSessionManager } from './streaming/streaming-session-manager.js';
@@ -288,7 +283,7 @@ export class Gateway {
         this.schedulerConfig,
         this.createJobExecutor()
       );
-      
+
       if (this.heartbeatConfig?.enabled) {
         this.heartbeatManager = new HeartbeatManager(this.scheduler, this.heartbeatConfig);
       }
@@ -371,13 +366,13 @@ export class Gateway {
     if (options.toolsConfig?.composio?.enabled) {
       const apiKeyEnv = options.toolsConfig.composio.api_key_env ?? 'COMPOSIO_API_KEY';
       const apiKey = process.env[apiKeyEnv];
-      
+
       if (!apiKey) {
         logger.warn(`Composio enabled but ${apiKeyEnv} not set in environment`);
       } else {
         const entityId = options.toolsConfig.composio.entity_id ?? 'default';
         const allowedApps = options.toolsConfig.composio.allowed_apps;
-        
+
         initComposioClient({
           apiKey,
           entityId,
@@ -400,7 +395,7 @@ export class Gateway {
         skillsConfig: this.skillsConfig,
         nachosConfig: this.nachosConfig,
         toolsConfig: this.toolsConfig,
-      },
+      }
     );
 
     this.streamingManager = new StreamingSessionManager(
@@ -408,7 +403,7 @@ export class Gateway {
       {
         streamingMinIntervalMs: options.streamingMinIntervalMs,
         streamingChunkSize: options.streamingChunkSize,
-      },
+      }
     );
 
     this.toolExecutor = new ToolExecutor({
@@ -515,7 +510,10 @@ export class Gateway {
 
     // --- Early intercept: approval commands work from ANY channel/session ---
     if (this.approvalManager && messageText) {
-      logger.info({ messageText: messageText.slice(0, 100), senderId: message.sender.id }, 'Checking for approval command');
+      logger.info(
+        { messageText: messageText.slice(0, 100), senderId: message.sender.id },
+        'Checking for approval command'
+      );
       const handled = await this.handleApprovalCommand(message, messageText);
       if (handled) {
         logger.info('Approval command handled');
@@ -787,7 +785,12 @@ export class Gateway {
         this.streamingManager.register(session.id, message);
       }
 
-      void this.publishStatusEvent(session.id, 'thinking', message.conversation.id, message.channelMessageId ?? undefined);
+      void this.publishStatusEvent(
+        session.id,
+        'thinking',
+        message.conversation.id,
+        message.channelMessageId ?? undefined
+      );
 
       const response = await this.requestLLMResponse(
         session.id,
@@ -800,7 +803,12 @@ export class Gateway {
       const isTimeout = errMsg.includes('timed out') || errMsg.includes('timeout');
       logger.error({ err: error, sessionId: session.id }, 'Failed to process inbound message');
 
-      void this.publishStatusEvent(session.id, 'error', message.conversation.id, message.channelMessageId ?? undefined);
+      void this.publishStatusEvent(
+        session.id,
+        'error',
+        message.conversation.id,
+        message.channelMessageId ?? undefined
+      );
 
       // Send error feedback to the user instead of silent failure
       const errorOutbound: ChannelOutboundMessage = {
@@ -982,13 +990,15 @@ export class Gateway {
 
       if (['reset', 'clear', 'restart'].includes(action)) {
         // H1: Admin allowlist check for identity reset
-        const allowlist = config.adminAllowlist.size > 0 ? config.adminAllowlist : this.approvalAllowlist;
+        const allowlist =
+          config.adminAllowlist.size > 0 ? config.adminAllowlist : this.approvalAllowlist;
         const senderId = message.sender.id ?? '';
-        
+
         if (allowlist.size > 0 && !allowlist.has(senderId)) {
           return {
             handled: true,
-            replyText: '⛔ You are not authorized to reset identity. This action is restricted to administrators.',
+            replyText:
+              '⛔ You are not authorized to reset identity. This action is restricted to administrators.',
           };
         }
 
@@ -1203,13 +1213,22 @@ export class Gateway {
     }
 
     for (const message of session.messages) {
-      if (message.role === 'assistant' && message.toolCalls && Array.isArray(message.toolCalls) && message.toolCalls.length > 0) {
+      if (
+        message.role === 'assistant' &&
+        message.toolCalls &&
+        Array.isArray(message.toolCalls) &&
+        message.toolCalls.length > 0
+      ) {
         // Include tool_use blocks so the LLM adapter can reconstruct the full assistant turn
         const contentBlocks: unknown[] = [];
         if (message.content) {
           contentBlocks.push({ type: 'text', text: message.content });
         }
-        for (const tc of message.toolCalls as Array<{ id: string; name: string; arguments: string }>) {
+        for (const tc of message.toolCalls as Array<{
+          id: string;
+          name: string;
+          arguments: string;
+        }>) {
           contentBlocks.push({
             type: 'tool_use',
             id: tc.id,
@@ -1325,7 +1344,6 @@ export class Gateway {
     return 'call';
   }
 
-
   private isSubagentSession(session: Session | null): boolean {
     if (!session?.metadata) {
       return false;
@@ -1347,7 +1365,7 @@ export class Gateway {
 
         if (job.actionType === 'systemEvent') {
           const actionData = job.actionData as import('./scheduler/types.js').SystemEventAction;
-          
+
           // Inject system event into the configured channel
           if (job.deliveryChannel) {
             const message: ChannelInboundMessage = {
@@ -1369,10 +1387,9 @@ export class Gateway {
 
             // Publish to channel inbound topic
             const envelope = createEnvelope(this.instanceId, 'channel-inbound', message);
-            await this.router.getBus().publish(
-              TOPICS.channel.inbound(job.deliveryChannel),
-              envelope
-            );
+            await this.router
+              .getBus()
+              .publish(TOPICS.channel.inbound(job.deliveryChannel), envelope);
 
             return { success: true, result: 'System event injected' };
           }
@@ -1382,7 +1399,7 @@ export class Gateway {
 
         if (job.actionType === 'agentTurn') {
           const actionData = job.actionData as import('./scheduler/types.js').AgentTurnAction;
-          
+
           // Create an isolated agent turn (similar to how subagents work)
           // For now, inject as a system event - can be enhanced later for true isolated turns
           if (job.deliveryChannel) {
@@ -1404,10 +1421,9 @@ export class Gateway {
             };
 
             const envelope = createEnvelope(this.instanceId, 'channel-inbound', message);
-            await this.router.getBus().publish(
-              TOPICS.channel.inbound(job.deliveryChannel),
-              envelope
-            );
+            await this.router
+              .getBus()
+              .publish(TOPICS.channel.inbound(job.deliveryChannel), envelope);
 
             return { success: true, result: 'Agent turn scheduled' };
           }
@@ -1466,7 +1482,6 @@ export class Gateway {
     return this.toolGroupMap.get(normalized);
   }
 
-
   private buildSandboxDecisionSamples(): {
     main: { enabled: boolean; config?: unknown };
     subagent: { enabled: boolean; config?: unknown };
@@ -1505,7 +1520,6 @@ export class Gateway {
   }
 
   // Utility parsing methods delegate to extracted functions in utils/parsing.ts
-
 
   private async getIdentityCompletionStatus(session: Session): Promise<boolean> {
     if (!this.stateLayer) {
@@ -1640,8 +1654,6 @@ export class Gateway {
     );
   }
 
-
-
   private static readonly MAX_TOOL_ITERATIONS = 10;
 
   private async sendLLMResponse(
@@ -1657,9 +1669,13 @@ export class Gateway {
 
     if (toolCalls && toolCalls.length > 0) {
       if (toolIteration >= Gateway.MAX_TOOL_ITERATIONS) {
-        logger.warn({ sessionId, toolIteration }, 'Max tool iterations reached, forcing text response');
+        logger.warn(
+          { sessionId, toolIteration },
+          'Max tool iterations reached, forcing text response'
+        );
         if (!responseText) {
-          responseText = 'I got caught in a loop processing your request. Could you try rephrasing?';
+          responseText =
+            'I got caught in a loop processing your request. Could you try rephrasing?';
         }
         // Fall through to send responseText
       } else {
@@ -1679,7 +1695,10 @@ export class Gateway {
         for (const toolMsg of toolMessages) {
           await this.sessionManager.addMessage(sessionId, {
             role: 'tool',
-            content: typeof toolMsg.content === 'string' ? toolMsg.content : JSON.stringify(toolMsg.content),
+            content:
+              typeof toolMsg.content === 'string'
+                ? toolMsg.content
+                : JSON.stringify(toolMsg.content),
           });
         }
 
@@ -1802,10 +1821,17 @@ export class Gateway {
     };
 
     await this.router.sendToChannel(outbound);
-    void this.publishStatusEvent(sessionId, 'done', inbound.conversation.id, inbound.channelMessageId ?? undefined);
+    void this.publishStatusEvent(
+      sessionId,
+      'done',
+      inbound.conversation.id,
+      inbound.channelMessageId ?? undefined
+    );
   }
 
-  private coerceLLMContentText(content: unknown) { return coerceLLMContentText(content); }
+  private coerceLLMContentText(content: unknown) {
+    return coerceLLMContentText(content);
+  }
 
   /**
    * Handle /approve, /deny, and /approve-all commands from any channel.
@@ -1819,8 +1845,14 @@ export class Gateway {
 
     // Strip leading mention patterns (e.g. <@123456>) so approval commands work
     // even when users need to mention the bot to pass mention gating
-    const trimmed = text.trim().replace(/^(<@!?\d+>\s*)+/, '').trim();
-    logger.info({ originalText: text.slice(0, 100), trimmedText: trimmed.slice(0, 100) }, 'Approval command parsing');
+    const trimmed = text
+      .trim()
+      .replace(/^(<@!?\d+>\s*)+/, '')
+      .trim();
+    logger.info(
+      { originalText: text.slice(0, 100), trimmedText: trimmed.slice(0, 100) },
+      'Approval command parsing'
+    );
     const approveMatch = trimmed.match(/^\/approve\s+(\S+)$/i);
     const approveAllMatch = trimmed.match(/^\/approve-all$/i);
     const denyMatch = trimmed.match(/^\/deny\s+(\S+)(?:\s+(.+))?$/i);
@@ -1874,7 +1906,9 @@ export class Gateway {
         return true;
       }
       const result = this.approvalManager.approve(requestId, senderId);
-      await reply(result ? `✅ Approved request \`${requestId}\`.` : `⚠️ Request already resolved.`);
+      await reply(
+        result ? `✅ Approved request \`${requestId}\`.` : `⚠️ Request already resolved.`
+      );
       return true;
     }
 
@@ -1920,7 +1954,6 @@ export class Gateway {
     const metadata = message.metadata as { thread_ts?: string } | undefined;
     return metadata?.thread_ts ?? message.channelMessageId;
   }
-
 
   private async registerManagementHandlers(): Promise<void> {
     const bus = this.router.getBus();
@@ -2057,7 +2090,7 @@ export class Gateway {
       this.scheduler.setMessageBus(this.router.getBus());
       await this.scheduler.start();
       logger.info('Scheduler started');
-      
+
       if (this.heartbeatManager) {
         await this.heartbeatManager.start();
         logger.info('Heartbeat manager started');
@@ -2261,7 +2294,6 @@ export class Gateway {
     this.storage.close();
     logger.info('Gateway stopped');
   }
-
 
   /**
    * Setup signal handlers for graceful shutdown
@@ -2487,7 +2519,9 @@ export class Gateway {
     );
 
     if (!session) {
-      throw createSessionNotFoundError('Session not found after processing message', { component: 'gateway' });
+      throw createSessionNotFoundError('Session not found after processing message', {
+        component: 'gateway',
+      });
     }
 
     return session;

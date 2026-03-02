@@ -1,6 +1,6 @@
 /**
  * WebChat RPC Service
- * 
+ *
  * Provides NATS-based RPC endpoints for web chat session management
  * and message streaming via pub/sub.
  */
@@ -149,7 +149,7 @@ export interface StreamedMessage {
 
 /**
  * WebChat RPC Service
- * 
+ *
  * Handles RPC requests for session management and publishes messages
  * to session-specific topics for real-time streaming.
  */
@@ -169,11 +169,26 @@ export class WebChatRPCService {
 
     // Register RPC handlers
     await this.registerHandler('nachos.webchat.sessions.list', this.handleListSessions.bind(this));
-    await this.registerHandler('nachos.webchat.sessions.listArchived', this.handleListArchived.bind(this));
-    await this.registerHandler('nachos.webchat.sessions.create', this.handleCreateSession.bind(this));
-    await this.registerHandler('nachos.webchat.sessions.archive', this.handleArchiveSession.bind(this));
-    await this.registerHandler('nachos.webchat.sessions.restore', this.handleRestoreSession.bind(this));
-    await this.registerHandler('nachos.webchat.sessions.delete', this.handleDeleteSession.bind(this));
+    await this.registerHandler(
+      'nachos.webchat.sessions.listArchived',
+      this.handleListArchived.bind(this)
+    );
+    await this.registerHandler(
+      'nachos.webchat.sessions.create',
+      this.handleCreateSession.bind(this)
+    );
+    await this.registerHandler(
+      'nachos.webchat.sessions.archive',
+      this.handleArchiveSession.bind(this)
+    );
+    await this.registerHandler(
+      'nachos.webchat.sessions.restore',
+      this.handleRestoreSession.bind(this)
+    );
+    await this.registerHandler(
+      'nachos.webchat.sessions.delete',
+      this.handleDeleteSession.bind(this)
+    );
     await this.registerHandler('nachos.webchat.sessions.pin', this.handlePinSession.bind(this));
     await this.registerHandler('nachos.webchat.messages.send', this.handleSendMessage.bind(this));
     await this.registerHandler('nachos.webchat.messages.get', this.handleGetMessages.bind(this));
@@ -186,7 +201,7 @@ export class WebChatRPCService {
    */
   async stop(): Promise<void> {
     logger.info('Stopping WebChat RPC service');
-    
+
     for (const sub of this.subscriptions) {
       sub.unsubscribe();
     }
@@ -198,10 +213,7 @@ export class WebChatRPCService {
   /**
    * Register an RPC handler
    */
-  private async registerHandler<TReq>(
-    topic: string,
-    handler: MessageHandler<TReq>
-  ): Promise<void> {
+  private async registerHandler<TReq>(topic: string, handler: MessageHandler<TReq>): Promise<void> {
     const sub = await this.bus.subscribe(topic, handler);
     this.subscriptions.push(sub);
     logger.debug({ topic }, 'Registered RPC handler');
@@ -220,7 +232,10 @@ export class WebChatRPCService {
   /**
    * Handler: List active sessions
    */
-  private async handleListSessions(envelope: MessageEnvelope<ListSessionsRequest>, rawMsg: RpcRawMsg): Promise<void> {
+  private async handleListSessions(
+    envelope: MessageEnvelope<ListSessionsRequest>,
+    rawMsg: RpcRawMsg
+  ): Promise<void> {
     try {
       const request = envelope.payload;
       logger.debug({ request }, 'Handling listSessions');
@@ -254,7 +269,10 @@ export class WebChatRPCService {
   /**
    * Handler: List archived sessions
    */
-  private async handleListArchived(envelope: MessageEnvelope<ListArchivedRequest>, rawMsg: RpcRawMsg): Promise<void> {
+  private async handleListArchived(
+    envelope: MessageEnvelope<ListArchivedRequest>,
+    rawMsg: RpcRawMsg
+  ): Promise<void> {
     try {
       const request = envelope.payload;
       logger.debug({ request }, 'Handling listArchived');
@@ -289,7 +307,10 @@ export class WebChatRPCService {
   /**
    * Handler: Create session
    */
-  private async handleCreateSession(envelope: MessageEnvelope<CreateSessionRequest>, rawMsg: RpcRawMsg): Promise<void> {
+  private async handleCreateSession(
+    envelope: MessageEnvelope<CreateSessionRequest>,
+    rawMsg: RpcRawMsg
+  ): Promise<void> {
     try {
       const request = envelope.payload;
       logger.debug({ request }, 'Handling createSession');
@@ -322,7 +343,10 @@ export class WebChatRPCService {
   /**
    * Handler: Archive session
    */
-  private async handleArchiveSession(envelope: MessageEnvelope<ArchiveSessionRequest>, rawMsg: RpcRawMsg): Promise<void> {
+  private async handleArchiveSession(
+    envelope: MessageEnvelope<ArchiveSessionRequest>,
+    rawMsg: RpcRawMsg
+  ): Promise<void> {
     try {
       const request = envelope.payload;
       logger.debug({ request }, 'Handling archiveSession');
@@ -347,7 +371,10 @@ export class WebChatRPCService {
   /**
    * Handler: Restore session
    */
-  private async handleRestoreSession(envelope: MessageEnvelope<RestoreSessionRequest>, rawMsg: RpcRawMsg): Promise<void> {
+  private async handleRestoreSession(
+    envelope: MessageEnvelope<RestoreSessionRequest>,
+    rawMsg: RpcRawMsg
+  ): Promise<void> {
     try {
       const request = envelope.payload;
       logger.debug({ request }, 'Handling restoreSession');
@@ -372,7 +399,10 @@ export class WebChatRPCService {
   /**
    * Handler: Delete session
    */
-  private async handleDeleteSession(envelope: MessageEnvelope<DeleteSessionRequest>, rawMsg: RpcRawMsg): Promise<void> {
+  private async handleDeleteSession(
+    envelope: MessageEnvelope<DeleteSessionRequest>,
+    rawMsg: RpcRawMsg
+  ): Promise<void> {
     try {
       const request = envelope.payload;
       logger.debug({ request }, 'Handling deleteSession');
@@ -397,7 +427,10 @@ export class WebChatRPCService {
   /**
    * Handler: Pin/unpin session
    */
-  private async handlePinSession(envelope: MessageEnvelope<PinSessionRequest>, rawMsg: RpcRawMsg): Promise<void> {
+  private async handlePinSession(
+    envelope: MessageEnvelope<PinSessionRequest>,
+    rawMsg: RpcRawMsg
+  ): Promise<void> {
     try {
       const request = envelope.payload;
       logger.debug({ request }, 'Handling pinSession');
@@ -422,7 +455,10 @@ export class WebChatRPCService {
   /**
    * Handler: Send message
    */
-  private async handleSendMessage(envelope: MessageEnvelope<SendMessageRequest>, rawMsg: RpcRawMsg): Promise<void> {
+  private async handleSendMessage(
+    envelope: MessageEnvelope<SendMessageRequest>,
+    rawMsg: RpcRawMsg
+  ): Promise<void> {
     try {
       const request = envelope.payload;
       logger.debug({ request }, 'Handling sendMessage');
@@ -468,7 +504,10 @@ export class WebChatRPCService {
   /**
    * Handler: Get messages (with pagination)
    */
-  private async handleGetMessages(envelope: MessageEnvelope<GetMessagesRequest>, rawMsg: RpcRawMsg): Promise<void> {
+  private async handleGetMessages(
+    envelope: MessageEnvelope<GetMessagesRequest>,
+    rawMsg: RpcRawMsg
+  ): Promise<void> {
     try {
       const request = envelope.payload;
       logger.debug({ request }, 'Handling getMessages');

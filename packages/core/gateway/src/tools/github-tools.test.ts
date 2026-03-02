@@ -42,10 +42,10 @@ describe('executeGitHub', () => {
   beforeEach(() => {
     mockExecFile.mockClear();
     mockExecFile.mockReset();
-    
+
     // Use unique user ID for each test to avoid rate limit conflicts
     uniqueUserId = `user-${Date.now()}-${Math.random()}`;
-    
+
     config = {
       enabled: true,
       default_repo: 'owner/repo',
@@ -346,7 +346,16 @@ describe('executeGitHub', () => {
       expect(result.success).toBe(true);
       expect(mockExecFile).toHaveBeenCalledWith(
         'gh',
-        expect.arrayContaining(['pr', 'list', '--state', 'open', '--author', 'testuser', '--base', 'main']),
+        expect.arrayContaining([
+          'pr',
+          'list',
+          '--state',
+          'open',
+          '--author',
+          'testuser',
+          '--base',
+          'main',
+        ]),
         expect.any(Object)
       );
     });
@@ -397,8 +406,7 @@ describe('executeGitHub', () => {
         parameters: { action: 'issue_list' },
       };
 
-      const error: any = new Error('Command not found');
-      error.code = 'ENOENT';
+      const error = Object.assign(new Error('Command not found'), { code: 'ENOENT' });
       mockExecFile.mockRejectedValue(error);
 
       const result = await executeGitHub(call, config, uniqueUserId);
@@ -415,8 +423,7 @@ describe('executeGitHub', () => {
         parameters: { action: 'issue_list' },
       };
 
-      const error: any = new Error('Command failed');
-      error.stderr = 'Authentication failed';
+      const error = Object.assign(new Error('Command failed'), { stderr: 'Authentication failed' });
       mockExecFile.mockRejectedValue(error);
 
       const result = await executeGitHub(call, config, uniqueUserId);
@@ -448,7 +455,7 @@ describe('executeGitHub', () => {
   describe('environment variables', () => {
     it('should pass token from environment', async () => {
       process.env.GITHUB_TOKEN = 'test-token';
-      
+
       const call: ToolCall = {
         id: 'test-1',
         tool: 'github',

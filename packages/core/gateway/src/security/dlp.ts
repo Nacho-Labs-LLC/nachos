@@ -205,7 +205,12 @@ export class DLPSecurityLayer {
           };
         case 'redact': {
           const redactedMessage = redact(message, highSeverityFindings);
-          return { allowed: true, action: 'redact', findings: highSeverityFindings, message: redactedMessage };
+          return {
+            allowed: true,
+            action: 'redact',
+            findings: highSeverityFindings,
+            message: redactedMessage,
+          };
         }
         case 'alert':
           return {
@@ -215,7 +220,12 @@ export class DLPSecurityLayer {
             reason: `Secure channel alert: ${highSeverityFindings.length} high-severity pattern(s) detected`,
           };
         default:
-          return { allowed: false, action: 'block', findings: highSeverityFindings, reason: 'Unknown DLP action' };
+          return {
+            allowed: false,
+            action: 'block',
+            findings: highSeverityFindings,
+            reason: 'Unknown DLP action',
+          };
       }
     }
 
@@ -360,12 +370,15 @@ export class DLPSecurityLayer {
    */
   private logFindings(findings: Finding[], channelId?: string): void {
     if (!this.auditLogger) {
-      logger.warn({
-        channelId,
-        findingsCount: findings.length,
-        severities: findings.map((f) => f.severity),
-        patternIds: findings.map((f) => f.patternId),
-      }, 'DLP findings detected (no audit logger configured)');
+      logger.warn(
+        {
+          channelId,
+          findingsCount: findings.length,
+          severities: findings.map((f) => f.severity),
+          patternIds: findings.map((f) => f.patternId),
+        },
+        'DLP findings detected (no audit logger configured)'
+      );
       return;
     }
 

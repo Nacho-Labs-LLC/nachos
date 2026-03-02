@@ -262,11 +262,10 @@ describe('Gateway', () => {
         userId: 'user-1',
       });
 
-      (customGateway as unknown as { stateLayer?: unknown }).stateLayer = {};
+      const toolExecutor = (customGateway as unknown as { toolExecutor: { buildToolDefinitions: (s: Session) => unknown; updateDeps: (partial: Record<string, unknown>) => void } }).toolExecutor;
+      toolExecutor.updateDeps({ stateLayer: {} as unknown });
 
-      const tools = (
-        customGateway as unknown as { buildToolDefinitions: (s: Session) => unknown }
-      ).buildToolDefinitions(session) as Array<{ name?: string }> | undefined;
+      const tools = toolExecutor.buildToolDefinitions(session) as Array<{ name?: string }> | undefined;
 
       expect(tools?.some((tool) => tool.name === 'bootstrap')).toBe(false);
 
@@ -294,7 +293,8 @@ describe('Gateway', () => {
         close: vi.fn().mockResolvedValue(undefined),
       };
 
-      (gateway as unknown as { stateLayer?: unknown }).stateLayer = stateLayer;
+      const toolExecutor = (gateway as unknown as { toolExecutor: { updateDeps: (partial: Record<string, unknown>) => void } }).toolExecutor;
+      toolExecutor.updateDeps({ stateLayer, getIdentityCompletionStatus: vi.fn().mockResolvedValue(false) });
 
       const call = {
         tool: 'bootstrap',
@@ -305,7 +305,7 @@ describe('Gateway', () => {
       };
 
       const result = await (
-        gateway as unknown as {
+        toolExecutor as unknown as {
           executeBootstrapToolCall: (
             c: unknown,
             s: Session
@@ -359,7 +359,7 @@ describe('Gateway', () => {
 
   describe('subagent tool policy', () => {
     it('denies session tools by default', () => {
-      const evaluator = gateway as unknown as {
+      const toolExecutor = (gateway as unknown as { toolExecutor: unknown }).toolExecutor as {
         evaluateSubagentToolPolicy: (
           tool: string,
           session?: Session | null
@@ -367,7 +367,7 @@ describe('Gateway', () => {
           allowed: boolean;
         };
       };
-      const policy = evaluator.evaluateSubagentToolPolicy('sessions_spawn');
+      const policy = toolExecutor.evaluateSubagentToolPolicy('sessions_spawn');
 
       expect(policy.allowed).toBe(false);
     });
@@ -378,7 +378,7 @@ describe('Gateway', () => {
         subagentToolPolicy: { allow: ['filesystem_read'] },
       });
 
-      const evaluator = customGateway as unknown as {
+      const toolExecutor = (customGateway as unknown as { toolExecutor: unknown }).toolExecutor as {
         evaluateSubagentToolPolicy: (
           tool: string,
           session?: Session | null
@@ -387,8 +387,8 @@ describe('Gateway', () => {
         };
       };
 
-      const allowed = evaluator.evaluateSubagentToolPolicy('filesystem_read');
-      const denied = evaluator.evaluateSubagentToolPolicy('browser');
+      const allowed = toolExecutor.evaluateSubagentToolPolicy('filesystem_read');
+      const denied = toolExecutor.evaluateSubagentToolPolicy('browser');
 
       expect(allowed.allowed).toBe(true);
       expect(denied.allowed).toBe(false);
@@ -417,7 +417,7 @@ describe('Gateway', () => {
         metadata: { subagent: { runId: 'run-1', profile: 'research' } },
       });
 
-      const evaluator = customGateway as unknown as {
+      const toolExecutor = (customGateway as unknown as { toolExecutor: unknown }).toolExecutor as {
         evaluateSubagentToolPolicy: (
           tool: string,
           session?: Session | null
@@ -426,8 +426,8 @@ describe('Gateway', () => {
         };
       };
 
-      const allowed = evaluator.evaluateSubagentToolPolicy('browser', session);
-      const denied = evaluator.evaluateSubagentToolPolicy('filesystem_write', session);
+      const allowed = toolExecutor.evaluateSubagentToolPolicy('browser', session);
+      const denied = toolExecutor.evaluateSubagentToolPolicy('filesystem_write', session);
 
       expect(allowed.allowed).toBe(true);
       expect(denied.allowed).toBe(false);

@@ -2,7 +2,7 @@
  * Tests for createStateLayer factory and StateLayer class.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 // Mock external dependencies
 vi.mock('@nachos/types', () => ({
@@ -219,7 +219,9 @@ describe('createStateLayer', () => {
     const config = makeFilesystemConfig();
     config.identity = { provider: 'postgres' };
 
-    expect(() => createStateLayer(config)).toThrow('Postgres identity store requires connectionString');
+    expect(() => createStateLayer(config)).toThrow(
+      'Postgres identity store requires connectionString'
+    );
   });
 
   it('creates postgres stores when provider is postgres', () => {
@@ -290,9 +292,7 @@ describe('StateLayer', () => {
     };
 
     // Should not throw - no policy check means permissive
-    await expect(
-      layer.getIdentity('agent-1', context)
-    ).resolves.not.toThrow();
+    await expect(layer.getIdentity('agent-1', context)).resolves.not.toThrow();
   });
 
   it('skips policy check for internalTool operations', async () => {
@@ -309,9 +309,7 @@ describe('StateLayer', () => {
     };
 
     // Should not throw despite policy returning denied
-    await expect(
-      layer.getIdentity('agent-1', context)
-    ).resolves.not.toThrow();
+    await expect(layer.getIdentity('agent-1', context)).resolves.not.toThrow();
 
     // Policy check should NOT have been called
     expect(policyCheck).not.toHaveBeenCalled();
@@ -329,9 +327,7 @@ describe('StateLayer', () => {
       securityMode: 'strict' as const,
     };
 
-    await expect(
-      layer.getIdentity('agent-1', context)
-    ).rejects.toThrow('Access denied');
+    await expect(layer.getIdentity('agent-1', context)).rejects.toThrow('Access denied');
   });
 
   it('calls auditLogger when provided', async () => {

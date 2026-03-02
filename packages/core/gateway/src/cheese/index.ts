@@ -76,10 +76,7 @@ export class Cheese {
     if (errors.length > 0) {
       logger.error('Policy validation errors — rejecting entire load:');
       for (const error of errors) {
-        logger.error(
-          { file: error.file, ruleId: error.ruleId },
-          error.message
-        );
+        logger.error({ file: error.file, ruleId: error.ruleId }, error.message);
       }
       this.validationErrors = errors;
       if (this.lastReload) {
@@ -113,10 +110,7 @@ export class Cheese {
     if (errors.length > 0) {
       logger.error('Validation errors after reload — rejecting entire reload:');
       for (const error of errors) {
-        logger.error(
-          { file: error.file, ruleId: error.ruleId },
-          error.message
-        );
+        logger.error({ file: error.file, ruleId: error.ruleId }, error.message);
       }
       logger.warn('Keeping previous policy set intact');
       // Do NOT update validationErrors or evaluator — previous state is retained

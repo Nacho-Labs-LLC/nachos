@@ -1,6 +1,6 @@
 /**
  * Web search tool schemas for LLM tool calling
- * 
+ *
  * This tool enables the LLM to search the web using the Brave Search API.
  * It runs natively in the gateway process (no container required).
  */
@@ -58,7 +58,8 @@ export const WebSearchToolSchema = {
     },
     freshness: {
       type: 'string',
-      description: 'Filter by discovery time: "pd" (past day), "pw" (past week), "pm" (past month), "py" (past year), or date range "YYYY-MM-DDtoYYYY-MM-DD"',
+      description:
+        'Filter by discovery time: "pd" (past day), "pw" (past week), "pm" (past month), "py" (past year), or date range "YYYY-MM-DDtoYYYY-MM-DD"',
     },
     safe_search: {
       type: 'string',
@@ -125,20 +126,20 @@ function formatResults(results: BraveSearchResult[], query: string): string {
   for (let i = 0; i < results.length; i++) {
     const result = results[i];
     if (!result) continue;
-    
+
     const index = i + 1;
-    
+
     output += `${index}. ${result.title || 'Untitled'}\n`;
     output += `   ${result.url || ''}\n`;
-    
+
     if (result.description) {
       output += `   ${result.description}\n`;
     }
-    
+
     if (result.age) {
       output += `   (${result.age})\n`;
     }
-    
+
     output += '\n';
   }
 
@@ -195,29 +196,29 @@ export async function executeWebSearch(
     const queryParams = new URLSearchParams();
     queryParams.set('q', params.query);
     queryParams.set('count', String(params.count || config.max_results || 10));
-    
+
     if (params.country || config.default_country) {
       queryParams.set('country', params.country || config.default_country!);
     }
-    
+
     if (params.search_lang) {
       queryParams.set('search_lang', params.search_lang);
     }
-    
+
     if (params.freshness) {
       queryParams.set('freshness', params.freshness);
     }
-    
+
     const safeSearch = params.safe_search || config.safe_search || 'moderate';
     queryParams.set('safesearch', safeSearch);
 
     // Make API request
     const url = `https://api.search.brave.com/res/v1/web/search?${queryParams.toString()}`;
-    
+
     const response = await fetch(url, {
       method: 'GET',
       headers: {
-        'Accept': 'application/json',
+        Accept: 'application/json',
         'Accept-Encoding': 'gzip',
         'X-Subscription-Token': config.api_key,
       },
@@ -256,7 +257,7 @@ export async function executeWebSearch(
       };
     }
 
-    const data = await response.json() as BraveSearchResponse;
+    const data = (await response.json()) as BraveSearchResponse;
     const results = data.web?.results || [];
     const formattedOutput = formatResults(results, params.query);
 

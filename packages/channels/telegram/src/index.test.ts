@@ -51,7 +51,9 @@ describe('TelegramChannelAdapter', () => {
     };
 
     (adapter as unknown as { config?: ChannelAdapterConfig }).config = config;
-    (adapter as unknown as { bot?: unknown }).bot = {} as unknown;
+    (adapter as unknown as { bot?: unknown }).bot = {
+      telegram: { sendChatAction: vi.fn().mockResolvedValue(true) },
+    } as unknown;
 
     const ctx = {
       message: {
@@ -79,9 +81,10 @@ describe('TelegramChannelAdapter', () => {
   it('sends outbound messages via Telegram API', async () => {
     const adapter = new TelegramChannelAdapter();
     const sendMessage = vi.fn().mockResolvedValue({ message_id: 42 });
+    const sendChatAction = vi.fn().mockResolvedValue(true);
 
     (adapter as unknown as { bot?: unknown }).bot = {
-      telegram: { sendMessage },
+      telegram: { sendMessage, sendChatAction },
     } as unknown;
 
     const result = await adapter.sendMessage({
@@ -113,7 +116,9 @@ describe('TelegramChannelAdapter', () => {
     } as ChannelAdapterConfig;
 
     vi.spyOn(adapter, 'sendMessage').mockResolvedValue({ success: true });
-    (adapter as unknown as { bot?: unknown }).bot = {} as unknown;
+    (adapter as unknown as { bot?: unknown }).bot = {
+      telegram: { sendChatAction: vi.fn().mockResolvedValue(true) },
+    } as unknown;
 
     const handleMessage = (
       adapter as unknown as { handleMessage: (ctx: unknown) => Promise<void> }

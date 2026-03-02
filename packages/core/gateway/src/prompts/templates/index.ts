@@ -1,6 +1,6 @@
 /**
  * Prompt Template Loader
- * 
+ *
  * Utilities for loading and managing reusable prompt templates.
  */
 
@@ -22,11 +22,11 @@ export interface PromptTemplate {
 export async function loadTemplate(name: string): Promise<PromptTemplate> {
   const templatePath = join(__dirname, `${name}.md`);
   const raw = await readFile(templatePath, 'utf-8');
-  
+
   // Parse frontmatter
   const frontmatterRegex = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/;
   const match = raw.match(frontmatterRegex);
-  
+
   if (!match) {
     // No frontmatter, return raw content
     return {
@@ -38,10 +38,10 @@ export async function loadTemplate(name: string): Promise<PromptTemplate> {
       content: raw,
     };
   }
-  
+
   const frontmatter = parseFrontmatter(match[1] || '');
   const content = (match[2] || '').trim();
-  
+
   return {
     name: frontmatter.name || name,
     description: frontmatter.description || '',
@@ -59,8 +59,8 @@ export async function listTemplates(): Promise<string[]> {
   const { readdir } = await import('fs/promises');
   const files = await readdir(__dirname);
   return files
-    .filter(f => f.endsWith('.md') && f !== 'README.md')
-    .map(f => f.replace('.md', ''));
+    .filter((f) => f.endsWith('.md') && f !== 'README.md')
+    .map((f) => f.replace('.md', ''));
 }
 
 /**
@@ -69,14 +69,14 @@ export async function listTemplates(): Promise<string[]> {
 function parseFrontmatter(text: string): Record<string, string> {
   const result: Record<string, string> = {};
   const lines = text.split('\n');
-  
+
   for (const line of lines) {
     const match = line.match(/^(\w+):\s*(.+)$/);
     if (match) {
       result[match[1]!] = match[2]!.trim();
     }
   }
-  
+
   return result;
 }
 

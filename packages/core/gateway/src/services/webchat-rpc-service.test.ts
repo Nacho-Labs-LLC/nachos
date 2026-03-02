@@ -1,9 +1,9 @@
 /**
  * Integration tests for WebChatRPCService
- * 
+ *
  * Note: These tests require a running PostgreSQL and NATS instance.
  * Set POSTGRES_TEST_URL and NATS_TEST_URL environment variables to run these tests:
- * 
+ *
  * export POSTGRES_TEST_URL="postgres://nachos:nachos@localhost:5432/nachos_test"
  * export NATS_TEST_URL="nats://localhost:4222"
  * npm test -- webchat-rpc-service.test.ts
@@ -15,14 +15,23 @@ import { createBusClient, type NachosBusClient } from '@nachos/bus';
 import { PostgresSessionsStore } from '@nachos/state';
 import { WebChatRPCService } from './webchat-rpc-service.js';
 import type {
+  ListSessionsRequest,
   ListSessionsResponse,
+  ListArchivedRequest,
   ListArchivedResponse,
+  CreateSessionRequest,
   CreateSessionResponse,
+  ArchiveSessionRequest,
   ArchiveSessionResponse,
+  RestoreSessionRequest,
   RestoreSessionResponse,
+  DeleteSessionRequest,
   DeleteSessionResponse,
+  PinSessionRequest,
   PinSessionResponse,
+  SendMessageRequest,
   SendMessageResponse,
+  GetMessagesRequest,
   GetMessagesResponse,
 } from './webchat-rpc-service.js';
 
@@ -85,10 +94,13 @@ describeIfInfra('WebChatRPCService', () => {
   });
 
   it('should handle createSession RPC request', async () => {
-    const response = await bus.request<any, CreateSessionResponse>('nachos.webchat.sessions.create', {
-      userId: 'test-user-1',
-      channel: 'webchat',
-    });
+    const response = await bus.request<CreateSessionRequest, CreateSessionResponse>(
+      'nachos.webchat.sessions.create',
+      {
+        userId: 'test-user-1',
+        channel: 'webchat',
+      }
+    );
 
     const payload = response.payload as CreateSessionResponse;
     expect(payload).toHaveProperty('session');
@@ -111,10 +123,13 @@ describeIfInfra('WebChatRPCService', () => {
       userId: 'test-user-2',
     });
 
-    const response = await bus.request<any, ListSessionsResponse>('nachos.webchat.sessions.list', {
-      userId: 'test-user-2',
-      channel: 'webchat',
-    });
+    const response = await bus.request<ListSessionsRequest, ListSessionsResponse>(
+      'nachos.webchat.sessions.list',
+      {
+        userId: 'test-user-2',
+        channel: 'webchat',
+      }
+    );
 
     const payload = response.payload as ListSessionsResponse;
     expect(payload).toHaveProperty('sessions');
@@ -131,24 +146,30 @@ describeIfInfra('WebChatRPCService', () => {
     });
 
     // Archive the session
-    const archiveResponse = await bus.request<any, ArchiveSessionResponse>('nachos.webchat.sessions.archive', {
-      sessionId: session.id,
-      userId: 'test-user-3',
-    });
+    const archiveResponse = await bus.request<ArchiveSessionRequest, ArchiveSessionResponse>(
+      'nachos.webchat.sessions.archive',
+      {
+        sessionId: session.id,
+        userId: 'test-user-3',
+      }
+    );
 
     const archivePayload = archiveResponse.payload as ArchiveSessionResponse;
     expect(archivePayload).toHaveProperty('ok', true);
 
     // List archived sessions
-    const listResponse = await bus.request<any, ListArchivedResponse>('nachos.webchat.sessions.listArchived', {
-      userId: 'test-user-3',
-      channel: 'webchat',
-    });
+    const listResponse = await bus.request<ListArchivedRequest, ListArchivedResponse>(
+      'nachos.webchat.sessions.listArchived',
+      {
+        userId: 'test-user-3',
+        channel: 'webchat',
+      }
+    );
 
     const listPayload = listResponse.payload as ListArchivedResponse;
     expect(listPayload).toHaveProperty('sessions');
     expect(listPayload.sessions.length).toBeGreaterThanOrEqual(1);
-    expect(listPayload.sessions.some(s => s.id === session.id)).toBe(true);
+    expect(listPayload.sessions.some((s) => s.id === session.id)).toBe(true);
   });
 
   it('should handle restoreSession RPC request', async () => {
@@ -162,22 +183,28 @@ describeIfInfra('WebChatRPCService', () => {
     await store.archive(session.id);
 
     // Restore the session
-    const restoreResponse = await bus.request<any, RestoreSessionResponse>('nachos.webchat.sessions.restore', {
-      sessionId: session.id,
-      userId: 'test-user-4',
-    });
+    const restoreResponse = await bus.request<RestoreSessionRequest, RestoreSessionResponse>(
+      'nachos.webchat.sessions.restore',
+      {
+        sessionId: session.id,
+        userId: 'test-user-4',
+      }
+    );
 
     const restorePayload = restoreResponse.payload as RestoreSessionResponse;
     expect(restorePayload).toHaveProperty('ok', true);
 
     // Verify it's no longer in archived list
-    const listResponse = await bus.request<any, ListArchivedResponse>('nachos.webchat.sessions.listArchived', {
-      userId: 'test-user-4',
-      channel: 'webchat',
-    });
+    const listResponse = await bus.request<ListArchivedRequest, ListArchivedResponse>(
+      'nachos.webchat.sessions.listArchived',
+      {
+        userId: 'test-user-4',
+        channel: 'webchat',
+      }
+    );
 
     const listPayload = listResponse.payload as ListArchivedResponse;
-    expect(listPayload.sessions.every(s => s.id !== session.id)).toBe(true);
+    expect(listPayload.sessions.every((s) => s.id !== session.id)).toBe(true);
   });
 
   it('should handle pinSession RPC request', async () => {
@@ -189,23 +216,29 @@ describeIfInfra('WebChatRPCService', () => {
     });
 
     // Pin the session
-    const pinResponse = await bus.request<any, PinSessionResponse>('nachos.webchat.sessions.pin', {
-      sessionId: session.id,
-      userId: 'test-user-5',
-      pinned: true,
-    });
+    const pinResponse = await bus.request<PinSessionRequest, PinSessionResponse>(
+      'nachos.webchat.sessions.pin',
+      {
+        sessionId: session.id,
+        userId: 'test-user-5',
+        pinned: true,
+      }
+    );
 
     const pinPayload = pinResponse.payload as PinSessionResponse;
     expect(pinPayload).toHaveProperty('ok', true);
 
     // Verify it's pinned
-    const sessions = await bus.request<any, ListSessionsResponse>('nachos.webchat.sessions.list', {
-      userId: 'test-user-5',
-      channel: 'webchat',
-    });
+    const sessions = await bus.request<ListSessionsRequest, ListSessionsResponse>(
+      'nachos.webchat.sessions.list',
+      {
+        userId: 'test-user-5',
+        channel: 'webchat',
+      }
+    );
 
     const sessionsPayload = sessions.payload as ListSessionsResponse;
-    const pinnedSession = sessionsPayload.sessions.find(s => s.id === session.id);
+    const pinnedSession = sessionsPayload.sessions.find((s) => s.id === session.id);
     expect(pinnedSession).toBeTruthy();
     expect(pinnedSession!.isPinned).toBe(true);
   });
@@ -219,10 +252,13 @@ describeIfInfra('WebChatRPCService', () => {
     });
 
     // Delete the session
-    const deleteResponse = await bus.request<any, DeleteSessionResponse>('nachos.webchat.sessions.delete', {
-      sessionId: session.id,
-      userId: 'test-user-6',
-    });
+    const deleteResponse = await bus.request<DeleteSessionRequest, DeleteSessionResponse>(
+      'nachos.webchat.sessions.delete',
+      {
+        sessionId: session.id,
+        userId: 'test-user-6',
+      }
+    );
 
     const deletePayload = deleteResponse.payload as DeleteSessionResponse;
     expect(deletePayload).toHaveProperty('ok', true);
@@ -241,7 +277,7 @@ describeIfInfra('WebChatRPCService', () => {
     });
 
     // Subscribe to message stream before sending
-    const receivedMessages: any[] = [];
+    const receivedMessages: unknown[] = [];
     await bus.subscribe(`nachos.webchat.messages.${session.id}`, async (envelope) => {
       receivedMessages.push(envelope.payload);
     });
@@ -250,11 +286,14 @@ describeIfInfra('WebChatRPCService', () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     // Send a message
-    const sendResponse = await bus.request<any, SendMessageResponse>('nachos.webchat.messages.send', {
-      sessionId: session.id,
-      userId: 'test-user-7',
-      text: 'Hello, world!',
-    });
+    const sendResponse = await bus.request<SendMessageRequest, SendMessageResponse>(
+      'nachos.webchat.messages.send',
+      {
+        sessionId: session.id,
+        userId: 'test-user-7',
+        text: 'Hello, world!',
+      }
+    );
 
     const payload = sendResponse.payload as SendMessageResponse;
     expect(payload).toHaveProperty('messageId');
@@ -296,12 +335,15 @@ describeIfInfra('WebChatRPCService', () => {
     });
 
     // Get messages with pagination
-    const response = await bus.request<any, GetMessagesResponse>('nachos.webchat.messages.get', {
-      sessionId: session.id,
-      userId: 'test-user-8',
-      limit: 2,
-      offset: 0,
-    });
+    const response = await bus.request<GetMessagesRequest, GetMessagesResponse>(
+      'nachos.webchat.messages.get',
+      {
+        sessionId: session.id,
+        userId: 'test-user-8',
+        limit: 2,
+        offset: 0,
+      }
+    );
 
     const payload = response.payload as GetMessagesResponse;
     expect(payload).toHaveProperty('messages');
@@ -318,12 +360,15 @@ describeIfInfra('WebChatRPCService', () => {
     });
 
     // Try to archive as user-2 (should fail)
-    const archiveResponse = await bus.request<any, ArchiveSessionResponse | { error: string }>('nachos.webchat.sessions.archive', {
+    const archiveResponse = await bus.request<
+      ArchiveSessionRequest,
+      ArchiveSessionResponse | { error: string }
+    >('nachos.webchat.sessions.archive', {
       sessionId: session.id,
       userId: 'user-2',
     });
 
-    const payload = archiveResponse.payload as any;
+    const payload = archiveResponse.payload as Record<string, unknown>;
     expect(payload).toHaveProperty('error');
     expect(payload.error).toContain('access denied');
   });

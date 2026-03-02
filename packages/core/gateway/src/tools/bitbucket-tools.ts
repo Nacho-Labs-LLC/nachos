@@ -1,6 +1,6 @@
 /**
  * Bitbucket tool schemas for LLM tool calling
- * 
+ *
  * This tool enables the LLM to interact with Bitbucket via the REST API v2.0.
  * It runs natively in the gateway process (no container required).
  */
@@ -154,7 +154,10 @@ function truncateOutput(text: string, maxSize: number = MAX_OUTPUT_SIZE): string
 /**
  * Validate workspace against allowlist
  */
-function validateWorkspace(workspace: string | undefined, config: BitbucketConfig): { valid: boolean; error?: string } {
+function validateWorkspace(
+  workspace: string | undefined,
+  config: BitbucketConfig
+): { valid: boolean; error?: string } {
   if (!workspace && !config.default_workspace) {
     return { valid: false, error: 'Workspace is required (no default configured)' };
   }
@@ -204,7 +207,11 @@ async function executeBitbucketAPI(
 ): Promise<{ data: Record<string, unknown> | null; error?: string }> {
   const authHeaders = getAuthHeaders(config);
   if (!authHeaders) {
-    return { data: null, error: 'Authentication not configured. Set BITBUCKET_USERNAME and BITBUCKET_APP_PASSWORD (or BITBUCKET_TOKEN for OAuth).' };
+    return {
+      data: null,
+      error:
+        'Authentication not configured. Set BITBUCKET_USERNAME and BITBUCKET_APP_PASSWORD (or BITBUCKET_TOKEN for OAuth).',
+    };
   }
 
   const baseUrl = 'https://api.bitbucket.org/2.0';
@@ -251,10 +258,13 @@ async function paginateResults(
 ): Promise<{ results: Record<string, unknown>[]; error?: string }> {
   const results: Record<string, unknown>[] = [];
   let nextUrl: string | null = endpoint;
-  
+
   while (nextUrl && results.length < limit) {
-    const { data, error } = await executeBitbucketAPI(nextUrl.replace('https://api.bitbucket.org/2.0', ''), config);
-    
+    const { data, error } = await executeBitbucketAPI(
+      nextUrl.replace('https://api.bitbucket.org/2.0', ''),
+      config
+    );
+
     if (error) {
       return { results, error };
     }
@@ -333,7 +343,11 @@ export async function executeBitbucket(
     }
 
     let resultText = '';
-    let apiResult: { data?: Record<string, unknown> | null; error?: string; results?: Record<string, unknown>[] } = {};
+    let apiResult: {
+      data?: Record<string, unknown> | null;
+      error?: string;
+      results?: Record<string, unknown>[];
+    } = {};
 
     switch (action) {
       case 'repo_list': {
@@ -344,16 +358,24 @@ export async function executeBitbucket(
             error: { code: 'MISSING_PARAMETER', message: 'workspace is required for repo_list' },
           };
         }
-        apiResult = await paginateResults(`/repositories/${workspace}?pagelen=${Math.min(limit, 100)}`, config, limit);
+        apiResult = await paginateResults(
+          `/repositories/${workspace}?pagelen=${Math.min(limit, 100)}`,
+          config,
+          limit
+        );
         if (apiResult.results) {
-          resultText = JSON.stringify(apiResult.results.map(r => ({
-            slug: r.slug,
-            name: r.name,
-            description: r.description,
-            is_private: r.is_private,
-            created_on: r.created_on,
-            updated_on: r.updated_on,
-          })), null, 2);
+          resultText = JSON.stringify(
+            apiResult.results.map((r) => ({
+              slug: r.slug,
+              name: r.name,
+              description: r.description,
+              is_private: r.is_private,
+              created_on: r.created_on,
+              updated_on: r.updated_on,
+            })),
+            null,
+            2
+          );
         }
         break;
       }
@@ -363,10 +385,16 @@ export async function executeBitbucket(
           return {
             success: false,
             content: [],
-            error: { code: 'MISSING_PARAMETER', message: 'workspace and repo_slug are required for repo_view' },
+            error: {
+              code: 'MISSING_PARAMETER',
+              message: 'workspace and repo_slug are required for repo_view',
+            },
           };
         }
-        apiResult = await executeBitbucketAPI(`/repositories/${workspace}/${params.repo_slug}`, config);
+        apiResult = await executeBitbucketAPI(
+          `/repositories/${workspace}/${params.repo_slug}`,
+          config
+        );
         if (apiResult.data) {
           resultText = JSON.stringify(apiResult.data, null, 2);
         }
@@ -378,7 +406,10 @@ export async function executeBitbucket(
           return {
             success: false,
             content: [],
-            error: { code: 'MISSING_PARAMETER', message: 'workspace and repo_slug are required for pr_list' },
+            error: {
+              code: 'MISSING_PARAMETER',
+              message: 'workspace and repo_slug are required for pr_list',
+            },
           };
         }
         let endpoint = `/repositories/${workspace}/${params.repo_slug}/pullrequests?pagelen=${Math.min(limit, 100)}`;
@@ -387,16 +418,25 @@ export async function executeBitbucket(
         }
         apiResult = await paginateResults(endpoint, config, limit);
         if (apiResult.results) {
-          resultText = JSON.stringify(apiResult.results.map(pr => ({
-            id: pr.id,
-            title: pr.title,
-            state: pr.state,
-            source: (pr.source as Record<string, unknown>)?.branch && ((pr.source as Record<string, unknown>).branch as Record<string, unknown>)?.name,
-            destination: (pr.destination as Record<string, unknown>)?.branch && ((pr.destination as Record<string, unknown>).branch as Record<string, unknown>)?.name,
-            author: (pr.author as Record<string, unknown>)?.display_name,
-            created_on: pr.created_on,
-            updated_on: pr.updated_on,
-          })), null, 2);
+          resultText = JSON.stringify(
+            apiResult.results.map((pr) => ({
+              id: pr.id,
+              title: pr.title,
+              state: pr.state,
+              source:
+                (pr.source as Record<string, unknown>)?.branch &&
+                ((pr.source as Record<string, unknown>).branch as Record<string, unknown>)?.name,
+              destination:
+                (pr.destination as Record<string, unknown>)?.branch &&
+                ((pr.destination as Record<string, unknown>).branch as Record<string, unknown>)
+                  ?.name,
+              author: (pr.author as Record<string, unknown>)?.display_name,
+              created_on: pr.created_on,
+              updated_on: pr.updated_on,
+            })),
+            null,
+            2
+          );
         }
         break;
       }
@@ -406,10 +446,16 @@ export async function executeBitbucket(
           return {
             success: false,
             content: [],
-            error: { code: 'MISSING_PARAMETER', message: 'workspace, repo_slug, and pr_id are required for pr_view' },
+            error: {
+              code: 'MISSING_PARAMETER',
+              message: 'workspace, repo_slug, and pr_id are required for pr_view',
+            },
           };
         }
-        apiResult = await executeBitbucketAPI(`/repositories/${workspace}/${params.repo_slug}/pullrequests/${params.pr_id}`, config);
+        apiResult = await executeBitbucketAPI(
+          `/repositories/${workspace}/${params.repo_slug}/pullrequests/${params.pr_id}`,
+          config
+        );
         if (apiResult.data) {
           resultText = JSON.stringify(apiResult.data, null, 2);
         }
@@ -417,11 +463,21 @@ export async function executeBitbucket(
       }
 
       case 'pr_create': {
-        if (!workspace || !params.repo_slug || !params.title || !params.source_branch || !params.destination_branch) {
+        if (
+          !workspace ||
+          !params.repo_slug ||
+          !params.title ||
+          !params.source_branch ||
+          !params.destination_branch
+        ) {
           return {
             success: false,
             content: [],
-            error: { code: 'MISSING_PARAMETER', message: 'workspace, repo_slug, title, source_branch, and destination_branch are required for pr_create' },
+            error: {
+              code: 'MISSING_PARAMETER',
+              message:
+                'workspace, repo_slug, title, source_branch, and destination_branch are required for pr_create',
+            },
           };
         }
         const prData = {
@@ -438,10 +494,14 @@ export async function executeBitbucket(
             },
           },
         };
-        apiResult = await executeBitbucketAPI(`/repositories/${workspace}/${params.repo_slug}/pullrequests`, config, {
-          method: 'POST',
-          body: JSON.stringify(prData),
-        });
+        apiResult = await executeBitbucketAPI(
+          `/repositories/${workspace}/${params.repo_slug}/pullrequests`,
+          config,
+          {
+            method: 'POST',
+            body: JSON.stringify(prData),
+          }
+        );
         if (apiResult.data) {
           resultText = JSON.stringify(apiResult.data, null, 2);
         }
@@ -453,12 +513,21 @@ export async function executeBitbucket(
           return {
             success: false,
             content: [],
-            error: { code: 'MISSING_PARAMETER', message: 'workspace, repo_slug, and pr_id are required for pr_diff' },
+            error: {
+              code: 'MISSING_PARAMETER',
+              message: 'workspace, repo_slug, and pr_id are required for pr_diff',
+            },
           };
         }
-        apiResult = await executeBitbucketAPI(`/repositories/${workspace}/${params.repo_slug}/pullrequests/${params.pr_id}/diff`, config);
+        apiResult = await executeBitbucketAPI(
+          `/repositories/${workspace}/${params.repo_slug}/pullrequests/${params.pr_id}/diff`,
+          config
+        );
         if (apiResult.data) {
-          resultText = typeof apiResult.data === 'string' ? apiResult.data : JSON.stringify(apiResult.data, null, 2);
+          resultText =
+            typeof apiResult.data === 'string'
+              ? apiResult.data
+              : JSON.stringify(apiResult.data, null, 2);
         }
         break;
       }
@@ -468,17 +537,24 @@ export async function executeBitbucket(
           return {
             success: false,
             content: [],
-            error: { code: 'MISSING_PARAMETER', message: 'workspace, repo_slug, and pr_id are required for pr_merge' },
+            error: {
+              code: 'MISSING_PARAMETER',
+              message: 'workspace, repo_slug, and pr_id are required for pr_merge',
+            },
           };
         }
         const mergeData: Record<string, unknown> = {};
         if (params.merge_strategy) {
           mergeData.merge_strategy = params.merge_strategy;
         }
-        apiResult = await executeBitbucketAPI(`/repositories/${workspace}/${params.repo_slug}/pullrequests/${params.pr_id}/merge`, config, {
-          method: 'POST',
-          body: JSON.stringify(mergeData),
-        });
+        apiResult = await executeBitbucketAPI(
+          `/repositories/${workspace}/${params.repo_slug}/pullrequests/${params.pr_id}/merge`,
+          config,
+          {
+            method: 'POST',
+            body: JSON.stringify(mergeData),
+          }
+        );
         if (apiResult.data) {
           resultText = JSON.stringify(apiResult.data, null, 2);
         }
@@ -490,12 +566,19 @@ export async function executeBitbucket(
           return {
             success: false,
             content: [],
-            error: { code: 'MISSING_PARAMETER', message: 'workspace, repo_slug, and pr_id are required for pr_approve' },
+            error: {
+              code: 'MISSING_PARAMETER',
+              message: 'workspace, repo_slug, and pr_id are required for pr_approve',
+            },
           };
         }
-        apiResult = await executeBitbucketAPI(`/repositories/${workspace}/${params.repo_slug}/pullrequests/${params.pr_id}/approve`, config, {
-          method: 'POST',
-        });
+        apiResult = await executeBitbucketAPI(
+          `/repositories/${workspace}/${params.repo_slug}/pullrequests/${params.pr_id}/approve`,
+          config,
+          {
+            method: 'POST',
+          }
+        );
         if (apiResult.data) {
           resultText = JSON.stringify(apiResult.data, null, 2);
         }
@@ -507,7 +590,10 @@ export async function executeBitbucket(
           return {
             success: false,
             content: [],
-            error: { code: 'MISSING_PARAMETER', message: 'workspace, repo_slug, pr_id, and body are required for pr_comment' },
+            error: {
+              code: 'MISSING_PARAMETER',
+              message: 'workspace, repo_slug, pr_id, and body are required for pr_comment',
+            },
           };
         }
         const commentData = {
@@ -515,10 +601,14 @@ export async function executeBitbucket(
             raw: params.body,
           },
         };
-        apiResult = await executeBitbucketAPI(`/repositories/${workspace}/${params.repo_slug}/pullrequests/${params.pr_id}/comments`, config, {
-          method: 'POST',
-          body: JSON.stringify(commentData),
-        });
+        apiResult = await executeBitbucketAPI(
+          `/repositories/${workspace}/${params.repo_slug}/pullrequests/${params.pr_id}/comments`,
+          config,
+          {
+            method: 'POST',
+            body: JSON.stringify(commentData),
+          }
+        );
         if (apiResult.data) {
           resultText = JSON.stringify(apiResult.data, null, 2);
         }
@@ -530,7 +620,10 @@ export async function executeBitbucket(
           return {
             success: false,
             content: [],
-            error: { code: 'MISSING_PARAMETER', message: 'workspace and repo_slug are required for issue_list' },
+            error: {
+              code: 'MISSING_PARAMETER',
+              message: 'workspace and repo_slug are required for issue_list',
+            },
           };
         }
         let endpoint = `/repositories/${workspace}/${params.repo_slug}/issues?pagelen=${Math.min(limit, 100)}`;
@@ -539,15 +632,19 @@ export async function executeBitbucket(
         }
         apiResult = await paginateResults(endpoint, config, limit);
         if (apiResult.results) {
-          resultText = JSON.stringify(apiResult.results.map(issue => ({
-            id: issue.id,
-            title: issue.title,
-            state: issue.state,
-            kind: issue.kind,
-            priority: issue.priority,
-            created_on: issue.created_on,
-            updated_on: issue.updated_on,
-          })), null, 2);
+          resultText = JSON.stringify(
+            apiResult.results.map((issue) => ({
+              id: issue.id,
+              title: issue.title,
+              state: issue.state,
+              kind: issue.kind,
+              priority: issue.priority,
+              created_on: issue.created_on,
+              updated_on: issue.updated_on,
+            })),
+            null,
+            2
+          );
         }
         break;
       }
@@ -557,10 +654,16 @@ export async function executeBitbucket(
           return {
             success: false,
             content: [],
-            error: { code: 'MISSING_PARAMETER', message: 'workspace, repo_slug, and issue_id are required for issue_view' },
+            error: {
+              code: 'MISSING_PARAMETER',
+              message: 'workspace, repo_slug, and issue_id are required for issue_view',
+            },
           };
         }
-        apiResult = await executeBitbucketAPI(`/repositories/${workspace}/${params.repo_slug}/issues/${params.issue_id}`, config);
+        apiResult = await executeBitbucketAPI(
+          `/repositories/${workspace}/${params.repo_slug}/issues/${params.issue_id}`,
+          config
+        );
         if (apiResult.data) {
           resultText = JSON.stringify(apiResult.data, null, 2);
         }
@@ -572,7 +675,10 @@ export async function executeBitbucket(
           return {
             success: false,
             content: [],
-            error: { code: 'MISSING_PARAMETER', message: 'workspace, repo_slug, and title are required for issue_create' },
+            error: {
+              code: 'MISSING_PARAMETER',
+              message: 'workspace, repo_slug, and title are required for issue_create',
+            },
           };
         }
         const issueData: Record<string, unknown> = {
@@ -587,10 +693,14 @@ export async function executeBitbucket(
         if (params.priority) {
           issueData.priority = params.priority;
         }
-        apiResult = await executeBitbucketAPI(`/repositories/${workspace}/${params.repo_slug}/issues`, config, {
-          method: 'POST',
-          body: JSON.stringify(issueData),
-        });
+        apiResult = await executeBitbucketAPI(
+          `/repositories/${workspace}/${params.repo_slug}/issues`,
+          config,
+          {
+            method: 'POST',
+            body: JSON.stringify(issueData),
+          }
+        );
         if (apiResult.data) {
           resultText = JSON.stringify(apiResult.data, null, 2);
         }
@@ -602,7 +712,10 @@ export async function executeBitbucket(
           return {
             success: false,
             content: [],
-            error: { code: 'MISSING_PARAMETER', message: 'workspace, repo_slug, issue_id, and body are required for issue_comment' },
+            error: {
+              code: 'MISSING_PARAMETER',
+              message: 'workspace, repo_slug, issue_id, and body are required for issue_comment',
+            },
           };
         }
         const commentData = {
@@ -610,10 +723,14 @@ export async function executeBitbucket(
             raw: params.body,
           },
         };
-        apiResult = await executeBitbucketAPI(`/repositories/${workspace}/${params.repo_slug}/issues/${params.issue_id}/comments`, config, {
-          method: 'POST',
-          body: JSON.stringify(commentData),
-        });
+        apiResult = await executeBitbucketAPI(
+          `/repositories/${workspace}/${params.repo_slug}/issues/${params.issue_id}/comments`,
+          config,
+          {
+            method: 'POST',
+            body: JSON.stringify(commentData),
+          }
+        );
         if (apiResult.data) {
           resultText = JSON.stringify(apiResult.data, null, 2);
         }
@@ -625,18 +742,29 @@ export async function executeBitbucket(
           return {
             success: false,
             content: [],
-            error: { code: 'MISSING_PARAMETER', message: 'workspace and repo_slug are required for pipeline_list' },
+            error: {
+              code: 'MISSING_PARAMETER',
+              message: 'workspace and repo_slug are required for pipeline_list',
+            },
           };
         }
-        apiResult = await paginateResults(`/repositories/${workspace}/${params.repo_slug}/pipelines?pagelen=${Math.min(limit, 100)}`, config, limit);
+        apiResult = await paginateResults(
+          `/repositories/${workspace}/${params.repo_slug}/pipelines?pagelen=${Math.min(limit, 100)}`,
+          config,
+          limit
+        );
         if (apiResult.results) {
-          resultText = JSON.stringify(apiResult.results.map(pipeline => ({
-            uuid: pipeline.uuid,
-            state: (pipeline.state as Record<string, unknown>)?.name,
-            created_on: pipeline.created_on,
-            completed_on: pipeline.completed_on,
-            build_number: pipeline.build_number,
-          })), null, 2);
+          resultText = JSON.stringify(
+            apiResult.results.map((pipeline) => ({
+              uuid: pipeline.uuid,
+              state: (pipeline.state as Record<string, unknown>)?.name,
+              created_on: pipeline.created_on,
+              completed_on: pipeline.completed_on,
+              build_number: pipeline.build_number,
+            })),
+            null,
+            2
+          );
         }
         break;
       }
@@ -646,10 +774,16 @@ export async function executeBitbucket(
           return {
             success: false,
             content: [],
-            error: { code: 'MISSING_PARAMETER', message: 'workspace, repo_slug, and pipeline_uuid are required for pipeline_view' },
+            error: {
+              code: 'MISSING_PARAMETER',
+              message: 'workspace, repo_slug, and pipeline_uuid are required for pipeline_view',
+            },
           };
         }
-        apiResult = await executeBitbucketAPI(`/repositories/${workspace}/${params.repo_slug}/pipelines/${params.pipeline_uuid}`, config);
+        apiResult = await executeBitbucketAPI(
+          `/repositories/${workspace}/${params.repo_slug}/pipelines/${params.pipeline_uuid}`,
+          config
+        );
         if (apiResult.data) {
           resultText = JSON.stringify(apiResult.data, null, 2);
         }
@@ -661,11 +795,18 @@ export async function executeBitbucket(
           return {
             success: false,
             content: [],
-            error: { code: 'MISSING_PARAMETER', message: 'workspace and query are required for search' },
+            error: {
+              code: 'MISSING_PARAMETER',
+              message: 'workspace and query are required for search',
+            },
           };
         }
         // Bitbucket code search API
-        apiResult = await paginateResults(`/workspaces/${workspace}/search/code?search_query=${encodeURIComponent(params.query)}&pagelen=${Math.min(limit, 100)}`, config, limit);
+        apiResult = await paginateResults(
+          `/workspaces/${workspace}/search/code?search_query=${encodeURIComponent(params.query)}&pagelen=${Math.min(limit, 100)}`,
+          config,
+          limit
+        );
         if (apiResult.results) {
           resultText = JSON.stringify(apiResult.results, null, 2);
         }

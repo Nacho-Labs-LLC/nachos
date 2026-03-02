@@ -47,7 +47,8 @@ const sc = StringCodec();
  */
 export class NachosBusClient implements INachosBusClient {
   private connection: NatsConnection | null = null;
-  private readonly options: Required<Omit<NachosBusOptions, 'token'>> & Pick<NachosBusOptions, 'token'>;
+  private readonly options: Required<Omit<NachosBusOptions, 'token'>> &
+    Pick<NachosBusOptions, 'token'>;
   private readonly eventHandlers: Map<BusEvent, Set<BusEventHandler>> = new Map();
   private startTime: number = 0;
 

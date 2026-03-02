@@ -15,7 +15,12 @@ import type {
   SendResult,
   HealthStatusType,
 } from '@nachos/types';
-import { createLogger, createConfigError, createInvalidStateError, validateChannelInboundMessage } from '@nachos/types';
+import {
+  createLogger,
+  createConfigError,
+  createInvalidStateError,
+  validateChannelInboundMessage,
+} from '@nachos/types';
 import { shouldAllowDm, shouldAllowGroupMessage } from '@nachos/utils';
 
 const logger = createLogger('telegram-channel');
@@ -89,7 +94,9 @@ export class TelegramChannelAdapter implements ChannelAdapter {
 
   async start(): Promise<void> {
     if (!this.bot || !this.config) {
-      throw createInvalidStateError('Telegram adapter not initialized', { component: 'telegram-channel' });
+      throw createInvalidStateError('Telegram adapter not initialized', {
+        component: 'telegram-channel',
+      });
     }
 
     const me = await this.bot.telegram.getMe();
@@ -169,7 +176,9 @@ export class TelegramChannelAdapter implements ChannelAdapter {
 
   async sendMessage(message: OutboundMessage): Promise<SendResult> {
     if (!this.bot) {
-      throw createInvalidStateError('Telegram adapter not initialized', { component: 'telegram-channel' });
+      throw createInvalidStateError('Telegram adapter not initialized', {
+        component: 'telegram-channel',
+      });
     }
 
     try {
@@ -240,9 +249,17 @@ export class TelegramChannelAdapter implements ChannelAdapter {
       // If data is a URL string, send it directly
       if (typeof data === 'string' && (data.startsWith('http://') || data.startsWith('https://'))) {
         if (isImage) {
-          await (this.bot.telegram.sendPhoto as (...args: unknown[]) => Promise<unknown>)(chatId, data, replyExtra);
+          await (this.bot.telegram.sendPhoto as (...args: unknown[]) => Promise<unknown>)(
+            chatId,
+            data,
+            replyExtra
+          );
         } else {
-          await (this.bot.telegram.sendDocument as (...args: unknown[]) => Promise<unknown>)(chatId, data, replyExtra);
+          await (this.bot.telegram.sendDocument as (...args: unknown[]) => Promise<unknown>)(
+            chatId,
+            data,
+            replyExtra
+          );
         }
         return;
       }
@@ -263,13 +280,24 @@ export class TelegramChannelAdapter implements ChannelAdapter {
 
         const filename = attachment.name ?? 'attachment';
         if (isImage) {
-          await (this.bot.telegram.sendPhoto as (...args: unknown[]) => Promise<unknown>)(chatId, { source: buffer, filename }, replyExtra);
+          await (this.bot.telegram.sendPhoto as (...args: unknown[]) => Promise<unknown>)(
+            chatId,
+            { source: buffer, filename },
+            replyExtra
+          );
         } else {
-          await (this.bot.telegram.sendDocument as (...args: unknown[]) => Promise<unknown>)(chatId, { source: buffer, filename }, replyExtra);
+          await (this.bot.telegram.sendDocument as (...args: unknown[]) => Promise<unknown>)(
+            chatId,
+            { source: buffer, filename },
+            replyExtra
+          );
         }
       }
     } catch (error) {
-      logger.warn({ chatId, attachmentType: attachment.type, err: error }, 'Failed to send attachment');
+      logger.warn(
+        { chatId, attachmentType: attachment.type, err: error },
+        'Failed to send attachment'
+      );
     }
   }
 
@@ -382,13 +410,14 @@ export class TelegramChannelAdapter implements ChannelAdapter {
     // Get file info and URL from Telegram
     let fileUrl: string | undefined;
     let fileName: string | undefined;
-    let mimeType: string | undefined;
     let fileSize: number | undefined;
 
     try {
       const file = await this.bot.telegram.getFile(fileId);
       if (file.file_path) {
-        const token = (this.config.config as TelegramChannelConfig).token ?? this.config.secrets.TELEGRAM_BOT_TOKEN;
+        const token =
+          (this.config.config as TelegramChannelConfig).token ??
+          this.config.secrets.TELEGRAM_BOT_TOKEN;
         fileUrl = `https://api.telegram.org/file/bot${token}/${file.file_path}`;
       }
       fileSize = file.file_size;
@@ -402,7 +431,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
     }
 
     // Try to extract mime_type from media-specific fields
-    mimeType = this.extractMimeType(message, mediaType);
+    const mimeType = this.extractMimeType(message, mediaType);
     // Try to get a better filename from the document
     if (mediaType === 'document') {
       const doc = message.document as { file_name?: string } | undefined;

@@ -40,7 +40,10 @@ sessionsRouter.get('/', (c) => {
     const offset = (page - 1) * pageSize;
 
     const countRow = db
-      .prepare<(string | number)[], { count: number }>(`SELECT COUNT(*) as count FROM sessions s ${where}`)
+      .prepare<
+        (string | number)[],
+        { count: number }
+      >(`SELECT COUNT(*) as count FROM sessions s ${where}`)
       .get(...params);
     const total = countRow?.count ?? 0;
 

@@ -308,7 +308,7 @@ describe('SubagentOrchestrator - Security Hardening', () => {
       } as unknown as SubagentManager;
 
       const buildLLMRequest = vi.fn().mockResolvedValue({ messages: [], options: {} });
-      
+
       const orchestratorWithStreaming = new SubagentOrchestrator({
         subagentManager: blockingManager,
         sessionManager: mockSessionManager,

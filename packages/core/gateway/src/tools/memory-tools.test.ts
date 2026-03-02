@@ -5,6 +5,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { executeMemorySearch, executeMemoryGet } from './memory-tools.js';
 import type { ToolCall, StateOperationContext } from '@nachos/types';
+import type { StateLayer } from '@nachos/state';
 
 describe('memory_search', () => {
   it('should return error if query is missing', async () => {
@@ -22,9 +23,9 @@ describe('memory_search', () => {
       internalTool: true,
     };
 
-    const mockStateLayer: any = {
+    const mockStateLayer = {
       queryMemory: vi.fn(),
-    };
+    } as unknown as StateLayer;
 
     const result = await executeMemorySearch(call, mockStateLayer, context);
 
@@ -50,7 +51,7 @@ describe('memory_search', () => {
       internalTool: true,
     };
 
-    const mockStateLayer: any = {
+    const mockStateLayer = {
       queryMemory: vi.fn().mockResolvedValue({
         entries: [
           {
@@ -65,7 +66,7 @@ describe('memory_search', () => {
         ],
         facts: [],
       }),
-    };
+    } as unknown as StateLayer;
 
     const result = await executeMemorySearch(call, mockStateLayer, context);
 
@@ -98,7 +99,7 @@ describe('memory_search', () => {
       internalTool: true,
     };
 
-    const mockStateLayer: any = {
+    const mockStateLayer = {
       queryMemory: vi.fn().mockResolvedValue({
         entries: [],
         facts: [
@@ -112,7 +113,7 @@ describe('memory_search', () => {
           },
         ],
       }),
-    };
+    } as unknown as StateLayer;
 
     const result = await executeMemorySearch(call, mockStateLayer, context);
 
@@ -138,7 +139,7 @@ describe('memory_get', () => {
       internalTool: true,
     };
 
-    const result = await executeMemoryGet(call, {} as any, context);
+    const result = await executeMemoryGet(call, {} as unknown as StateLayer, context);
 
     expect(result.success).toBe(false);
     expect(result.error?.code).toBe('INVALID_PARAMETERS');
@@ -161,7 +162,7 @@ describe('memory_get', () => {
       internalTool: true,
     };
 
-    const result = await executeMemoryGet(call, {} as any, context);
+    const result = await executeMemoryGet(call, {} as unknown as StateLayer, context);
 
     expect(result.success).toBe(false);
     expect(result.error?.code).toBe('ACCESS_DENIED');
@@ -185,7 +186,7 @@ describe('memory_get', () => {
     };
 
     // This will fail if MEMORY.md doesn't exist, but the path check should pass
-    const result = await executeMemoryGet(call, {} as any, context);
+    const result = await executeMemoryGet(call, {} as unknown as StateLayer, context);
 
     // Either succeeds or fails with FILE_NOT_FOUND, but not ACCESS_DENIED
     if (!result.success) {
@@ -210,7 +211,7 @@ describe('memory_get', () => {
       internalTool: true,
     };
 
-    const result = await executeMemoryGet(call, {} as any, context);
+    const result = await executeMemoryGet(call, {} as unknown as StateLayer, context);
 
     // Either succeeds or fails with FILE_NOT_FOUND, but not ACCESS_DENIED
     if (!result.success) {

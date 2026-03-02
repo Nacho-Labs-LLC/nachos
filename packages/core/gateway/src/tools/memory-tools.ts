@@ -1,6 +1,6 @@
 /**
  * Memory tool schemas for LLM tool calling
- * 
+ *
  * These tools enable the LLM to query its own memory storage.
  */
 
@@ -18,7 +18,8 @@ export const MemorySearchToolSchema = {
   properties: {
     query: {
       type: 'string',
-      description: 'Text to search for in memory entries (searches content, subject, predicate, object)',
+      description:
+        'Text to search for in memory entries (searches content, subject, predicate, object)',
     },
     kinds: {
       type: 'array',
@@ -40,7 +41,8 @@ export const MemorySearchToolSchema = {
     },
     semantic: {
       type: 'boolean',
-      description: 'Use semantic search instead of text matching (finds similar meanings, not just exact words). Default: false',
+      description:
+        'Use semantic search instead of text matching (finds similar meanings, not just exact words). Default: false',
       default: false,
     },
     minSimilarity: {
@@ -53,7 +55,7 @@ export const MemorySearchToolSchema = {
 };
 
 /**
- * memory_get tool schema  
+ * memory_get tool schema
  * Retrieves specific memory entries by ID or detailed query
  */
 export const MemoryGetToolSchema = {
@@ -122,21 +124,27 @@ export async function executeMemorySearch(
 
     // Format results for LLM
     const searchType = params.semantic ? 'semantic' : 'text';
-    const entriesText = result.entries.map((entry, idx) => {
-      const tagsStr = entry.tags && entry.tags.length > 0 ? ` [tags: ${entry.tags.join(', ')}]` : '';
-      const confidenceStr = entry.confidence 
-        ? ` (${params.semantic ? 'similarity' : 'confidence'}: ${entry.confidence.toFixed(2)})`
+    const entriesText = result.entries
+      .map((entry, idx) => {
+        const tagsStr =
+          entry.tags && entry.tags.length > 0 ? ` [tags: ${entry.tags.join(', ')}]` : '';
+        const confidenceStr = entry.confidence
+          ? ` (${params.semantic ? 'similarity' : 'confidence'}: ${entry.confidence.toFixed(2)})`
+          : '';
+        return `${idx + 1}. [${entry.kind}]${tagsStr}${confidenceStr}\n   ${entry.content}`;
+      })
+      .join('\n\n');
+
+    const factsText =
+      result.facts && result.facts.length > 0
+        ? '\n\n**Facts:**\n' +
+          result.facts
+            .map((fact, idx) => `${idx + 1}. ${fact.subject} ${fact.predicate} ${fact.object}`)
+            .join('\n')
         : '';
-      return `${idx + 1}. [${entry.kind}]${tagsStr}${confidenceStr}\n   ${entry.content}`;
-    }).join('\n\n');
 
-    const factsText = result.facts && result.facts.length > 0
-      ? '\n\n**Facts:**\n' + result.facts.map((fact, idx) => 
-          `${idx + 1}. ${fact.subject} ${fact.predicate} ${fact.object}`
-        ).join('\n')
-      : '';
-
-    const summary = `Found ${result.entries.length} memory entries` +
+    const summary =
+      `Found ${result.entries.length} memory entries` +
       (result.facts ? ` and ${result.facts.length} facts` : '') +
       ` (${searchType} search) for query: "${params.query}"`;
 
@@ -163,7 +171,7 @@ export async function executeMemorySearch(
 
 /**
  * Execute memory_get tool
- * 
+ *
  * Reads memory files (MEMORY.md, memory/YYYY-MM-DD.md) from the workspace.
  * Supports optional line range for large files.
  */
@@ -192,12 +200,21 @@ export async function executeMemoryGet(
 
     // Security: Only allow reading from memory files
     const normalizedPath = params.path.trim();
-    const allowedPaths = ['MEMORY.md', 'memory/', 'AGENTS.md', 'SOUL.md', 'USER.md', 'TOOLS.md', 'IDENTITY.md'];
-    
-    const isAllowed = allowedPaths.some(allowed => 
-      normalizedPath === allowed || 
-      normalizedPath.startsWith(allowed) ||
-      normalizedPath.startsWith('./' + allowed)
+    const allowedPaths = [
+      'MEMORY.md',
+      'memory/',
+      'AGENTS.md',
+      'SOUL.md',
+      'USER.md',
+      'TOOLS.md',
+      'IDENTITY.md',
+    ];
+
+    const isAllowed = allowedPaths.some(
+      (allowed) =>
+        normalizedPath === allowed ||
+        normalizedPath.startsWith(allowed) ||
+        normalizedPath.startsWith('./' + allowed)
     );
 
     if (!isAllowed) {
@@ -214,7 +231,7 @@ export async function executeMemoryGet(
     // Use Node.js fs module to read file
     const fs = await import('fs/promises');
     const path = await import('path');
-    
+
     // Construct full path (workspace root + requested path)
     // TODO: Get actual workspace dir from config/context
     const workspaceDir = process.env.NACHOS_WORKSPACE_DIR || process.cwd();
@@ -233,9 +250,10 @@ export async function executeMemoryGet(
       const totalLines = lines.length;
       const readLines = selectedLines.length;
 
-      const summary = params.from || params.lines
-        ? `Read lines ${from + 1}-${from + readLines} of ${totalLines} from ${normalizedPath}`
-        : `Read ${totalLines} lines from ${normalizedPath}`;
+      const summary =
+        params.from || params.lines
+          ? `Read lines ${from + 1}-${from + readLines} of ${totalLines} from ${normalizedPath}`
+          : `Read ${totalLines} lines from ${normalizedPath}`;
 
       return {
         success: true,

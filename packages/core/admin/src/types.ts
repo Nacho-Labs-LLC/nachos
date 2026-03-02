@@ -88,11 +88,11 @@ export interface SkillsResponse {
 }
 
 export interface ServiceStatus {
-  name: string;       // e.g. "gateway"
-  container: string;  // e.g. "nachos-gateway"
-  state: string;      // "running" | "exited" | "paused" etc.
-  health: string;     // "healthy" | "unhealthy" | "starting" | "none"
-  uptime: string;     // human-readable uptime string (from Docker Status field)
+  name: string; // e.g. "gateway"
+  container: string; // e.g. "nachos-gateway"
+  state: string; // "running" | "exited" | "paused" etc.
+  health: string; // "healthy" | "unhealthy" | "starting" | "none"
+  uptime: string; // human-readable uptime string (from Docker Status field)
   image: string;
 }
 

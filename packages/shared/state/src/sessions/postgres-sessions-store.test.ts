@@ -406,10 +406,10 @@ describeIfPostgres('PostgresSessionsStore', () => {
 
     // Manually set old session's last_activity to 48 hours ago
     const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
-    await pool.query(
-      `UPDATE ${TEST_SCHEMA}.sessions SET last_activity = $1 WHERE id = $2`,
-      [fortyEightHoursAgo, oldSession.id]
-    );
+    await pool.query(`UPDATE ${TEST_SCHEMA}.sessions SET last_activity = $1 WHERE id = $2`, [
+      fortyEightHoursAgo,
+      oldSession.id,
+    ]);
 
     // Create a pinned old session
     const pinnedOldSession = await store.createSession({
@@ -418,16 +418,16 @@ describeIfPostgres('PostgresSessionsStore', () => {
       userId: 'user-123',
     });
 
-    await pool.query(
-      `UPDATE ${TEST_SCHEMA}.sessions SET last_activity = $1 WHERE id = $2`,
-      [fortyEightHoursAgo, pinnedOldSession.id]
-    );
+    await pool.query(`UPDATE ${TEST_SCHEMA}.sessions SET last_activity = $1 WHERE id = $2`, [
+      fortyEightHoursAgo,
+      pinnedOldSession.id,
+    ]);
     await store.pin(pinnedOldSession.id, true);
 
     // List active sessions
     const activeSessions = await store.listActive({ channel: 'discord', userId: 'user-123' });
 
-    const activeIds = activeSessions.map(s => s.id);
+    const activeIds = activeSessions.map((s) => s.id);
     expect(activeIds).toContain(recentSession.id);
     expect(activeIds).toContain(pinnedOldSession.id);
     expect(activeIds).not.toContain(oldSession.id);
@@ -456,10 +456,10 @@ describeIfPostgres('PostgresSessionsStore', () => {
 
     const archivedSessions = await store.listArchived({ channel: 'discord', userId: 'user-123' });
 
-    const archivedIds = archivedSessions.map(s => s.id);
+    const archivedIds = archivedSessions.map((s) => s.id);
     expect(archivedIds).toContain(session1.id);
     expect(archivedIds).toContain(session2.id);
-    expect(archivedSessions.every(s => s.isArchived)).toBe(true);
+    expect(archivedSessions.every((s) => s.isArchived)).toBe(true);
   });
 
   it('should search archived sessions', async () => {
@@ -482,20 +482,20 @@ describeIfPostgres('PostgresSessionsStore', () => {
     const fooResults = await store.listArchived({
       channel: 'discord',
       userId: 'user-123',
-      search: 'foo'
+      search: 'foo',
     });
 
     expect(fooResults.length).toBeGreaterThanOrEqual(1);
-    expect(fooResults.some(s => s.id === session1.id)).toBe(true);
+    expect(fooResults.some((s) => s.id === session1.id)).toBe(true);
 
     const codingResults = await store.listArchived({
       channel: 'discord',
       userId: 'user-123',
-      search: 'coding'
+      search: 'coding',
     });
 
     expect(codingResults.length).toBeGreaterThanOrEqual(1);
-    expect(codingResults.some(s => s.id === session2.id)).toBe(true);
+    expect(codingResults.some((s) => s.id === session2.id)).toBe(true);
   });
 
   it('should update lastActivity when adding messages', async () => {
@@ -507,7 +507,7 @@ describeIfPostgres('PostgresSessionsStore', () => {
 
     const initialActivity = session.lastActivity;
 
-    await new Promise(resolve => setTimeout(resolve, 10));
+    await new Promise((resolve) => setTimeout(resolve, 10));
 
     await store.addMessage({
       sessionId: session.id,

@@ -264,7 +264,7 @@ export class SchedulerStorage {
 
     const stmt = this.db.prepare(query);
     const rows = stmt.all(...params) as CronJobRow[];
-    return rows.map(row => this.rowToCronJob(row));
+    return rows.map((row) => this.rowToCronJob(row));
   }
 
   /**
@@ -280,7 +280,7 @@ export class SchedulerStorage {
     `);
 
     const rows = stmt.all(beforeTime.toISOString()) as CronJobRow[];
-    return rows.map(row => this.rowToCronJob(row));
+    return rows.map((row) => this.rowToCronJob(row));
   }
 
   /**
@@ -335,9 +335,9 @@ export class SchedulerStorage {
     }
   ): void {
     const now = new Date().toISOString();
-    const startTime = this.db
-      .prepare('SELECT started_at FROM cron_runs WHERE id = ?')
-      .get(id) as { started_at: string } | undefined;
+    const startTime = this.db.prepare('SELECT started_at FROM cron_runs WHERE id = ?').get(id) as
+      | { started_at: string }
+      | undefined;
 
     const durationMs = startTime
       ? new Date(now).getTime() - new Date(startTime.started_at).getTime()
@@ -388,6 +388,6 @@ export class SchedulerStorage {
 
     const stmt = this.db.prepare(query);
     const rows = stmt.all(...params) as CronRunRow[];
-    return rows.map(row => this.rowToCronRun(row));
+    return rows.map((row) => this.rowToCronRun(row));
   }
 }

@@ -159,7 +159,7 @@ const DEFAULT_SKILL_TOOLS: SkillToolConfig[] = [
     requiredEnv: [], // OAuth handled by gog itself
     defaultTimeout: 45000,
   },
-  
+
   // File inspection (read-only)
   { bin: 'ls', group: 'file-inspection', readonly: true },
   { bin: 'cat', group: 'file-inspection', readonly: true },
@@ -169,7 +169,7 @@ const DEFAULT_SKILL_TOOLS: SkillToolConfig[] = [
   { bin: 'stat', group: 'file-inspection', readonly: true },
   { bin: 'wc', group: 'file-inspection', readonly: true },
   { bin: 'find', group: 'file-inspection', readonly: true, defaultTimeout: 60000 },
-  
+
   // Text processing
   { bin: 'grep', group: 'text-processing', readonly: true },
   { bin: 'sed', group: 'text-processing', readonly: true },
@@ -179,26 +179,31 @@ const DEFAULT_SKILL_TOOLS: SkillToolConfig[] = [
   { bin: 'uniq', group: 'text-processing', readonly: true },
   { bin: 'tr', group: 'text-processing', readonly: true },
   { bin: 'diff', group: 'text-processing', readonly: true },
-  
+
   // Process inspection
   { bin: 'ps', group: 'process-inspection', readonly: true },
   { bin: 'pgrep', group: 'process-inspection', readonly: true },
   { bin: 'top', group: 'process-inspection', readonly: true, defaultTimeout: 5000 },
   { bin: 'htop', group: 'process-inspection', readonly: true, defaultTimeout: 5000 },
-  
+
   // Network info (read-only inspection)
   { bin: 'netstat', group: 'network-info', readonly: true },
   { bin: 'ss', group: 'network-info', readonly: true },
   { bin: 'lsof', group: 'network-info', readonly: true },
-  { bin: 'ip', group: 'network-info', readonly: true, allowedSubcommands: ['addr', 'route', 'link'] },
-  
+  {
+    bin: 'ip',
+    group: 'network-info',
+    readonly: true,
+    allowedSubcommands: ['addr', 'route', 'link'],
+  },
+
   // Network debugging
   { bin: 'ping', group: 'network-debug', readonly: true, defaultTimeout: 10000 },
   { bin: 'curl', group: 'network-debug', readonly: true, defaultTimeout: 30000 },
   { bin: 'wget', group: 'network-debug', readonly: true, defaultTimeout: 30000 },
   { bin: 'dig', group: 'network-debug', readonly: true },
   { bin: 'nslookup', group: 'network-debug', readonly: true },
-  
+
   // System info
   { bin: 'uname', group: 'system-info', readonly: true },
   { bin: 'hostname', group: 'system-info', readonly: true },
@@ -210,21 +215,42 @@ const DEFAULT_SKILL_TOOLS: SkillToolConfig[] = [
   { bin: 'free', group: 'system-info', readonly: true },
   { bin: 'df', group: 'system-info', readonly: true },
   { bin: 'du', group: 'system-info', readonly: true, defaultTimeout: 60000 },
-  
+
   // Data processing
   { bin: 'jq', group: 'data-processing', readonly: true },
   { bin: 'yq', group: 'data-processing', readonly: true },
   { bin: 'json', group: 'data-processing', readonly: true },
-  
+
   // Git (read-only operations)
   {
     bin: 'git',
     group: 'git',
     readonly: true,
-    allowedSubcommands: ['status', 'log', 'diff', 'show', 'branch', 'remote', 'config', 'rev-parse', 'describe'],
-    blockedSubcommands: ['push', 'commit', 'add', 'rm', 'reset', 'rebase', 'merge', 'pull', 'fetch', 'clone'],
+    allowedSubcommands: [
+      'status',
+      'log',
+      'diff',
+      'show',
+      'branch',
+      'remote',
+      'config',
+      'rev-parse',
+      'describe',
+    ],
+    blockedSubcommands: [
+      'push',
+      'commit',
+      'add',
+      'rm',
+      'reset',
+      'rebase',
+      'merge',
+      'pull',
+      'fetch',
+      'clone',
+    ],
   },
-  
+
   // Docker (read-only inspection)
   {
     bin: 'docker',
@@ -234,7 +260,7 @@ const DEFAULT_SKILL_TOOLS: SkillToolConfig[] = [
     blockedSubcommands: ['rm', 'rmi', 'stop', 'kill', 'run', 'exec', 'build', 'push', 'pull'],
     defaultTimeout: 30000,
   },
-  
+
   // Archive operations (read-only: list/extract)
   { bin: 'tar', group: 'archive', readonly: true },
   { bin: 'unzip', group: 'archive', readonly: true },
@@ -307,17 +333,16 @@ export class ShellTool {
       await mkdir(logDir, { recursive: true });
 
       // Append JSON line to audit log
-      await appendFile(
-        this.auditLogPath,
-        JSON.stringify(entry) + '\n',
-        'utf8'
-      );
+      await appendFile(this.auditLogPath, JSON.stringify(entry) + '\n', 'utf8');
     } catch (error) {
       // Don't fail command execution if audit log fails
-      this.logger.warn({
-        error: error instanceof Error ? error.message : String(error),
-        auditLogPath: this.auditLogPath,
-      }, 'Failed to write audit log');
+      this.logger.warn(
+        {
+          error: error instanceof Error ? error.message : String(error),
+          auditLogPath: this.auditLogPath,
+        },
+        'Failed to write audit log'
+      );
     }
   }
 
@@ -334,7 +359,9 @@ export class ShellTool {
 
     if (!this.isCommandAllowed(options.command)) {
       const allowed = Array.from(this.allowedTools.keys()).join(', ');
-      throw createPermissionDeniedError(`Command not allowed. Allowed tools: ${allowed}`, { component: 'gateway' });
+      throw createPermissionDeniedError(`Command not allowed. Allowed tools: ${allowed}`, {
+        component: 'gateway',
+      });
     }
 
     const binaries = this.extractCommandBins(options.command);
@@ -344,7 +371,9 @@ export class ShellTool {
     for (const binaryName of binaries) {
       const toolConfig = this.allowedTools.get(binaryName);
       if (!toolConfig) {
-        throw createPermissionDeniedError(`Command '${binaryName}' not allowed.`, { component: 'gateway' });
+        throw createPermissionDeniedError(`Command '${binaryName}' not allowed.`, {
+          component: 'gateway',
+        });
       }
       if (toolConfig.requiredEnv) {
         for (const envVar of toolConfig.requiredEnv) {
@@ -358,12 +387,15 @@ export class ShellTool {
       }
     }
 
-    this.logger.info({
-      command: options.command,
-      binaries: binaries.join(' '),
-      toolGroup: this.getToolGroup(options.command),
-      timeout,
-    }, 'Executing command');
+    this.logger.info(
+      {
+        command: options.command,
+        binaries: binaries.join(' '),
+        toolGroup: this.getToolGroup(options.command),
+        timeout,
+      },
+      'Executing command'
+    );
 
     try {
       const result = await this.spawnProcess({
@@ -703,15 +735,18 @@ export class ShellTool {
         clearTimeout(timeoutHandle);
         const duration = Date.now() - startTime;
 
-        this.logger.info({
-          exitCode,
-          signal,
-          duration,
-          stdoutLength: stdout.length,
-          stderrLength: stderr.length,
-          timedOut,
-          truncated,
-        }, 'Command completed');
+        this.logger.info(
+          {
+            exitCode,
+            signal,
+            duration,
+            stdoutLength: stdout.length,
+            stderrLength: stderr.length,
+            timedOut,
+            truncated,
+          },
+          'Command completed'
+        );
 
         resolve({
           exitCode,
@@ -842,16 +877,19 @@ export class ShellTool {
         clearTimeout(timeoutHandle);
         const duration = Date.now() - startTime;
 
-        this.logger.info({
-          exitCode,
-          signal,
-          duration,
-          stdoutLength: stdout.length,
-          stderrLength: stderr.length,
-          timedOut,
-          truncated,
-          pipeLength: children.length,
-        }, 'Pipe chain completed');
+        this.logger.info(
+          {
+            exitCode,
+            signal,
+            duration,
+            stdoutLength: stdout.length,
+            stderrLength: stderr.length,
+            timedOut,
+            truncated,
+            pipeLength: children.length,
+          },
+          'Pipe chain completed'
+        );
 
         resolve({
           exitCode,

@@ -56,7 +56,9 @@ export interface SessionsStore {
   /**
    * Get or create a session atomically (race condition safe)
    */
-  getOrCreateSessionAtomic(data: CreateSessionData): Promise<{ session: Session; created: boolean }>;
+  getOrCreateSessionAtomic(
+    data: CreateSessionData
+  ): Promise<{ session: Session; created: boolean }>;
 
   /**
    * Get a session by ID
@@ -96,10 +98,7 @@ export interface SessionsStore {
   /**
    * Get messages for a session
    */
-  getMessages(
-    sessionId: string,
-    options?: { limit?: number; offset?: number }
-  ): Promise<Message[]>;
+  getMessages(sessionId: string, options?: { limit?: number; offset?: number }): Promise<Message[]>;
 
   /**
    * Get a session with its messages

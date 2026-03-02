@@ -15,9 +15,10 @@ export function createAdapterRegistry(config: LLMConfig): AdapterRegistry {
   adapters.set('anthropic', new AnthropicAdapter());
   adapters.set('openai', new OpenAIAdapter());
   adapters.set('ollama', new OllamaAdapter(config.base_url));
-  
+
   // Bedrock adapter uses region from config, then falls back to environment variables
-  const awsRegion = config.region || process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
+  const awsRegion =
+    config.region || process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
   adapters.set('bedrock', createBedrockAdapter(awsRegion));
 
   return {
