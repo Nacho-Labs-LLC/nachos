@@ -465,10 +465,10 @@ describe('StateStorage', () => {
       // Create sessions with different states
       const now = Date.now();
       const twentyFiveHoursAgo = new Date(now - 25 * 60 * 60 * 1000).toISOString();
-      const oneHourAgo = new Date(now - 1 * 60 * 60 * 1000).toISOString();
+      const _oneHourAgo = new Date(now - 1 * 60 * 60 * 1000).toISOString();
 
       // Active session (recent activity)
-      const session1 = await storage.createSession({
+      const _session1 = await storage.createSession({
         channel: 'slack',
         conversationId: 'conv-1',
         userId: 'user-1',
@@ -481,7 +481,9 @@ describe('StateStorage', () => {
         userId: 'user-2',
       });
       // Manually update last_activity to be old
-      storage.getDatabase().prepare('UPDATE sessions SET last_activity = ? WHERE id = ?')
+      storage
+        .getDatabase()
+        .prepare('UPDATE sessions SET last_activity = ? WHERE id = ?')
         .run(twentyFiveHoursAgo, session2.id);
 
       // Old session but pinned (should appear in active)
@@ -490,7 +492,9 @@ describe('StateStorage', () => {
         conversationId: 'conv-3',
         userId: 'user-3',
       });
-      storage.getDatabase().prepare('UPDATE sessions SET last_activity = ? WHERE id = ?')
+      storage
+        .getDatabase()
+        .prepare('UPDATE sessions SET last_activity = ? WHERE id = ?')
         .run(twentyFiveHoursAgo, session3.id);
       await storage.pin(session3.id);
 
@@ -505,17 +509,17 @@ describe('StateStorage', () => {
 
     it('should list active sessions (recent or pinned, not archived)', async () => {
       const active = await storage.listActive();
-      
+
       expect(active.length).toBe(2); // session1 (recent) + session3 (pinned)
-      expect(active.some(s => s.conversationId === 'conv-1')).toBe(true);
-      expect(active.some(s => s.conversationId === 'conv-3')).toBe(true);
-      expect(active.some(s => s.conversationId === 'conv-2')).toBe(false); // old, not pinned
-      expect(active.some(s => s.conversationId === 'conv-4')).toBe(false); // archived
+      expect(active.some((s) => s.conversationId === 'conv-1')).toBe(true);
+      expect(active.some((s) => s.conversationId === 'conv-3')).toBe(true);
+      expect(active.some((s) => s.conversationId === 'conv-2')).toBe(false); // old, not pinned
+      expect(active.some((s) => s.conversationId === 'conv-4')).toBe(false); // archived
     });
 
     it('should order active sessions by pinned first, then last activity', async () => {
       const active = await storage.listActive();
-      
+
       // Pinned session should be first
       expect(active[0]?.isPinned).toBe(true);
       expect(active[0]?.conversationId).toBe('conv-3');
@@ -523,34 +527,34 @@ describe('StateStorage', () => {
 
     it('should filter active sessions by channel', async () => {
       const slackSessions = await storage.listActive({ channel: 'slack' });
-      
+
       expect(slackSessions.length).toBe(1);
       expect(slackSessions[0]?.conversationId).toBe('conv-1');
     });
 
     it('should filter active sessions by userId', async () => {
       const userSessions = await storage.listActive({ userId: 'user-3' });
-      
+
       expect(userSessions.length).toBe(1);
       expect(userSessions[0]?.conversationId).toBe('conv-3');
     });
 
     it('should respect limit parameter', async () => {
       const limited = await storage.listActive({ limit: 1 });
-      
+
       expect(limited.length).toBe(1);
     });
 
     it('should respect offset parameter', async () => {
       const offset = await storage.listActive({ offset: 1 });
-      
+
       expect(offset.length).toBe(1);
       expect(offset[0]?.conversationId).toBe('conv-1'); // Second item (after pinned)
     });
 
     it('should handle offset without limit (SQLite LIMIT -1)', async () => {
       const offsetOnly = await storage.listActive({ offset: 1 });
-      
+
       expect(offsetOnly.length).toBeGreaterThanOrEqual(1);
     });
   });
@@ -582,36 +586,36 @@ describe('StateStorage', () => {
 
     it('should list only archived sessions', async () => {
       const archived = await storage.listArchived();
-      
+
       expect(archived.length).toBe(2);
-      expect(archived.every(s => s.isArchived)).toBe(true);
-      expect(archived.some(s => s.conversationId === 'active-1')).toBe(false);
+      expect(archived.every((s) => s.isArchived)).toBe(true);
+      expect(archived.some((s) => s.conversationId === 'active-1')).toBe(false);
     });
 
     it('should filter archived sessions by channel', async () => {
       const slackArchived = await storage.listArchived({ channel: 'slack' });
-      
+
       expect(slackArchived.length).toBe(1);
       expect(slackArchived[0]?.conversationId).toBe('archived-1');
     });
 
     it('should filter archived sessions by userId', async () => {
       const userArchived = await storage.listArchived({ userId: 'user-2' });
-      
+
       expect(userArchived.length).toBe(1);
       expect(userArchived[0]?.conversationId).toBe('archived-2');
     });
 
     it('should search archived sessions by conversationId', async () => {
       const searched = await storage.listArchived({ search: 'archived-1' });
-      
+
       expect(searched.length).toBe(1);
       expect(searched[0]?.conversationId).toBe('archived-1');
     });
 
     it('should order archived sessions by updated_at DESC', async () => {
       const archived = await storage.listArchived();
-      
+
       // Most recently updated should be first
       expect(archived.length).toBeGreaterThan(0);
       if (archived.length > 1) {
@@ -623,19 +627,19 @@ describe('StateStorage', () => {
 
     it('should respect limit parameter', async () => {
       const limited = await storage.listArchived({ limit: 1 });
-      
+
       expect(limited.length).toBe(1);
     });
 
     it('should respect offset parameter', async () => {
       const offset = await storage.listArchived({ offset: 1 });
-      
+
       expect(offset.length).toBe(1);
     });
 
     it('should handle offset without limit (SQLite LIMIT -1)', async () => {
       const offsetOnly = await storage.listArchived({ offset: 1 });
-      
+
       expect(offsetOnly.length).toBe(1);
     });
   });

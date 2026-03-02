@@ -3,11 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import {
-  ComposioToolSchema,
-  executeComposio,
-  initComposioClient,
-} from './composio-tools.js';
+import { ComposioToolSchema, executeComposio, initComposioClient } from './composio-tools.js';
 import type { ToolCall } from '@nachos/types';
 import type { StateLayer, StateOperationContext } from '@nachos/state';
 

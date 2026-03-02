@@ -6,7 +6,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { SubagentOrchestrator } from './subagent-orchestrator.js';
 import type { SubagentOrchestratorDeps } from './subagent-orchestrator.js';
 import type { SubagentRunRequest } from './types.js';
-import type { LLMRequestType, LLMResponseType, Message } from '@nachos/types';
+import type { LLMRequestType, Message, Session } from '@nachos/types';
+import type { SubagentManager } from './subagent-manager.js';
+import type { SessionManager } from '../session.js';
+import type { Router } from '../router.js';
 
 // Mock dependencies
 const createMockDeps = (): SubagentOrchestratorDeps => {
@@ -27,7 +30,7 @@ const createMockDeps = (): SubagentOrchestratorDeps => {
         durationMs: 1000,
         sandboxed: false,
       })),
-    } as any,
+    } as unknown as SubagentManager,
 
     sessionManager: {
       getOrCreateSession: vi.fn((params) => {
@@ -41,7 +44,7 @@ const createMockDeps = (): SubagentOrchestratorDeps => {
         };
         sessions.set(session.id, session);
         messages.set(session.id, []);
-        return session as any;
+        return session as unknown as Session;
       }),
       addMessage: vi.fn((sessionId, message) => {
         const sessionMessages = messages.get(sessionId) ?? [];
@@ -49,11 +52,11 @@ const createMockDeps = (): SubagentOrchestratorDeps => {
         messages.set(sessionId, sessionMessages);
       }),
       getMessages: vi.fn((sessionId) => messages.get(sessionId) ?? []),
-    } as any,
+    } as unknown as SessionManager,
 
     router: {
       sendToChannel: vi.fn(async () => {}),
-    } as any,
+    } as unknown as Router,
 
     buildLLMRequest: vi.fn(async (sessionId) => {
       const sessionMessages = messages.get(sessionId) ?? [];
@@ -143,8 +146,14 @@ describe('SubagentOrchestrator', () => {
   it('should stop a queued run', async () => {
     // Fill both concurrency slots (maxConcurrent: 2) so next enqueue stays queued
     deps.subagentManager.run = vi.fn(() => new Promise(() => {})); // never resolves
-    await orchestrator.enqueue({ task: 'Blocker 1', requester: { sessionId: 's', channel: 'discord', conversationId: 'c' } });
-    await orchestrator.enqueue({ task: 'Blocker 2', requester: { sessionId: 's', channel: 'discord', conversationId: 'c' } });
+    await orchestrator.enqueue({
+      task: 'Blocker 1',
+      requester: { sessionId: 's', channel: 'discord', conversationId: 'c' },
+    });
+    await orchestrator.enqueue({
+      task: 'Blocker 2',
+      requester: { sessionId: 's', channel: 'discord', conversationId: 'c' },
+    });
 
     const request: SubagentRunRequest = {
       task: 'Long running task',
@@ -246,8 +255,14 @@ describe('SubagentOrchestrator', () => {
   it('should not steer a queued subagent', async () => {
     // Fill both concurrency slots so next enqueue stays queued
     deps.subagentManager.run = vi.fn(() => new Promise(() => {}));
-    await orchestrator.enqueue({ task: 'Blocker 1', requester: { sessionId: 's', channel: 'discord', conversationId: 'c' } });
-    await orchestrator.enqueue({ task: 'Blocker 2', requester: { sessionId: 's', channel: 'discord', conversationId: 'c' } });
+    await orchestrator.enqueue({
+      task: 'Blocker 1',
+      requester: { sessionId: 's', channel: 'discord', conversationId: 'c' },
+    });
+    await orchestrator.enqueue({
+      task: 'Blocker 2',
+      requester: { sessionId: 's', channel: 'discord', conversationId: 'c' },
+    });
 
     const request: SubagentRunRequest = {
       task: 'Task',
@@ -291,6 +306,11 @@ describe('SubagentOrchestrator', () => {
   });
 
   it('should handle concurrent subagents up to maxConcurrent limit', async () => {
+    // Use a never-resolving mock so running tasks hold their concurrency slots.
+    // Without this, the default mock resolves instantly and executeRun can complete
+    // between awaits, freeing slots before the 3rd task is enqueued.
+    deps.subagentManager.run = vi.fn(() => new Promise(() => {}));
+
     const request1: SubagentRunRequest = {
       task: 'Task 1',
       requester: {

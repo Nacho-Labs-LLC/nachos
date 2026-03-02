@@ -1,6 +1,6 @@
 /**
  * GitHub tool schemas for LLM tool calling
- * 
+ *
  * This tool enables the LLM to interact with GitHub via the gh CLI.
  * It runs natively in the gateway process (no container required).
  */
@@ -163,7 +163,10 @@ function truncateOutput(text: string, maxSize: number = MAX_OUTPUT_SIZE): string
 /**
  * Validate repository against allowlist
  */
-function validateRepo(repo: string | undefined, config: GitHubConfig): { valid: boolean; error?: string } {
+function validateRepo(
+  repo: string | undefined,
+  config: GitHubConfig
+): { valid: boolean; error?: string } {
   if (!repo && !config.default_repo) {
     return { valid: false, error: 'Repository is required (no default configured)' };
   }
@@ -282,7 +285,14 @@ export async function executeGitHub(
 
     switch (action) {
       case 'issue_list': {
-        ghArgs = ['issue', 'list', '--json', 'number,title,state,labels,assignees,createdAt', '--limit', String(limit)];
+        ghArgs = [
+          'issue',
+          'list',
+          '--json',
+          'number,title,state,labels,assignees,createdAt',
+          '--limit',
+          String(limit),
+        ];
         if (repo) ghArgs.push('--repo', repo);
         if (params.state) ghArgs.push('--state', params.state);
         if (params.assignee) ghArgs.push('--assignee', params.assignee);
@@ -300,7 +310,13 @@ export async function executeGitHub(
             error: { code: 'MISSING_PARAMETER', message: 'number is required for issue_view' },
           };
         }
-        ghArgs = ['issue', 'view', String(params.number), '--json', 'number,title,body,state,labels,assignees,comments,createdAt,updatedAt'];
+        ghArgs = [
+          'issue',
+          'view',
+          String(params.number),
+          '--json',
+          'number,title,body,state,labels,assignees,comments,createdAt,updatedAt',
+        ];
         if (repo) ghArgs.push('--repo', repo);
         break;
       }
@@ -328,7 +344,10 @@ export async function executeGitHub(
           return {
             success: false,
             content: [],
-            error: { code: 'MISSING_PARAMETER', message: 'number and body are required for issue_comment' },
+            error: {
+              code: 'MISSING_PARAMETER',
+              message: 'number and body are required for issue_comment',
+            },
           };
         }
         ghArgs = ['issue', 'comment', String(params.number), '--body', params.body];
@@ -337,7 +356,14 @@ export async function executeGitHub(
       }
 
       case 'pr_list': {
-        ghArgs = ['pr', 'list', '--json', 'number,title,state,headRefName,baseRefName,author,createdAt', '--limit', String(limit)];
+        ghArgs = [
+          'pr',
+          'list',
+          '--json',
+          'number,title,state,headRefName,baseRefName,author,createdAt',
+          '--limit',
+          String(limit),
+        ];
         if (repo) ghArgs.push('--repo', repo);
         if (params.state) ghArgs.push('--state', params.state);
         if (params.author) ghArgs.push('--author', params.author);
@@ -353,7 +379,13 @@ export async function executeGitHub(
             error: { code: 'MISSING_PARAMETER', message: 'number is required for pr_view' },
           };
         }
-        ghArgs = ['pr', 'view', String(params.number), '--json', 'number,title,body,state,headRefName,baseRefName,author,mergeable,reviews,comments,createdAt,updatedAt'];
+        ghArgs = [
+          'pr',
+          'view',
+          String(params.number),
+          '--json',
+          'number,title,body,state,headRefName,baseRefName,author,mergeable,reviews,comments,createdAt,updatedAt',
+        ];
         if (repo) ghArgs.push('--repo', repo);
         break;
       }
@@ -363,10 +395,22 @@ export async function executeGitHub(
           return {
             success: false,
             content: [],
-            error: { code: 'MISSING_PARAMETER', message: 'title, base, and head are required for pr_create' },
+            error: {
+              code: 'MISSING_PARAMETER',
+              message: 'title, base, and head are required for pr_create',
+            },
           };
         }
-        ghArgs = ['pr', 'create', '--title', params.title, '--base', params.base, '--head', params.head];
+        ghArgs = [
+          'pr',
+          'create',
+          '--title',
+          params.title,
+          '--base',
+          params.base,
+          '--head',
+          params.head,
+        ];
         if (repo) ghArgs.push('--repo', repo);
         if (params.body) ghArgs.push('--body', params.body);
         break;
@@ -413,7 +457,14 @@ export async function executeGitHub(
       }
 
       case 'run_list': {
-        ghArgs = ['run', 'list', '--json', 'databaseId,status,conclusion,name,createdAt,workflowName', '--limit', String(limit)];
+        ghArgs = [
+          'run',
+          'list',
+          '--json',
+          'databaseId,status,conclusion,name,createdAt,workflowName',
+          '--limit',
+          String(limit),
+        ];
         if (repo) ghArgs.push('--repo', repo);
         if (params.workflow) ghArgs.push('--workflow', params.workflow);
         if (params.status) ghArgs.push('--status', params.status);
@@ -428,7 +479,13 @@ export async function executeGitHub(
             error: { code: 'MISSING_PARAMETER', message: 'run_id is required for run_view' },
           };
         }
-        ghArgs = ['run', 'view', String(params.run_id), '--json', 'databaseId,status,conclusion,name,createdAt,workflowName,jobs'];
+        ghArgs = [
+          'run',
+          'view',
+          String(params.run_id),
+          '--json',
+          'databaseId,status,conclusion,name,createdAt,workflowName,jobs',
+        ];
         if (repo) ghArgs.push('--repo', repo);
         break;
       }
@@ -441,7 +498,13 @@ export async function executeGitHub(
             error: { code: 'MISSING_PARAMETER', message: 'repo is required for repo_view' },
           };
         }
-        ghArgs = ['repo', 'view', repo, '--json', 'name,description,owner,visibility,defaultBranch,createdAt,updatedAt,url'];
+        ghArgs = [
+          'repo',
+          'view',
+          repo,
+          '--json',
+          'name,description,owner,visibility,defaultBranch,createdAt,updatedAt,url',
+        ];
         break;
       }
 
@@ -454,7 +517,15 @@ export async function executeGitHub(
           };
         }
         const searchType = params.type || 'issue';
-        ghArgs = ['search', searchType === 'issue' ? 'issues' : searchType === 'pr' ? 'prs' : 'code', params.query, '--json', 'url,repository', '--limit', String(limit)];
+        ghArgs = [
+          'search',
+          searchType === 'issue' ? 'issues' : searchType === 'pr' ? 'prs' : 'code',
+          params.query,
+          '--json',
+          'url,repository',
+          '--limit',
+          String(limit),
+        ];
         break;
       }
 

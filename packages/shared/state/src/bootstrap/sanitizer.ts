@@ -18,8 +18,8 @@ const INJECTION_PATTERNS = [
   /override\s+(system|security|policy)/i,
   /act\s+as\s+(admin|root|system)/i,
   /\[system\]/i,
-  /\<system\>/i,
-  /\{\{system\}\}/i,
+  /<system>/i,
+  /{{system}}/i,
 ];
 
 /**
@@ -31,7 +31,10 @@ const BOOTSTRAP_DELIMITER_END = '<!-- BOOTSTRAP_CONTENT_END -->';
 /**
  * Sanitize bootstrap content to prevent prompt injection
  */
-export function sanitizeBootstrapContent(content: string): { sanitized: string; hasInjection: boolean } {
+export function sanitizeBootstrapContent(content: string): {
+  sanitized: string;
+  hasInjection: boolean;
+} {
   let hasInjection = false;
 
   // Check for injection patterns

@@ -45,7 +45,10 @@ auditRouter.get('/', (c) => {
     const offset = (page - 1) * pageSize;
 
     const countRow = db
-      .prepare<(string | number)[], { count: number }>(`SELECT COUNT(*) as count FROM audit_events ${where}`)
+      .prepare<
+        (string | number)[],
+        { count: number }
+      >(`SELECT COUNT(*) as count FROM audit_events ${where}`)
       .get(...params);
     const total = countRow?.count ?? 0;
 
@@ -77,7 +80,10 @@ auditRouter.get('/event-types', (c) => {
   try {
     const db = new Database(dbPath, { readonly: true, fileMustExist: true });
     const rows = db
-      .prepare<[], { event_type: string }>('SELECT DISTINCT event_type FROM audit_events ORDER BY event_type')
+      .prepare<
+        [],
+        { event_type: string }
+      >('SELECT DISTINCT event_type FROM audit_events ORDER BY event_type')
       .all();
     db.close();
     return c.json(rows.map((r) => r.event_type));

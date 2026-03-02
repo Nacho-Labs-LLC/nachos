@@ -1,6 +1,6 @@
 /**
  * Structured System Prompt Builder
- * 
+ *
  * Builds comprehensive system prompts with modular sections for better
  * AI assistant behavior and clearer guidance.
  */
@@ -163,7 +163,7 @@ export class SystemPromptBuilder {
     }
 
     const prompt = sections.join('\n\n');
-    
+
     // H3: Return both prompt and estimated token count
     return {
       prompt,

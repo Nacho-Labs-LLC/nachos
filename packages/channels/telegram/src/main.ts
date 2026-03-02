@@ -25,7 +25,9 @@ function buildSecrets(): Record<string, string> {
 
 async function main(): Promise<void> {
   if (!process.env.TELEGRAM_BOT_TOKEN) {
-    logger.warn('TELEGRAM_BOT_TOKEN not configured — channel disabled. Set the env var and restart to enable.');
+    logger.warn(
+      'TELEGRAM_BOT_TOKEN not configured — channel disabled. Set the env var and restart to enable.'
+    );
     await new Promise<void>((resolve) => {
       process.once('SIGTERM', resolve);
       process.once('SIGINT', resolve);

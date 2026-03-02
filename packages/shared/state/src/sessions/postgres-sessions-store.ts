@@ -168,8 +168,16 @@ export class PostgresSessionsStore implements SessionsStore {
       userId: row.user_id,
       status: row.status,
       systemPrompt: row.system_prompt ?? undefined,
-      config: row.config ? (typeof row.config === 'string' ? JSON.parse(row.config) : row.config) : {},
-      metadata: row.metadata ? (typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata) : {},
+      config: row.config
+        ? typeof row.config === 'string'
+          ? JSON.parse(row.config)
+          : row.config
+        : {},
+      metadata: row.metadata
+        ? typeof row.metadata === 'string'
+          ? JSON.parse(row.metadata)
+          : row.metadata
+        : {},
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       isPinned: row.is_pinned,
@@ -187,7 +195,11 @@ export class PostgresSessionsStore implements SessionsStore {
       sessionId: row.session_id,
       role: row.role,
       content: row.content,
-      toolCalls: row.tool_calls ? (typeof row.tool_calls === 'string' ? JSON.parse(row.tool_calls) : row.tool_calls) : undefined,
+      toolCalls: row.tool_calls
+        ? typeof row.tool_calls === 'string'
+          ? JSON.parse(row.tool_calls)
+          : row.tool_calls
+        : undefined,
       createdAt: row.created_at,
     };
   }
@@ -217,7 +229,7 @@ export class PostgresSessionsStore implements SessionsStore {
         now,
         false, // is_pinned
         false, // is_archived
-        now,   // last_activity
+        now, // last_activity
       ]
     );
 
@@ -242,7 +254,9 @@ export class PostgresSessionsStore implements SessionsStore {
    * Get or create a session atomically (race condition safe)
    * Uses PostgreSQL UPSERT to handle concurrent inserts safely
    */
-  async getOrCreateSessionAtomic(data: CreateSessionData): Promise<{ session: Session; created: boolean }> {
+  async getOrCreateSessionAtomic(
+    data: CreateSessionData
+  ): Promise<{ session: Session; created: boolean }> {
     await this.ensureSchema();
 
     const now = new Date().toISOString();
@@ -283,7 +297,7 @@ export class PostgresSessionsStore implements SessionsStore {
           now,
           false, // is_pinned
           false, // is_archived
-          now,   // last_activity
+          now, // last_activity
         ]
       );
 
@@ -390,15 +404,11 @@ export class PostgresSessionsStore implements SessionsStore {
     try {
       await client.query('BEGIN');
 
-      await client.query(
-        `DELETE FROM ${this.qualified('messages')} WHERE session_id = $1`,
-        [id]
-      );
+      await client.query(`DELETE FROM ${this.qualified('messages')} WHERE session_id = $1`, [id]);
 
-      const result = await client.query(
-        `DELETE FROM ${this.qualified('sessions')} WHERE id = $1`,
-        [id]
-      );
+      const result = await client.query(`DELETE FROM ${this.qualified('sessions')} WHERE id = $1`, [
+        id,
+      ]);
 
       await client.query('COMMIT');
       return result.rowCount !== null && result.rowCount > 0;
@@ -507,7 +517,10 @@ export class PostgresSessionsStore implements SessionsStore {
   /**
    * Get messages for a session
    */
-  async getMessages(sessionId: string, options?: { limit?: number; offset?: number }): Promise<Message[]> {
+  async getMessages(
+    sessionId: string,
+    options?: { limit?: number; offset?: number }
+  ): Promise<Message[]> {
     await this.ensureSchema();
     let sql = `SELECT * FROM ${this.qualified('messages')} WHERE session_id = $1 ORDER BY created_at ASC`;
     const values: unknown[] = [sessionId];
@@ -570,10 +583,9 @@ export class PostgresSessionsStore implements SessionsStore {
       await client.query('BEGIN');
 
       // Delete existing messages
-      await client.query(
-        `DELETE FROM ${this.qualified('messages')} WHERE session_id = $1`,
-        [sessionId]
-      );
+      await client.query(`DELETE FROM ${this.qualified('messages')} WHERE session_id = $1`, [
+        sessionId,
+      ]);
 
       // Insert new messages
       for (const msg of messages) {
@@ -682,7 +694,9 @@ export class PostgresSessionsStore implements SessionsStore {
     }
     if (options?.search) {
       // Search in conversation_id (session name) and system_prompt
-      conditions.push(`(conversation_id ILIKE $${paramIndex} OR system_prompt ILIKE $${paramIndex})`);
+      conditions.push(
+        `(conversation_id ILIKE $${paramIndex} OR system_prompt ILIKE $${paramIndex})`
+      );
       values.push(`%${options.search}%`);
       paramIndex++;
     }

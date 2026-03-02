@@ -1,6 +1,6 @@
 /**
  * WebChat API Client
- * 
+ *
  * TypeScript wrapper for WebChat RPC endpoints.
  * Provides session management, messaging, and real-time updates via SSE.
  */
@@ -43,12 +43,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     },
     ...init,
   });
-  
+
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
     throw new Error(text || `Request failed: ${res.status}`);
   }
-  
+
   return res.json() as Promise<T>;
 }
 
@@ -81,12 +81,12 @@ export async function listActiveSessions(params?: {
   if (params?.channel) query.set('channel', params.channel);
   if (params?.limit) query.set('limit', String(params.limit));
   if (params?.offset) query.set('offset', String(params.offset));
-  
+
   const qs = query.toString();
   const response = await request<ListSessionsResponse>(
     `/api/webchat/sessions/active${qs ? `?${qs}` : ''}`
   );
-  
+
   return response.sessions;
 }
 
@@ -104,12 +104,12 @@ export async function listArchivedSessions(params?: {
   if (params?.search) query.set('search', params.search);
   if (params?.limit) query.set('limit', String(params.limit));
   if (params?.offset) query.set('offset', String(params.offset));
-  
+
   const qs = query.toString();
   const response = await request<ListArchivedResponse>(
     `/api/webchat/sessions/archived${qs ? `?${qs}` : ''}`
   );
-  
+
   return response;
 }
 
@@ -120,17 +120,14 @@ export async function createSession(params?: {
   channel?: string;
   systemPrompt?: string;
 }): Promise<{ sessionId: string; name: string; createdAt: string }> {
-  const response = await request<CreateSessionResponse>(
-    '/api/webchat/sessions/create',
-    {
-      method: 'POST',
-      body: JSON.stringify({
-        channel: params?.channel || 'webchat',
-        systemPrompt: params?.systemPrompt,
-      }),
-    }
-  );
-  
+  const response = await request<CreateSessionResponse>('/api/webchat/sessions/create', {
+    method: 'POST',
+    body: JSON.stringify({
+      channel: params?.channel || 'webchat',
+      systemPrompt: params?.systemPrompt,
+    }),
+  });
+
   return {
     sessionId: response.session.id,
     name: response.session.name,
@@ -142,43 +139,35 @@ export async function createSession(params?: {
  * Archive a session
  */
 export async function archiveSession(sessionId: string): Promise<void> {
-  await request<ArchiveSessionResponse>(
-    `/api/webchat/sessions/${sessionId}/archive`,
-    { method: 'POST' }
-  );
+  await request<ArchiveSessionResponse>(`/api/webchat/sessions/${sessionId}/archive`, {
+    method: 'POST',
+  });
 }
 
 /**
  * Restore a session from archive
  */
 export async function restoreSession(sessionId: string): Promise<void> {
-  await request<RestoreSessionResponse>(
-    `/api/webchat/sessions/${sessionId}/restore`,
-    { method: 'POST' }
-  );
+  await request<RestoreSessionResponse>(`/api/webchat/sessions/${sessionId}/restore`, {
+    method: 'POST',
+  });
 }
 
 /**
  * Delete a session permanently
  */
 export async function deleteSession(sessionId: string): Promise<void> {
-  await request<DeleteSessionResponse>(
-    `/api/webchat/sessions/${sessionId}`,
-    { method: 'DELETE' }
-  );
+  await request<DeleteSessionResponse>(`/api/webchat/sessions/${sessionId}`, { method: 'DELETE' });
 }
 
 /**
  * Pin or unpin a session
  */
 export async function pinSession(sessionId: string, pinned: boolean): Promise<void> {
-  await request<PinSessionResponse>(
-    `/api/webchat/sessions/${sessionId}/pin`,
-    {
-      method: 'POST',
-      body: JSON.stringify({ pinned }),
-    }
-  );
+  await request<PinSessionResponse>(`/api/webchat/sessions/${sessionId}/pin`, {
+    method: 'POST',
+    body: JSON.stringify({ pinned }),
+  });
 }
 
 // ── Message Management ────────────────────────────────────────────────────────
@@ -199,14 +188,11 @@ export async function sendMessage(
   sessionId: string,
   text: string
 ): Promise<{ messageId: string; timestamp: string }> {
-  const response = await request<SendMessageResponse>(
-    '/api/webchat/messages/send',
-    {
-      method: 'POST',
-      body: JSON.stringify({ sessionId, text }),
-    }
-  );
-  
+  const response = await request<SendMessageResponse>('/api/webchat/messages/send', {
+    method: 'POST',
+    body: JSON.stringify({ sessionId, text }),
+  });
+
   return response;
 }
 
@@ -220,12 +206,12 @@ export async function getMessages(
   const query = new URLSearchParams();
   if (params?.limit) query.set('limit', String(params.limit));
   if (params?.offset) query.set('offset', String(params.offset));
-  
+
   const qs = query.toString();
   const response = await request<GetMessagesResponse>(
     `/api/webchat/messages/${sessionId}${qs ? `?${qs}` : ''}`
   );
-  
+
   return response;
 }
 
@@ -257,7 +243,7 @@ export interface MessageSubscription {
 
 /**
  * Subscribe to real-time messages for a session
- * 
+ *
  * @param sessionId - Session to subscribe to
  * @param onMessage - Callback for new messages
  * @param onStatus - Optional callback for status updates
@@ -279,15 +265,15 @@ export function subscribeToMessages(
   let reconnectAttempts = 0;
   const maxReconnectDelay = 8000; // 8 seconds max
   const autoReconnect = options?.autoReconnect !== false;
-  
+
   function connect() {
     if (eventSource) {
       eventSource.close();
     }
-    
+
     const url = `${BASE}/api/webchat/messages/${sessionId}/stream`;
     eventSource = new EventSource(url);
-    
+
     eventSource.addEventListener('message', (e) => {
       try {
         const data = JSON.parse(e.data) as StreamedMessage;
@@ -298,28 +284,28 @@ export function subscribeToMessages(
         options?.onError?.(err instanceof Error ? err : new Error(String(err)));
       }
     });
-    
+
     eventSource.addEventListener('status', (e) => {
       try {
         const data = JSON.parse(e.data) as SSEStatus['data'];
-        
+
         if (data.type === 'connected') {
           options?.onConnect?.();
         }
-        
+
         options?.onStatus?.(data);
       } catch (err) {
         console.error('[webchat] Error parsing status:', err);
       }
     });
-    
+
     eventSource.addEventListener('error', (e) => {
       console.error('[webchat] SSE connection error:', e);
-      
+
       if (eventSource?.readyState === EventSource.CLOSED) {
         const error = new Error('SSE connection closed');
         options?.onError?.(error);
-        
+
         // Auto-reconnect with exponential backoff
         if (autoReconnect) {
           scheduleReconnect();
@@ -327,47 +313,47 @@ export function subscribeToMessages(
       }
     });
   }
-  
+
   function scheduleReconnect() {
     if (reconnectTimeout !== null) {
       return; // Already scheduled
     }
-    
+
     reconnectAttempts++;
     const delay = Math.min(1000 * Math.pow(2, reconnectAttempts - 1), maxReconnectDelay);
-    
+
     console.log(`[webchat] Reconnecting in ${delay}ms (attempt ${reconnectAttempts})`);
-    
+
     reconnectTimeout = window.setTimeout(() => {
       reconnectTimeout = null;
       connect();
     }, delay);
   }
-  
+
   function unsubscribe() {
     if (reconnectTimeout !== null) {
       clearTimeout(reconnectTimeout);
       reconnectTimeout = null;
     }
-    
+
     if (eventSource) {
       eventSource.close();
       eventSource = null;
     }
   }
-  
+
   function reconnect() {
     reconnectAttempts = 0;
     connect();
   }
-  
+
   function isConnected(): boolean {
     return eventSource?.readyState === EventSource.OPEN;
   }
-  
+
   // Initial connection
   connect();
-  
+
   return {
     unsubscribe,
     reconnect,

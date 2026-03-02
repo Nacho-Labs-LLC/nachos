@@ -41,16 +41,18 @@ function toAnthropicMessages(
       if (message.role === 'tool') {
         const contentArray = Array.isArray(message.content) ? message.content : [];
         const toolResultBlocks = contentArray
-          .filter((block: unknown): block is ToolResultBlock =>
-            typeof block === 'object' && block !== null && (block as ToolResultBlock).type === 'tool_result'
+          .filter(
+            (block: unknown): block is ToolResultBlock =>
+              typeof block === 'object' &&
+              block !== null &&
+              (block as ToolResultBlock).type === 'tool_result'
           )
           .map((block: ToolResultBlock) => {
             // Anthropic expects { type: 'tool_result', tool_use_id, content }
             // Gateway sends { type: 'tool_result', tool_use_id, tool_result }
             const resultContent = block.tool_result ?? block.content ?? '';
-            const contentStr = typeof resultContent === 'string'
-              ? resultContent
-              : JSON.stringify(resultContent);
+            const contentStr =
+              typeof resultContent === 'string' ? resultContent : JSON.stringify(resultContent);
             return {
               type: 'tool_result' as const,
               tool_use_id: block.tool_use_id,
@@ -69,29 +71,31 @@ function toAnthropicMessages(
         // Fallback: if content has tool_call_id at message level (OpenAI style)
         const toolCallId = (message as Record<string, unknown>).tool_call_id as string | undefined;
         if (toolCallId) {
-          const contentStr = typeof message.content === 'string'
-            ? message.content
-            : JSON.stringify(message.content);
+          const contentStr =
+            typeof message.content === 'string' ? message.content : JSON.stringify(message.content);
           return {
             role: 'user' as const,
-            content: [{
-              type: 'tool_result' as const,
-              tool_use_id: toolCallId,
-              content: contentStr,
-            }],
+            content: [
+              {
+                type: 'tool_result' as const,
+                tool_use_id: toolCallId,
+                content: contentStr,
+              },
+            ],
           };
         }
       }
 
       // Handle assistant messages with tool_use content blocks (pass through structured)
       if (message.role === 'assistant' && Array.isArray(message.content)) {
-        const hasToolUse = (message.content as Array<{type?: string}>).some(
+        const hasToolUse = (message.content as Array<{ type?: string }>).some(
           (block) => block && typeof block === 'object' && block.type === 'tool_use'
         );
         if (hasToolUse) {
           return {
             role: 'assistant' as const,
-            content: message.content as unknown as MessageCreateParams['messages'][number]['content'],
+            content:
+              message.content as unknown as MessageCreateParams['messages'][number]['content'],
           };
         }
       }
@@ -206,7 +210,14 @@ export class AnthropicAdapter {
 
   async send(request: LLMRequestType, options: AdapterSendOptions): Promise<AdapterResponse> {
     const { apiKey, profileName } = this.resolveApiKey(options);
-    logger.debug({ keyType: isOAuthToken(apiKey) ? 'oauth' : 'api', keyPrefix: apiKey.slice(0, 7) + '...', model: options.model }, 'send()');
+    logger.debug(
+      {
+        keyType: isOAuthToken(apiKey) ? 'oauth' : 'api',
+        keyPrefix: apiKey.slice(0, 7) + '...',
+        model: options.model,
+      },
+      'send()'
+    );
     try {
       const client = this.getClient(apiKey);
       const response = await client.messages.create(

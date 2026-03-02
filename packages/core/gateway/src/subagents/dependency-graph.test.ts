@@ -5,7 +5,11 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { validateWorkflow, computeExecutionPlan, type WorkflowDefinition } from './dependency-graph.js';
+import {
+  validateWorkflow,
+  computeExecutionPlan,
+  type WorkflowDefinition,
+} from './dependency-graph.js';
 
 describe('Dependency Graph', () => {
   describe('validateWorkflow', () => {
@@ -180,20 +184,20 @@ describe('Dependency Graph', () => {
       };
 
       const plan = computeExecutionPlan(workflow);
-      
+
       // Batch 0: A
       expect(plan.batches[0]).toEqual(['A']);
-      
+
       // Batch 1: B and C (both depend only on A)
       expect(plan.batches[1]).toHaveLength(2);
       expect(plan.batches[1]).toContain('B');
       expect(plan.batches[1]).toContain('C');
-      
+
       // Batch 2: D and E (D depends on B, E depends on B and C)
       expect(plan.batches[2]).toHaveLength(2);
       expect(plan.batches[2]).toContain('D');
       expect(plan.batches[2]).toContain('E');
-      
+
       // Batch 3: F (depends on D and E)
       expect(plan.batches[3]).toEqual(['F']);
     });

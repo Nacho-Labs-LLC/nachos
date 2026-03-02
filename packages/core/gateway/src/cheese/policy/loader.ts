@@ -104,7 +104,11 @@ export class PolicyLoader {
 
     if (filtered.length < policies.length) {
       logger.info(
-        { loaded: filtered.length, skipped: policies.length - filtered.length, mode: this.config.securityMode },
+        {
+          loaded: filtered.length,
+          skipped: policies.length - filtered.length,
+          mode: this.config.securityMode,
+        },
         'Filtered policy documents by security mode'
       );
     }

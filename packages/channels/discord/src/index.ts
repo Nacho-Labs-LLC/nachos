@@ -84,7 +84,9 @@ export class DiscordChannelAdapter implements ChannelAdapter {
 
   async start(): Promise<void> {
     if (!this.client || !this.config) {
-      throw createInvalidStateError('Discord adapter not initialized', { component: 'discord-channel' });
+      throw createInvalidStateError('Discord adapter not initialized', {
+        component: 'discord-channel',
+      });
     }
 
     const channelConfig = this.config.config as DiscordChannelConfig;
@@ -235,7 +237,9 @@ export class DiscordChannelAdapter implements ChannelAdapter {
 
   async sendMessage(message: OutboundMessage): Promise<SendResult> {
     if (!this.client) {
-      throw createInvalidStateError('Discord adapter not initialized', { component: 'discord-channel' });
+      throw createInvalidStateError('Discord adapter not initialized', {
+        component: 'discord-channel',
+      });
     }
 
     try {
@@ -305,13 +309,22 @@ export class DiscordChannelAdapter implements ChannelAdapter {
   }
 
   private async handleMessage(message: Message): Promise<void> {
-    logger.debug({ from: message.author?.tag, bot: message.author?.bot, content: (message.content ?? '').slice(0, 80) }, 'handleMessage');
-    if (!this.config) { logger.debug('handleMessage: no config, dropping'); return; }
+    logger.debug(
+      {
+        from: message.author?.tag,
+        bot: message.author?.bot,
+        content: (message.content ?? '').slice(0, 80),
+      },
+      'handleMessage'
+    );
+    if (!this.config) {
+      logger.debug('handleMessage: no config, dropping');
+      return;
+    }
 
     // Bot message filtering: drop by default, allow if configured
     if (message.author?.bot) {
-      const channelCfg =
-        this.channelConfig ?? ((this.config.config ?? {}) as DiscordChannelConfig);
+      const channelCfg = this.channelConfig ?? ((this.config.config ?? {}) as DiscordChannelConfig);
       if (!channelCfg.allow_bots) return;
       // If bot_allowlist is set, only allow listed bot IDs
       if (

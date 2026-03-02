@@ -83,7 +83,14 @@ servicesRouter.get('/', async (c) => {
   } catch (err) {
     const msg = String(err);
     if (msg.includes('ENOENT') || msg.includes('not found')) {
-      return c.json({ error: 'Docker CLI not available in this container. Mount the Docker socket and install the CLI to enable service management.', services: [] }, 503);
+      return c.json(
+        {
+          error:
+            'Docker CLI not available in this container. Mount the Docker socket and install the CLI to enable service management.',
+          services: [],
+        },
+        503
+      );
     }
     return c.json({ error: 'Failed to list containers', details: msg }, 500);
   }

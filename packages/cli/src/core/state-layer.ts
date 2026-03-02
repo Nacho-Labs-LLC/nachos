@@ -80,7 +80,9 @@ export function buildStateLayerConfig(runtime?: RuntimeConfig): StateLayerConfig
       ? {
           provider: runtime.state.sessions.provider ?? 'sqlite',
           sqlite: runtime.state.sessions.sqlite
-            ? { dbPath: runtime.state.sessions.sqlite.db_path ?? path.join(stateDir, 'sessions.db') }
+            ? {
+                dbPath: runtime.state.sessions.sqlite.db_path ?? path.join(stateDir, 'sessions.db'),
+              }
             : undefined,
           postgres: runtime.state.sessions.postgres
             ? {

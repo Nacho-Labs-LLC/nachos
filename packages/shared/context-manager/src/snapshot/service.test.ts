@@ -169,7 +169,7 @@ describe('ContextSnapshotService', () => {
 
     it('should support pagination', async () => {
       const service = new ContextSnapshotService({ stateDir: testStateDir, compression: false });
-      
+
       // Create 5 snapshots with different messages to ensure they're all stored
       // (differential snapshots would skip identical messages)
       for (let i = 0; i < 5; i++) {

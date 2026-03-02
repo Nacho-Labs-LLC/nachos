@@ -31,7 +31,9 @@ function buildSecrets(): Record<string, string> {
 
 async function main(): Promise<void> {
   if (!process.env.SLACK_BOT_TOKEN && !process.env.SLACK_APP_TOKEN) {
-    logger.warn('SLACK_BOT_TOKEN and SLACK_APP_TOKEN not configured — channel disabled. Set the env vars and restart to enable.');
+    logger.warn(
+      'SLACK_BOT_TOKEN and SLACK_APP_TOKEN not configured — channel disabled. Set the env vars and restart to enable.'
+    );
     await new Promise<void>((resolve) => {
       process.once('SIGTERM', resolve);
       process.once('SIGINT', resolve);

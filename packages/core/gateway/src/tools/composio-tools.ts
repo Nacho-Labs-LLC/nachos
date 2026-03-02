@@ -23,7 +23,8 @@ export const ComposioToolSchema = {
   properties: {
     action: {
       type: 'string',
-      description: 'The Composio action to execute (e.g., "GMAIL_SEND_EMAIL", "GOOGLECALENDAR_CREATE_EVENT")',
+      description:
+        'The Composio action to execute (e.g., "GMAIL_SEND_EMAIL", "GOOGLECALENDAR_CREATE_EVENT")',
     },
     app: {
       type: 'string',
@@ -56,10 +57,13 @@ export function initComposioClient(config: {
     allowedApps: config.allowedApps ?? DEFAULT_ALLOWED_APPS,
   };
 
-  logger.info({
-    entityId: config.entityId,
-    allowedApps: composioConfig.allowedApps,
-  }, 'Composio client initialized');
+  logger.info(
+    {
+      entityId: config.entityId,
+      allowedApps: composioConfig.allowedApps,
+    },
+    'Composio client initialized'
+  );
 }
 
 function getComposioConfig() {
@@ -127,12 +131,15 @@ export async function executeComposio(
       };
     }
 
-    logger.info({
-      action: params.action,
-      app: params.app,
-      entityId: config.entityId,
-      userId: context.userId,
-    }, 'Executing Composio action');
+    logger.info(
+      {
+        action: params.action,
+        app: params.app,
+        entityId: config.entityId,
+        userId: context.userId,
+      },
+      'Executing Composio action'
+    );
 
     try {
       const response = await fetch('https://backend.composio.dev/api/v1/actions/execute', {
@@ -150,12 +157,15 @@ export async function executeComposio(
 
       if (!response.ok) {
         const errorText = await response.text();
-        logger.error({
-          action: params.action,
-          app: params.app,
-          status: response.status,
-          error: errorText,
-        }, 'Composio action execution failed');
+        logger.error(
+          {
+            action: params.action,
+            app: params.app,
+            status: response.status,
+            error: errorText,
+          },
+          'Composio action execution failed'
+        );
 
         return {
           success: false,
@@ -169,14 +179,15 @@ export async function executeComposio(
 
       const result = await response.json();
 
-      logger.info({
-        action: params.action,
-        app: params.app,
-      }, 'Composio action executed successfully');
+      logger.info(
+        {
+          action: params.action,
+          app: params.app,
+        },
+        'Composio action executed successfully'
+      );
 
-      const resultText = typeof result === 'string'
-        ? result
-        : JSON.stringify(result, null, 2);
+      const resultText = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
 
       return {
         success: true,
@@ -189,11 +200,14 @@ export async function executeComposio(
       };
     } catch (execError) {
       const error = execError as Error;
-      logger.error({
-        action: params.action,
-        app: params.app,
-        error: error.message,
-      }, 'Composio action execution failed');
+      logger.error(
+        {
+          action: params.action,
+          app: params.app,
+          error: error.message,
+        },
+        'Composio action execution failed'
+      );
 
       return {
         success: false,
@@ -205,9 +219,12 @@ export async function executeComposio(
       };
     }
   } catch (error) {
-    logger.error({
-      error: error instanceof Error ? error.message : 'Unknown error',
-    }, 'Composio tool error');
+    logger.error(
+      {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      },
+      'Composio tool error'
+    );
 
     return {
       success: false,

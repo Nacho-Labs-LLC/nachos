@@ -3,7 +3,7 @@
  *
  * Provides heuristic-based token estimation using the OpenAI rule of thumb.
  * Uses a conservative multiplier of 3.5 chars/token for ~80-90% accuracy.
- * 
+ *
  * NOTE: Configurable chars-per-token ratio and safety buffer added
  * to reduce 10-20% error margin. Use 90% threshold instead of 95% for critical zone.
  */
@@ -214,10 +214,10 @@ export class TokenEstimator {
 
   /**
    * Record actual token count for calibration (M1: Token budget calibration)
-   * 
+   *
    * After LLM responds, compare estimated tokens vs actual (from LLM response metadata).
    * Log the ratio and use it to calibrate future estimates.
-   * 
+   *
    * @param estimated - Estimated token count
    * @param actual - Actual token count from LLM provider
    */
@@ -240,12 +240,15 @@ export class TokenEstimator {
     // Log calibration data
     const ratio = actual / estimated;
     const accuracy = this.calculateAccuracy(estimated, actual);
-    logger.info({ estimated, actual, ratio: ratio.toFixed(3), accuracy: accuracy.toFixed(1) }, 'Calibration recorded');
+    logger.info(
+      { estimated, actual, ratio: ratio.toFixed(3), accuracy: accuracy.toFixed(1) },
+      'Calibration recorded'
+    );
   }
 
   /**
    * Get calibration statistics
-   * 
+   *
    * Returns statistics about estimation accuracy based on calibration history
    */
   getCalibrationStats(): {
@@ -259,8 +262,10 @@ export class TokenEstimator {
       return null;
     }
 
-    const ratios = this.calibrationHistory.map(c => c.actual / c.estimated);
-    const accuracies = this.calibrationHistory.map(c => this.calculateAccuracy(c.estimated, c.actual));
+    const ratios = this.calibrationHistory.map((c) => c.actual / c.estimated);
+    const accuracies = this.calibrationHistory.map((c) =>
+      this.calculateAccuracy(c.estimated, c.actual)
+    );
 
     const avgRatio = ratios.reduce((sum, r) => sum + r, 0) / ratios.length;
     const avgAccuracy = accuracies.reduce((sum, a) => sum + a, 0) / accuracies.length;
@@ -282,7 +287,7 @@ export class TokenEstimator {
 
   /**
    * Apply calibration adjustments
-   * 
+   *
    * Automatically adjusts charsPerToken and safetyBuffer based on calibration history
    */
   applyCalibration(): boolean {
@@ -295,7 +300,13 @@ export class TokenEstimator {
     if (stats.avgAccuracy < 90) {
       this.charsPerToken = stats.recommendedCharsPerToken;
       this.safetyBuffer = stats.recommendedSafetyBuffer;
-      logger.info({ charsPerToken: this.charsPerToken.toFixed(2), safetyBuffer: this.safetyBuffer.toFixed(2) }, 'Calibration applied');
+      logger.info(
+        {
+          charsPerToken: this.charsPerToken.toFixed(2),
+          safetyBuffer: this.safetyBuffer.toFixed(2),
+        },
+        'Calibration applied'
+      );
       return true;
     }
 
@@ -313,7 +324,7 @@ export class TokenEstimator {
 
   /**
    * Get the safety buffer multiplier
-   * 
+   *
    * @returns Current safety buffer
    */
   getSafetyBuffer(): number {
@@ -322,7 +333,7 @@ export class TokenEstimator {
 
   /**
    * Update configuration
-   * 
+   *
    * @param config - Partial configuration to update
    */
   updateConfig(config: Partial<TokenEstimatorConfig>): void {
@@ -375,8 +386,8 @@ export class TokenEstimator {
 
     // Use calibration stats if available
     const calibrationStats = this.getCalibrationStats();
-    const estimatedAccuracy = calibrationStats 
-      ? `${calibrationStats.avgAccuracy.toFixed(1)}%` 
+    const estimatedAccuracy = calibrationStats
+      ? `${calibrationStats.avgAccuracy.toFixed(1)}%`
       : '80-90%';
 
     return {

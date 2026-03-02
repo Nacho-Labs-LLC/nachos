@@ -1,6 +1,6 @@
 /**
  * WebChat RPC Types
- * 
+ *
  * Type definitions for WebChat RPC requests and responses.
  * These mirror the types defined in the WebChatRPCService.
  */

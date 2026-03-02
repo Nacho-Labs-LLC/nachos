@@ -1,6 +1,6 @@
 /**
  * Multi-Tab Sync using BroadcastChannel
- * 
+ *
  * Synchronizes session updates across browser tabs to prevent
  * duplicate subscriptions and ensure consistent UI state.
  */
@@ -48,11 +48,11 @@ class WebChatSync {
 
     try {
       this.channel = new BroadcastChannel(CHANNEL_NAME);
-      
+
       this.channel.addEventListener('message', (event) => {
         this.handleMessage(event.data as SyncEvent);
       });
-      
+
       console.log(`[sync] Initialized with tabId: ${this.tabId}`);
     } catch (err) {
       console.error('[sync] Failed to initialize BroadcastChannel:', err);
@@ -69,7 +69,7 @@ class WebChatSync {
 
     const handlers = this.handlers.get(event.type);
     if (handlers) {
-      handlers.forEach(handler => {
+      handlers.forEach((handler) => {
         try {
           handler(event);
         } catch (err) {
@@ -110,7 +110,7 @@ class WebChatSync {
     if (!this.handlers.has(type)) {
       this.handlers.set(type, new Set());
     }
-    
+
     this.handlers.get(type)!.add(handler);
   }
 

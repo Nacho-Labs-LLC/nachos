@@ -185,12 +185,18 @@ export class PolicyEvaluator {
         if (typeof actualValue !== 'string' || typeof expectedValue !== 'string') return false;
         // ReDoS protection: reject overly long patterns or nested quantifiers
         if (expectedValue.length > 200) {
-          logger.warn({ patternLength: expectedValue.length }, 'Policy regex pattern exceeds 200 char limit — rejected');
+          logger.warn(
+            { patternLength: expectedValue.length },
+            'Policy regex pattern exceeds 200 char limit — rejected'
+          );
           return false;
         }
         // Detect nested quantifiers like (a+)+, (a*)+, (a{1,})*  which cause catastrophic backtracking
         if (/([+*}])\s*\)[\s]*[+*{]/.test(expectedValue)) {
-          logger.warn({ pattern: expectedValue.slice(0, 80) }, 'Policy regex contains nested quantifiers — rejected');
+          logger.warn(
+            { pattern: expectedValue.slice(0, 80) },
+            'Policy regex contains nested quantifiers — rejected'
+          );
           return false;
         }
         try {

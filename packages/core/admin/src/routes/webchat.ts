@@ -296,16 +296,19 @@ webchatRouter.get('/messages/:sessionId/stream', async (c) => {
         const bus = await getBusClient();
 
         // Subscribe to session-specific message topic
-        const subscription = await bus.subscribe(`nachos.webchat.messages.${sessionId}`, async (envelope) => {
-          try {
-            await stream.writeSSE({
-              data: JSON.stringify(envelope.payload),
-              event: 'message',
-            });
-          } catch (err) {
-            logger.error({ err }, 'Error writing SSE');
+        const subscription = await bus.subscribe(
+          `nachos.webchat.messages.${sessionId}`,
+          async (envelope) => {
+            try {
+              await stream.writeSSE({
+                data: JSON.stringify(envelope.payload),
+                event: 'message',
+              });
+            } catch (err) {
+              logger.error({ err }, 'Error writing SSE');
+            }
           }
-        });
+        );
 
         // Send initial connection event
         await stream.writeSSE({

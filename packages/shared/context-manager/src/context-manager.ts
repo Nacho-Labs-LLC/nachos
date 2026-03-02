@@ -93,8 +93,14 @@ export class ContextManager {
     userId?: string; // C1: Cross-channel isolation
     injectMemory?: boolean; // H2: Enable semantic search injection
   }): Promise<ContextCheckResult> {
-    const { messages, systemPromptTokens, contextWindow, reserveTokens, injectMemory = true } = params;
-    
+    const {
+      messages,
+      systemPromptTokens,
+      contextWindow,
+      reserveTokens,
+      injectMemory = true,
+    } = params;
+
     // C1: channel and userId are used in compact() method, validated there
 
     // H2: Auto-inject semantic search results before calculating budget
@@ -216,18 +222,21 @@ export class ContextManager {
             lastError = error instanceof Error ? error : new Error(String(error));
             attempt++;
             logger.warn({ err: error, attempt, maxRetries }, 'Summarization attempt failed');
-            
+
             if (attempt < maxRetries) {
               // Exponential backoff: 1s, 2s, 4s
               const backoffMs = Math.pow(2, attempt - 1) * 1000;
-              await new Promise(resolve => setTimeout(resolve, backoffMs));
+              await new Promise((resolve) => setTimeout(resolve, backoffMs));
             }
           }
         }
 
         // H1: If all retries exhausted, fall back to message concatenation
         if (!summaryText && lastError) {
-          logger.error({ maxRetries }, 'Summarization failed after retries, falling back to concatenation');
+          logger.error(
+            { maxRetries },
+            'Summarization failed after retries, falling back to concatenation'
+          );
           summaryText = this.fallbackMessageConcatenation(slidingResult.messagesDropped);
         }
       }
@@ -313,7 +322,7 @@ export class ContextManager {
 
   /**
    * H1: Fallback message concatenation when summarization fails
-   * 
+   *
    * Instead of losing context entirely, concatenate dropped messages
    * into a simple text format for context preservation.
    */
@@ -330,18 +339,21 @@ export class ContextManager {
 
     for (const msg of messages) {
       const role = msg.role.toUpperCase();
-      const content = typeof msg.content === 'string' 
-        ? msg.content 
-        : msg.content.map(block => {
-            if (block.type === 'text') return block.text || block.content || '';
-            if (block.type === 'tool_result') return `[Tool: ${block.content || ''}]`;
-            if (block.type === 'tool_use') return '[Tool Use]';
-            return '';
-          }).join(' ');
+      const content =
+        typeof msg.content === 'string'
+          ? msg.content
+          : msg.content
+              .map((block) => {
+                if (block.type === 'text') return block.text || block.content || '';
+                if (block.type === 'tool_result') return `[Tool: ${block.content || ''}]`;
+                if (block.type === 'tool_use') return '[Tool Use]';
+                return '';
+              })
+              .join(' ');
 
       // Truncate very long messages to keep fallback summary reasonable
       const truncated = content.length > 500 ? content.substring(0, 500) + '...' : content;
-      
+
       lines.push(`[${role}] ${truncated}`);
     }
 
@@ -379,7 +391,7 @@ export class ContextManager {
 
   /**
    * H2: Extract topic/query from the most recent user message
-   * 
+   *
    * Analyzes the user's latest message to identify key topics for semantic search
    */
   private extractTopicFromMessage(message: ContextMessage): string | null {
@@ -387,12 +399,13 @@ export class ContextManager {
       return null;
     }
 
-    const content = typeof message.content === 'string'
-      ? message.content
-      : message.content
-          .filter(block => block.type === 'text')
-          .map(block => block.text || block.content || '')
-          .join(' ');
+    const content =
+      typeof message.content === 'string'
+        ? message.content
+        : message.content
+            .filter((block) => block.type === 'text')
+            .map((block) => block.text || block.content || '')
+            .join(' ');
 
     // Skip very short messages (likely not enough context)
     if (content.length < 10) {
@@ -406,7 +419,7 @@ export class ContextManager {
 
   /**
    * H2: Auto-inject semantic search results into context
-   * 
+   *
    * Before each LLM turn, extract topic from user message, run semantic search
    * on memory, and inject top results into context.
    */
@@ -416,7 +429,7 @@ export class ContextManager {
     }
 
     // Get the most recent user message
-    const lastUserMessage = messages.filter(m => m.role === 'user').pop();
+    const lastUserMessage = messages.filter((m) => m.role === 'user').pop();
     if (!lastUserMessage) {
       return;
     }
@@ -439,7 +452,7 @@ export class ContextManager {
       // If we have results, inject them as a system-style context message
       if (searchResults.entries && searchResults.entries.length > 0) {
         const memoryContent = this.formatMemoryResults(searchResults.entries);
-        
+
         // Create a context injection message
         const memoryMessage: ContextMessage = {
           role: 'system',
@@ -466,12 +479,14 @@ export class ContextManager {
   /**
    * H2: Format memory search results for injection
    */
-  private formatMemoryResults(entries: Array<{
-    kind: string;
-    content: string;
-    confidence?: number;
-    tags?: string[];
-  }>): string {
+  private formatMemoryResults(
+    entries: Array<{
+      kind: string;
+      content: string;
+      confidence?: number;
+      tags?: string[];
+    }>
+  ): string {
     const lines: string[] = [
       '=== Relevant Context from Memory ===',
       'The following memories may be relevant to the current conversation:',
@@ -481,10 +496,12 @@ export class ContextManager {
     for (let i = 0; i < entries.length; i++) {
       const entry = entries[i];
       if (!entry) continue;
-      
-      const confidence = entry.confidence ? ` (${(entry.confidence * 100).toFixed(0)}% relevant)` : '';
+
+      const confidence = entry.confidence
+        ? ` (${(entry.confidence * 100).toFixed(0)}% relevant)`
+        : '';
       const tags = entry.tags && entry.tags.length > 0 ? ` [${entry.tags.join(', ')}]` : '';
-      
+
       lines.push(`${i + 1}. [${entry.kind}]${tags}${confidence}`);
       lines.push(`   ${entry.content}`);
       lines.push('');

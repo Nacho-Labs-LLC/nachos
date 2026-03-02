@@ -600,7 +600,9 @@ export const SessionsSpawnToolSchema = Type.Object(
     agentId: Type.Optional(Type.String({ description: 'Optional subagent ID override' })),
     model: Type.Optional(Type.String({ description: 'Optional model override' })),
     thinking: Type.Optional(Type.String({ description: 'Optional thinking hint' })),
-    stream: Type.Optional(Type.Boolean({ description: 'Enable streaming for real-time partial results' })),
+    stream: Type.Optional(
+      Type.Boolean({ description: 'Enable streaming for real-time partial results' })
+    ),
     runTimeoutSeconds: Type.Optional(
       Type.Number({ description: 'Run timeout in seconds', minimum: 1 })
     ),
@@ -760,7 +762,9 @@ export const SubagentsToolSchema = Type.Object(
       ],
       { description: 'Subagent action to perform' }
     ),
-    message: Type.Optional(Type.String({ description: 'Message to send to subagent (steer action)' })),
+    message: Type.Optional(
+      Type.String({ description: 'Message to send to subagent (steer action)' })
+    ),
     runId: Type.Optional(Type.String({ description: 'Subagent run ID' })),
     workflowId: Type.Optional(Type.String({ description: 'Workflow ID (workflow_info action)' })),
     limit: Type.Optional(Type.Number({ description: 'Result limit', minimum: 1 })),

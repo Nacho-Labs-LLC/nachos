@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
  * Migration runner for PostgreSQL sessions store
- * 
+ *
  * Usage:
  *   npx tsx migrations/run-migration.ts <migration-file> [--schema=<schema-name>]
- * 
+ *
  * Example:
  *   npx tsx migrations/run-migration.ts 001-add-session-management-fields.sql
  *   npx tsx migrations/run-migration.ts 001-add-session-management-fields.sql --schema=nachos_prod
@@ -16,14 +16,14 @@ import { resolve, join } from 'path';
 
 async function runMigration() {
   const args = process.argv.slice(2);
-  
+
   if (args.length === 0) {
     console.error('Usage: npx tsx run-migration.ts <migration-file> [--schema=<schema-name>]');
     process.exit(1);
   }
 
   const migrationFile = args[0];
-  const schemaArg = args.find(arg => arg.startsWith('--schema='));
+  const schemaArg = args.find((arg) => arg.startsWith('--schema='));
   const schema = schemaArg ? schemaArg.split('=')[1] : 'public';
 
   // Read database URL from environment
@@ -36,7 +36,7 @@ async function runMigration() {
   // Read migration file
   const migrationPath = resolve(join(__dirname, migrationFile));
   let sql: string;
-  
+
   try {
     sql = readFileSync(migrationPath, 'utf-8');
   } catch (err) {
@@ -58,7 +58,7 @@ async function runMigration() {
 
     // Create schema if it doesn't exist
     await pool.query(`CREATE SCHEMA IF NOT EXISTS "${schema}"`);
-    
+
     // Set search path to target schema
     await pool.query(`SET search_path TO "${schema}"`);
 

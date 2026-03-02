@@ -72,7 +72,10 @@ app.get('/*', serveStatic({ root: publicDir, path: '/index.html' }));
 
 serve({ fetch: app.fetch, port: PORT }, (info) => {
   logger.info({ port: info.port, url: `http://localhost:${info.port}` }, 'Nachos Admin UI started');
-  logger.info({ configPath: process.env['NACHOS_CONFIG_PATH'] ?? '/app/nachos.toml' }, 'Config path');
+  logger.info(
+    { configPath: process.env['NACHOS_CONFIG_PATH'] ?? '/app/nachos.toml' },
+    'Config path'
+  );
 
   if (!process.env['NACHOS_ADMIN_TOKEN']) {
     logger.warn(
