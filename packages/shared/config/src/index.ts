@@ -117,5 +117,21 @@ export {
   type WatchOptions,
 } from './hotreload.js';
 
+// Export plugin configuration system
+export {
+  PluginConfigRegistry,
+  PluginConfigError,
+  validatePluginConfig,
+  applyDefaults,
+  isValidPluginId,
+} from './plugin-config.js';
+
+export type {
+  PluginConfigSchema,
+  PluginConfigPropertySchema,
+  PluginConfigPropertyType,
+  PluginConfigValidationResult,
+} from './plugin-config.js';
+
 // Main convenience function that loads, overlays, and validates config
 export { loadAndValidateConfig } from './main.js';

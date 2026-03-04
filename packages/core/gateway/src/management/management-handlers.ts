@@ -9,7 +9,7 @@ import { TOPICS } from '@nachos/bus';
 import type { NatsBusAdapter } from '../router.js';
 import type { SubagentOrchestrator } from '../subagents/subagent-orchestrator.js';
 import type { SubagentRunRecord, SubagentRunRequest } from '../subagents/types.js';
-import type { SessionManager } from '../session.js';
+import type { SessionsStore } from '@nachos/state';
 import type { SandboxManager } from '../sandbox/sandbox-manager.js';
 import type { RuntimeToolSandboxConfig } from '@nachos/config';
 import {
@@ -24,7 +24,7 @@ import { readOptionalString, readCleanup, readTimeoutMs } from '../utils/parsing
  */
 export interface ManagementDeps {
   getBus(): NatsBusAdapter | null;
-  getSessionManager(): SessionManager;
+  getSessionsStore(): SessionsStore;
   getSubagentOrchestrator(): SubagentOrchestrator | undefined;
   getSandboxManager(): SandboxManager | undefined;
   getToolSandboxConfig(): RuntimeToolSandboxConfig | undefined;

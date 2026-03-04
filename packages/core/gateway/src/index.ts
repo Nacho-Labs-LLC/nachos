@@ -33,16 +33,13 @@ export {
   type RateLimitPresets,
 } from './security/rate-limiter.js';
 
-// Session management
-export { SessionManager, type CreateSessionOptions, type AddMessageOptions } from './session.js';
-
-// State storage
-export {
-  StateStorage,
-  type CreateSessionData,
-  type UpdateSessionData,
-  type CreateMessageData,
-} from './state.js';
+// Session storage (re-exported from @nachos/state)
+export type {
+  SessionsStore,
+  CreateSessionData,
+  UpdateSessionData,
+  CreateMessageData,
+} from '@nachos/state';
 
 // State layer (re-exported from @nachos/state)
 export {

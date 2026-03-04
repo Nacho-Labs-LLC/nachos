@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { ToolCoordinator, type ToolCoordinatorConfig } from './coordinator.js';
-import { SecurityTier, type ToolCall, type ToolResult, type ExecutionOptions } from '@nachos/types';
+import { SecurityTier, type ToolCall, type ToolResult } from '@nachos/types';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -20,7 +20,9 @@ function createMockBus() {
   };
 }
 
-function createMockCheese(evaluateResult = { allowed: true, effect: 'allow', evaluationTimeMs: 1 }) {
+function createMockCheese(
+  evaluateResult = { allowed: true, effect: 'allow', evaluationTimeMs: 1 }
+) {
   return {
     evaluate: vi.fn().mockReturnValue(evaluateResult),
     reload: vi.fn(),
@@ -112,11 +114,7 @@ describe('ToolCoordinator', () => {
       const result = await coordinator.executeSingle(call);
 
       // The bus.request should be called with the default timeout (30000ms)
-      expect(bus.request).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.any(Object),
-        30000
-      );
+      expect(bus.request).toHaveBeenCalledWith(expect.any(String), expect.any(Object), 30000);
       expect(result.success).toBe(false);
       expect(result.error?.code).toBe('TIMEOUT');
     });
@@ -240,7 +238,7 @@ describe('ToolCoordinator', () => {
       });
 
       const call = createToolCall();
-      const result = await coordinator.executeSingle(call, { bypassCache: true });
+      await coordinator.executeSingle(call, { bypassCache: true });
 
       // Should have called bus.request (bypassed cache)
       expect(bus.request).toHaveBeenCalled();
@@ -261,11 +259,7 @@ describe('ToolCoordinator', () => {
       const call = createToolCall({ cacheTTL: 600 });
       await coordinator.executeSingle(call);
 
-      expect(cache.set).toHaveBeenCalledWith(
-        call,
-        expect.objectContaining({ success: true }),
-        600
-      );
+      expect(cache.set).toHaveBeenCalledWith(call, expect.objectContaining({ success: true }), 600);
     });
 
     it('[TC-10] should use default cache TTL of 300 when none specified on call', async () => {
@@ -526,11 +520,7 @@ describe('ToolCoordinator', () => {
       const call = createToolCall({ timeout: 10000 });
       await coordinator.executeSingle(call);
 
-      expect(bus.request).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.any(Object),
-        10000
-      );
+      expect(bus.request).toHaveBeenCalledWith(expect.any(String), expect.any(Object), 10000);
     });
 
     it('[TC-25] should use options timeout over call and default timeout', async () => {
@@ -546,11 +536,7 @@ describe('ToolCoordinator', () => {
       const call = createToolCall({ timeout: 10000 });
       await coordinator.executeSingle(call, { timeout: 5000 });
 
-      expect(bus.request).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.any(Object),
-        5000
-      );
+      expect(bus.request).toHaveBeenCalledWith(expect.any(String), expect.any(Object), 5000);
     });
   });
 
@@ -582,7 +568,7 @@ describe('ToolCoordinator', () => {
     });
 
     it('[TC-28] should execute duplicate tools sequentially', async () => {
-      const { coordinator, bus } = createCoordinator();
+      const { coordinator } = createCoordinator();
       const calls = [
         createToolCall({ id: 'call-1', tool: 'web_fetch' }),
         createToolCall({ id: 'call-2', tool: 'web_fetch' }),
@@ -687,7 +673,7 @@ describe('ToolCoordinator', () => {
 
   describe('security tier resolution', () => {
     it('[TC-33] should resolve code_runner to RESTRICTED tier', async () => {
-      const { coordinator, cheese } = createCoordinator();
+      const { coordinator } = createCoordinator();
       const call = createToolCall({ tool: 'code_runner' });
 
       await coordinator.executeSingle(call);

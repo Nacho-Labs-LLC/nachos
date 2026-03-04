@@ -213,7 +213,9 @@ async function execGitHub(
   } catch (error: unknown) {
     // gh CLI returns error in stderr
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      throw createToolFailedError('GitHub CLI (gh) is not installed or not in PATH', { component: 'gateway' });
+      throw createToolFailedError('GitHub CLI (gh) is not installed or not in PATH', {
+        component: 'gateway',
+      });
     }
     throw error;
   }

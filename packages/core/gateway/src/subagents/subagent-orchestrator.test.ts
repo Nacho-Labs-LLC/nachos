@@ -8,7 +8,7 @@ import type { SubagentOrchestratorDeps } from './subagent-orchestrator.js';
 import type { SubagentRunRequest } from './types.js';
 import type { LLMRequestType, Message, Session } from '@nachos/types';
 import type { SubagentManager } from './subagent-manager.js';
-import type { SessionManager } from '../session.js';
+import type { SessionsStore } from '@nachos/state';
 import type { Router } from '../router.js';
 
 // Mock dependencies
@@ -32,8 +32,8 @@ const createMockDeps = (): SubagentOrchestratorDeps => {
       })),
     } as unknown as SubagentManager,
 
-    sessionManager: {
-      getOrCreateSession: vi.fn((params) => {
+    sessionsStore: {
+      getOrCreateSessionAtomic: vi.fn((params) => {
         const session = {
           id: params.conversationId,
           channel: params.channel,
@@ -44,15 +44,15 @@ const createMockDeps = (): SubagentOrchestratorDeps => {
         };
         sessions.set(session.id, session);
         messages.set(session.id, []);
-        return session as unknown as Session;
+        return { session: session as unknown as Session, created: true };
       }),
-      addMessage: vi.fn((sessionId, message) => {
-        const sessionMessages = messages.get(sessionId) ?? [];
-        sessionMessages.push(message);
-        messages.set(sessionId, sessionMessages);
+      addMessage: vi.fn((data) => {
+        const sessionMessages = messages.get(data.sessionId) ?? [];
+        sessionMessages.push(data);
+        messages.set(data.sessionId, sessionMessages);
       }),
       getMessages: vi.fn((sessionId) => messages.get(sessionId) ?? []),
-    } as unknown as SessionManager,
+    } as unknown as SessionsStore,
 
     router: {
       sendToChannel: vi.fn(async () => {}),
@@ -246,7 +246,8 @@ describe('SubagentOrchestrator', () => {
     expect(steered).toBe(true);
 
     // Verify message was added to subagent session
-    expect(deps.sessionManager.addMessage).toHaveBeenCalledWith(run.childSessionId, {
+    expect(deps.sessionsStore.addMessage).toHaveBeenCalledWith({
+      sessionId: run.childSessionId,
       role: 'user',
       content: 'Focus on recent developments in 2026',
     });

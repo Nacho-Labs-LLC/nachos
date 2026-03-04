@@ -3,8 +3,8 @@
  * Programmatically generates docker-compose.yml from nachos.toml configuration
  */
 
-import { writeFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { stringify } from 'yaml';
 import type { NachosConfig } from '@nachos/config';
 import { ComposeGenerationError } from './errors.js';
@@ -54,6 +54,78 @@ interface Service {
     options: Record<string, string>;
   };
 }
+
+/**
+ * Plugin manifest as declared in nachos-plugin.json.
+ * Matches the schema in docs/design/plugin-discovery.md.
+ */
+interface PluginManifest {
+  name: string;
+  version: string;
+  type: 'channel' | 'tool';
+  capabilities: {
+    network?: {
+      egress?: string[];
+      ports?: number[];
+    };
+    secrets?: string[];
+    volumes?: string[];
+    permissions?: string[];
+  };
+  provides: {
+    channel?: string;
+    tool?: string;
+    securityTier?: number;
+  };
+  entry: {
+    dockerfile: string;
+    context: string;
+  };
+  configSchema?: Record<string, unknown>;
+  configDefaults?: Record<string, unknown>;
+  securityTier?: number;
+  dependencies?: string[];
+  healthcheck?: {
+    test: string[];
+    interval: string;
+    timeout: string;
+    retries: number;
+    start_period?: string;
+  };
+  nachos?: {
+    minVersion?: string;
+    apiVersion: string;
+  };
+}
+
+/**
+ * Plugin source configuration as stored in [plugins.*] of nachos.toml.
+ */
+interface PluginSourceConfig {
+  source: 'path' | 'npm' | 'image';
+  path?: string;
+  package?: string;
+  version?: string;
+  image?: string;
+  manifest?: string;
+}
+
+/**
+ * Maximum security tier allowed for each security mode.
+ * Plugins with a tier above the allowed maximum are skipped.
+ *
+ * | Tier | Name       | Allowed in                          |
+ * |------|------------|-------------------------------------|
+ * | 0    | Safe       | strict, standard, permissive        |
+ * | 1    | Standard   | standard, permissive                |
+ * | 2    | Elevated   | standard, permissive (with audit)   |
+ * | 3    | Restricted | permissive only                     |
+ */
+const SECURITY_MODE_MAX_TIER: Record<string, number> = {
+  strict: 0,
+  standard: 2,
+  permissive: 3,
+};
 
 /**
  * Generate docker-compose.yml structure from Nachos configuration
@@ -145,6 +217,9 @@ export function generateComposeFile(config: NachosConfig, projectRoot: string): 
         compose.services.admin = buildAdminService(config, projectRoot);
       }
     }
+
+    // Add plugin services from [plugins] registry
+    generatePluginServices(config, projectRoot, compose);
 
     return compose;
   } catch (error) {
@@ -931,6 +1006,359 @@ function buildAdminService(config: NachosConfig, projectRoot: string): Service {
       },
     },
   };
+}
+
+/**
+ * Resolve the path to a plugin's nachos-plugin.json manifest file.
+ *
+ * For "path" source: resolves relative to the project root.
+ * For "npm" source: looks in node_modules at the project root.
+ * For "image" source: uses the local manifest path from the plugin config.
+ *
+ * @returns Absolute path to the manifest file, or null if unresolvable.
+ */
+function resolveManifestPath(
+  pluginName: string,
+  pluginConfig: PluginSourceConfig,
+  projectRoot: string
+): string | null {
+  switch (pluginConfig.source) {
+    case 'path': {
+      if (!pluginConfig.path) {
+        console.warn(`[plugin] "${pluginName}": missing "path" field, skipping`);
+        return null;
+      }
+      const pluginDir = resolve(projectRoot, pluginConfig.path);
+      return join(pluginDir, 'nachos-plugin.json');
+    }
+    case 'npm': {
+      if (!pluginConfig.package) {
+        console.warn(`[plugin] "${pluginName}": missing "package" field, skipping`);
+        return null;
+      }
+      const modulePath = join(projectRoot, 'node_modules', pluginConfig.package);
+      return join(modulePath, 'nachos-plugin.json');
+    }
+    case 'image': {
+      if (!pluginConfig.manifest) {
+        console.warn(
+          `[plugin] "${pluginName}": missing "manifest" field for image source, skipping`
+        );
+        return null;
+      }
+      return resolve(projectRoot, pluginConfig.manifest);
+    }
+    default: {
+      console.warn(
+        `[plugin] "${pluginName}": unknown source type "${String(pluginConfig.source)}", skipping`
+      );
+      return null;
+    }
+  }
+}
+
+/**
+ * Read and parse a plugin manifest file.
+ *
+ * @returns The parsed manifest, or null if the file cannot be read/parsed.
+ */
+function readPluginManifest(manifestPath: string, pluginName: string): PluginManifest | null {
+  if (!existsSync(manifestPath)) {
+    console.warn(`[plugin] "${pluginName}": manifest not found at ${manifestPath}, skipping`);
+    return null;
+  }
+
+  try {
+    const raw = JSON.parse(readFileSync(manifestPath, 'utf-8')) as PluginManifest;
+
+    // Basic validation: ensure required fields exist
+    if (!raw.name || !raw.version || !raw.type || !raw.entry) {
+      console.warn(
+        `[plugin] "${pluginName}": manifest at ${manifestPath} is missing required fields (name, version, type, entry), skipping`
+      );
+      return null;
+    }
+
+    if (raw.type !== 'channel' && raw.type !== 'tool') {
+      console.warn(
+        `[plugin] "${pluginName}": manifest type "${raw.type}" is invalid (must be "channel" or "tool"), skipping`
+      );
+      return null;
+    }
+
+    return raw;
+  } catch {
+    console.warn(`[plugin] "${pluginName}": failed to parse manifest at ${manifestPath}, skipping`);
+    return null;
+  }
+}
+
+/**
+ * Check whether a plugin is enabled based on its config section.
+ *
+ * Plugins of type "channel" are checked in config.channels[providerKey].enabled;
+ * plugins of type "tool" are checked in config.tools[providerKey].enabled.
+ */
+function isPluginEnabled(config: NachosConfig, manifest: PluginManifest): boolean {
+  const providerKey =
+    manifest.type === 'channel'
+      ? (manifest.provides.channel ?? manifest.name)
+      : (manifest.provides.tool ?? manifest.name);
+
+  if (manifest.type === 'channel') {
+    const channelConfig = config.channels as Record<string, Record<string, unknown>> | undefined;
+    return channelConfig?.[providerKey]?.enabled === true;
+  }
+
+  const toolConfig = config.tools as Record<string, Record<string, unknown>> | undefined;
+  return toolConfig?.[providerKey]?.enabled === true;
+}
+
+/**
+ * Build a Docker Compose service entry for a plugin.
+ *
+ * Follows the same patterns as built-in build*Service() functions:
+ * - container_name: nachos-{providerKey}
+ * - Standard depends_on bus
+ * - Network assignment based on egress capabilities
+ * - Environment: NODE_ENV, NATS_URL, LOG_LEVEL + secrets passthrough
+ * - Standard logging configuration
+ * - Optional healthcheck from manifest
+ */
+function buildPluginService(
+  pluginName: string,
+  pluginConfig: PluginSourceConfig,
+  manifest: PluginManifest,
+  config: NachosConfig,
+  projectRoot: string
+): Service {
+  const providerKey =
+    manifest.type === 'channel'
+      ? (manifest.provides.channel ?? manifest.name)
+      : (manifest.provides.tool ?? manifest.name);
+
+  // --- Network assignment ---
+  const networks: string[] = ['nachos-internal'];
+  const egress = manifest.capabilities?.network?.egress ?? [];
+  if (egress.length > 0) {
+    networks.push('nachos-egress');
+  }
+
+  // --- Environment variables ---
+  const logLevel = config.runtime?.log_level ?? 'debug';
+  const environment: Record<string, string> = {
+    NODE_ENV: 'development',
+    NATS_URL: 'nats://bus:4222',
+    LOG_LEVEL: logLevel,
+  };
+
+  // Pass through declared secrets from process.env
+  const secrets = manifest.capabilities?.secrets ?? [];
+  for (const secret of secrets) {
+    if (process.env[secret]) {
+      environment[secret] = process.env[secret] as string;
+    }
+  }
+
+  // Convert plugin config section keys to NACHOS_PLUGIN_* environment variables
+  const configSection = manifest.type === 'channel' ? 'channels' : 'tools';
+  const sectionConfig = config[configSection] as
+    | Record<string, Record<string, unknown>>
+    | undefined;
+  const pluginSectionConfig = sectionConfig?.[providerKey];
+  if (pluginSectionConfig) {
+    for (const [key, value] of Object.entries(pluginSectionConfig)) {
+      if (key === 'enabled') continue; // Skip the enabled flag itself
+      const envKey = `NACHOS_PLUGIN_${key.toUpperCase()}`;
+      environment[envKey] = String(value);
+    }
+  }
+
+  // --- Build or Image ---
+  const service: Service = {
+    container_name: `nachos-${providerKey}`,
+    restart: 'unless-stopped',
+    depends_on: {
+      bus: { condition: 'service_healthy' },
+    },
+    networks,
+    environment,
+    logging: {
+      driver: 'json-file',
+      options: {
+        'max-size': '10m',
+        'max-file': '3',
+        labels: `service=${providerKey}`,
+      },
+    },
+  };
+
+  // Set image or build context based on source type
+  if (pluginConfig.source === 'image' && pluginConfig.image) {
+    service.image = pluginConfig.image;
+  } else {
+    // Resolve build context from the plugin source directory
+    let pluginDir: string;
+    if (pluginConfig.source === 'path' && pluginConfig.path) {
+      pluginDir = resolve(projectRoot, pluginConfig.path);
+    } else if (pluginConfig.source === 'npm' && pluginConfig.package) {
+      pluginDir = join(projectRoot, 'node_modules', pluginConfig.package);
+    } else {
+      // Fallback: use manifest location parent directory
+      pluginDir = projectRoot;
+    }
+
+    const buildContext = resolve(pluginDir, manifest.entry.context ?? '.');
+    const dockerfile = manifest.entry.dockerfile ?? './Dockerfile';
+
+    service.build = {
+      context: buildContext,
+      dockerfile,
+    };
+  }
+
+  // --- Volumes ---
+  const volumes: string[] = ['nachos-logs:/var/log/nachos'];
+
+  // Channel plugins get state directory mount
+  if (manifest.type === 'channel') {
+    volumes.push(`${projectRoot}/data/channels:/app/state`);
+  }
+
+  // Add declared volumes from capabilities (with path traversal protection)
+  const declaredVolumes = manifest.capabilities?.volumes ?? [];
+  for (const vol of declaredVolumes) {
+    // Skip volumes referencing Docker socket or system directories
+    if (
+      vol.includes('/var/run/docker.sock') ||
+      vol.startsWith('/etc') ||
+      vol.startsWith('/proc') ||
+      vol.startsWith('/sys') ||
+      vol.startsWith('/dev')
+    ) {
+      console.warn(`[plugin] "${pluginName}": skipping unsafe volume mount "${vol}"`);
+      continue;
+    }
+    // Skip volumes with path traversal
+    if (vol.includes('..')) {
+      console.warn(`[plugin] "${pluginName}": skipping volume with path traversal "${vol}"`);
+      continue;
+    }
+    volumes.push(vol);
+  }
+
+  service.volumes = volumes;
+
+  // --- Ports ---
+  const ports = manifest.capabilities?.network?.ports;
+  if (ports && ports.length > 0) {
+    service.ports = ports.map((p) => `${p}:${p}`);
+  }
+
+  // --- Healthcheck ---
+  if (manifest.healthcheck) {
+    service.healthcheck = {
+      test: manifest.healthcheck.test,
+      interval: manifest.healthcheck.interval,
+      timeout: manifest.healthcheck.timeout,
+      retries: manifest.healthcheck.retries,
+      start_period: manifest.healthcheck.start_period ?? '10s',
+    };
+  } else {
+    // Default healthcheck matching built-in services
+    service.healthcheck = {
+      test: ['CMD', 'node', '-e', 'process.exit(0)'],
+      interval: '30s',
+      timeout: '3s',
+      retries: 3,
+      start_period: '10s',
+    };
+  }
+
+  return service;
+}
+
+/**
+ * Generate Docker Compose service entries for all registered plugins.
+ *
+ * Iterates over config.plugins, reads each plugin's manifest, checks
+ * enabled state and security tier, and adds services to the compose file.
+ * Errors in individual plugins are logged as warnings and do not
+ * block generation of other services.
+ */
+function generatePluginServices(
+  config: NachosConfig,
+  projectRoot: string,
+  compose: ComposeFile
+): void {
+  const plugins = config.plugins;
+  if (!plugins || Object.keys(plugins).length === 0) {
+    return;
+  }
+
+  const securityMode = config.security?.mode ?? 'standard';
+  const maxTier = SECURITY_MODE_MAX_TIER[securityMode] ?? 2;
+
+  for (const [pluginName, rawPluginConfig] of Object.entries(plugins)) {
+    try {
+      const pluginConfig = rawPluginConfig as unknown as PluginSourceConfig;
+
+      if (!pluginConfig.source) {
+        console.warn(`[plugin] "${pluginName}": missing "source" field, skipping`);
+        continue;
+      }
+
+      // Resolve and read the manifest
+      const manifestPath = resolveManifestPath(pluginName, pluginConfig, projectRoot);
+      if (!manifestPath) {
+        continue;
+      }
+
+      const manifest = readPluginManifest(manifestPath, pluginName);
+      if (!manifest) {
+        continue;
+      }
+
+      // Check if plugin is enabled
+      if (!isPluginEnabled(config, manifest)) {
+        continue;
+      }
+
+      // Check security tier against current security mode
+      const tier = manifest.securityTier ?? 2; // Default to elevated (2) per design
+      if (tier > maxTier) {
+        const tierNames = ['safe', 'standard', 'elevated', 'restricted'];
+        console.warn(
+          `[plugin] "${pluginName}": security tier ${tier} (${tierNames[tier] ?? 'unknown'}) ` +
+            `exceeds maximum allowed tier ${maxTier} for ${securityMode} mode, skipping`
+        );
+        continue;
+      }
+
+      // Check for service name conflicts with already-generated services
+      const providerKey =
+        manifest.type === 'channel'
+          ? (manifest.provides.channel ?? manifest.name)
+          : (manifest.provides.tool ?? manifest.name);
+
+      if (compose.services[providerKey]) {
+        console.warn(
+          `[plugin] "${pluginName}": service name "${providerKey}" conflicts with an existing service, skipping`
+        );
+        continue;
+      }
+
+      // Build and add the service
+      const service = buildPluginService(pluginName, pluginConfig, manifest, config, projectRoot);
+      compose.services[providerKey] = service;
+    } catch (err) {
+      console.warn(
+        `[plugin] "${pluginName}": unexpected error during service generation, skipping: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
+    }
+  }
 }
 
 /**

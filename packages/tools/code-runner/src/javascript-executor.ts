@@ -340,7 +340,9 @@ export class JavaScriptExecutor extends ToolService {
     const trimmed = value.trim().toLowerCase();
     const match = trimmed.match(/^(\d+(?:\.\d+)?)(b|kb|k|mb|m|gb|g)?$/);
     if (!match) {
-      throw createValidationError(`Invalid memory size: ${value}`, { component: 'code-runner-javascript' });
+      throw createValidationError(`Invalid memory size: ${value}`, {
+        component: 'code-runner-javascript',
+      });
     }
 
     const amount = parseFloat(match[1]!);

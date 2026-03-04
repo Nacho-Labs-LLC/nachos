@@ -32,8 +32,7 @@ import type {
   EnhancedCompactionResult,
 } from '@nachos/context-manager';
 import { messageAdapter } from '@nachos/context-manager';
-import type { SessionManager } from './session.js';
-import type { MemoryPipeline, StateOperationContext } from '@nachos/state';
+import type { MemoryPipeline, SessionsStore, StateOperationContext } from '@nachos/state';
 
 /**
  * Route handler function type
@@ -237,7 +236,7 @@ export interface RouterOptions {
   componentName?: string;
   rateLimiter?: RateLimiter;
   contextManager?: ContextManager;
-  sessionManager?: SessionManager;
+  sessionsStore?: SessionsStore;
   memoryPipeline?: MemoryPipeline;
   securityMode?: 'strict' | 'standard' | 'permissive';
 }
@@ -250,7 +249,7 @@ export class Router {
   private componentName: string;
   private rateLimiter?: RateLimiter;
   private contextManager?: ContextManager;
-  private sessionManager?: SessionManager;
+  private sessionsStore?: SessionsStore;
   private memoryPipeline?: MemoryPipeline;
   private securityMode: 'strict' | 'standard' | 'permissive';
   private handlers: Map<string, RouteHandler> = new Map();
@@ -260,7 +259,7 @@ export class Router {
     this.componentName = options.componentName ?? 'gateway';
     this.rateLimiter = options.rateLimiter;
     this.contextManager = options.contextManager;
-    this.sessionManager = options.sessionManager;
+    this.sessionsStore = options.sessionsStore;
     this.memoryPipeline = options.memoryPipeline;
     this.securityMode = options.securityMode ?? 'standard';
   }
@@ -344,7 +343,7 @@ export class Router {
    * This runs before each LLM request to ensure context stays within limits.
    * If compaction is needed, it will:
    * 1. Execute compaction (sliding window + optional summarization)
-   * 2. Replace messages in StateStorage
+   * 2. Replace messages in SessionsStore
    * 3. Update session metadata with context state
    * 4. Publish context events to message bus
    */
@@ -353,8 +352,8 @@ export class Router {
     contextWindow?: number;
     systemPromptTokens?: number;
   }): Promise<void> {
-    // Skip if context manager or session manager not configured
-    if (!this.contextManager || !this.sessionManager) {
+    // Skip if context manager or sessions store not configured
+    if (!this.contextManager || !this.sessionsStore) {
       return;
     }
 
@@ -363,7 +362,7 @@ export class Router {
     const managerConfig = this.contextManager.getConfig();
 
     // Get session with messages
-    const sessionWithMessages = await this.sessionManager.getSessionWithMessages(sessionId);
+    const sessionWithMessages = await this.sessionsStore.getSessionWithMessages(sessionId);
     if (!sessionWithMessages) {
       logger.warn({ sessionId }, 'Cannot check context: session not found');
       return;
@@ -539,32 +538,34 @@ export class Router {
       messageAdapter.toNachosMessage(msg, sessionId)
     );
 
-    // Replace messages in StateStorage (atomic operation)
-    const messageCount = this.sessionManager.getMessageCount(sessionId);
+    // Replace messages in SessionsStore (atomic operation)
+    const messageCount = await this.sessionsStore.getMessageCount(sessionId);
     logger.info(
       { before: messageCount, after: compactedNachosMessages.length },
       'Replacing messages with compacted messages'
     );
 
     // Atomically replace messages in storage
-    this.sessionManager.replaceMessages(sessionId, compactedNachosMessages);
+    await this.sessionsStore.replaceMessages(sessionId, compactedNachosMessages);
 
     // Update session metadata with context state
-    this.sessionManager.updateMetadata(sessionId, {
-      contextManagement: {
-        lastCompaction: new Date().toISOString(),
-        budget: check.budget,
-        compactionHistory: [
-          ...(metadata?.contextManagement?.compactionHistory ?? []),
-          {
-            timestamp: new Date().toISOString(),
-            trigger: check.action.type,
-            zone: check.action.zone,
-            tokensBefore: check.budget.currentUsage,
-            tokensAfter: compactionResult.budget.currentUsage,
-            messagesDropped: compactionResult.messagesDropped.length,
-          },
-        ],
+    await this.sessionsStore.updateSession(sessionId, {
+      metadata: {
+        contextManagement: {
+          lastCompaction: new Date().toISOString(),
+          budget: check.budget,
+          compactionHistory: [
+            ...(metadata?.contextManagement?.compactionHistory ?? []),
+            {
+              timestamp: new Date().toISOString(),
+              trigger: check.action.type,
+              zone: check.action.zone,
+              tokensBefore: check.budget.currentUsage,
+              tokensAfter: compactionResult.budget.currentUsage,
+              messagesDropped: compactionResult.messagesDropped.length,
+            },
+          ],
+        },
       },
     });
 

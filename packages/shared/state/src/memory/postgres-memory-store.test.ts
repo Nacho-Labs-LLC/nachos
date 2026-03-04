@@ -188,12 +188,8 @@ describeIfPostgres('PostgresMemoryStore (integration)', () => {
   });
 
   it('query with tag filter returns matching entries', async () => {
-    await store.appendEntry(
-      makeEntry({ tags: ['important', 'urgent'], content: 'Tagged entry' }),
-    );
-    await store.appendEntry(
-      makeEntry({ tags: ['low-priority'], content: 'Not tagged' }),
-    );
+    await store.appendEntry(makeEntry({ tags: ['important', 'urgent'], content: 'Tagged entry' }));
+    await store.appendEntry(makeEntry({ tags: ['low-priority'], content: 'Not tagged' }));
 
     const result = await store.query({
       agentId: 'agent-1',
@@ -262,8 +258,6 @@ describeIfPostgres('PostgresMemoryStore (integration)', () => {
     await store.appendEntry(makeEntry());
 
     // Should not throw when deleting a non-existent entry
-    await expect(
-      store.deleteEntry('non-existent-id', 'agent-1'),
-    ).resolves.not.toThrow();
+    await expect(store.deleteEntry('non-existent-id', 'agent-1')).resolves.not.toThrow();
   });
 });
