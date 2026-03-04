@@ -1,0 +1,56 @@
+# Nachos Test Runner
+# Runs the full test suite with all dependencies available.
+# Usage: docker compose -f docker-compose.test.yml up --build --abort-on-container-exit
+
+FROM node:22-alpine
+
+# Build tools (better-sqlite3), Python (code-runner tests + node-gyp),
+# Go (skill CLI tools), Git (shell-tool tests), Chromium (browser tests)
+RUN apk add --no-cache \
+    build-base python3 go git ca-certificates \
+    chromium nss freetype harfbuzz ttf-freefont \
+    && rm -rf /var/cache/apk/*
+
+# Playwright expects Chromium here
+ENV CHROME_BIN=/usr/bin/chromium-browser
+ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
+# Install Go-based skill CLI tools (same as gateway Dockerfile)
+RUN go install github.com/steipete/goplaces/cmd/goplaces@latest && \
+    go install github.com/steipete/gifgrep/cmd/gifgrep@latest && \
+    go install github.com/steipete/gogcli/cmd/gog@latest
+ENV PATH="/root/go/bin:${PATH}"
+
+# Install Node-based skill CLI tools
+RUN npm install -g @steipete/summarize
+
+RUN corepack enable && corepack prepare pnpm@10.28.2 --activate
+
+WORKDIR /app
+
+# Copy workspace config first (layer caching)
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY tsconfig.base.json tsconfig.json ./
+
+# Copy all packages
+COPY packages/ ./packages/
+
+# Copy config files needed by tests
+COPY vitest.config.ts ./
+COPY eslint.config.js ./
+COPY policies/ ./policies/
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Build shared packages (required before tests can import them)
+RUN pnpm --filter @nachos/config build && \
+    pnpm --filter @nachos/types build && \
+    pnpm --filter @nachos/utils build && \
+    pnpm --filter @nachos/context-manager build && \
+    pnpm --filter @nachos/bus build
+
+# Create directories that tests/gateway expect
+RUN mkdir -p /app/packages/skills /app/workspace
+
+CMD ["pnpm", "test:ci"]

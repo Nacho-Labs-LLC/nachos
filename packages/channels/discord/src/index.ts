@@ -160,8 +160,8 @@ export class DiscordChannelAdapter implements ChannelAdapter {
 
     const channelId = event.channelId;
 
-    if (event.status === 'thinking') {
-      // Start typing indicator
+    if (event.status === 'thinking' || event.status === 'tool') {
+      // Start or refresh typing indicator (tool execution can take 30s+)
       await this.startTypingIndicator(channelId);
     } else if (event.status === 'done' || event.status === 'error') {
       // Stop typing indicator
@@ -399,6 +399,19 @@ export class DiscordChannelAdapter implements ChannelAdapter {
     }
 
     logger.debug({ userId }, 'Message passed filters, publishing inbound');
+
+    // Map Discord attachments to inbound attachment schema
+    const attachments =
+      message.attachments && message.attachments.size > 0
+        ? [...message.attachments.values()].map((a) => ({
+            type: a.contentType?.startsWith('image/') ? 'image' : 'file',
+            url: a.url,
+            name: a.name ?? 'attachment',
+            mimeType: a.contentType ?? undefined,
+            size: a.size,
+          }))
+        : undefined;
+
     const inbound = {
       channel: this.channelId,
       channelMessageId: message.id,
@@ -412,6 +425,7 @@ export class DiscordChannelAdapter implements ChannelAdapter {
       },
       content: {
         text: message.content ?? '',
+        ...(attachments ? { attachments } : {}),
       },
       metadata: {
         guildId: message.guildId ?? null,

@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import Database from 'better-sqlite3';
 import { StateStorage } from './state.js';
 import type { SessionStatus } from '@nachos/types';
 
@@ -646,7 +647,7 @@ describe('StateStorage', () => {
 
   describe('Schema migration', () => {
     it('should add missing columns to existing sessions table', async () => {
-      // This tests the migrateSchema() logic
+      // This tests the runMigrations() logic
       // The migration happens in constructor, so if the test reaches here, it worked
       const session = await storage.createSession({
         channel: 'test',
@@ -671,6 +672,163 @@ describe('StateStorage', () => {
 
       // last_activity should match updatedAt on creation
       expect(session.lastActivity).toBe(session.updatedAt);
+    });
+
+    it('should migrate an old schema DB that lacks is_pinned/is_archived/last_activity', async () => {
+      // Create a raw DB with the old schema (no is_pinned, is_archived, last_activity)
+      const oldDb = new Database(':memory:');
+      oldDb.pragma('journal_mode = WAL');
+      oldDb.exec(`
+        CREATE TABLE sessions (
+          id TEXT PRIMARY KEY,
+          channel TEXT NOT NULL,
+          conversation_id TEXT NOT NULL,
+          user_id TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'active',
+          system_prompt TEXT,
+          config TEXT,
+          metadata TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          UNIQUE(channel, conversation_id)
+        );
+
+        CREATE TABLE messages (
+          id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          role TEXT NOT NULL,
+          content TEXT NOT NULL,
+          tool_calls TEXT,
+          created_at TEXT NOT NULL,
+          FOREIGN KEY (session_id) REFERENCES sessions(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id);
+        CREATE INDEX IF NOT EXISTS idx_sessions_channel_conversation ON sessions(channel, conversation_id);
+      `);
+
+      // Insert a session using the old schema
+      const now = new Date().toISOString();
+      oldDb
+        .prepare(
+          `
+        INSERT INTO sessions (id, channel, conversation_id, user_id, status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, 'active', ?, ?)
+      `
+        )
+        .run('old-session-1', 'slack', 'conv-old', 'user-old', now, now);
+
+      // We can't share :memory: DBs, so serialize and deserialize
+      // We can't share :memory: DBs, so serialize and deserialize
+      const serialized = oldDb.serialize();
+      oldDb.close();
+
+      // Open the serialized DB via StateStorage — the constructor should run migrations
+      const migratedDb = new Database(serialized);
+      migratedDb.close();
+
+      // Create a new Database from the serialized data, then construct StateStorage manually
+      // Since we need to test the migration on an existing DB, we use a file-based approach
+      // Actually, better-sqlite3 supports Buffer deserialization:
+      const rawDb = new Database(serialized);
+
+      // Verify old columns exist, new columns don't
+      const oldColumns = rawDb.pragma('table_info(sessions)') as Array<{ name: string }>;
+      const oldColumnNames = oldColumns.map((c) => c.name);
+      expect(oldColumnNames).not.toContain('is_pinned');
+      expect(oldColumnNames).not.toContain('is_archived');
+      expect(oldColumnNames).not.toContain('last_activity');
+      rawDb.close();
+
+      // Now open via StateStorage — constructor should run migrations
+      const freshDb = new Database(serialized);
+      // We need to save this to a temp file since StateStorage takes a path
+      const os = await import('node:os');
+      const path = await import('node:path');
+      const fs = await import('node:fs');
+      const tmpDir = os.tmpdir();
+      const tmpFile = path.join(tmpDir, `nachos-test-migration-${Date.now()}.db`);
+      fs.writeFileSync(tmpFile, serialized);
+      freshDb.close();
+
+      try {
+        // Open via StateStorage — constructor should apply migrations
+        const migratedStorage = new StateStorage(tmpFile);
+
+        // Verify new columns exist
+        const db = migratedStorage.getDatabase();
+        const columns = db.pragma('table_info(sessions)') as Array<{ name: string }>;
+        const columnNames = columns.map((c) => c.name);
+        expect(columnNames).toContain('is_pinned');
+        expect(columnNames).toContain('is_archived');
+        expect(columnNames).toContain('last_activity');
+
+        // Verify existing data is preserved
+        const session = await migratedStorage.getSessionByConversation('slack', 'conv-old');
+        expect(session).not.toBeNull();
+        expect(session?.userId).toBe('user-old');
+        expect(session?.status).toBe('active');
+
+        // Verify backfilled values
+        expect(session?.isPinned).toBe(false);
+        expect(session?.isArchived).toBe(false);
+        expect(session?.lastActivity).toBe(now);
+
+        // Verify schema_version was set
+        const version = db.prepare('SELECT version FROM schema_version').get() as {
+          version: number;
+        };
+        expect(version.version).toBe(1);
+
+        migratedStorage.close();
+      } finally {
+        // Clean up temp file
+        try {
+          fs.unlinkSync(tmpFile);
+        } catch {
+          /* ignore */
+        }
+      }
+    });
+
+    it('should not re-run migrations if schema_version is current', async () => {
+      // Create a DB, let migrations run, then open again — should be idempotent
+      const os = await import('node:os');
+      const path = await import('node:path');
+      const fs = await import('node:fs');
+      const tmpDir = os.tmpdir();
+      const tmpFile = path.join(tmpDir, `nachos-test-idempotent-${Date.now()}.db`);
+
+      try {
+        // First open — creates schema + runs migrations
+        const storage1 = new StateStorage(tmpFile);
+        await storage1.createSession({
+          channel: 'slack',
+          conversationId: 'conv-1',
+          userId: 'user-1',
+        });
+        storage1.close();
+
+        // Second open — migrations should be skipped (version already current)
+        const storage2 = new StateStorage(tmpFile);
+        const sessions = await storage2.listSessions();
+        expect(sessions).toHaveLength(1);
+        expect(sessions[0]?.conversationId).toBe('conv-1');
+
+        const version = storage2
+          .getDatabase()
+          .prepare('SELECT version FROM schema_version')
+          .get() as { version: number };
+        expect(version.version).toBe(1);
+
+        storage2.close();
+      } finally {
+        try {
+          fs.unlinkSync(tmpFile);
+        } catch {
+          /* ignore */
+        }
+      }
     });
   });
 });

@@ -1,12 +1,13 @@
 /**
  * Memory tool schemas for LLM tool calling
  *
- * These tools enable the LLM to query its own memory storage.
+ * These tools enable the LLM to query and write to its own memory storage.
  */
 
+import { randomUUID } from 'node:crypto';
 import type { ToolCall, ToolResult } from '@nachos/types';
 import type { StateLayer, StateOperationContext } from '@nachos/state';
-import type { MemoryQuery, MemoryKind } from '@nachos/types';
+import type { MemoryQuery, MemoryKind, MemoryEntry } from '@nachos/types';
 
 /**
  * memory_search tool schema
@@ -164,6 +165,112 @@ export async function executeMemorySearch(
       error: {
         code: 'MEMORY_SEARCH_FAILED',
         message: error instanceof Error ? error.message : 'Unknown error during memory search',
+      },
+    };
+  }
+}
+
+/**
+ * memory_write tool schema
+ * Saves a memory entry (fact, decision, preference, task, etc.) to persistent storage
+ */
+export const MemoryWriteToolSchema = {
+  $id: 'memory_write',
+  type: 'object',
+  properties: {
+    content: {
+      type: 'string',
+      description: 'The memory content to save (a concise, self-contained statement)',
+    },
+    kind: {
+      type: 'string',
+      enum: ['summary', 'preference', 'fact', 'decision', 'task', 'issue'],
+      description:
+        'Type of memory: preference (user likes/dislikes), fact (learned information), decision (choice made), task (action item), issue (problem found), summary (conversation summary)',
+    },
+    tags: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Tags for categorization and retrieval (optional)',
+    },
+  },
+  required: ['content', 'kind'],
+};
+
+/**
+ * Execute memory_write tool
+ */
+export async function executeMemoryWrite(
+  call: ToolCall,
+  stateLayer: StateLayer,
+  context: StateOperationContext
+): Promise<ToolResult> {
+  try {
+    const params = call.parameters as {
+      content?: string;
+      kind?: string;
+      tags?: string[];
+    };
+
+    if (!params.content || typeof params.content !== 'string') {
+      return {
+        success: false,
+        content: [],
+        error: {
+          code: 'INVALID_PARAMETERS',
+          message: 'content parameter is required and must be a string',
+        },
+      };
+    }
+
+    const validKinds: MemoryKind[] = ['summary', 'preference', 'fact', 'decision', 'task', 'issue'];
+    const kind = (params.kind as MemoryKind) ?? 'fact';
+    if (!validKinds.includes(kind)) {
+      return {
+        success: false,
+        content: [],
+        error: {
+          code: 'INVALID_PARAMETERS',
+          message: `kind must be one of: ${validKinds.join(', ')}`,
+        },
+      };
+    }
+
+    const agentId = context.userId ?? context.sessionId;
+    const now = new Date().toISOString();
+
+    const entry: MemoryEntry = {
+      id: randomUUID(),
+      agentId,
+      kind,
+      content: params.content,
+      tags: params.tags,
+      confidence: 1.0,
+      provenance: {
+        source: 'tool',
+        sessionId: context.sessionId,
+      },
+      createdAt: now,
+    };
+
+    const stored = await stateLayer.appendMemoryEntry(entry, context);
+
+    return {
+      success: true,
+      content: [
+        {
+          type: 'text',
+          text: `Saved memory entry [${stored.kind}]: "${stored.content.slice(0, 100)}${stored.content.length > 100 ? '...' : ''}" (id: ${stored.id})`,
+        },
+      ],
+    };
+  } catch (error) {
+    return {
+      success: false,
+      content: [],
+      error: {
+        code: 'MEMORY_WRITE_FAILED',
+        message: error instanceof Error ? error.message : 'Unknown error during memory write',
       },
     };
   }

@@ -165,7 +165,8 @@ export class StateLayer {
     if (!profile) {
       try {
         profile = await this.seedBootstrapProfile(agentId, context);
-      } catch {
+      } catch (error) {
+        logger.warn({ error, agentId }, 'Bootstrap seeding failed');
         profile = null;
       }
     }
@@ -580,15 +581,16 @@ function createSessionStateStore(config: StateLayerConfig): SessionStateStore {
   if (config.session.provider === 'redis') {
     const redisUrl = config.session.redisUrl;
     if (!redisUrl) {
-      throw createConfigError('Redis session state store requires redisUrl', {
-        component: 'gateway',
-      });
+      logger.warn(
+        'Redis URL not configured for session state — using in-memory store (data will not persist across restarts)'
+      );
+      return new InMemorySessionStateStore();
     }
     return new RedisSessionStateStore(redisUrl, config.session.ttlSeconds);
   }
 
-  logger.warn(
-    'Using in-memory session store — active sessions will be lost on gateway restart. Configure session.provider=redis for persistence.'
+  logger.info(
+    'Using in-memory session state store (data will not persist across restarts)'
   );
   return new InMemorySessionStateStore();
 }

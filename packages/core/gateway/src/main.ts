@@ -334,6 +334,13 @@ function buildStateLayerConfig(runtime?: RuntimeConfig): StateLayerConfig {
             maxConnections: runtime.state.memory.postgres.max_connections,
           }
         : undefined,
+      semantic: runtime?.state?.semantic
+        ? {
+            enabled: true,
+            model: runtime.state.semantic.local?.model,
+            cacheDir: runtime.state.semantic.local?.cache_dir,
+          }
+        : undefined,
     },
     userProfile: {
       provider: userProfileProvider,
@@ -361,7 +368,7 @@ function buildStateLayerConfig(runtime?: RuntimeConfig): StateLayerConfig {
     },
     session: {
       provider: sessionProvider,
-      redisUrl: runtime?.state?.session?.redis_url ?? runtime?.redis_url,
+      redisUrl: process.env.REDIS_URL ?? runtime?.state?.session?.redis_url ?? runtime?.redis_url,
       ttlSeconds: runtime?.state?.session?.ttl_seconds,
     },
     prompt: {

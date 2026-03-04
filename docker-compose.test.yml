@@ -1,0 +1,66 @@
+# Nachos Test Compose
+#
+# Runs the full test suite with all infrastructure dependencies.
+# Usage: pnpm test:docker
+#    or: docker compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from test
+
+services:
+  # -------------------- PostgreSQL (for postgres store + webchat RPC tests) --------------------
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: nachos_test
+      POSTGRES_USER: nachos
+      POSTGRES_PASSWORD: nachos
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nachos -d nachos_test"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  # -------------------- NATS (for bus + webchat RPC tests) --------------------
+  nats:
+    image: nats:2.10-alpine
+    command: ["-m", "8222"]
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8222/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 3s
+
+  # -------------------- Redis (for rate limiter + session state tests) --------------------
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 3s
+
+  # -------------------- Test Runner --------------------
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Infrastructure URLs — these enable the gated integration tests
+      POSTGRES_TEST_URL: "postgres://nachos:nachos@postgres:5432/nachos_test"
+      NATS_TEST_URL: "nats://nats:4222"
+      NATS_URL: "nats://nats:4222"
+      REDIS_URL: "redis://redis:6379"
+      # Runtime
+      NODE_ENV: test
+      CHROME_BIN: /usr/bin/chromium-browser
+      PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: /usr/bin/chromium-browser

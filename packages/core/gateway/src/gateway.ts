@@ -1685,27 +1685,44 @@ export class Gateway {
           toolCalls,
         });
 
-        const toolMessages = await this.toolExecutor.executeToolCalls(sessionId, toolCalls, {
-          channelId: inbound.conversation.id,
-          channelMessageId: inbound.channelMessageId ?? undefined,
-        });
-
-        // Store tool result messages in session so multi-turn history is complete
-        // (tool_use blocks need matching tool_result blocks in subsequent requests)
-        for (const toolMsg of toolMessages) {
-          await this.sessionManager.addMessage(sessionId, {
-            role: 'tool',
-            content:
-              typeof toolMsg.content === 'string'
-                ? toolMsg.content
-                : JSON.stringify(toolMsg.content),
+        try {
+          const toolMessages = await this.toolExecutor.executeToolCalls(sessionId, toolCalls, {
+            channelId: inbound.conversation.id,
+            channelMessageId: inbound.channelMessageId ?? undefined,
           });
-        }
 
-        // Tool results are now in session history; no extraMessages needed
-        const followUp = await this.requestLLMResponse(sessionId);
-        await this.sendLLMResponse(inbound, sessionId, followUp, toolIteration + 1);
-        return;
+          // Store tool result messages in session so multi-turn history is complete
+          // (tool_use blocks need matching tool_result blocks in subsequent requests)
+          for (const toolMsg of toolMessages) {
+            await this.sessionManager.addMessage(sessionId, {
+              role: 'tool',
+              content:
+                typeof toolMsg.content === 'string'
+                  ? toolMsg.content
+                  : JSON.stringify(toolMsg.content),
+            });
+          }
+
+          // Tool results are now in session history; no extraMessages needed
+          const followUp = await this.requestLLMResponse(sessionId);
+          await this.sendLLMResponse(inbound, sessionId, followUp, toolIteration + 1);
+          return;
+        } catch (toolError) {
+          const errMsg = toolError instanceof Error ? toolError.message : String(toolError);
+          logger.error(
+            { err: toolError, sessionId, toolIteration, tools: toolCalls.map((t) => t.name) },
+            'Tool loop iteration failed'
+          );
+          // Fall through to send error as responseText to the user
+          responseText = `⚠️ A tool call failed: ${errMsg.slice(0, 200)}. Please try again.`;
+          void this.publishStatusEvent(
+            sessionId,
+            'error',
+            inbound.conversation.id,
+            inbound.channelMessageId ?? undefined
+          );
+        }
+        // On success we returned above; on error fall through to send responseText
       }
     }
 

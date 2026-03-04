@@ -46,10 +46,12 @@ describeIfPostgres('PostgresSessionsStore', () => {
   });
 
   beforeEach(async () => {
-    // Clean up tables before each test
-    if (store) {
+    // Clean up tables and create a fresh store before each test
+    // (the store caches initialized=true, so we need a new instance after dropping tables)
+    if (pool) {
       await pool.query(`DROP TABLE IF EXISTS "${TEST_SCHEMA}".messages CASCADE`);
       await pool.query(`DROP TABLE IF EXISTS "${TEST_SCHEMA}".sessions CASCADE`);
+      store = new PostgresSessionsStore(pool, TEST_SCHEMA);
     }
   });
 
@@ -517,5 +519,175 @@ describeIfPostgres('PostgresSessionsStore', () => {
 
     const updatedSession = await store.getSession(session.id);
     expect(updatedSession!.lastActivity).not.toBe(initialActivity);
+  });
+
+  // -----------------------------------------------------------------------
+  // Parity tests with SqliteSessionsStore
+  // -----------------------------------------------------------------------
+
+  it('should create a session with minimal data', async () => {
+    const session = await store.createSession({
+      channel: 'discord',
+      conversationId: 'minimal-conv-1',
+      userId: 'user-minimal',
+    });
+
+    expect(session.channel).toBe('discord');
+    expect(session.conversationId).toBe('minimal-conv-1');
+    expect(session.status).toBe('active');
+    expect(session.id).toBeTruthy();
+    expect(session.createdAt).toBeTruthy();
+    expect(session.updatedAt).toBeTruthy();
+  });
+
+  it('should return null for non-existent session ID', async () => {
+    const result = await store.getSession('non-existent-id');
+    expect(result).toBeNull();
+  });
+
+  it('should find session by channel and conversationId', async () => {
+    await store.createSession({
+      channel: 'slack',
+      conversationId: 'by-conv-lookup',
+      userId: 'user-lookup',
+    });
+
+    const found = await store.getSessionByConversation('slack', 'by-conv-lookup');
+    expect(found).not.toBeNull();
+    expect(found!.channel).toBe('slack');
+    expect(found!.conversationId).toBe('by-conv-lookup');
+  });
+
+  it('should return null when getSessionByConversation finds no match', async () => {
+    const result = await store.getSessionByConversation('slack', 'no-such-conv');
+    expect(result).toBeNull();
+  });
+
+  it('should return null when updating non-existent session', async () => {
+    const result = await store.updateSession('non-existent-id', { status: 'ended' });
+    expect(result).toBeNull();
+  });
+
+  it('should return false when deleting non-existent session', async () => {
+    const result = await store.deleteSession('non-existent-id');
+    expect(result).toBe(false);
+  });
+
+  it('should return false when archiving non-existent session', async () => {
+    const result = await store.archive('non-existent-id');
+    expect(result).toBe(false);
+  });
+
+  it('should return false when restoring non-existent session', async () => {
+    const result = await store.restore('non-existent-id');
+    expect(result).toBe(false);
+  });
+
+  it('should return false when pinning non-existent session', async () => {
+    const result = await store.pin('non-existent-id', true);
+    expect(result).toBe(false);
+  });
+
+  it('should return null for getSessionWithMessages on non-existent session', async () => {
+    const result = await store.getSessionWithMessages('non-existent-id');
+    expect(result).toBeNull();
+  });
+
+  it('should support limit and offset for messages', async () => {
+    const session = await store.createSession({
+      channel: 'discord',
+      conversationId: 'paginated-msgs',
+      userId: 'user-123',
+    });
+
+    for (let i = 0; i < 5; i++) {
+      await store.addMessage({
+        sessionId: session.id,
+        role: 'user',
+        content: `Message ${i}`,
+      });
+    }
+
+    const page = await store.getMessages(session.id, { limit: 2, offset: 1 });
+    expect(page).toHaveLength(2);
+    expect(page[0].content).toBe('Message 1');
+    expect(page[1].content).toBe('Message 2');
+  });
+
+  it('should return messages in chronological order', async () => {
+    const session = await store.createSession({
+      channel: 'discord',
+      conversationId: 'chrono-msgs',
+      userId: 'user-123',
+    });
+
+    await store.addMessage({ sessionId: session.id, role: 'user', content: 'First' });
+    await store.addMessage({ sessionId: session.id, role: 'assistant', content: 'Second' });
+    await store.addMessage({ sessionId: session.id, role: 'user', content: 'Third' });
+
+    const messages = await store.getMessages(session.id);
+    expect(messages).toHaveLength(3);
+    expect(messages[0].content).toBe('First');
+    expect(messages[1].content).toBe('Second');
+    expect(messages[2].content).toBe('Third');
+  });
+
+  it('should update session config and metadata', async () => {
+    const session = await store.createSession({
+      channel: 'discord',
+      conversationId: 'config-update-test',
+      userId: 'user-123',
+      config: { model: 'claude-3' },
+      metadata: { source: 'test' },
+    });
+
+    const updated = await store.updateSession(session.id, {
+      config: { model: 'gpt-4' },
+      metadata: { updated: true },
+    });
+
+    expect(updated).not.toBeNull();
+    expect(updated!.config).toEqual({ model: 'gpt-4' });
+    expect(updated!.metadata).toEqual({ updated: true });
+  });
+
+  it('should list sessions with offset', async () => {
+    for (let i = 0; i < 5; i++) {
+      await store.createSession({
+        channel: 'discord',
+        conversationId: `offset-conv-${i}`,
+        userId: 'user-offset',
+      });
+    }
+
+    const page = await store.listSessions({ limit: 2, offset: 2 });
+    expect(page).toHaveLength(2);
+  });
+
+  it('should exclude archived sessions from listActive', async () => {
+    const session = await store.createSession({
+      channel: 'discord',
+      conversationId: 'archive-exclude-test',
+      userId: 'user-123',
+    });
+    await store.archive(session.id);
+
+    const active = await store.createSession({
+      channel: 'discord',
+      conversationId: 'active-include-test',
+      userId: 'user-123',
+    });
+
+    const activeSessions = await store.listActive({ channel: 'discord', userId: 'user-123' });
+    const activeIds = activeSessions.map((s) => s.id);
+
+    expect(activeIds).toContain(active.id);
+    expect(activeIds).not.toContain(session.id);
+  });
+
+  it('should close without error', async () => {
+    // close() on PostgresSessionsStore is a no-op (pool managed externally),
+    // but it should not throw
+    await expect(store.close()).resolves.not.toThrow();
   });
 });

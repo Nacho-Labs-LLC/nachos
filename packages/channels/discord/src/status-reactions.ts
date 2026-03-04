@@ -125,7 +125,7 @@ export function createDiscordStatusReactionController(
 
   const applyEmoji = (emoji: string) =>
     enqueue(async () => {
-      if (!config.enabled || !emoji || activeEmoji === emoji || finished) {
+      if (!config.enabled || !emoji || activeEmoji === emoji) {
         return;
       }
 
