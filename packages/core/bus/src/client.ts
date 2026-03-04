@@ -119,8 +119,8 @@ export class NachosBusClient implements INachosBusClient {
             break;
         }
       }
-    })().catch(() => {
-      // Connection closed, ignore
+    })().catch((error) => {
+      logger.debug({ err: error }, 'NATS status monitor ended (connection closed)');
     });
   }
 
@@ -255,7 +255,9 @@ export class NachosBusClient implements INachosBusClient {
       return JSON.parse(responseData) as MessageEnvelope<TRes>;
     } catch (error) {
       if (error instanceof NatsError && error.code === ErrorCode.Timeout) {
-        throw createTimeoutError(`Request to ${topic} timed out after ${timeout}ms`, { component: 'bus' });
+        throw createTimeoutError(`Request to ${topic} timed out after ${timeout}ms`, {
+          component: 'bus',
+        });
       }
       throw error;
     }

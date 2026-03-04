@@ -1,0 +1,41 @@
+{
+  "name": "@nachos/sdk",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Developer SDK for building Nachos channels and tools",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@nachos/types": "workspace:*",
+    "@nachos/bus": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "typescript": "^5.7.3"
+  },
+  "keywords": [
+    "nachos",
+    "sdk",
+    "channels",
+    "tools",
+    "plugins"
+  ],
+  "author": "Nachos Team",
+  "license": "MIT"
+}

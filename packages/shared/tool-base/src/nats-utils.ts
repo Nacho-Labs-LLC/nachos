@@ -87,7 +87,9 @@ export async function waitForReady(nc: NatsConnection, timeoutMs: number = 30000
     }
   }
 
-  throw createBusConnectionError('NATS connection closed while waiting for ready', { component: 'tool-nats' });
+  throw createBusConnectionError('NATS connection closed while waiting for ready', {
+    component: 'tool-nats',
+  });
 }
 
 /**

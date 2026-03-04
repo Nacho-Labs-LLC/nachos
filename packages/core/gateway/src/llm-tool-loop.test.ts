@@ -194,7 +194,7 @@ describe('LLM Tool Loop Integration (LLM)', () => {
     ];
 
     const session = await gateway.processMessage(makeInbound());
-    const messages = await gateway.getSessionManager().getMessages(session.id);
+    const messages = await gateway.getSessionsStore().getMessages(session.id);
 
     // Expected messages in order:
     //   user (stored by handleInboundMessage)
@@ -360,7 +360,7 @@ describe('LLM Tool Loop Integration (LLM)', () => {
     expect(toolCallsArg[1]!.id).toBe('call-m2');
 
     // Session should contain 2 tool result messages
-    const messages = await gateway.getSessionManager().getMessages(session.id);
+    const messages = await gateway.getSessionsStore().getMessages(session.id);
     const toolMessages = messages.filter((m) => m.role === 'tool');
     expect(toolMessages.length).toBeGreaterThanOrEqual(2);
   });
@@ -400,7 +400,7 @@ describe('LLM Tool Loop Integration (LLM)', () => {
     // Two tool execution calls
     expect(executeToolCallsMock).toHaveBeenCalledTimes(2);
 
-    const messages = await gateway.getSessionManager().getMessages(session.id);
+    const messages = await gateway.getSessionsStore().getMessages(session.id);
     const toolMessages = messages.filter((m) => m.role === 'tool');
     expect(toolMessages.length).toBeGreaterThanOrEqual(2);
 

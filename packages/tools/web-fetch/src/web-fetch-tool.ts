@@ -221,7 +221,10 @@ export class WebFetchTool extends ToolService {
         if (response.status >= 300 && response.status < 400) {
           const location = response.headers.get('location');
           if (!location) {
-            throw createToolFailedError(`Redirect response missing location header (${response.status})`, { component: 'web-fetch' });
+            throw createToolFailedError(
+              `Redirect response missing location header (${response.status})`,
+              { component: 'web-fetch' }
+            );
           }
 
           if (redirects >= this.fetchConfig.max_redirects) {
@@ -232,7 +235,8 @@ export class WebFetchTool extends ToolService {
           const redirectValidation = await this.ssrfProtection.validateURL(nextUrl);
           if (!redirectValidation.valid) {
             throw createToolFailedError(
-              redirectValidation.errors?.join('; ') ?? 'Redirect blocked by SSRF protection', { component: 'web-fetch' }
+              redirectValidation.errors?.join('; ') ?? 'Redirect blocked by SSRF protection',
+              { component: 'web-fetch' }
             );
           }
 
@@ -242,7 +246,9 @@ export class WebFetchTool extends ToolService {
         }
 
         if (!response.ok) {
-          throw createToolFailedError(`HTTP ${response.status} ${response.statusText}`, { component: 'web-fetch' });
+          throw createToolFailedError(`HTTP ${response.status} ${response.statusText}`, {
+            component: 'web-fetch',
+          });
         }
 
         const body = await response.text();

@@ -850,6 +850,57 @@ Examples:
 `
     );
 
+  // Plugin subcommands
+  const pluginCmd = program.command('plugin').description('Plugin management');
+
+  pluginCmd
+    .command('add <source>')
+    .description('Register a plugin from a local path, npm package, or Docker image')
+    .option(
+      '--source-type <type>',
+      'Force source type: path, npm, or image (auto-detected if omitted)'
+    )
+    .option('--name <name>', 'Override plugin name (defaults to manifest name)')
+    .option('--enable', 'Enable the plugin immediately (default: false)')
+    .option('--dry-run', 'Show what would be added without writing')
+    .action(async (source: string, options) => {
+      const { pluginAddCommand } = await import('./commands/plugin/index.js');
+      await pluginAddCommand(source, { ...program.opts(), ...options });
+    });
+
+  pluginCmd
+    .command('remove <name>')
+    .description('Remove a registered plugin')
+    .option('--force', 'Skip confirmation prompt')
+    .option('--keep-config', 'Remove plugin entry but keep channel/tool config')
+    .option('--dry-run', 'Show what would be removed without writing')
+    .action(async (name: string, options) => {
+      const { pluginRemoveCommand } = await import('./commands/plugin/index.js');
+      await pluginRemoveCommand(name, { ...program.opts(), ...options });
+    });
+
+  pluginCmd
+    .command('list')
+    .description('List all registered plugins')
+    .action(async () => {
+      const { pluginListCommand } = await import('./commands/plugin/index.js');
+      await pluginListCommand(program.opts());
+    });
+
+  pluginCmd.addHelpText(
+    'after',
+    `
+Examples:
+  nachos plugin add ../my-signal-channel
+  nachos plugin add nachos-tool-weather --source-type npm
+  nachos plugin add ghcr.io/org/tool:v1 --source-type image --name custom-tool
+  nachos plugin remove signal
+  nachos plugin remove weather --force
+  nachos plugin list
+  nachos plugin list --json
+`
+  );
+
   program
     .command('completion <shell>')
     .description('Generate shell completion script (bash, zsh, fish, powershell)')

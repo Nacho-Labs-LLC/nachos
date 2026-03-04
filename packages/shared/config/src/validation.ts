@@ -419,6 +419,8 @@ const CONFIG_SHAPE: SchemaNode = {
     prompt: true,
     channel: true,
   },
+  // Plugin config sections are dynamic — validated by PluginConfigRegistry, not CONFIG_SHAPE.
+  plugins: true,
 };
 
 function validateNoUnknownKeys(

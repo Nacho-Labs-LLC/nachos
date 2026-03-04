@@ -197,7 +197,9 @@ export function computeExecutionPlan(workflow: WorkflowDefinition): ExecutionPla
 
     if (batch.length === 0) {
       // Should not happen if validation passed
-      throw createValidationError('Invalid workflow: unable to compute execution order', { component: 'gateway' });
+      throw createValidationError('Invalid workflow: unable to compute execution order', {
+        component: 'gateway',
+      });
     }
 
     batches.push(batch);

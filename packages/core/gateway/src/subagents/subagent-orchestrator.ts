@@ -5,11 +5,17 @@
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import type { LLMRequestType } from '@nachos/types';
-import { createLogger, createInvalidStateError, createValidationError, createNotFoundError, createInternalError } from '@nachos/types';
+import {
+  createLogger,
+  createInvalidStateError,
+  createValidationError,
+  createNotFoundError,
+  createInternalError,
+} from '@nachos/types';
 
 const logger = createLogger('subagent-orchestrator');
 import type { Router } from '../router.js';
-import type { SessionManager } from '../session.js';
+import type { SessionsStore } from '@nachos/state';
 import type { SubagentManager } from './subagent-manager.js';
 import type {
   SubagentAnnounceConfig,
@@ -36,7 +42,7 @@ interface SubagentRunEntry {
 
 export interface SubagentOrchestratorDeps {
   subagentManager: SubagentManager;
-  sessionManager: SessionManager;
+  sessionsStore: SessionsStore;
   router: Router;
   buildLLMRequest: (
     sessionId: string,
@@ -235,7 +241,8 @@ export class SubagentOrchestrator {
     }
 
     // Add user message to subagent's session
-    this.deps.sessionManager.addMessage(entry.record.childSessionId, {
+    await this.deps.sessionsStore.addMessage({
+      sessionId: entry.record.childSessionId,
       role: 'user',
       content: message,
     });
@@ -429,7 +436,8 @@ export class SubagentOrchestrator {
         entry.record.status = 'completed';
         const responseText = extractResponseText(result.response);
         if (responseText) {
-          this.deps.sessionManager.addMessage(childSessionId, {
+          await this.deps.sessionsStore.addMessage({
+            sessionId: childSessionId,
             role: 'assistant',
             content: responseText,
             toolCalls: result.response?.toolCalls,
@@ -482,7 +490,7 @@ export class SubagentOrchestrator {
       model: request.model ?? baseConfig.model,
     };
 
-    const session = await this.deps.sessionManager.getOrCreateSession({
+    const { session } = await this.deps.sessionsStore.getOrCreateSessionAtomic({
       channel: 'subagent',
       conversationId: runId,
       userId: request.requester.userId ?? request.requester.sessionId,
@@ -500,7 +508,8 @@ export class SubagentOrchestrator {
       },
     });
 
-    await this.deps.sessionManager.addMessage(session.id, {
+    await this.deps.sessionsStore.addMessage({
+      sessionId: session.id,
       role: 'user',
       content: request.task,
     });
@@ -533,7 +542,8 @@ export class SubagentOrchestrator {
       responseText,
     });
 
-    this.deps.sessionManager.addMessage(childSessionId, {
+    await this.deps.sessionsStore.addMessage({
+      sessionId: childSessionId,
       role: 'user',
       content: prompt,
     });
@@ -556,7 +566,8 @@ export class SubagentOrchestrator {
       extractMessageText(announceResult.response?.message) ??
       buildAnnounceFallback(record, responseText);
 
-    this.deps.sessionManager.addMessage(childSessionId, {
+    await this.deps.sessionsStore.addMessage({
+      sessionId: childSessionId,
       role: 'assistant',
       content: announceText,
     });
@@ -593,14 +604,18 @@ export class SubagentOrchestrator {
         workflow.currentBatch = batchIndex;
         const batch = plan.batches[batchIndex];
         if (!batch) {
-          throw createNotFoundError(`Batch ${batchIndex} not found in execution plan`, { component: 'gateway' });
+          throw createNotFoundError(`Batch ${batchIndex} not found in execution plan`, {
+            component: 'gateway',
+          });
         }
 
         // Spawn all steps in the batch (parallel execution)
         const batchPromises = batch.map(async (stepId) => {
           const step = plan.steps.get(stepId);
           if (!step) {
-            throw createNotFoundError(`Step ${stepId} not found in execution plan`, { component: 'gateway' });
+            throw createNotFoundError(`Step ${stepId} not found in execution plan`, {
+              component: 'gateway',
+            });
           }
 
           // Build task with dependency results injected
@@ -673,7 +688,8 @@ export class SubagentOrchestrator {
           // If step failed, propagate error
           if (finalRun?.status === 'failed') {
             throw createInternalError(
-              `Step "${stepId}" failed: ${finalRun.error?.message ?? 'Unknown error'}`, { component: 'gateway' }
+              `Step "${stepId}" failed: ${finalRun.error?.message ?? 'Unknown error'}`,
+              { component: 'gateway' }
             );
           }
         });

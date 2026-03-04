@@ -77,6 +77,7 @@ import {
   normalizeToolName,
 } from '../utils/session-utils.js';
 import { randomUUID } from 'node:crypto';
+import type { HookRegistry } from '../hooks/index.js';
 
 const logger = createLogger('tool-executor');
 
@@ -92,6 +93,7 @@ export interface ToolExecutorCoreDeps {
   scheduler?: Scheduler;
   subagentManager?: unknown;
   subagentOrchestrator?: SubagentOrchestrator;
+  hooks?: HookRegistry;
 }
 
 export interface ToolExecutorPolicyDeps {
@@ -501,6 +503,22 @@ export class ToolExecutor {
         }
       }
 
+      // Hook: tool:before-call (fire-and-forget)
+      if (this.deps.core.hooks) {
+        try {
+          void this.deps.core.hooks.emit('tool:before-call', {
+            sessionId,
+            toolName: call.tool,
+            callId: call.id,
+            parameters: call.parameters as Readonly<Record<string, unknown>>,
+            toolGroup: call.toolGroup,
+            timestamp: new Date().toISOString(),
+          });
+        } catch (hookError) {
+          logger.warn({ err: hookError }, 'tool:before-call hook failed');
+        }
+      }
+
       // Try local execution first
       const localResult = await this.executeLocalToolCall(call, session);
       if (localResult) {
@@ -579,6 +597,34 @@ export class ToolExecutor {
 
         if (scanned.redactedContent) {
           results[i] = { ...result, content: scanned.redactedContent };
+        }
+      }
+    }
+
+    // Hook: tool:after-call for each completed tool (fire-and-forget)
+    if (this.deps.core.hooks) {
+      for (let i = 0; i < results.length; i += 1) {
+        const result = results[i];
+        const call = calls[i];
+        if (!call) continue;
+        try {
+          const resultSummary = result?.success
+            ? (result.content?.[0] as { text?: string } | undefined)?.text?.slice(0, 200)
+            : result?.error?.message?.slice(0, 200);
+          void this.deps.core.hooks.emit('tool:after-call', {
+            sessionId,
+            toolName: call.tool,
+            callId: call.id,
+            success: result?.success ?? false,
+            resultSummary,
+            error: result?.error
+              ? { code: result.error.code, message: result.error.message }
+              : undefined,
+            durationMs: 0, // Duration not tracked at this level; placeholder
+            timestamp: new Date().toISOString(),
+          });
+        } catch (hookError) {
+          logger.warn({ err: hookError }, 'tool:after-call hook failed');
         }
       }
     }
@@ -831,7 +877,10 @@ export class ToolExecutor {
         );
       }
 
-      const context = { ...buildStateContext(session, this.deps.core.securityMode), internalTool: true };
+      const context = {
+        ...buildStateContext(session, this.deps.core.securityMode),
+        internalTool: true,
+      };
       return executeMemorySearch(call, this.deps.state.stateLayer, context);
     }
 
@@ -851,7 +900,10 @@ export class ToolExecutor {
         );
       }
 
-      const context = { ...buildStateContext(session, this.deps.core.securityMode), internalTool: true };
+      const context = {
+        ...buildStateContext(session, this.deps.core.securityMode),
+        internalTool: true,
+      };
       return executeMemoryGet(call, this.deps.state.stateLayer, context);
     }
 
@@ -871,7 +923,10 @@ export class ToolExecutor {
         );
       }
 
-      const context = { ...buildStateContext(session, this.deps.core.securityMode), internalTool: true };
+      const context = {
+        ...buildStateContext(session, this.deps.core.securityMode),
+        internalTool: true,
+      };
       return executeMemoryWrite(call, this.deps.state.stateLayer, context);
     }
 
@@ -978,7 +1033,10 @@ export class ToolExecutor {
         return this.formatToolError('SESSION_NOT_FOUND', 'Session not found for Composio tool');
       }
 
-      const context = { ...buildStateContext(session, this.deps.core.securityMode), internalTool: false };
+      const context = {
+        ...buildStateContext(session, this.deps.core.securityMode),
+        internalTool: false,
+      };
       return executeComposio(call, this.deps.state.stateLayer!, context);
     }
 
@@ -1050,7 +1108,10 @@ export class ToolExecutor {
     }
 
     const agentId = resolveAgentId(session);
-    const context = { ...buildStateContext(session, this.deps.core.securityMode), internalTool: true };
+    const context = {
+      ...buildStateContext(session, this.deps.core.securityMode),
+      internalTool: true,
+    };
     const allowedKinds = new Set(['summary', 'preference', 'fact', 'decision', 'task', 'issue']);
 
     if (action === 'query') {
@@ -1218,7 +1279,10 @@ export class ToolExecutor {
     }
 
     const agentId = resolveAgentId(session);
-    const context = { ...buildStateContext(session, this.deps.core.securityMode), internalTool: true };
+    const context = {
+      ...buildStateContext(session, this.deps.core.securityMode),
+      internalTool: true,
+    };
 
     if (action === 'get') {
       const profile = await this.deps.state.stateLayer.getUserProfile(agentId, userId, context);
@@ -1288,7 +1352,10 @@ export class ToolExecutor {
 
     const identityCompleted = readOptionalBoolean(call.parameters.identityCompleted);
     const agentId = resolveAgentId(session);
-    const context = { ...buildStateContext(session, this.deps.core.securityMode), internalTool: true };
+    const context = {
+      ...buildStateContext(session, this.deps.core.securityMode),
+      internalTool: true,
+    };
 
     if (await this.deps.state.getIdentityCompletionStatus(session)) {
       if (action !== 'get') {
@@ -1652,9 +1719,7 @@ export class ToolExecutor {
     if (profiles[profile]) return profiles[profile];
 
     const normalized = normalizeToolName(profile);
-    const match = Object.entries(profiles).find(
-      ([name]) => normalizeToolName(name) === normalized
-    );
+    const match = Object.entries(profiles).find(([name]) => normalizeToolName(name) === normalized);
     return match?.[1];
   }
 

@@ -35,13 +35,17 @@ function validateWebhookUrl(url: string): void {
   }
 
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    throw createConfigError(`Webhook URL must use http or https protocol, got: ${parsed.protocol}`, { component: 'audit-webhook' });
+    throw createConfigError(
+      `Webhook URL must use http or https protocol, got: ${parsed.protocol}`,
+      { component: 'audit-webhook' }
+    );
   }
 
   if (isPrivateHostname(parsed.hostname)) {
     throw createConfigError(
       `Webhook URL points to a private/internal address (${parsed.hostname}). ` +
-        'This is blocked to prevent SSRF attacks.', { component: 'audit-webhook' }
+        'This is blocked to prevent SSRF attacks.',
+      { component: 'audit-webhook' }
     );
   }
 }

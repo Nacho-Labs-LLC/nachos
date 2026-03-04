@@ -190,9 +190,7 @@ describe('executeWebFetchNative', () => {
       expect(result.success).toBe(false);
       // IPv6 bracketed URLs may be blocked at different stages depending on
       // platform URL parsing — the key requirement is that the request is blocked.
-      expect(['INVALID_URL', 'SSRF_BLOCKED', 'WEB_FETCH_FAILED']).toContain(
-        result.error?.code
-      );
+      expect(['INVALID_URL', 'SSRF_BLOCKED', 'WEB_FETCH_FAILED']).toContain(result.error?.code);
     });
 
     it('[WF-18] should reject fe80:: (IPv6 link-local)', async () => {
@@ -200,9 +198,7 @@ describe('executeWebFetchNative', () => {
       const result = await executeWebFetchNative(call, defaultConfig, testUserId);
 
       expect(result.success).toBe(false);
-      expect(['INVALID_URL', 'SSRF_BLOCKED', 'WEB_FETCH_FAILED']).toContain(
-        result.error?.code
-      );
+      expect(['INVALID_URL', 'SSRF_BLOCKED', 'WEB_FETCH_FAILED']).toContain(result.error?.code);
     });
 
     it('[WF-19] should reject fc00:: (IPv6 unique local)', async () => {
@@ -210,9 +206,7 @@ describe('executeWebFetchNative', () => {
       const result = await executeWebFetchNative(call, defaultConfig, testUserId);
 
       expect(result.success).toBe(false);
-      expect(['INVALID_URL', 'SSRF_BLOCKED', 'WEB_FETCH_FAILED']).toContain(
-        result.error?.code
-      );
+      expect(['INVALID_URL', 'SSRF_BLOCKED', 'WEB_FETCH_FAILED']).toContain(result.error?.code);
     });
   });
 
@@ -585,7 +579,7 @@ describe('executeWebFetchNative', () => {
 
     it('[WF-38] should follow redirects and SSRF-validate each hop', async () => {
       let hopCount = 0;
-      fetchSpy.mockImplementation((url: string) => {
+      fetchSpy.mockImplementation(() => {
         hopCount++;
         if (hopCount === 1) {
           return Promise.resolve(
@@ -650,10 +644,10 @@ describe('executeWebFetchNative', () => {
 
     it('[WF-41] should convert bold and italic tags', async () => {
       fetchSpy.mockResolvedValue(
-        new Response(
-          '<html><body><strong>Bold</strong> and <em>italic</em></body></html>',
-          { status: 200, headers: { 'content-type': 'text/html' } }
-        )
+        new Response('<html><body><strong>Bold</strong> and <em>italic</em></body></html>', {
+          status: 200,
+          headers: { 'content-type': 'text/html' },
+        })
       );
 
       const call = createToolCall({
@@ -685,10 +679,10 @@ describe('executeWebFetchNative', () => {
 
     it('[WF-43] should convert list items', async () => {
       fetchSpy.mockResolvedValue(
-        new Response(
-          '<html><body><ul><li>Item 1</li><li>Item 2</li></ul></body></html>',
-          { status: 200, headers: { 'content-type': 'text/html' } }
-        )
+        new Response('<html><body><ul><li>Item 1</li><li>Item 2</li></ul></body></html>', {
+          status: 200,
+          headers: { 'content-type': 'text/html' },
+        })
       );
 
       const call = createToolCall({
@@ -722,10 +716,10 @@ describe('executeWebFetchNative', () => {
 
     it('[WF-45] should decode HTML entities', async () => {
       fetchSpy.mockResolvedValue(
-        new Response(
-          '<html><body>&amp; &lt; &gt; &quot; &#39; &apos; &nbsp;</body></html>',
-          { status: 200, headers: { 'content-type': 'text/html' } }
-        )
+        new Response('<html><body>&amp; &lt; &gt; &quot; &#39; &apos; &nbsp;</body></html>', {
+          status: 200,
+          headers: { 'content-type': 'text/html' },
+        })
       );
 
       const call = createToolCall({

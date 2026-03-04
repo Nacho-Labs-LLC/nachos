@@ -118,8 +118,8 @@ describe('Gateway-Bus Integration', () => {
       expect(session.status).toBe('active');
 
       // Verify message was added to session
-      const sessionManager = gateway.getSessionManager();
-      const messages = await sessionManager.getMessages(session.id);
+      const sessionsStore = gateway.getSessionsStore();
+      const messages = await sessionsStore.getMessages(session.id);
       expect(messages.length).toBe(1);
       expect(messages[0]?.role).toBe('user');
       expect(messages[0]?.content).toBe('Hello, assistant!');

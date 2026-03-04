@@ -1,8 +1,4 @@
-import {
-  BedrockRuntimeClient,
-  InvokeModelCommand,
-  InvokeModelWithResponseStreamCommand,
-} from '@aws-sdk/client-bedrock-runtime';
+import type { BedrockRuntimeClient as BedrockRuntimeClientType } from '@aws-sdk/client-bedrock-runtime';
 import type { LLMRequestType, LLMMessageType } from '@nachos/types';
 import {
   ProviderError,
@@ -12,6 +8,16 @@ import {
   type StreamChunkHandler,
   type LLMProviderAdapter,
 } from './types.js';
+
+// Lazy-loaded AWS SDK module — only resolved on first use
+let _bedrockModule: typeof import('@aws-sdk/client-bedrock-runtime') | undefined;
+
+async function getBedrockModule(): Promise<typeof import('@aws-sdk/client-bedrock-runtime')> {
+  if (!_bedrockModule) {
+    _bedrockModule = await import('@aws-sdk/client-bedrock-runtime');
+  }
+  return _bedrockModule;
+}
 
 function extractSystemPrompt(messages: LLMRequestType['messages']): string | undefined {
   const systemMessages = messages.filter(
@@ -191,16 +197,24 @@ export function createBedrockAdapter(
   region = 'us-east-1',
   credentials?: { accessKeyId: string; secretAccessKey: string; sessionToken?: string }
 ): LLMProviderAdapter {
-  const client = new BedrockRuntimeClient({
-    region,
-    credentials,
-  });
+  // Lazily created on first send/stream call
+  let client: BedrockRuntimeClientType | undefined;
+
+  async function getClient(): Promise<BedrockRuntimeClientType> {
+    if (!client) {
+      const { BedrockRuntimeClient } = await getBedrockModule();
+      client = new BedrockRuntimeClient({ region, credentials });
+    }
+    return client;
+  }
 
   return {
     name: 'bedrock',
     type: 'custom',
 
     async send(request: LLMRequestType, options: AdapterSendOptions): Promise<AdapterResponse> {
+      const [bedrockClient, sdk] = await Promise.all([getClient(), getBedrockModule()]);
+
       const system = extractSystemPrompt(request.messages);
       const messages = toBedrockMessages(request.messages) as BedrockMessage[];
       const tools = toBedrockTools(request.tools);
@@ -214,7 +228,7 @@ export function createBedrockAdapter(
         ...(tools && tools.length > 0 && { tools }),
       };
 
-      const command = new InvokeModelCommand({
+      const command = new sdk.InvokeModelCommand({
         modelId: options.model,
         contentType: 'application/json',
         accept: 'application/json',
@@ -222,7 +236,7 @@ export function createBedrockAdapter(
       });
 
       try {
-        const response = await client.send(command);
+        const response = await bedrockClient.send(command);
         const responseBody = JSON.parse(
           new TextDecoder().decode(response.body)
         ) as BedrockResponseBody;
@@ -300,6 +314,8 @@ export function createBedrockAdapter(
       options: AdapterStreamOptions,
       onChunk: StreamChunkHandler
     ): Promise<AdapterResponse> {
+      const [bedrockClient, sdk] = await Promise.all([getClient(), getBedrockModule()]);
+
       const system = extractSystemPrompt(request.messages);
       const messages = toBedrockMessages(request.messages) as BedrockMessage[];
       const tools = toBedrockTools(request.tools);
@@ -313,7 +329,7 @@ export function createBedrockAdapter(
         ...(tools && tools.length > 0 && { tools }),
       };
 
-      const command = new InvokeModelWithResponseStreamCommand({
+      const command = new sdk.InvokeModelWithResponseStreamCommand({
         modelId: options.model,
         contentType: 'application/json',
         accept: 'application/json',
@@ -321,7 +337,7 @@ export function createBedrockAdapter(
       });
 
       try {
-        const response = await client.send(command);
+        const response = await bedrockClient.send(command);
 
         let fullText = '';
         let modelName = '';

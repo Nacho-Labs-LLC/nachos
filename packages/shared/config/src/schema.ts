@@ -772,6 +772,8 @@ export interface NachosConfig {
   admin?: AdminConfig;
   scheduler?: SchedulerConfig;
   heartbeat?: HeartbeatConfig;
+  /** Plugin-specific configuration sections. Each key is a plugin ID. */
+  plugins?: Record<string, Record<string, unknown>>;
 }
 
 /**

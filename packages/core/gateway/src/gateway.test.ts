@@ -21,12 +21,12 @@ describe('Gateway', () => {
   describe('constructor', () => {
     it('should create a gateway with default options', () => {
       expect(gateway).toBeDefined();
-      expect(gateway.getSessionManager()).toBeDefined();
+      expect(gateway.getSessionsStore()).toBeDefined();
       expect(gateway.getRouter()).toBeDefined();
       expect(gateway.getStorage()).toBeDefined();
     });
 
-    it('should create a gateway with custom system prompt', () => {
+    it('should create a gateway with custom system prompt', async () => {
       const customGateway = new Gateway({
         dbPath: ':memory:',
         defaultSystemPrompt: 'You are a custom assistant',
@@ -35,7 +35,7 @@ describe('Gateway', () => {
       expect(customGateway).toBeDefined();
 
       // Clean up
-      customGateway.getStorage().close();
+      await customGateway.stop();
     });
   });
 
@@ -202,7 +202,7 @@ describe('Gateway', () => {
       };
 
       const session = await gateway.processMessage(message);
-      const messages = await gateway.getSessionManager().getMessages(session.id);
+      const messages = await gateway.getSessionsStore().getMessages(session.id);
 
       expect(messages).toHaveLength(1);
       expect(messages[0]?.role).toBe('user');
@@ -226,7 +226,7 @@ describe('Gateway', () => {
       expect(session).toBeDefined();
 
       // No message should be added (no text content)
-      const messages = await gateway.getSessionManager().getMessages(session.id);
+      const messages = await gateway.getSessionsStore().getMessages(session.id);
       expect(messages).toHaveLength(0);
     });
 
@@ -248,15 +248,15 @@ describe('Gateway', () => {
 
       expect(session.systemPrompt).toBe('You are a helpful assistant');
 
-      customGateway.getStorage().close();
+      await customGateway.stop();
     });
   });
 
   describe('bootstrap tool', () => {
-    it('omits bootstrap tool when disabled', () => {
+    it('omits bootstrap tool when disabled', async () => {
       const toolsConfig: ToolsConfig = { bootstrap: { enabled: false } };
       const customGateway = new Gateway({ dbPath: ':memory:', toolsConfig });
-      const session = customGateway.getSessionManager().createSession({
+      const session = await customGateway.getSessionsStore().createSession({
         channel: 'slack',
         conversationId: 'conv-1',
         userId: 'user-1',
@@ -278,11 +278,11 @@ describe('Gateway', () => {
 
       expect(tools?.some((tool) => tool.name === 'bootstrap')).toBe(false);
 
-      customGateway.getStorage().close();
+      await customGateway.stop();
     });
 
     it('increments bootstrap version on set', async () => {
-      const session = await gateway.getSessionManager().createSession({
+      const session = await gateway.getSessionsStore().createSession({
         channel: 'slack',
         conversationId: 'conv-2',
         userId: 'user-2',
@@ -387,7 +387,7 @@ describe('Gateway', () => {
       expect(policy.allowed).toBe(false);
     });
 
-    it('respects allowlist overrides', () => {
+    it('respects allowlist overrides', async () => {
       const customGateway = new Gateway({
         dbPath: ':memory:',
         subagentToolPolicy: { allow: ['filesystem_read'] },
@@ -408,10 +408,10 @@ describe('Gateway', () => {
       expect(allowed.allowed).toBe(true);
       expect(denied.allowed).toBe(false);
 
-      customGateway.getStorage().close();
+      await customGateway.stop();
     });
 
-    it('supports profile-specific allowlists', () => {
+    it('supports profile-specific allowlists', async () => {
       const customGateway = new Gateway({
         dbPath: ':memory:',
         subagentToolPolicy: {
@@ -425,7 +425,7 @@ describe('Gateway', () => {
         },
       });
 
-      const session = customGateway.getSessionManager().getOrCreateSession({
+      const { session } = await customGateway.getSessionsStore().getOrCreateSessionAtomic({
         channel: 'subagent',
         conversationId: 'conv-1',
         userId: 'user-1',
@@ -447,15 +447,15 @@ describe('Gateway', () => {
       expect(allowed.allowed).toBe(true);
       expect(denied.allowed).toBe(false);
 
-      customGateway.getStorage().close();
+      await customGateway.stop();
     });
   });
 
-  describe('SessionManager access', () => {
-    it('should provide access to session manager', async () => {
-      const sessionManager = gateway.getSessionManager();
+  describe('SessionsStore access', () => {
+    it('should provide access to sessions store', async () => {
+      const sessionsStore = gateway.getSessionsStore();
 
-      const session = await sessionManager.getOrCreateSession({
+      const { session } = await sessionsStore.getOrCreateSessionAtomic({
         channel: 'slack',
         conversationId: 'conv-123',
         userId: 'user-456',
@@ -506,7 +506,7 @@ describe('Gateway', () => {
       const bus = gateway.getRouter().getBus();
       const publishSpy = vi.spyOn(bus, 'publish');
 
-      const session = await gateway.getSessionManager().createSession({
+      const session = await gateway.getSessionsStore().createSession({
         channel: 'slack',
         conversationId: 'conv-se-1',
         userId: 'user-se-1',
@@ -544,7 +544,7 @@ describe('Gateway', () => {
       const bus = gateway.getRouter().getBus();
       const publishSpy = vi.spyOn(bus, 'publish');
 
-      const session = await gateway.getSessionManager().createSession({
+      const session = await gateway.getSessionsStore().createSession({
         channel: 'slack',
         conversationId: 'conv-se-2',
         userId: 'user-se-2',
@@ -579,7 +579,7 @@ describe('Gateway', () => {
       const bus = gateway.getRouter().getBus();
       const publishSpy = vi.spyOn(bus, 'publish');
 
-      const session = await gateway.getSessionManager().createSession({
+      const session = await gateway.getSessionsStore().createSession({
         channel: 'slack',
         conversationId: 'conv-se-3',
         userId: 'user-se-3',
@@ -615,7 +615,7 @@ describe('Gateway', () => {
       const bus = gateway.getRouter().getBus();
       const publishSpy = vi.spyOn(bus, 'publish');
 
-      const session = await gateway.getSessionManager().createSession({
+      const session = await gateway.getSessionsStore().createSession({
         channel: 'slack',
         conversationId: 'conv-se-4',
         userId: 'user-se-4',
@@ -672,7 +672,7 @@ describe('Gateway', () => {
       const bus = gateway.getRouter().getBus();
       const publishSpy = vi.spyOn(bus, 'publish');
 
-      const session = await gateway.getSessionManager().createSession({
+      const session = await gateway.getSessionsStore().createSession({
         channel: 'slack',
         conversationId: 'conv-se-6',
         userId: 'user-se-6',
@@ -712,7 +712,7 @@ describe('Gateway', () => {
         defaultSystemPrompt: 'Base prompt',
       });
 
-      const session = await customGateway.getSessionManager().createSession({
+      const session = await customGateway.getSessionsStore().createSession({
         channel: 'slack',
         conversationId: 'conv-bs-2',
         userId: 'user-bs-2',
@@ -768,7 +768,7 @@ describe('Gateway', () => {
       const systemMsg = request.messages.find((m) => m.role === 'system');
       expect(systemMsg?.content).toContain('Bootstrap');
 
-      customGateway.getStorage().close();
+      await customGateway.stop();
     });
 
     it('[BS-03] should inject identity data into prompt when identity exists', async () => {
@@ -777,7 +777,7 @@ describe('Gateway', () => {
         defaultSystemPrompt: 'Base prompt',
       });
 
-      const session = await customGateway.getSessionManager().createSession({
+      const session = await customGateway.getSessionsStore().createSession({
         channel: 'slack',
         conversationId: 'conv-bs-3',
         userId: 'user-bs-3',
@@ -833,7 +833,7 @@ describe('Gateway', () => {
       const systemMsg = request.messages.find((m) => m.role === 'system');
       expect(systemMsg?.content).toContain('Identity');
 
-      customGateway.getStorage().close();
+      await customGateway.stop();
     });
 
     it('[BS-04] should inject memory entries into prompt', async () => {
@@ -842,7 +842,7 @@ describe('Gateway', () => {
         defaultSystemPrompt: 'Base prompt',
       });
 
-      const session = await customGateway.getSessionManager().createSession({
+      const session = await customGateway.getSessionsStore().createSession({
         channel: 'slack',
         conversationId: 'conv-bs-4',
         userId: 'user-bs-4',
@@ -896,7 +896,7 @@ describe('Gateway', () => {
         })
       );
 
-      customGateway.getStorage().close();
+      await customGateway.stop();
     });
 
     it('[BS-05] should include skills documentation in assembled prompt', async () => {
@@ -905,7 +905,7 @@ describe('Gateway', () => {
         defaultSystemPrompt: 'Base prompt',
       });
 
-      const session = await customGateway.getSessionManager().createSession({
+      const session = await customGateway.getSessionsStore().createSession({
         channel: 'slack',
         conversationId: 'conv-bs-5',
         userId: 'user-bs-5',
@@ -957,7 +957,7 @@ describe('Gateway', () => {
         })
       );
 
-      customGateway.getStorage().close();
+      await customGateway.stop();
     });
 
     it('[BS-09] should prune bootstrap block after identity completion', async () => {
@@ -966,7 +966,7 @@ describe('Gateway', () => {
         defaultSystemPrompt: 'Base prompt',
       });
 
-      const session = await customGateway.getSessionManager().createSession({
+      const session = await customGateway.getSessionsStore().createSession({
         channel: 'slack',
         conversationId: 'conv-bs-9',
         userId: 'user-bs-9',
@@ -1033,7 +1033,7 @@ describe('Gateway', () => {
       // When identity is completed, pruneBootstrapAfterCompletion should be called
       expect(pruneSpy).toHaveBeenCalledWith(bootstrapProfile, expect.anything());
 
-      customGateway.getStorage().close();
+      await customGateway.stop();
     });
 
     it('[BS-10] should include all session messages in LLM request', async () => {
@@ -1042,22 +1042,25 @@ describe('Gateway', () => {
         defaultSystemPrompt: 'Base prompt',
       });
 
-      const session = await customGateway.getSessionManager().createSession({
+      const session = await customGateway.getSessionsStore().createSession({
         channel: 'slack',
         conversationId: 'conv-bs-10',
         userId: 'user-bs-10',
       });
 
       // Add some messages to session
-      await customGateway.getSessionManager().addMessage(session.id, {
+      await customGateway.getSessionsStore().addMessage({
+        sessionId: session.id,
         role: 'user',
         content: 'Hello there',
       });
-      await customGateway.getSessionManager().addMessage(session.id, {
+      await customGateway.getSessionsStore().addMessage({
+        sessionId: session.id,
         role: 'assistant',
         content: 'Hi! How can I help?',
       });
-      await customGateway.getSessionManager().addMessage(session.id, {
+      await customGateway.getSessionsStore().addMessage({
+        sessionId: session.id,
         role: 'user',
         content: 'Tell me about nachos',
       });
@@ -1084,7 +1087,7 @@ describe('Gateway', () => {
       expect(assistantMsgs[0]?.content).toBe('Hi! How can I help?');
       expect(userMsgs[1]?.content).toBe('Tell me about nachos');
 
-      customGateway.getStorage().close();
+      await customGateway.stop();
     });
 
     it('[BS-11] should include tool definitions in LLM request', async () => {
@@ -1094,7 +1097,7 @@ describe('Gateway', () => {
         toolsConfig: { bootstrap: { enabled: true } },
       });
 
-      const session = await customGateway.getSessionManager().createSession({
+      const session = await customGateway.getSessionsStore().createSession({
         channel: 'slack',
         conversationId: 'conv-bs-11',
         userId: 'user-bs-11',
@@ -1152,7 +1155,7 @@ describe('Gateway', () => {
       expect(toolNames).toContain('user_profile');
       expect(toolNames).toContain('bootstrap');
 
-      customGateway.getStorage().close();
+      await customGateway.stop();
     });
 
     it('[BS-01] should start with base system prompt from session or gateway default', async () => {
@@ -1161,7 +1164,7 @@ describe('Gateway', () => {
         defaultSystemPrompt: 'You are a helpful assistant',
       });
 
-      const session = await customGateway.getSessionManager().createSession({
+      const session = await customGateway.getSessionsStore().createSession({
         channel: 'slack',
         conversationId: 'conv-bs-1',
         userId: 'user-bs-1',
@@ -1183,7 +1186,7 @@ describe('Gateway', () => {
       const systemMsg = request.messages.find((m) => m.role === 'system');
       expect(systemMsg?.content).toBe('You are a helpful assistant');
 
-      customGateway.getStorage().close();
+      await customGateway.stop();
     });
   });
 });

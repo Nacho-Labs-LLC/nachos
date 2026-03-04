@@ -148,8 +148,8 @@ export class PathValidator {
     }
 
     // Check if the real path is within allowed directories
-    const isAllowed = this.allowedPaths.some((allowedPath) =>
-      resolved.startsWith(allowedPath + path.sep) || resolved === allowedPath
+    const isAllowed = this.allowedPaths.some(
+      (allowedPath) => resolved.startsWith(allowedPath + path.sep) || resolved === allowedPath
     );
 
     if (!isAllowed) {
@@ -203,8 +203,8 @@ export class PathValidator {
    */
   isAllowed(requestedPath: string): boolean {
     const resolved = resolveRealPath(requestedPath);
-    return this.allowedPaths.some((allowedPath) =>
-      resolved.startsWith(allowedPath + path.sep) || resolved === allowedPath
+    return this.allowedPaths.some(
+      (allowedPath) => resolved.startsWith(allowedPath + path.sep) || resolved === allowedPath
     );
   }
 }

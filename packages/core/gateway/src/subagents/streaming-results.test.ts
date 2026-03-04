@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import crypto from 'node:crypto';
 import type { Router } from '../router.js';
-import type { SessionManager } from '../session.js';
+import type { SessionsStore } from '@nachos/state';
 import { SubagentOrchestrator } from './subagent-orchestrator.js';
 import type { SubagentManager } from './subagent-manager.js';
 import type { LLMRequestType, LLMStreamChunkType } from '@nachos/types';
@@ -15,7 +15,7 @@ import type { LLMRequestType, LLMStreamChunkType } from '@nachos/types';
 describe('SubagentOrchestrator - Streaming Results', () => {
   let orchestrator: SubagentOrchestrator;
   let mockSubagentManager: SubagentManager;
-  let mockSessionManager: SessionManager;
+  let mockSessionsStore: SessionsStore;
   let mockRouter: Router;
   let streamHandlers: Map<string, (data: unknown) => Promise<void>>;
 
@@ -31,14 +31,17 @@ describe('SubagentOrchestrator - Streaming Results', () => {
       }),
     } as unknown as SubagentManager;
 
-    mockSessionManager = {
-      getOrCreateSession: vi.fn().mockImplementation(() => ({
-        id: crypto.randomUUID(), // Valid UUID for session ID validation
-        channel: 'test',
-        conversationId: 'test-conv',
+    mockSessionsStore = {
+      getOrCreateSessionAtomic: vi.fn().mockImplementation(() => ({
+        session: {
+          id: crypto.randomUUID(), // Valid UUID for session ID validation
+          channel: 'test',
+          conversationId: 'test-conv',
+        },
+        created: true,
       })),
       addMessage: vi.fn(),
-    } as unknown as SessionManager;
+    } as unknown as SessionsStore;
 
     mockRouter = {
       sendToChannel: vi.fn().mockResolvedValue(undefined),
@@ -67,7 +70,7 @@ describe('SubagentOrchestrator - Streaming Results', () => {
 
     orchestrator = new SubagentOrchestrator({
       subagentManager: mockSubagentManager,
-      sessionManager: mockSessionManager,
+      sessionsStore: mockSessionsStore,
       router: mockRouter,
       buildLLMRequest,
       subscribe,

@@ -589,9 +589,7 @@ function createSessionStateStore(config: StateLayerConfig): SessionStateStore {
     return new RedisSessionStateStore(redisUrl, config.session.ttlSeconds);
   }
 
-  logger.info(
-    'Using in-memory session state store (data will not persist across restarts)'
-  );
+  logger.info('Using in-memory session state store (data will not persist across restarts)');
   return new InMemorySessionStateStore();
 }
 

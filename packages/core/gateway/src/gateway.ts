@@ -25,6 +25,7 @@ import {
   type SchedulerConfig,
   type HeartbeatConfig,
 } from './scheduler/index.js';
+import { SCHEDULER_SCHEMA } from './scheduler/schema.js';
 import type {
   AuditConfig,
   ContextManagementCommandsConfig,
@@ -37,8 +38,9 @@ import type {
 } from '@nachos/config';
 import { loadAndValidateConfig, validateConfigOrThrow } from '@nachos/config';
 import { randomUUID } from 'node:crypto';
-import { StateStorage } from './state.js';
-import { SessionManager } from './session.js';
+import Database from 'better-sqlite3';
+import type { SessionsStore } from '@nachos/state';
+import { SqliteSessionsStore } from '@nachos/state';
 import {
   Router,
   InMemoryMessageBus,
@@ -95,6 +97,7 @@ import { registerManagementHandlers } from './management/management-handlers.js'
 import { SkillsManager } from './skills/skills-manager.js';
 import { StreamingSessionManager } from './streaming/streaming-session-manager.js';
 import { ToolExecutor } from './tools/tool-executor.js';
+import { HookRegistry } from './hooks/index.js';
 
 const DEFAULT_TOOL_GROUPS: Record<string, string[]> = {
   lookup: ['web_fetch', 'goplaces'],
@@ -213,8 +216,9 @@ export interface GatewayOptions {
  * Gateway class - orchestrates sessions, routing, and health
  */
 export class Gateway {
-  private storage: StateStorage;
-  private sessionManager: SessionManager;
+  private schedulerDb?: InstanceType<typeof Database>;
+  private sessionsDb?: InstanceType<typeof Database>;
+  private sessionsStore: SessionsStore;
   private router: Router;
   private rateLimiter?: RateLimiter;
   private cheese: Cheese | null = null;
@@ -253,10 +257,12 @@ export class Gateway {
   private skillsManager: SkillsManager;
   private streamingManager: StreamingSessionManager;
   private toolExecutor: ToolExecutor;
+  private hooks: HookRegistry;
 
   constructor(options: GatewayOptions = {}) {
     this.options = options;
     this.instanceId = options.instanceId ?? 'gateway';
+    this.hooks = new HookRegistry();
     this.dlpConfig = options.dlpConfig;
     this.approvalAllowlist = new Set(options.approvalAllowlist ?? []);
     this.securityMode = options.policyConfig?.securityMode ?? 'standard';
@@ -273,19 +279,16 @@ export class Gateway {
       });
     }
 
-    // Initialize storage (SQLite)
+    // Initialize scheduler (gets its own database connection, decoupled from session storage)
     const dbPath = options.dbPath ?? ':memory:';
-    this.storage = new StateStorage(dbPath);
-
-    // Initialize session manager
-    this.sessionManager = new SessionManager(this.storage);
-
-    // Initialize scheduler
     this.schedulerConfig = options.schedulerConfig;
     this.heartbeatConfig = options.heartbeatConfig;
     if (this.schedulerConfig?.enabled) {
+      this.schedulerDb = new Database(dbPath);
+      this.schedulerDb.pragma('journal_mode = WAL');
+      this.schedulerDb.exec(SCHEDULER_SCHEMA);
       this.scheduler = new Scheduler(
-        this.storage.getDatabase(),
+        this.schedulerDb,
         this.schedulerConfig,
         this.createJobExecutor()
       );
@@ -324,6 +327,15 @@ export class Gateway {
       });
     }
 
+    // Initialize sessions store: use stateLayer's store if available, else create standalone SQLite store
+    if (this.stateLayer?.sessionsStore) {
+      this.sessionsStore = this.stateLayer.sessionsStore;
+    } else {
+      this.sessionsDb = new Database(dbPath);
+      this.sessionsDb.pragma('journal_mode = WAL');
+      this.sessionsStore = new SqliteSessionsStore(this.sessionsDb);
+    }
+
     if (options.memoryPipeline) {
       this.memoryPipeline = options.memoryPipeline;
     } else if (options.memoryPipelineConfig && this.stateLayer) {
@@ -336,7 +348,7 @@ export class Gateway {
       componentName: 'gateway',
       rateLimiter: this.rateLimiter,
       contextManager: options.contextManager,
-      sessionManager: this.sessionManager,
+      sessionsStore: this.sessionsStore,
       memoryPipeline: this.memoryPipeline,
       securityMode: this.securityMode,
     });
@@ -347,7 +359,7 @@ export class Gateway {
       });
       this.subagentOrchestrator = new SubagentOrchestrator({
         subagentManager: this.subagentManager,
-        sessionManager: this.sessionManager,
+        sessionsStore: this.sessionsStore,
         router: this.router,
         buildLLMRequest: this.buildLLMRequest.bind(this),
         subscribe: async (topic: string, handler: (data: unknown) => Promise<void>) => {
@@ -421,6 +433,7 @@ export class Gateway {
         scheduler: this.scheduler,
         subagentManager: this.subagentManager,
         subagentOrchestrator: this.subagentOrchestrator,
+        hooks: this.hooks,
       },
       policy: {
         resolveToolGroup: (tool) => this.resolveToolGroup(tool),
@@ -434,8 +447,8 @@ export class Gateway {
       },
       state: {
         stateLayer: this.stateLayer,
-        getSession: (sessionId) => this.sessionManager.getSession(sessionId),
-        getMessages: (sessionId) => this.sessionManager.getMessages(sessionId),
+        getSession: (sessionId) => this.sessionsStore.getSession(sessionId),
+        getMessages: (sessionId) => this.sessionsStore.getMessages(sessionId),
         getIdentityCompletionStatus: (session) => this.getIdentityCompletionStatus(session),
         markIdentityCompleted: (agentId, content, context) =>
           this.markIdentityCompleted(agentId, content, context),
@@ -579,18 +592,19 @@ export class Gateway {
       }
     }
 
-    const existingSession = await this.sessionManager.getSessionByConversation(
+    const existingSession = await this.sessionsStore.getSessionByConversation(
       message.channel,
       message.conversation.id
     );
 
     // Get or create session for this conversation
-    let session = await this.sessionManager.getOrCreateSession({
+    const { session: resolvedSession } = await this.sessionsStore.getOrCreateSessionAtomic({
       channel: message.channel,
       conversationId: message.conversation.id,
       userId: message.sender.id,
       systemPrompt: this.options.defaultSystemPrompt,
     });
+    let session = resolvedSession;
 
     if (this.cheese) {
       const policyResult = this.cheese.evaluate({
@@ -665,6 +679,23 @@ export class Gateway {
           messageId: message.channelMessageId,
         },
       });
+
+      // Hook: session:created (fire-and-forget)
+      try {
+        void this.hooks.emit('session:created', {
+          session: {
+            id: session.id,
+            channel: session.channel,
+            conversationId: session.conversationId,
+            userId: session.userId,
+            status: session.status ?? 'active',
+            createdAt: session.createdAt ?? new Date().toISOString(),
+          },
+          timestamp: new Date().toISOString(),
+        });
+      } catch (hookError) {
+        logger.warn({ err: hookError }, 'session:created hook failed');
+      }
     }
 
     // DLP scan before processing content
@@ -770,9 +801,33 @@ export class Gateway {
       }
     }
 
+    // Hook: message:received (fire-and-forget)
+    try {
+      void this.hooks.emit('message:received', {
+        envelopeId: envelope.id,
+        channel: message.channel,
+        channelMessageId: message.channelMessageId ?? '',
+        sender: {
+          id: message.sender.id ?? '',
+          name: message.sender.name,
+          isAllowed: message.sender.isAllowed ?? true,
+        },
+        conversation: {
+          id: message.conversation.id,
+          type: message.conversation.type,
+        },
+        text: messageText,
+        sessionId: session.id,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (hookError) {
+      logger.warn({ err: hookError }, 'message:received hook failed');
+    }
+
     // Add user message to session
     if (message.content.text) {
-      await this.sessionManager.addMessage(session.id, {
+      await this.sessionsStore.addMessage({
+        sessionId: session.id,
         role: 'user',
         content: message.content.text,
       });
@@ -1048,9 +1103,8 @@ export class Gateway {
     if (['on', 'enable', 'enabled'].includes(action)) {
       contextManagement.enabled = true;
       contextManagement.updatedAt = new Date().toISOString();
-      await this.sessionManager.updateMetadata(session.id, {
-        ...metadata,
-        contextManagement,
+      await this.sessionsStore.updateSession(session.id, {
+        metadata: { ...metadata, contextManagement },
       });
       return {
         handled: true,
@@ -1061,9 +1115,8 @@ export class Gateway {
     if (['off', 'disable', 'disabled'].includes(action)) {
       contextManagement.enabled = false;
       contextManagement.updatedAt = new Date().toISOString();
-      await this.sessionManager.updateMetadata(session.id, {
-        ...metadata,
-        contextManagement,
+      await this.sessionsStore.updateSession(session.id, {
+        metadata: { ...metadata, contextManagement },
       });
       return {
         handled: true,
@@ -1080,7 +1133,7 @@ export class Gateway {
       } else {
         updatedMetadata.contextManagement = contextManagement;
       }
-      await this.sessionManager.updateMetadata(session.id, updatedMetadata);
+      await this.sessionsStore.updateSession(session.id, { metadata: updatedMetadata });
       return {
         handled: true,
         replyText: '🔁 Context management reset to default for this session.',
@@ -1099,13 +1152,13 @@ export class Gateway {
     message: ChannelInboundMessage,
     securityMode: 'strict' | 'standard' | 'permissive'
   ): Promise<Session> {
-    const previous = await this.sessionManager.getSessionByConversation(
+    const previous = await this.sessionsStore.getSessionByConversation(
       message.channel,
       message.conversation.id
     );
 
     if (previous) {
-      await this.sessionManager.deleteSession(previous.id);
+      await this.sessionsStore.deleteSession(previous.id);
       if (this.stateLayer) {
         try {
           await this.stateLayer.deleteSessionState(previous.id, {
@@ -1119,9 +1172,20 @@ export class Gateway {
           logger.warn({ err: error }, 'Failed to delete session state during reset');
         }
       }
+
+      // Hook: session:destroyed (fire-and-forget)
+      try {
+        void this.hooks.emit('session:destroyed', {
+          sessionId: previous.id,
+          reason: 'user_command',
+          timestamp: new Date().toISOString(),
+        });
+      } catch (hookError) {
+        logger.warn({ err: hookError }, 'session:destroyed hook failed');
+      }
     }
 
-    const newSession = await this.sessionManager.createSession({
+    const newSession = await this.sessionsStore.createSession({
       channel: message.channel,
       conversationId: message.conversation.id,
       userId: message.sender.id,
@@ -1156,7 +1220,7 @@ export class Gateway {
     extraMessages: LLMRequestType['messages'] = [],
     stream: boolean = false
   ): Promise<LLMRequestType & { systemPromptTokens?: number; promptReport?: PromptReport }> {
-    const session = await this.sessionManager.getSessionWithMessages(sessionId);
+    const session = await this.sessionsStore.getSessionWithMessages(sessionId);
     if (!session) {
       throw createSessionNotFoundError('Session not found', { component: 'gateway' });
     }
@@ -1213,9 +1277,11 @@ export class Gateway {
         promptReport = assembled.report;
         systemPromptTokens = assembled.report.totalTokens ?? 0;
 
-        await this.sessionManager.updateMetadata(sessionId, {
-          promptReport: assembled.report,
-          promptReportUpdatedAt: assembled.report.generatedAt,
+        await this.sessionsStore.updateSession(sessionId, {
+          metadata: {
+            promptReport: assembled.report,
+            promptReportUpdatedAt: assembled.report.generatedAt,
+          },
         });
       } catch (error) {
         logger.warn({ err: error }, 'Failed to assemble prompt with state layer');
@@ -1362,14 +1428,114 @@ export class Gateway {
     stream: boolean = false
   ): Promise<LLMResponseType> {
     const request = await this.buildLLMRequest(sessionId, extraMessages, stream);
+
+    // Hook: llm:before-request -- observe-only handlers (fire-and-forget)
+    try {
+      void this.hooks.emit('llm:before-request', {
+        sessionId,
+        messages: request.messages as ReadonlyArray<{
+          role: string;
+          content: string | readonly unknown[];
+        }>,
+        tools: request.tools?.map((t) => ({ name: t.name, description: t.description })),
+        stream: Boolean(request.options?.stream),
+        options: request.options as Readonly<Record<string, unknown>> | undefined,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (hookError) {
+      logger.warn({ err: hookError }, 'llm:before-request observe hook failed');
+    }
+
+    // Hook: llm:before-request -- mutable handlers (awaited, sequential)
+    try {
+      const mutablePayload = await this.hooks.emitMutable('llm:before-request', {
+        sessionId,
+        messages: request.messages.map((m) => ({
+          role: m.role as string,
+          content:
+            typeof m.content === 'string'
+              ? m.content
+              : Array.isArray(m.content)
+                ? ([...m.content] as unknown[])
+                : (m.content as unknown[]),
+        })),
+        tools: request.tools?.map((t) => ({ name: t.name, description: t.description })),
+        stream: Boolean(request.options?.stream),
+        options: request.options as Readonly<Record<string, unknown>> | undefined,
+        timestamp: new Date().toISOString(),
+      });
+      // Apply modifications back to the request
+      request.messages = mutablePayload.messages.map((m) => ({
+        role: m.role as 'system' | 'user' | 'assistant' | 'tool',
+        content: m.content as string,
+      }));
+      if (mutablePayload.tools && request.tools) {
+        // Rebuild tools array: keep full tool definitions for tools that still
+        // exist in the mutable payload, add stub entries for newly added tools
+        const updatedTools: typeof request.tools = [];
+        for (const mt of mutablePayload.tools) {
+          const existing = request.tools.find((t) => t.name === mt.name);
+          if (existing) {
+            updatedTools.push(existing);
+          } else {
+            // Newly added tool -- create a minimal definition
+            updatedTools.push({
+              name: mt.name,
+              description: mt.description,
+              parameters: {},
+            });
+          }
+        }
+        request.tools = updatedTools;
+      } else if (mutablePayload.tools === undefined) {
+        request.tools = undefined;
+      }
+    } catch (hookError) {
+      logger.warn({ err: hookError }, 'llm:before-request mutable hook failed');
+    }
+
     const responseEnvelope = await this.router.sendLLMRequest(request);
 
     const envelope = responseEnvelope as MessageEnvelope;
-    if (envelope && typeof envelope === 'object' && 'payload' in envelope) {
-      return envelope.payload as LLMResponseType;
+    const response: LLMResponseType =
+      envelope && typeof envelope === 'object' && 'payload' in envelope
+        ? (envelope.payload as LLMResponseType)
+        : (responseEnvelope as LLMResponseType);
+
+    // Hook: llm:after-response (fire-and-forget)
+    try {
+      void this.hooks.emit('llm:after-response', {
+        sessionId,
+        success: response.success,
+        responseText: this.coerceLLMContentText(
+          response.success ? response.message?.content : undefined
+        ),
+        toolCalls: response.toolCalls?.map((tc) => ({
+          id: tc.id,
+          name: tc.name,
+          arguments: typeof tc.arguments === 'string' ? tc.arguments : JSON.stringify(tc.arguments),
+        })),
+        usage: response.usage
+          ? {
+              promptTokens: response.usage.promptTokens,
+              completionTokens: response.usage.completionTokens,
+              totalTokens: response.usage.totalTokens,
+            }
+          : undefined,
+        provider: response.provider,
+        model: response.model,
+        finishReason: response.finishReason,
+        error: response.error
+          ? { code: response.error.code, message: response.error.message }
+          : undefined,
+        toolIteration: 0,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (hookError) {
+      logger.warn({ err: hookError }, 'llm:after-response hook failed');
     }
 
-    return responseEnvelope as LLMResponseType;
+    return response;
   }
 
   private buildStateLayerDependencies(): StateLayerDependencies {
@@ -1415,7 +1581,6 @@ export class Gateway {
     }
     return 'call';
   }
-
 
   /**
    * Create job executor for scheduler
@@ -1741,7 +1906,8 @@ export class Gateway {
         }
         // Fall through to send responseText
       } else {
-        await this.sessionManager.addMessage(sessionId, {
+        await this.sessionsStore.addMessage({
+          sessionId,
           role: 'assistant',
           content: responseText,
           toolCalls,
@@ -1756,7 +1922,8 @@ export class Gateway {
           // Store tool result messages in session so multi-turn history is complete
           // (tool_use blocks need matching tool_result blocks in subsequent requests)
           for (const toolMsg of toolMessages) {
-            await this.sessionManager.addMessage(sessionId, {
+            await this.sessionsStore.addMessage({
+              sessionId,
               role: 'tool',
               content:
                 typeof toolMsg.content === 'string'
@@ -1780,7 +1947,8 @@ export class Gateway {
           // The assistant message with tool_use blocks was already saved above;
           // without matching tool_result blocks, subsequent API calls will fail.
           for (const tc of toolCalls) {
-            await this.sessionManager.addMessage(sessionId, {
+            await this.sessionsStore.addMessage({
+              sessionId,
               role: 'tool',
               content: JSON.stringify([
                 {
@@ -1898,7 +2066,8 @@ export class Gateway {
     }
 
     if (responseText) {
-      await this.sessionManager.addMessage(sessionId, {
+      await this.sessionsStore.addMessage({
+        sessionId,
         role: 'assistant',
         content: responseText,
       });
@@ -1916,6 +2085,40 @@ export class Gateway {
         format: 'markdown',
       },
     };
+
+    // Hook: response:before-send -- observe-only handlers (fire-and-forget)
+    try {
+      void this.hooks.emit('response:before-send', {
+        sessionId,
+        channel: inbound.channel,
+        conversationId: inbound.conversation.id,
+        text: responseText,
+        format: 'markdown',
+        replyToMessageId: this.getReplyToMessageId(inbound),
+        timestamp: new Date().toISOString(),
+      });
+    } catch (hookError) {
+      logger.warn({ err: hookError }, 'response:before-send observe hook failed');
+    }
+
+    // Hook: response:before-send -- mutable handlers (awaited, sequential)
+    try {
+      const mutablePayload = await this.hooks.emitMutable('response:before-send', {
+        sessionId,
+        channel: inbound.channel,
+        conversationId: inbound.conversation.id,
+        text: responseText,
+        format: 'markdown' as const,
+        replyToMessageId: this.getReplyToMessageId(inbound),
+        timestamp: new Date().toISOString(),
+      });
+      // Apply text modification back to the outbound message
+      if (mutablePayload.text !== responseText) {
+        outbound.content.text = mutablePayload.text;
+      }
+    } catch (hookError) {
+      logger.warn({ err: hookError }, 'response:before-send mutable hook failed');
+    }
 
     await this.router.sendToChannel(outbound);
     void this.publishStatusEvent(
@@ -2060,7 +2263,7 @@ export class Gateway {
 
     await registerManagementHandlers({
       getBus: () => bus,
-      getSessionManager: () => this.sessionManager,
+      getSessionsStore: () => this.sessionsStore,
       getSubagentOrchestrator: () => this.subagentOrchestrator,
       getSandboxManager: () => this.sandboxManager,
       getToolSandboxConfig: () => this.options.toolSandboxConfig,
@@ -2123,7 +2326,7 @@ export class Gateway {
     });
 
     this.approvalManager.on('approval-requested', async (request) => {
-      const session = await this.sessionManager.getSession(request.sessionId);
+      const session = await this.sessionsStore.getSession(request.sessionId);
       if (!session) {
         logger.warn({ sessionId: request.sessionId }, 'Approval request for unknown session');
         return;
@@ -2157,7 +2360,7 @@ export class Gateway {
     const healthDeps: HealthCheckDeps = {
       checkDatabase: () => {
         try {
-          this.storage.listSessions({ limit: 1 });
+          this.sessionsStore.listSessions({ limit: 1 });
           return true;
         } catch {
           return false;
@@ -2195,6 +2398,19 @@ export class Gateway {
 
     this.isConnected = true;
     logger.info('Gateway started');
+
+    // Hook: gateway:startup (fire-and-forget)
+    try {
+      void this.hooks.emit('gateway:startup', {
+        instanceId: this.instanceId,
+        channels: this.options.channels ?? [],
+        securityMode: this.securityMode,
+        streamingEnabled: this.options.streamingPassthrough ?? false,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (hookError) {
+      logger.warn({ err: hookError }, 'gateway:startup hook failed');
+    }
   }
 
   private async handleConfigUpdate(data: unknown): Promise<void> {
@@ -2330,6 +2546,17 @@ export class Gateway {
    * Stop the gateway
    */
   async stop(): Promise<void> {
+    // Hook: gateway:shutdown (fire-and-forget — best-effort during teardown)
+    try {
+      void this.hooks.emit('gateway:shutdown', {
+        instanceId: this.instanceId,
+        reason: 'api',
+        timestamp: new Date().toISOString(),
+      });
+    } catch (hookError) {
+      logger.warn({ err: hookError }, 'gateway:shutdown hook failed');
+    }
+
     this.isConnected = false;
 
     // Remove signal handlers
@@ -2387,7 +2614,12 @@ export class Gateway {
       logger.info('Scheduler stopped');
     }
 
-    this.storage.close();
+    if (this.schedulerDb) {
+      this.schedulerDb.close();
+    }
+    if (this.sessionsDb) {
+      this.sessionsDb.close();
+    }
     logger.info('Gateway stopped');
   }
 
@@ -2428,10 +2660,17 @@ export class Gateway {
   }
 
   /**
-   * Get the session manager
+   * Get the sessions store
    */
-  getSessionManager(): SessionManager {
-    return this.sessionManager;
+  getSessionsStore(): SessionsStore {
+    return this.sessionsStore;
+  }
+
+  /**
+   * Get the hook registry so plugins can register lifecycle handlers.
+   */
+  getHookRegistry(): HookRegistry {
+    return this.hooks;
   }
 
   /**
@@ -2459,7 +2698,7 @@ export class Gateway {
 
     this.memoryPipelineInterval = setInterval(async () => {
       try {
-        const sessions = await this.sessionManager.listSessions({ status: 'active' });
+        const sessions = await this.sessionsStore.listSessions({ status: 'active' });
         for (const session of sessions) {
           if (!this.isContextManagementEnabledForSession(session)) {
             continue;
@@ -2468,7 +2707,7 @@ export class Gateway {
           const shouldRun = await memoryPipeline.shouldRunPeriodic(session, context);
           if (!shouldRun) continue;
 
-          const withMessages = await this.sessionManager.getSessionWithMessages(session.id);
+          const withMessages = await this.sessionsStore.getSessionWithMessages(session.id);
           if (!withMessages) continue;
 
           await memoryPipeline.handleExtraction({
@@ -2485,10 +2724,11 @@ export class Gateway {
   }
 
   /**
-   * Get the state storage
+   * Get the sessions store
+   * @deprecated Use getSessionsStore() instead
    */
-  getStorage(): StateStorage {
-    return this.storage;
+  getStorage(): SessionsStore {
+    return this.sessionsStore;
   }
 
   /**
@@ -2498,7 +2738,7 @@ export class Gateway {
     const health = performHealthCheck({
       checkDatabase: () => {
         try {
-          this.storage.listSessions({ limit: 1 });
+          this.sessionsStore.listSessions({ limit: 1 });
           return true;
         } catch {
           return false;
@@ -2573,7 +2813,7 @@ export class Gateway {
     }
     return {
       runId: run.runId,
-      messages: await this.sessionManager.getMessages(run.childSessionId),
+      messages: await this.sessionsStore.getMessages(run.childSessionId),
     };
   }
 
@@ -2609,7 +2849,7 @@ export class Gateway {
     const envelope = createEnvelope('test', 'channel.inbound', message);
     await this.handleInboundMessage(envelope);
 
-    const session = await this.sessionManager.getSessionByConversation(
+    const session = await this.sessionsStore.getSessionByConversation(
       message.channel,
       message.conversation.id
     );

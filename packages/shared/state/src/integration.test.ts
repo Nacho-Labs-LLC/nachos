@@ -129,10 +129,7 @@ describe('StateLayer default stack integration', () => {
     const stored = await layer.appendMemoryEntry(entry, context);
     expect(stored.id).toBe(entry.id);
 
-    const result = await layer.queryMemory(
-      { agentId: 'integ-agent' },
-      context,
-    );
+    const result = await layer.queryMemory({ agentId: 'integ-agent' }, context);
     expect(result.entries.length).toBeGreaterThanOrEqual(1);
     const found = result.entries.find((e) => e.id === entry.id);
     expect(found).toBeDefined();
@@ -247,7 +244,7 @@ describe('StateLayer default stack integration', () => {
         updatedAt: new Date().toISOString(),
         version: 1,
       },
-      context,
+      context
     );
 
     // close() should not throw

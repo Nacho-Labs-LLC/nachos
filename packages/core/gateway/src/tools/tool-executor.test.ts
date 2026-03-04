@@ -454,7 +454,8 @@ describe('ToolExecutor', () => {
 
       executor.updateDeps({
         core: {
-          toolCoordinator: mockCoordinator as unknown as ToolExecutorDeps['core']['toolCoordinator'],
+          toolCoordinator:
+            mockCoordinator as unknown as ToolExecutorDeps['core']['toolCoordinator'],
           scheduler: mockScheduler as unknown as ToolExecutorDeps['core']['scheduler'],
         },
         security: {
@@ -501,9 +502,7 @@ describe('ToolExecutor', () => {
 
       // memory_search is a local tool — it should be handled locally
       // not sent to the coordinator
-      const toolCalls = [
-        { id: 'call-mem', name: 'memory_search', arguments: '{"query": "test"}' },
-      ];
+      const toolCalls = [{ id: 'call-mem', name: 'memory_search', arguments: '{"query": "test"}' }];
 
       const messages = await executorLocal.executeToolCalls('session-1', toolCalls);
 
@@ -534,9 +533,7 @@ describe('ToolExecutor', () => {
       });
       const executorLocal = new ToolExecutor(depsLocal);
 
-      const toolCalls = [
-        { id: 'call-mg', name: 'memory_get', arguments: '{"file": "MEMORY.md"}' },
-      ];
+      const toolCalls = [{ id: 'call-mg', name: 'memory_get', arguments: '{"file": "MEMORY.md"}' }];
 
       const messages = await executorLocal.executeToolCalls('session-1', toolCalls);
 
@@ -589,9 +586,7 @@ describe('ToolExecutor', () => {
       });
       const executorNull = new ToolExecutor(depsNullSession);
 
-      const toolCalls = [
-        { id: 'call-ns', name: 'memory_search', arguments: '{"query": "test"}' },
-      ];
+      const toolCalls = [{ id: 'call-ns', name: 'memory_search', arguments: '{"query": "test"}' }];
 
       const messages = await executorNull.executeToolCalls('session-1', toolCalls);
 
@@ -633,9 +628,7 @@ describe('ToolExecutor', () => {
       });
       const executorBoot = new ToolExecutor(depsBootstrap);
 
-      const toolCalls = [
-        { id: 'call-boot', name: 'bootstrap', arguments: '{"action": "get"}' },
-      ];
+      const toolCalls = [{ id: 'call-boot', name: 'bootstrap', arguments: '{"action": "get"}' }];
 
       const messages = await executorBoot.executeToolCalls('session-1', toolCalls);
 
@@ -875,9 +868,7 @@ describe('ToolExecutor', () => {
       }
 
       // 11th call should be rate limited
-      const calls = [
-        { id: 'call-rl-11', name: 'memory_search', arguments: '{"query": "test"}' },
-      ];
+      const calls = [{ id: 'call-rl-11', name: 'memory_search', arguments: '{"query": "test"}' }];
       const messages = await executorRate.executeToolCalls('session-1', calls);
 
       const result = messages[0] as { content: Array<{ tool_result: unknown }> };
@@ -959,9 +950,9 @@ describe('ToolExecutor', () => {
   describe('sandbox resolution', () => {
     it('[TE-26] should add sandbox config to remote tool calls when sandbox is enabled', async () => {
       const mockCoordinator = {
-        executeTools: vi.fn().mockResolvedValue([
-          { success: true, content: [{ type: 'text', text: 'ok' }] },
-        ]),
+        executeTools: vi
+          .fn()
+          .mockResolvedValue([{ success: true, content: [{ type: 'text', text: 'ok' }] }]),
       };
 
       const mockSandboxManager = {
@@ -977,7 +968,8 @@ describe('ToolExecutor', () => {
 
       const depsSandbox = createMockDeps({
         toolCoordinator: mockCoordinator as unknown as ToolExecutorDeps['core']['toolCoordinator'],
-        sandboxManager: mockSandboxManager as unknown as ToolExecutorDeps['security']['sandboxManager'],
+        sandboxManager:
+          mockSandboxManager as unknown as ToolExecutorDeps['security']['sandboxManager'],
       });
       const executorSandbox = new ToolExecutor(depsSandbox);
 
@@ -998,9 +990,9 @@ describe('ToolExecutor', () => {
 
     it('[TE-27] should not add sandbox config when sandbox is disabled', async () => {
       const mockCoordinator = {
-        executeTools: vi.fn().mockResolvedValue([
-          { success: true, content: [{ type: 'text', text: 'ok' }] },
-        ]),
+        executeTools: vi
+          .fn()
+          .mockResolvedValue([{ success: true, content: [{ type: 'text', text: 'ok' }] }]),
       };
 
       const mockSandboxManager = {
@@ -1011,7 +1003,8 @@ describe('ToolExecutor', () => {
 
       const depsNoSandbox = createMockDeps({
         toolCoordinator: mockCoordinator as unknown as ToolExecutorDeps['core']['toolCoordinator'],
-        sandboxManager: mockSandboxManager as unknown as ToolExecutorDeps['security']['sandboxManager'],
+        sandboxManager:
+          mockSandboxManager as unknown as ToolExecutorDeps['security']['sandboxManager'],
       });
       const executorNoSandbox = new ToolExecutor(depsNoSandbox);
 
@@ -1047,9 +1040,7 @@ describe('ToolExecutor', () => {
       const executorSub = new ToolExecutor(depsSub);
 
       // sessions_list is in DEFAULT_SUBAGENT_DENY_TOOLS
-      const toolCalls = [
-        { id: 'call-denied-sub', name: 'sessions_list', arguments: '{}' },
-      ];
+      const toolCalls = [{ id: 'call-denied-sub', name: 'sessions_list', arguments: '{}' }];
 
       const messages = await executorSub.executeToolCalls('session-1', toolCalls);
 
@@ -1060,9 +1051,9 @@ describe('ToolExecutor', () => {
 
     it('[TE-29] should allow non-denied tools for subagent sessions', async () => {
       const mockCoordinator = {
-        executeTools: vi.fn().mockResolvedValue([
-          { success: true, content: [{ type: 'text', text: 'ok' }] },
-        ]),
+        executeTools: vi
+          .fn()
+          .mockResolvedValue([{ success: true, content: [{ type: 'text', text: 'ok' }] }]),
       };
 
       const subagentSession = createMockSession({
@@ -1076,9 +1067,7 @@ describe('ToolExecutor', () => {
       const executorSub = new ToolExecutor(depsSub);
 
       // web_fetch is not in deny list
-      const toolCalls = [
-        { id: 'call-allowed-sub', name: 'web_fetch', arguments: '{}' },
-      ];
+      const toolCalls = [{ id: 'call-allowed-sub', name: 'web_fetch', arguments: '{}' }];
 
       const messages = await executorSub.executeToolCalls('session-1', toolCalls);
 
@@ -1106,9 +1095,7 @@ describe('ToolExecutor', () => {
       const executorAllowList = new ToolExecutor(depsAllowList);
 
       // code_runner is NOT in the allow list
-      const toolCalls = [
-        { id: 'call-not-allowed', name: 'code_runner', arguments: '{}' },
-      ];
+      const toolCalls = [{ id: 'call-not-allowed', name: 'code_runner', arguments: '{}' }];
 
       const messages = await executorAllowList.executeToolCalls('session-1', toolCalls);
 
@@ -1187,9 +1174,7 @@ describe('ToolExecutor', () => {
       });
       const executorWS = new ToolExecutor(depsWebSearch);
 
-      const tools = executorWS.buildToolDefinitions(session) as
-        | Array<{ name: string }>
-        | undefined;
+      const tools = executorWS.buildToolDefinitions(session) as Array<{ name: string }> | undefined;
 
       const toolNames = (tools ?? []).map((t) => t.name);
       expect(toolNames).toContain('web_search');
@@ -1203,9 +1188,7 @@ describe('ToolExecutor', () => {
       });
       const executorWF = new ToolExecutor(depsWebFetch);
 
-      const tools = executorWF.buildToolDefinitions(session) as
-        | Array<{ name: string }>
-        | undefined;
+      const tools = executorWF.buildToolDefinitions(session) as Array<{ name: string }> | undefined;
 
       const toolNames = (tools ?? []).map((t) => t.name);
       expect(toolNames).toContain('web_fetch_native');
@@ -1219,9 +1202,7 @@ describe('ToolExecutor', () => {
       });
       const executorGH = new ToolExecutor(depsGitHub);
 
-      const tools = executorGH.buildToolDefinitions(session) as
-        | Array<{ name: string }>
-        | undefined;
+      const tools = executorGH.buildToolDefinitions(session) as Array<{ name: string }> | undefined;
 
       const toolNames = (tools ?? []).map((t) => t.name);
       expect(toolNames).toContain('github');

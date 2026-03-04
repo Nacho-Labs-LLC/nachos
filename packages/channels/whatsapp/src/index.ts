@@ -33,6 +33,17 @@ const WHATSAPP_MEDIA_TYPE_MAP: Record<string, string> = {
   sticker: 'image',
 };
 
+/** Maps attachment types to WhatsApp API media message types. */
+const OUTBOUND_MEDIA_TYPE_MAP: Record<string, string> = {
+  image: 'image',
+  photo: 'image',
+  video: 'video',
+  audio: 'audio',
+};
+
+/** Maximum size in bytes for media downloads (25 MB, WhatsApp limit). */
+const MAX_MEDIA_DOWNLOAD_BYTES = 25 * 1024 * 1024;
+
 interface WhatsAppWebhookMessageText {
   body?: string;
 }
@@ -120,6 +131,7 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
   });
   private pairingToken = process.env.NACHOS_PAIRING_TOKEN;
   private readReceiptSent: Set<string> = new Set();
+  private typingIntervals: Map<string, NodeJS.Timeout> = new Map();
 
   async initialize(config: ChannelAdapterConfig): Promise<void> {
     this.config = config;
@@ -183,25 +195,74 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
   private async handleStatusEvent(event: StatusEvent): Promise<void> {
     if (!event.channelId) return;
 
-    // WhatsApp does not support a true typing indicator via the Cloud API.
-    // The best equivalent is marking messages as "read" so the user sees
-    // blue checkmarks, indicating the bot is processing.
-    if (event.status === 'thinking' && event.channelMessageId) {
-      // Only send read receipt once per message
-      if (this.readReceiptSent.has(event.channelMessageId)) return;
-      this.readReceiptSent.add(event.channelMessageId);
+    if (event.status === 'thinking' || event.status === 'tool') {
+      // Mark the message as read (blue checkmarks) on first thinking event
+      if (event.channelMessageId && !this.readReceiptSent.has(event.channelMessageId)) {
+        this.readReceiptSent.add(event.channelMessageId);
 
-      // Prevent unbounded growth of the set
-      if (this.readReceiptSent.size > 1000) {
-        const iter = this.readReceiptSent.values();
-        const first = iter.next().value;
-        if (first !== undefined) {
-          this.readReceiptSent.delete(first);
+        // Prevent unbounded growth of the set
+        if (this.readReceiptSent.size > 1000) {
+          const iter = this.readReceiptSent.values();
+          const first = iter.next().value;
+          if (first !== undefined) {
+            this.readReceiptSent.delete(first);
+          }
         }
+
+        await this.markMessageAsRead(event.channelMessageId);
       }
 
-      await this.markMessageAsRead(event.channelMessageId);
+      // Start or maintain the typing indicator for this conversation
+      await this.startTypingIndicator(event.channelId);
+    } else if (event.status === 'done' || event.status === 'error') {
+      this.stopTypingIndicator(event.channelId);
     }
+  }
+
+  /**
+   * Start a repeating typing indicator for a conversation.
+   * The WhatsApp Cloud API does not have a native typing indicator, so we
+   * use "read receipts" as the initial signal and log the presence state.
+   * If the on-premises API ever becomes available, this is the hook point.
+   */
+  private async startTypingIndicator(conversationId: string): Promise<void> {
+    if (this.typingIntervals.has(conversationId)) return;
+
+    // Send an initial read receipt / presence signal
+    await this.sendPresenceUpdate(conversationId);
+
+    // Refresh every 4 seconds to maintain the indicator
+    const interval = setInterval(() => {
+      void this.sendPresenceUpdate(conversationId);
+    }, 4000);
+
+    this.typingIntervals.set(conversationId, interval);
+  }
+
+  /**
+   * Stop the typing indicator for a conversation.
+   */
+  private stopTypingIndicator(conversationId: string): void {
+    const interval = this.typingIntervals.get(conversationId);
+    if (interval) {
+      clearInterval(interval);
+      this.typingIntervals.delete(conversationId);
+    }
+  }
+
+  /**
+   * Send a presence/typing update to WhatsApp.
+   * The Cloud API does not expose a true "typing" action like Telegram does.
+   * We log the typing state for observability and will integrate when the
+   * WhatsApp API adds typing indicator support.
+   */
+  private async sendPresenceUpdate(conversationId: string): Promise<void> {
+    // The WhatsApp Cloud API currently does not support a "typing" action.
+    // This method is a structured placeholder that will integrate when
+    // the API provides typing indicator support. For now, typing state
+    // is tracked internally and the read receipt serves as the user-visible
+    // signal that the bot is processing.
+    logger.debug({ conversationId }, 'Typing indicator active');
   }
 
   /**
@@ -231,6 +292,12 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
   }
 
   async stop(): Promise<void> {
+    // Clean up all typing intervals
+    for (const interval of this.typingIntervals.values()) {
+      clearInterval(interval);
+    }
+    this.typingIntervals.clear();
+
     if (!this.server) return;
 
     await new Promise<void>((resolve, reject) => {
@@ -325,6 +392,9 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
 
   /**
    * Send a media attachment as a WhatsApp media message.
+   * Supports URL-based links and base64/data URI attachments.
+   * Base64 data is uploaded to WhatsApp's media endpoint first, then sent
+   * via media ID.
    */
   private async sendOutboundMedia(
     to: string,
@@ -333,54 +403,58 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
   ): Promise<void> {
     if (!this.token || !this.phoneNumberId) return;
 
-    const url = `https://graph.facebook.com/${this.apiVersion}/${this.phoneNumberId}/messages`;
+    const messagesUrl = `https://graph.facebook.com/${this.apiVersion}/${this.phoneNumberId}/messages`;
 
     // Determine the WhatsApp media type
-    let waMediaType: string;
-    if (attachment.type === 'image' || attachment.type === 'photo') {
-      waMediaType = 'image';
-    } else if (attachment.type === 'video') {
-      waMediaType = 'video';
-    } else if (attachment.type === 'audio') {
-      waMediaType = 'audio';
-    } else {
-      waMediaType = 'document';
-    }
+    const waMediaType = OUTBOUND_MEDIA_TYPE_MAP[attachment.type] ?? 'document';
 
     const data = attachment.data;
-
-    // Only support URL-based media sending via WhatsApp Cloud API
-    if (typeof data !== 'string' || !(data.startsWith('http://') || data.startsWith('https://'))) {
+    if (typeof data !== 'string') {
       logger.warn(
         { attachmentType: attachment.type },
-        'WhatsApp outbound media requires a URL; skipping non-URL attachment'
+        'WhatsApp outbound media data must be a string (URL or base64); skipping'
       );
       return;
     }
 
-    const mediaPayload: Record<string, unknown> = {
-      messaging_product: 'whatsapp',
-      to,
-      type: waMediaType,
-    };
+    let mediaObj: Record<string, string>;
 
-    const mediaObj: Record<string, string> = {
-      link: data,
-    };
+    if (data.startsWith('http://') || data.startsWith('https://')) {
+      // URL-based media: send directly via link
+      mediaObj = { link: data };
+    } else {
+      // Base64 or data URI: upload to WhatsApp media endpoint first
+      const mediaId = await this.uploadMedia(data, attachment.name, waMediaType);
+      if (!mediaId) {
+        logger.warn(
+          { attachmentType: attachment.type },
+          'Failed to upload media to WhatsApp; skipping attachment'
+        );
+        return;
+      }
+      mediaObj = { id: mediaId };
+    }
+
     if (attachment.name) {
       if (waMediaType === 'document') {
         mediaObj.filename = attachment.name;
       }
       mediaObj.caption = attachment.name;
     }
-    mediaPayload[waMediaType] = mediaObj;
+
+    const mediaPayload: Record<string, unknown> = {
+      messaging_product: 'whatsapp',
+      to,
+      type: waMediaType,
+      [waMediaType]: mediaObj,
+    };
 
     if (replyToMessageId) {
       mediaPayload.context = { message_id: replyToMessageId };
     }
 
     try {
-      const response = await fetch(url, {
+      const response = await fetch(messagesUrl, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${this.token}`,
@@ -398,6 +472,100 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
       }
     } catch (error) {
       logger.warn({ to, mediaType: waMediaType, err: error }, 'Failed to send outbound media');
+    }
+  }
+
+  /**
+   * Upload binary media to the WhatsApp Cloud API media endpoint.
+   * Accepts base64 strings or data URIs. Returns the media ID on success.
+   */
+  private async uploadMedia(
+    data: string,
+    filename?: string,
+    mediaType?: string
+  ): Promise<string | undefined> {
+    if (!this.token || !this.phoneNumberId) return undefined;
+
+    let buffer: Buffer;
+    let mimeType = 'application/octet-stream';
+
+    if (data.startsWith('data:')) {
+      // Parse data URI: data:<mime>;base64,<data>
+      const mimeMatch = data.match(/^data:([^;]+);base64,/);
+      if (mimeMatch?.[1]) {
+        mimeType = mimeMatch[1];
+      }
+      const base64Index = data.indexOf('base64,');
+      if (base64Index === -1) return undefined;
+      try {
+        buffer = Buffer.from(data.slice(base64Index + 7), 'base64');
+      } catch {
+        return undefined;
+      }
+    } else {
+      // Assume raw base64
+      try {
+        buffer = Buffer.from(data, 'base64');
+      } catch {
+        return undefined;
+      }
+      // Infer mime type from media type hint
+      if (mediaType === 'image') mimeType = 'image/jpeg';
+      else if (mediaType === 'video') mimeType = 'video/mp4';
+      else if (mediaType === 'audio') mimeType = 'audio/mpeg';
+    }
+
+    const uploadUrl = `https://graph.facebook.com/${this.apiVersion}/${this.phoneNumberId}/media`;
+
+    // WhatsApp media upload uses multipart/form-data
+    const boundary = `----NachosMediaBoundary${Date.now()}`;
+    const resolvedFilename = filename ?? 'attachment';
+
+    const header = [
+      `--${boundary}`,
+      `Content-Disposition: form-data; name="file"; filename="${resolvedFilename}"`,
+      `Content-Type: ${mimeType}`,
+      '',
+      '',
+    ].join('\r\n');
+
+    const footer = [
+      '',
+      `--${boundary}`,
+      'Content-Disposition: form-data; name="messaging_product"',
+      '',
+      'whatsapp',
+      `--${boundary}`,
+      'Content-Disposition: form-data; name="type"',
+      '',
+      mimeType,
+      `--${boundary}--`,
+      '',
+    ].join('\r\n');
+
+    const body = Buffer.concat([Buffer.from(header), buffer, Buffer.from(footer)]);
+
+    try {
+      const response = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+          'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        },
+        body,
+      });
+
+      if (!response.ok) {
+        const errorBody = (await response.json()) as { error?: { message?: string } };
+        logger.warn({ err: errorBody.error?.message }, 'Failed to upload media to WhatsApp');
+        return undefined;
+      }
+
+      const result = (await response.json()) as { id?: string };
+      return result.id;
+    } catch (error) {
+      logger.warn({ err: error }, 'Failed to upload media to WhatsApp');
+      return undefined;
     }
   }
 
@@ -596,10 +764,17 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
             if (mediaInfo?.id) {
               const mediaUrl = await this.getMediaUrl(mediaInfo.id);
               if (mediaUrl) {
+                // Download the media content since WhatsApp media URLs are
+                // temporary and require bearer-token authentication.
+                // Convert to a data URI so downstream consumers can use it
+                // without WhatsApp credentials.
+                const dataUri = await this.downloadMedia(mediaUrl, mediaInfo.mime_type);
+                const resolvedUrl = dataUri ?? mediaUrl;
+
                 attachments = [
                   {
                     type: WHATSAPP_MEDIA_TYPE_MAP[messageType] ?? 'file',
-                    url: mediaUrl,
+                    url: resolvedUrl,
                     name: mediaInfo.filename,
                     mimeType: mediaInfo.mime_type,
                   },
@@ -702,6 +877,59 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
       return body.url;
     } catch (error) {
       logger.warn({ mediaId, err: error }, 'Failed to get media URL from WhatsApp');
+      return undefined;
+    }
+  }
+
+  /**
+   * Download media content from a WhatsApp media URL.
+   * WhatsApp media URLs are temporary and require the bearer token to access.
+   * This method downloads the binary content and returns it as a base64 data URI
+   * so downstream consumers do not need WhatsApp credentials.
+   *
+   * Returns undefined if the download fails or exceeds the size limit.
+   */
+  private async downloadMedia(mediaUrl: string, mimeType?: string): Promise<string | undefined> {
+    if (!this.token) return undefined;
+
+    try {
+      const response = await fetch(mediaUrl, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+        },
+      });
+
+      if (!response.ok) {
+        logger.warn({ status: response.status }, 'Failed to download media from WhatsApp');
+        return undefined;
+      }
+
+      // Check content length before downloading
+      const contentLength = response.headers.get('content-length');
+      if (contentLength && Number(contentLength) > MAX_MEDIA_DOWNLOAD_BYTES) {
+        logger.warn(
+          { contentLength },
+          'Media file exceeds maximum download size; returning URL only'
+        );
+        return undefined;
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      if (arrayBuffer.byteLength > MAX_MEDIA_DOWNLOAD_BYTES) {
+        logger.warn(
+          { size: arrayBuffer.byteLength },
+          'Downloaded media exceeds maximum size; discarding'
+        );
+        return undefined;
+      }
+
+      const buffer = Buffer.from(arrayBuffer);
+      const resolvedMime =
+        mimeType ?? response.headers.get('content-type') ?? 'application/octet-stream';
+      return `data:${resolvedMime};base64,${buffer.toString('base64')}`;
+    } catch (error) {
+      logger.warn({ err: error }, 'Failed to download media from WhatsApp');
       return undefined;
     }
   }

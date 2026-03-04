@@ -402,7 +402,8 @@ export function createValidatedHandler<T extends TSchema>(
       }
       if (options.throwOnInvalid) {
         throw createValidationError(
-          `Invalid message envelope: ${envelopeResult.errors?.map((e) => e.message).join('; ')}`, { component: 'validation' }
+          `Invalid message envelope: ${envelopeResult.errors?.map((e) => e.message).join('; ')}`,
+          { component: 'validation' }
         );
       }
       return;
@@ -418,7 +419,8 @@ export function createValidatedHandler<T extends TSchema>(
       }
       if (options.throwOnInvalid) {
         throw createValidationError(
-          `Invalid message payload: ${payloadResult.errors?.map((e) => e.message).join('; ')}`, { component: 'validation' }
+          `Invalid message payload: ${payloadResult.errors?.map((e) => e.message).join('; ')}`,
+          { component: 'validation' }
         );
       }
       return;
