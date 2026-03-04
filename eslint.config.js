@@ -33,6 +33,18 @@ export default tseslint.config(
     },
   },
   {
+    files: ['packages/cli/**/*.ts'],
+    rules: {
+      'no-console': 'off',
+    },
+  },
+  {
+    files: ['packages/core/admin/frontend/**/*.ts'],
+    rules: {
+      'no-console': 'off',
+    },
+  },
+  {
     ignores: [
       'node_modules/',
       '**/node_modules/',

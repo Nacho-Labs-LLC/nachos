@@ -98,30 +98,22 @@ export function generateComposeFile(config: NachosConfig, projectRoot: string): 
     }
 
     // Add tools (conditional - skip if Dockerfile doesn't exist)
-    // Tools are Phase 6, so they may not be implemented yet
     if (config.tools?.filesystem?.enabled) {
       const dockerfilePath = join(projectRoot, 'packages/tools/filesystem/Dockerfile');
       if (existsSync(dockerfilePath)) {
         compose.services.filesystem = buildFilesystemService(config, projectRoot);
-      } else {
-        console.warn('⚠️  Filesystem tool is enabled but not yet implemented (Phase 6)');
       }
     }
 
     if (config.tools?.browser?.enabled) {
       // Browser tool runs locally in the gateway via @playwright/mcp — no separate container needed.
       // The gateway handles browser tool execution in-process.
-      console.warn(
-        'ℹ️  Browser tool is enabled — runs locally in the gateway (no container needed)'
-      );
     }
 
     if (config.tools?.code_runner?.enabled) {
       const dockerfilePath = join(projectRoot, 'packages/tools/code_runner/Dockerfile');
       if (existsSync(dockerfilePath)) {
         compose.services['code-runner'] = buildCodeRunnerService(config, projectRoot);
-      } else {
-        console.warn('⚠️  Code runner tool is enabled but not yet implemented (Phase 6)');
       }
     }
 
@@ -129,8 +121,6 @@ export function generateComposeFile(config: NachosConfig, projectRoot: string): 
       const dockerfilePath = join(projectRoot, 'packages/tools/shell/Dockerfile');
       if (existsSync(dockerfilePath)) {
         compose.services.shell = buildShellService(config, projectRoot);
-      } else {
-        console.warn('⚠️  Shell tool is enabled but not yet implemented (Phase 6)');
       }
     }
 
@@ -138,8 +128,6 @@ export function generateComposeFile(config: NachosConfig, projectRoot: string): 
       const dockerfilePath = join(projectRoot, 'packages/tools/web_search/Dockerfile');
       if (existsSync(dockerfilePath)) {
         compose.services['web-search'] = buildWebSearchService(config, projectRoot);
-      } else {
-        console.warn('⚠️  Web search tool is enabled but not yet implemented (Phase 6)');
       }
     }
 
@@ -147,8 +135,6 @@ export function generateComposeFile(config: NachosConfig, projectRoot: string): 
       const dockerfilePath = join(projectRoot, 'packages/tools/copilot/Dockerfile');
       if (existsSync(dockerfilePath)) {
         compose.services.copilot = buildCopilotService(config, projectRoot);
-      } else {
-        console.warn('⚠️  Copilot tool is enabled but not yet implemented (Phase 6)');
       }
     }
 
@@ -447,8 +433,7 @@ function buildWebchatService(config: NachosConfig, projectRoot: string): Service
   };
 }
 
-// Placeholder service builders for channels/tools not yet implemented
-// These will be expanded as those components are built
+// Service builders for channels and tools
 
 function buildSlackService(_config: NachosConfig, projectRoot: string): Service {
   const environment: Record<string, string> = {

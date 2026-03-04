@@ -12,7 +12,7 @@ import type {
   MemoryQueryResult,
   MemoryStore,
 } from '@nachos/types';
-import { createLogger } from '@nachos/types';
+import { createLogger, createInternalError, createValidationError } from '@nachos/types';
 
 const logger = createLogger('qdrant-memory-store');
 
@@ -169,7 +169,7 @@ export class QdrantMemoryStore implements MemoryStore {
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => 'Unknown error');
-      throw new Error(`Qdrant API error: ${response.status} ${response.statusText} - ${errorText}`);
+      throw createInternalError(`Qdrant API error: ${response.status} ${response.statusText} - ${errorText}`, { component: 'qdrant-memory-store' });
     }
 
     const data = await response.json();
@@ -306,7 +306,7 @@ export class QdrantMemoryStore implements MemoryStore {
 
         entries = entryResults.map((r) => {
           if (!isEntryPayload(r.payload)) {
-            throw new Error(`Expected entry payload but got ${r.payload.kind}`);
+            throw createValidationError(`Expected entry payload but got ${r.payload.kind}`, { component: 'qdrant-memory-store' });
           }
           return {
             id: r.id,
@@ -325,7 +325,7 @@ export class QdrantMemoryStore implements MemoryStore {
         if (factResults.length > 0) {
           facts = factResults.map((r) => {
             if (!isFactPayload(r.payload)) {
-              throw new Error(`Expected fact payload but got ${r.payload.kind}`);
+              throw createValidationError(`Expected fact payload but got ${r.payload.kind}`, { component: 'qdrant-memory-store' });
             }
             return {
               id: r.id,
@@ -358,7 +358,7 @@ export class QdrantMemoryStore implements MemoryStore {
 
         entries = entryPoints.map((p) => {
           if (!isEntryPayload(p.payload)) {
-            throw new Error(`Expected entry payload but got ${p.payload.kind}`);
+            throw createValidationError(`Expected entry payload but got ${p.payload.kind}`, { component: 'qdrant-memory-store' });
           }
           return {
             id: p.id,
@@ -377,7 +377,7 @@ export class QdrantMemoryStore implements MemoryStore {
         if (factPoints.length > 0) {
           facts = factPoints.map((p) => {
             if (!isFactPayload(p.payload)) {
-              throw new Error(`Expected fact payload but got ${p.payload.kind}`);
+              throw createValidationError(`Expected fact payload but got ${p.payload.kind}`, { component: 'qdrant-memory-store' });
             }
             return {
               id: p.id,

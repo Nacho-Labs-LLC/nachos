@@ -28,6 +28,12 @@ const PRIVATE_IP_RANGES = [
   /^fe80:/i,
   /^::1$/,
   /^::$/,
+  // IPv4-mapped IPv6 addresses (::ffff:x.x.x.x) — bypass protection without these
+  /^::ffff:127\./i, // ::ffff:127.0.0.0/8 (loopback)
+  /^::ffff:10\./i, // ::ffff:10.0.0.0/8 (Class A private)
+  /^::ffff:172\.(1[6-9]|2[0-9]|3[01])\./i, // ::ffff:172.16.0.0/12 (Class B private)
+  /^::ffff:192\.168\./i, // ::ffff:192.168.0.0/16 (Class C private)
+  /^::ffff:0\.0\.0\.0$/i, // ::ffff:0.0.0.0 (unspecified)
 ];
 
 export class SSRFProtection {

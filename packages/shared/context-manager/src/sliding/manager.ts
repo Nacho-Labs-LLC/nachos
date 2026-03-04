@@ -87,7 +87,13 @@ export class SlidingWindowManager implements ISlidingWindowManager {
     const keepRecent = this.calculateKeepRecent(messages, action, config);
 
     // Split messages into kept and dropped
-    const splitIndex = Math.max(0, messages.length - keepRecent);
+    let splitIndex = Math.max(0, messages.length - keepRecent);
+
+    // Adjust split index to avoid breaking tool_use / tool_result pairs.
+    // If the first kept message is a tool result, walk backward to include
+    // the preceding assistant message that contains the matching tool_use blocks.
+    splitIndex = this.adjustSplitForToolPairs(messages, splitIndex);
+
     let messagesDropped = messages.slice(0, splitIndex);
     let messagesKept = messages.slice(splitIndex);
 
@@ -195,6 +201,45 @@ export class SlidingWindowManager implements ISlidingWindowManager {
       default:
         return 20;
     }
+  }
+
+  /**
+   * Adjust a split index so it doesn't land between an assistant message
+   * with tool_use blocks and its corresponding tool_result messages.
+   * Walks the split backward to include the full tool pair when necessary.
+   */
+  private adjustSplitForToolPairs(messages: ContextMessage[], splitIndex: number): number {
+    if (splitIndex <= 0 || splitIndex >= messages.length) return splitIndex;
+
+    // If the message at splitIndex is a tool result, walk back to include
+    // the assistant message that produced the tool_use blocks.
+    let adjusted = splitIndex;
+    while (adjusted > 0) {
+      const msg = messages[adjusted];
+      if (!msg || msg.role !== 'tool') break;
+      adjusted--;
+    }
+
+    // Verify we landed on an assistant message with toolCalls
+    if (adjusted < splitIndex) {
+      const candidate = messages[adjusted];
+      if (
+        candidate &&
+        candidate.role === 'assistant' &&
+        candidate.toolCalls &&
+        candidate.toolCalls.length > 0
+      ) {
+        if (adjusted !== splitIndex) {
+          logger.info(
+            { original: splitIndex, adjusted },
+            'Adjusted split index to preserve tool_use/tool_result pair'
+          );
+        }
+        return adjusted;
+      }
+    }
+
+    return splitIndex;
   }
 
   /**

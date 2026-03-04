@@ -19,6 +19,7 @@ import {
   type ToolValidationResult,
   type ToolHealthStatus,
   type ParameterSchema,
+  createToolFailedError,
 } from '@nachos/types';
 import { SSRFProtection } from './ssrf-protection.js';
 
@@ -220,18 +221,18 @@ export class WebFetchTool extends ToolService {
         if (response.status >= 300 && response.status < 400) {
           const location = response.headers.get('location');
           if (!location) {
-            throw new Error(`Redirect response missing location header (${response.status})`);
+            throw createToolFailedError(`Redirect response missing location header (${response.status})`, { component: 'web-fetch' });
           }
 
           if (redirects >= this.fetchConfig.max_redirects) {
-            throw new Error('Too many redirects');
+            throw createToolFailedError('Too many redirects', { component: 'web-fetch' });
           }
 
           const nextUrl = new URL(location, currentUrl).toString();
           const redirectValidation = await this.ssrfProtection.validateURL(nextUrl);
           if (!redirectValidation.valid) {
-            throw new Error(
-              redirectValidation.errors?.join('; ') ?? 'Redirect blocked by SSRF protection'
+            throw createToolFailedError(
+              redirectValidation.errors?.join('; ') ?? 'Redirect blocked by SSRF protection', { component: 'web-fetch' }
             );
           }
 
@@ -241,7 +242,7 @@ export class WebFetchTool extends ToolService {
         }
 
         if (!response.ok) {
-          throw new Error(`HTTP ${response.status} ${response.statusText}`);
+          throw createToolFailedError(`HTTP ${response.status} ${response.statusText}`, { component: 'web-fetch' });
         }
 
         const body = await response.text();

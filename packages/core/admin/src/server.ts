@@ -29,6 +29,21 @@ const publicDir = join(__dirname, 'public');
 const app = new Hono();
 
 app.use('*', honoLogger());
+
+// Security headers — defense-in-depth for the admin UI
+app.use('*', async (c, next) => {
+  await next();
+  c.header('X-Content-Type-Options', 'nosniff');
+  c.header('X-Frame-Options', 'DENY');
+  c.header(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
+  );
+  // X-XSS-Protection: 0 disables the legacy XSS auditor which can introduce
+  // vulnerabilities in modern browsers. CSP is the preferred protection.
+  c.header('X-XSS-Protection', '0');
+});
+
 app.use(
   '/api/*',
   cors({

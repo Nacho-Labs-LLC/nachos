@@ -308,8 +308,7 @@ describe('Gateway', () => {
         }
       ).toolExecutor;
       toolExecutor.updateDeps({
-        stateLayer,
-        getIdentityCompletionStatus: vi.fn().mockResolvedValue(false),
+        state: { stateLayer, getIdentityCompletionStatus: vi.fn().mockResolvedValue(false) },
       });
 
       const call = {
@@ -1128,7 +1127,7 @@ describe('Gateway', () => {
           toolExecutor: { updateDeps: (partial: Record<string, unknown>) => void };
         }
       ).toolExecutor;
-      toolExecutor.updateDeps({ stateLayer: mockStateLayer });
+      toolExecutor.updateDeps({ state: { stateLayer: mockStateLayer } });
 
       const buildLLMRequest = (
         customGateway as unknown as {

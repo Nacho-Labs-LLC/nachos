@@ -1,6 +1,6 @@
 import type { AuditEvent } from '../types.js';
 import type { AuditProvider } from '../provider.js';
-import { createLogger } from '@nachos/types';
+import { createLogger, createConfigError, createValidationError } from '@nachos/types';
 
 const logger = createLogger('audit-webhook');
 
@@ -31,17 +31,17 @@ function validateWebhookUrl(url: string): void {
   try {
     parsed = new URL(url);
   } catch {
-    throw new Error(`Invalid webhook URL: ${url}`);
+    throw createValidationError(`Invalid webhook URL: ${url}`, { component: 'audit-webhook' });
   }
 
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    throw new Error(`Webhook URL must use http or https protocol, got: ${parsed.protocol}`);
+    throw createConfigError(`Webhook URL must use http or https protocol, got: ${parsed.protocol}`, { component: 'audit-webhook' });
   }
 
   if (isPrivateHostname(parsed.hostname)) {
-    throw new Error(
+    throw createConfigError(
       `Webhook URL points to a private/internal address (${parsed.hostname}). ` +
-        'This is blocked to prevent SSRF attacks.'
+        'This is blocked to prevent SSRF attacks.', { component: 'audit-webhook' }
     );
   }
 }

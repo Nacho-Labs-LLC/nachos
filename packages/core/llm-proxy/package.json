@@ -21,12 +21,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.32.1",
+    "@anthropic-ai/sdk": "^0.78.0",
     "@aws-sdk/client-bedrock-runtime": "^3.713.0",
     "@nachos/bus": "workspace:*",
     "@nachos/config": "workspace:*",
     "@nachos/types": "workspace:*",
-    "openai": "^4.83.0"
+    "openai": "^6.25.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",

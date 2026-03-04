@@ -23,7 +23,7 @@ import type {
   ParameterSchema,
   ContentBlock,
 } from '@nachos/types';
-import { SecurityTier, createLogger } from '@nachos/types';
+import { SecurityTier, createLogger, createValidationError } from '@nachos/types';
 import { OutputFormatter, type ExecutionOutput } from './output-formatter.js';
 
 const logger = createLogger('code-runner:python');
@@ -329,7 +329,7 @@ export class PythonExecutor extends ToolService {
     const trimmed = value.trim().toLowerCase();
     const match = trimmed.match(/^(\d+(?:\.\d+)?)(b|kb|k|mb|m|gb|g)?$/);
     if (!match) {
-      throw new Error(`Invalid memory size: ${value}`);
+      throw createValidationError(`Invalid memory size: ${value}`, { component: 'code-runner-python' });
     }
 
     const amount = parseFloat(match[1]!);

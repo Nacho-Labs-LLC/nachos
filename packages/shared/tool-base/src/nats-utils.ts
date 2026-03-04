@@ -6,7 +6,7 @@
 
 import { connect, type NatsConnection, type ConnectionOptions } from 'nats';
 import type { MessageEnvelope } from '@nachos/types';
-import { createLogger } from '@nachos/types';
+import { createLogger, createTimeoutError, createBusConnectionError } from '@nachos/types';
 
 const logger = createLogger('tool-nats');
 
@@ -75,7 +75,7 @@ export async function waitForReady(nc: NatsConnection, timeoutMs: number = 30000
 
   while (!nc.isClosed()) {
     if (Date.now() - startTime > timeoutMs) {
-      throw new Error('Timeout waiting for NATS connection');
+      throw createTimeoutError('Timeout waiting for NATS connection', { component: 'tool-nats' });
     }
 
     // Check if connection is ready by attempting to get server info
@@ -87,7 +87,7 @@ export async function waitForReady(nc: NatsConnection, timeoutMs: number = 30000
     }
   }
 
-  throw new Error('NATS connection closed while waiting for ready');
+  throw createBusConnectionError('NATS connection closed while waiting for ready', { component: 'tool-nats' });
 }
 
 /**

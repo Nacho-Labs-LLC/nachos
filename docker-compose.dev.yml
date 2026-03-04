@@ -113,7 +113,10 @@ services:
       - nachos-egress
       - nachos-internal
     ports:
-      - "${GATEWAY_PORT:-3000}:3000"
+      - "127.0.0.1:${GATEWAY_PORT:-3000}:3000"
+    mem_limit: 2g
+    cpus: 2.0
+    pids_limit: 200
     environment:
       <<: *common-env
       REDIS_URL: redis://:${REDIS_PASSWORD:?Required}@redis:6379
@@ -265,6 +268,9 @@ services:
       timeout: 3s
       retries: 3
       start_period: 5s
+    mem_limit: 1g
+    cpus: 1.0
+    pids_limit: 100
     logging: *default-logging
 
   # -------------------- Admin UI --------------------
@@ -284,7 +290,10 @@ services:
       - nachos-internal
       - nachos-egress
     ports:
-      - "8082:8082"
+      - "127.0.0.1:8082:8082"
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 100
     environment:
       NODE_ENV: development
       PORT: "8082"

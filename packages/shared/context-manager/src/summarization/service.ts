@@ -12,6 +12,7 @@ import type {
   SummarizationConfig,
   SummarizationResult,
 } from '../types/index.js';
+import { createInvalidStateError } from '@nachos/types';
 import { tokenEstimator } from '../utils/token-counter.js';
 
 /**
@@ -58,7 +59,7 @@ export class SummarizationService implements ISummarizationService {
     tier: SummarizationTier
   ): Promise<SummarizationResult> {
     if (!this.config.enabled) {
-      throw new Error('Summarization is disabled');
+      throw createInvalidStateError('Summarization is disabled', { component: 'context-manager' });
     }
 
     // Calculate original token count

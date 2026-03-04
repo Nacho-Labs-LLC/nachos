@@ -6,6 +6,7 @@
  */
 
 import type { ToolCall, ToolResult } from '@nachos/types';
+import { createToolFailedError } from '@nachos/types';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { ToolRateLimiter } from './tool-rate-limiter.js';
@@ -212,7 +213,7 @@ async function execGitHub(
   } catch (error: unknown) {
     // gh CLI returns error in stderr
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      throw new Error('GitHub CLI (gh) is not installed or not in PATH');
+      throw createToolFailedError('GitHub CLI (gh) is not installed or not in PATH', { component: 'gateway' });
     }
     throw error;
   }
