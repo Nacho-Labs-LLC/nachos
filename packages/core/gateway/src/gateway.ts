@@ -85,6 +85,12 @@ import type {
 } from './subagents/types.js';
 import { SandboxManager } from './sandbox/sandbox-manager.js';
 import { coerceLLMContentText } from './utils/parsing.js';
+import {
+  resolveAgentId,
+  buildStateContext,
+  isSubagentSession,
+  normalizeToolName,
+} from './utils/session-utils.js';
 import { registerManagementHandlers } from './management/management-handlers.js';
 import { SkillsManager } from './skills/skills-manager.js';
 import { StreamingSessionManager } from './streaming/streaming-session-manager.js';
@@ -407,33 +413,43 @@ export class Gateway {
     );
 
     this.toolExecutor = new ToolExecutor({
-      instanceId: this.instanceId,
-      securityMode: this.securityMode,
-      toolsConfig: this.toolsConfig,
-      toolCoordinator: this.toolCoordinator,
-      stateLayer: this.stateLayer,
-      dlp: this.dlp,
-      sandboxManager: this.sandboxManager,
-      subagentManager: this.subagentManager,
-      subagentOrchestrator: this.subagentOrchestrator,
-      subagentToolPolicy: this.subagentToolPolicy,
-      scheduler: this.scheduler,
-      resolveToolGroup: (tool) => this.resolveToolGroup(tool),
-      evaluatePolicy: (request) => this.evaluatePolicy(request as SecurityRequest),
-      logAuditEvent: (event) => this.logAuditEvent(event),
-      publishStatusEvent: (sessionId, status, channelId, channelMessageId, toolName) =>
-        this.publishStatusEvent(sessionId, status, channelId, channelMessageId, toolName),
-      getSession: (sessionId) => this.sessionManager.getSession(sessionId),
-      getMessages: (sessionId) => this.sessionManager.getMessages(sessionId),
-      getIdentityCompletionStatus: (session) => this.getIdentityCompletionStatus(session),
-      markIdentityCompleted: (agentId, content, context) =>
-        this.markIdentityCompleted(agentId, content, context),
-      resetIdentityForCommand: (session) => this.resetIdentityForCommand(session),
-      getSubagentInfo: (runId) => this.getSubagentInfo(runId),
-      listSubagents: () => this.listSubagents(),
-      stopSubagent: (runId) => this.stopSubagent(runId),
-      steerSubagent: (runId, message) => this.steerSubagent(runId, message),
-      getSubagentLog: (runId) => this.getSubagentLog(runId),
+      core: {
+        instanceId: this.instanceId,
+        securityMode: this.securityMode,
+        toolsConfig: this.toolsConfig,
+        toolCoordinator: this.toolCoordinator,
+        scheduler: this.scheduler,
+        subagentManager: this.subagentManager,
+        subagentOrchestrator: this.subagentOrchestrator,
+      },
+      policy: {
+        resolveToolGroup: (tool) => this.resolveToolGroup(tool),
+        evaluatePolicy: (request) => this.evaluatePolicy(request as SecurityRequest),
+        subagentToolPolicy: this.subagentToolPolicy,
+      },
+      audit: {
+        logAuditEvent: (event) => this.logAuditEvent(event),
+        publishStatusEvent: (sessionId, status, channelId, channelMessageId, toolName) =>
+          this.publishStatusEvent(sessionId, status, channelId, channelMessageId, toolName),
+      },
+      state: {
+        stateLayer: this.stateLayer,
+        getSession: (sessionId) => this.sessionManager.getSession(sessionId),
+        getMessages: (sessionId) => this.sessionManager.getMessages(sessionId),
+        getIdentityCompletionStatus: (session) => this.getIdentityCompletionStatus(session),
+        markIdentityCompleted: (agentId, content, context) =>
+          this.markIdentityCompleted(agentId, content, context),
+        resetIdentityForCommand: (session) => this.resetIdentityForCommand(session),
+        getSubagentInfo: (runId) => this.getSubagentInfo(runId),
+        listSubagents: () => this.listSubagents(),
+        stopSubagent: (runId) => this.stopSubagent(runId),
+        steerSubagent: (runId, message) => this.steerSubagent(runId, message),
+        getSubagentLog: (runId) => this.getSubagentLog(runId),
+      },
+      security: {
+        dlp: this.dlp,
+        sandboxManager: this.sandboxManager,
+      },
     });
 
     // Register default handlers
@@ -1154,9 +1170,9 @@ export class Gateway {
     let bootstrapLocked = false;
 
     if (this.stateLayer) {
-      const context = this.buildStateContext(session);
-      const agentId = this.resolveAgentId(session);
-      const isSubagent = this.isSubagentSession(session);
+      const context = buildStateContext(session, this.securityMode);
+      const agentId = resolveAgentId(session);
+      const isSubagent = isSubagentSession(session);
 
       try {
         const identity = isSubagent ? null : await this.stateLayer.getIdentity(agentId, context);
@@ -1255,6 +1271,10 @@ export class Gateway {
       messages.push(...extraMessages);
     }
 
+    // Safety net: ensure every assistant tool_use block has a matching tool_result.
+    // Orphaned tool_use blocks cause Anthropic API 400 errors.
+    this.patchOrphanedToolUseBlocks(messages);
+
     const tools = this.toolExecutor.buildToolDefinitions(session, { bootstrapLocked });
 
     return {
@@ -1271,6 +1291,71 @@ export class Gateway {
     };
   }
 
+  /**
+   * Patch orphaned tool_use blocks that lack matching tool_result messages.
+   * Mutates the messages array in place by injecting synthetic tool_result blocks.
+   */
+  private patchOrphanedToolUseBlocks(messages: LLMRequestType['messages']): void {
+    for (let i = 0; i < messages.length; i++) {
+      const msg = messages[i];
+      if (!msg || msg.role !== 'assistant' || !Array.isArray(msg.content)) continue;
+
+      // Collect tool_use ids from this assistant message
+      const toolUseIds: string[] = [];
+      for (const block of msg.content as Array<{ type?: string; id?: string }>) {
+        if (block && block.type === 'tool_use' && block.id) {
+          toolUseIds.push(block.id);
+        }
+      }
+      if (toolUseIds.length === 0) continue;
+
+      // Check subsequent messages for matching tool_result blocks
+      const matchedIds = new Set<string>();
+      for (let j = i + 1; j < messages.length; j++) {
+        const next = messages[j];
+        if (!next) break;
+        // tool_result blocks are in tool-role messages
+        if (next.role === 'tool' && Array.isArray(next.content)) {
+          for (const block of next.content as Array<{
+            type?: string;
+            tool_use_id?: string;
+          }>) {
+            if (block && block.type === 'tool_result' && block.tool_use_id) {
+              matchedIds.add(block.tool_use_id);
+            }
+          }
+        } else if (next.role === 'user' || next.role === 'assistant') {
+          // Stop scanning once we hit the next user/assistant message
+          break;
+        }
+      }
+
+      const orphanedIds = toolUseIds.filter((id) => !matchedIds.has(id));
+      if (orphanedIds.length === 0) continue;
+
+      logger.warn(
+        { orphanedIds, messageIndex: i },
+        'Patching orphaned tool_use blocks with synthetic tool_result'
+      );
+
+      // Insert synthetic tool_result messages right after this assistant message
+      const syntheticToolMessages = orphanedIds.map((id) => ({
+        role: 'tool' as const,
+        content: [
+          {
+            type: 'tool_result' as const,
+            tool_use_id: id,
+            tool_result: { error: 'Tool result unavailable (recovered from history gap)' },
+            is_error: true,
+          },
+        ] as unknown as string,
+      }));
+      messages.splice(i + 1, 0, ...syntheticToolMessages);
+      // Skip past the messages we just inserted
+      i += syntheticToolMessages.length;
+    }
+  }
+
   private async requestLLMResponse(
     sessionId: string,
     extraMessages: LLMRequestType['messages'] = [],
@@ -1285,19 +1370,6 @@ export class Gateway {
     }
 
     return responseEnvelope as LLMResponseType;
-  }
-
-  private resolveAgentId(session: Session): string {
-    return session.userId ?? session.id;
-  }
-
-  private buildStateContext(session: Session): StateOperationContext {
-    return {
-      sessionId: session.id,
-      userId: session.userId,
-      securityMode: this.securityMode,
-      channel: session.channel,
-    };
   }
 
   private buildStateLayerDependencies(): StateLayerDependencies {
@@ -1344,16 +1416,6 @@ export class Gateway {
     return 'call';
   }
 
-  private isSubagentSession(session: Session | null): boolean {
-    if (!session?.metadata) {
-      return false;
-    }
-    return 'subagent' in session.metadata;
-  }
-
-  private normalizeToolName(tool: string): string {
-    return tool.trim().toLowerCase();
-  }
 
   /**
    * Create job executor for scheduler
@@ -1446,7 +1508,7 @@ export class Gateway {
     const map = new Map<string, string>();
     const applyGroup = (groupName: string, tools: string[]) => {
       for (const tool of tools) {
-        const normalized = this.normalizeToolName(tool);
+        const normalized = normalizeToolName(tool);
         if (normalized.length > 0) {
           map.set(normalized, groupName);
         }
@@ -1467,7 +1529,7 @@ export class Gateway {
       }
       if (config.enabled === false) {
         for (const tool of config.tools) {
-          map.delete(this.normalizeToolName(tool));
+          map.delete(normalizeToolName(tool));
         }
         continue;
       }
@@ -1478,7 +1540,7 @@ export class Gateway {
   }
 
   private resolveToolGroup(tool: string): string | undefined {
-    const normalized = this.normalizeToolName(tool);
+    const normalized = normalizeToolName(tool);
     return this.toolGroupMap.get(normalized);
   }
 
@@ -1525,8 +1587,8 @@ export class Gateway {
     if (!this.stateLayer) {
       return false;
     }
-    const agentId = this.resolveAgentId(session);
-    const context = { ...this.buildStateContext(session), internalTool: true };
+    const agentId = resolveAgentId(session);
+    const context = { ...buildStateContext(session, this.securityMode), internalTool: true };
     const identity = await this.stateLayer.getIdentity(agentId, context);
     return Boolean(identity?.identityCompleted);
   }
@@ -1536,8 +1598,8 @@ export class Gateway {
       return;
     }
 
-    const agentId = this.resolveAgentId(session);
-    const context = { ...this.buildStateContext(session), internalTool: true };
+    const agentId = resolveAgentId(session);
+    const context = { ...buildStateContext(session, this.securityMode), internalTool: true };
     const now = new Date().toISOString();
     const current = await this.stateLayer.getIdentity(agentId, context);
 
@@ -1713,6 +1775,24 @@ export class Gateway {
             { err: toolError, sessionId, toolIteration, tools: toolCalls.map((t) => t.name) },
             'Tool loop iteration failed'
           );
+
+          // Store synthetic tool_result messages so the history stays valid.
+          // The assistant message with tool_use blocks was already saved above;
+          // without matching tool_result blocks, subsequent API calls will fail.
+          for (const tc of toolCalls) {
+            await this.sessionManager.addMessage(sessionId, {
+              role: 'tool',
+              content: JSON.stringify([
+                {
+                  type: 'tool_result',
+                  tool_use_id: tc.id,
+                  tool_result: { error: errMsg.slice(0, 200) },
+                  is_error: true,
+                },
+              ]),
+            });
+          }
+
           // Fall through to send error as responseText to the user
           responseText = `⚠️ A tool call failed: ${errMsg.slice(0, 200)}. Please try again.`;
           void this.publishStatusEvent(
@@ -2038,9 +2118,8 @@ export class Gateway {
 
     // Update ToolExecutor with runtime deps that weren't available during construction
     this.toolExecutor.updateDeps({
-      toolCoordinator: this.toolCoordinator,
-      dlp: this.dlp,
-      scheduler: this.scheduler,
+      core: { toolCoordinator: this.toolCoordinator, scheduler: this.scheduler },
+      security: { dlp: this.dlp },
     });
 
     this.approvalManager.on('approval-requested', async (request) => {
@@ -2385,7 +2464,7 @@ export class Gateway {
           if (!this.isContextManagementEnabledForSession(session)) {
             continue;
           }
-          const context = this.buildStateContext(session);
+          const context = buildStateContext(session, this.securityMode);
           const shouldRun = await memoryPipeline.shouldRunPeriodic(session, context);
           if (!shouldRun) continue;
 

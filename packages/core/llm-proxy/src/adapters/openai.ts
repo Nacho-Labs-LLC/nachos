@@ -86,7 +86,7 @@ export class OpenAIAdapter {
           messages: toOpenAiMessages(request.messages),
           tools: toOpenAiTools(request.tools),
           temperature: options.temperature,
-          max_tokens: options.maxTokens,
+          max_completion_tokens: options.maxTokens,
           stream: false,
         },
         { timeout: options.timeout ?? DEFAULT_TIMEOUT_MS }
@@ -143,7 +143,7 @@ export class OpenAIAdapter {
           messages: toOpenAiMessages(request.messages),
           tools: toOpenAiTools(request.tools),
           temperature: options.temperature,
-          max_tokens: options.maxTokens,
+          max_completion_tokens: options.maxTokens,
           stream: true,
         },
         { timeout: options.timeout ?? DEFAULT_TIMEOUT_MS }

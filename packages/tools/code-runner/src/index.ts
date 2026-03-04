@@ -7,7 +7,7 @@
  */
 
 import { connectToNats, setupShutdownHandlers } from '@nachos/tool-base';
-import { createLogger } from '@nachos/types';
+import { createLogger, createValidationError } from '@nachos/types';
 import { PythonExecutor } from './python-executor.js';
 import { JavaScriptExecutor } from './javascript-executor.js';
 
@@ -41,7 +41,7 @@ async function main() {
       tool = new JavaScriptExecutor();
       break;
     default:
-      throw new Error(`Unknown language: ${language}`);
+      throw createValidationError(`Unknown language: ${language}`, { component: 'code-runner' });
   }
 
   // Setup graceful shutdown

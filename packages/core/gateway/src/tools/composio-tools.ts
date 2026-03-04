@@ -4,7 +4,7 @@
 
 import type { ToolCall, ToolResult } from '@nachos/types';
 import type { StateLayer, StateOperationContext } from '@nachos/state';
-import { createLogger } from '@nachos/types';
+import { createLogger, createConfigError } from '@nachos/types';
 
 const logger = createLogger('composio-tools');
 
@@ -68,7 +68,7 @@ export function initComposioClient(config: {
 
 function getComposioConfig() {
   if (!composioConfig) {
-    throw new Error('Composio not configured');
+    throw createConfigError('Composio not configured', { component: 'gateway' });
   }
   return composioConfig;
 }

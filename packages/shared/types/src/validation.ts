@@ -8,6 +8,7 @@
 import { TypeCompiler, type TypeCheck } from '@sinclair/typebox/compiler';
 import { Value, type ValueError } from '@sinclair/typebox/value';
 import type { TSchema, Static } from '@sinclair/typebox';
+import { createValidationError } from './errors.js';
 import {
   MessageEnvelopeSchema,
   ChannelInboundMessageSchema,
@@ -148,7 +149,7 @@ export function validateOrThrow<T extends TSchema>(schema: T, data: unknown): St
 
   if (!result.success) {
     const errorMessages = result.errors?.map((e) => `${e.path}: ${e.message}`).join('; ') ?? '';
-    throw new Error(`Validation failed: ${errorMessages}`);
+    throw createValidationError(`Validation failed: ${errorMessages}`, { component: 'validation' });
   }
 
   return result.data as Static<T>;
@@ -400,8 +401,8 @@ export function createValidatedHandler<T extends TSchema>(
         options.onError(envelopeResult.errors ?? [], envelope);
       }
       if (options.throwOnInvalid) {
-        throw new Error(
-          `Invalid message envelope: ${envelopeResult.errors?.map((e) => e.message).join('; ')}`
+        throw createValidationError(
+          `Invalid message envelope: ${envelopeResult.errors?.map((e) => e.message).join('; ')}`, { component: 'validation' }
         );
       }
       return;
@@ -416,8 +417,8 @@ export function createValidatedHandler<T extends TSchema>(
         options.onError(payloadResult.errors ?? [], validatedEnvelope.payload);
       }
       if (options.throwOnInvalid) {
-        throw new Error(
-          `Invalid message payload: ${payloadResult.errors?.map((e) => e.message).join('; ')}`
+        throw createValidationError(
+          `Invalid message payload: ${payloadResult.errors?.map((e) => e.message).join('; ')}`, { component: 'validation' }
         );
       }
       return;

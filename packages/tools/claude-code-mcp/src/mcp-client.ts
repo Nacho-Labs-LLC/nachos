@@ -5,6 +5,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { createInternalError } from '@nachos/types';
 
 export interface ClaudeCodeMcpClientConfig {
   command: string;
@@ -92,7 +93,7 @@ export class ClaudeCodeMcpClient {
     await this.connect();
 
     if (!this.client) {
-      throw new Error('MCP client not connected');
+      throw createInternalError('MCP client not connected', { component: 'claude-code-mcp' });
     }
 
     return this.client.callTool({

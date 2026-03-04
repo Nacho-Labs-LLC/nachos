@@ -7,7 +7,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { watch, type FSWatcher } from 'chokidar';
-import { createLogger } from '@nachos/types';
+import { createLogger, createConfigError } from '@nachos/types';
 
 const logger = createLogger('hotreload');
 
@@ -47,11 +47,11 @@ export class HotReloadWatcher {
    */
   watch(directory: string, callback: FileChangeCallback): void {
     if (!fs.existsSync(directory)) {
-      throw new Error(`Directory does not exist: ${directory}`);
+      throw createConfigError(`Directory does not exist: ${directory}`, { component: 'hotreload' });
     }
 
     if (!fs.statSync(directory).isDirectory()) {
-      throw new Error(`Path is not a directory: ${directory}`);
+      throw createConfigError(`Path is not a directory: ${directory}`, { component: 'hotreload' });
     }
 
     // Store callback for this directory

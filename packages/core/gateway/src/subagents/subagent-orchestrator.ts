@@ -5,7 +5,7 @@
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import type { LLMRequestType } from '@nachos/types';
-import { createLogger, createInvalidStateError, createValidationError } from '@nachos/types';
+import { createLogger, createInvalidStateError, createValidationError, createNotFoundError, createInternalError } from '@nachos/types';
 
 const logger = createLogger('subagent-orchestrator');
 import type { Router } from '../router.js';
@@ -593,14 +593,14 @@ export class SubagentOrchestrator {
         workflow.currentBatch = batchIndex;
         const batch = plan.batches[batchIndex];
         if (!batch) {
-          throw new Error(`Batch ${batchIndex} not found in execution plan`);
+          throw createNotFoundError(`Batch ${batchIndex} not found in execution plan`, { component: 'gateway' });
         }
 
         // Spawn all steps in the batch (parallel execution)
         const batchPromises = batch.map(async (stepId) => {
           const step = plan.steps.get(stepId);
           if (!step) {
-            throw new Error(`Step ${stepId} not found in execution plan`);
+            throw createNotFoundError(`Step ${stepId} not found in execution plan`, { component: 'gateway' });
           }
 
           // Build task with dependency results injected
@@ -672,8 +672,8 @@ export class SubagentOrchestrator {
 
           // If step failed, propagate error
           if (finalRun?.status === 'failed') {
-            throw new Error(
-              `Step "${stepId}" failed: ${finalRun.error?.message ?? 'Unknown error'}`
+            throw createInternalError(
+              `Step "${stepId}" failed: ${finalRun.error?.message ?? 'Unknown error'}`, { component: 'gateway' }
             );
           }
         });

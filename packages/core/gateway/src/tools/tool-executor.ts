@@ -70,27 +70,40 @@ import {
   readCleanup,
   stringifyToolParameters,
 } from '../utils/parsing.js';
+import {
+  resolveAgentId,
+  buildStateContext,
+  isSubagentSession,
+  normalizeToolName,
+} from '../utils/session-utils.js';
 import { randomUUID } from 'node:crypto';
 
 const logger = createLogger('tool-executor');
 
-export interface ToolExecutorDeps {
+// ---------------------------------------------------------------------------
+// ToolExecutorDeps — grouped sub-interfaces
+// ---------------------------------------------------------------------------
+
+export interface ToolExecutorCoreDeps {
   instanceId: string;
   securityMode: 'strict' | 'standard' | 'permissive';
   toolsConfig?: ToolsConfig;
   toolCoordinator: ToolCoordinator | null;
-  stateLayer?: StateLayer;
-  dlp: DLPSecurityLayer | null;
-  sandboxManager?: SandboxManager;
+  scheduler?: Scheduler;
   subagentManager?: unknown;
   subagentOrchestrator?: SubagentOrchestrator;
-  subagentToolPolicy?: SubagentToolPolicyConfig;
-  scheduler?: Scheduler;
+}
 
+export interface ToolExecutorPolicyDeps {
   /** Resolve tool group for a tool name */
   resolveToolGroup(tool: string): string | undefined;
   /** Evaluate policy for a security request */
   evaluatePolicy(request: unknown): { allowed: boolean; reason?: string; ruleId?: string };
+  /** Subagent tool policy configuration */
+  subagentToolPolicy?: SubagentToolPolicyConfig;
+}
+
+export interface ToolExecutorAuditDeps {
   /** Log an audit event */
   logAuditEvent(event: AuditEvent): Promise<void>;
   /** Publish a status event */
@@ -101,6 +114,10 @@ export interface ToolExecutorDeps {
     channelMessageId?: string,
     toolName?: string
   ): Promise<void>;
+}
+
+export interface ToolExecutorStateDeps {
+  stateLayer?: StateLayer;
   /** Get session by ID */
   getSession(sessionId: string): Promise<Session | null>;
   /** Get messages for a session */
@@ -127,6 +144,19 @@ export interface ToolExecutorDeps {
   getSubagentLog(runId: string): Promise<{ runId: string; messages: unknown[] } | null>;
 }
 
+export interface ToolExecutorSecurityDeps {
+  dlp: DLPSecurityLayer | null;
+  sandboxManager?: SandboxManager;
+}
+
+export interface ToolExecutorDeps {
+  core: ToolExecutorCoreDeps;
+  policy: ToolExecutorPolicyDeps;
+  audit: ToolExecutorAuditDeps;
+  state: ToolExecutorStateDeps;
+  security: ToolExecutorSecurityDeps;
+}
+
 export class ToolExecutor {
   private deps: ToolExecutorDeps;
   /** H2: Memory tool rate limiting (10 calls per minute per session) */
@@ -138,9 +168,20 @@ export class ToolExecutor {
 
   /**
    * Update deps (e.g. after toolCoordinator is initialized in start()).
+   * Performs a shallow merge on each sub-group.
    */
-  updateDeps(partial: Partial<ToolExecutorDeps>): void {
-    Object.assign(this.deps, partial);
+  updateDeps(partial: {
+    core?: Partial<ToolExecutorCoreDeps>;
+    policy?: Partial<ToolExecutorPolicyDeps>;
+    audit?: Partial<ToolExecutorAuditDeps>;
+    state?: Partial<ToolExecutorStateDeps>;
+    security?: Partial<ToolExecutorSecurityDeps>;
+  }): void {
+    if (partial.core) Object.assign(this.deps.core, partial.core);
+    if (partial.policy) Object.assign(this.deps.policy, partial.policy);
+    if (partial.audit) Object.assign(this.deps.audit, partial.audit);
+    if (partial.state) Object.assign(this.deps.state, partial.state);
+    if (partial.security) Object.assign(this.deps.security, partial.security);
   }
 
   // ---------------------------------------------------------------------------
@@ -151,14 +192,14 @@ export class ToolExecutor {
     session: Session,
     options?: { bootstrapLocked?: boolean }
   ): LLMRequestType['tools'] {
-    if (this.isSubagentSession(session)) {
+    if (isSubagentSession(session)) {
       return this.buildSubagentToolDefinitions();
     }
 
     const tools: NonNullable<LLMRequestType['tools']> = [];
     const bootstrapLocked = Boolean(options?.bootstrapLocked);
 
-    if (this.deps.subagentManager) {
+    if (this.deps.core.subagentManager) {
       tools.push({
         name: 'sessions_spawn',
         description: 'Spawn a subagent to run a task and announce results back to the requester.',
@@ -179,7 +220,7 @@ export class ToolExecutor {
     }
 
     // Memory tools
-    if (this.deps.stateLayer && !bootstrapLocked) {
+    if (this.deps.state.stateLayer && !bootstrapLocked) {
       tools.push({
         name: 'memory_search',
         description:
@@ -201,7 +242,7 @@ export class ToolExecutor {
     }
 
     // GitHub tool
-    if (this.deps.toolsConfig?.github?.enabled && !bootstrapLocked) {
+    if (this.deps.core.toolsConfig?.github?.enabled && !bootstrapLocked) {
       tools.push({
         name: 'github',
         description:
@@ -211,7 +252,7 @@ export class ToolExecutor {
     }
 
     // Cron scheduler tools
-    if (this.deps.scheduler && !bootstrapLocked) {
+    if (this.deps.core.scheduler && !bootstrapLocked) {
       tools.push({
         name: 'nachos_cron_add',
         description:
@@ -241,7 +282,7 @@ export class ToolExecutor {
     }
 
     // User profile tool
-    if (this.deps.stateLayer) {
+    if (this.deps.state.stateLayer) {
       tools.push({
         name: 'user_profile',
         description:
@@ -252,8 +293,8 @@ export class ToolExecutor {
 
     // Bootstrap tool
     if (
-      this.deps.stateLayer &&
-      this.deps.toolsConfig?.bootstrap?.enabled !== false &&
+      this.deps.state.stateLayer &&
+      this.deps.core.toolsConfig?.bootstrap?.enabled !== false &&
       !bootstrapLocked
     ) {
       tools.push({
@@ -265,7 +306,7 @@ export class ToolExecutor {
     }
 
     // Bitbucket tool
-    if (this.deps.toolsConfig?.bitbucket?.enabled && !bootstrapLocked) {
+    if (this.deps.core.toolsConfig?.bitbucket?.enabled && !bootstrapLocked) {
       tools.push({
         name: 'bitbucket',
         description:
@@ -275,7 +316,7 @@ export class ToolExecutor {
     }
 
     // Composio tool
-    if (this.deps.toolsConfig?.composio?.enabled && !bootstrapLocked) {
+    if (this.deps.core.toolsConfig?.composio?.enabled && !bootstrapLocked) {
       tools.push({
         name: 'composio',
         description:
@@ -285,7 +326,7 @@ export class ToolExecutor {
     }
 
     // Web search tool
-    if (this.deps.toolsConfig?.web_search?.enabled && !bootstrapLocked) {
+    if (this.deps.core.toolsConfig?.web_search?.enabled && !bootstrapLocked) {
       tools.push({
         name: 'web_search',
         description:
@@ -295,7 +336,7 @@ export class ToolExecutor {
     }
 
     // Web fetch native tool
-    if (this.deps.toolsConfig?.web_fetch?.enabled && !bootstrapLocked) {
+    if (this.deps.core.toolsConfig?.web_fetch?.enabled && !bootstrapLocked) {
       tools.push({
         name: 'web_fetch_native',
         description:
@@ -305,14 +346,14 @@ export class ToolExecutor {
     }
 
     // Browser automation tools
-    if (this.deps.toolsConfig?.browser?.enabled && !bootstrapLocked) {
+    if (this.deps.core.toolsConfig?.browser?.enabled && !bootstrapLocked) {
       // Dynamically import to avoid circular dep at module level
       const browserDefs = getBrowserToolDefinitions();
       tools.push(...browserDefs);
     }
 
     // External container-based tools
-    const externalTools = getExternalToolDefinitions(this.deps.toolsConfig);
+    const externalTools = getExternalToolDefinitions(this.deps.core.toolsConfig);
     for (const extTool of externalTools) {
       tools.push({
         name: extTool.name,
@@ -334,11 +375,11 @@ export class ToolExecutor {
     statusMeta?: { channelId: string; channelMessageId?: string }
   ): Promise<LLMRequestType['messages']> {
     logger.info({ sessionId, tools: toolCalls.map((tc) => tc.name) }, 'Executing tool calls');
-    if (!this.deps.toolCoordinator) {
+    if (!this.deps.core.toolCoordinator) {
       throw new Error('Tool coordinator not initialized');
     }
 
-    const session = await this.deps.getSession(sessionId);
+    const session = await this.deps.state.getSession(sessionId);
 
     // Convert LLM tool calls to our ToolCall format
     const calls: ToolCall[] = toolCalls.map((tc) => {
@@ -352,15 +393,15 @@ export class ToolExecutor {
       return {
         id: tc.id,
         tool: tc.name,
-        toolGroup: this.deps.resolveToolGroup(tc.name),
+        toolGroup: this.deps.policy.resolveToolGroup(tc.name),
         sessionId,
         userId: session?.userId,
         parameters,
-        securityMode: this.deps.securityMode,
+        securityMode: this.deps.core.securityMode,
       };
     });
 
-    const securityMode = this.deps.securityMode;
+    const securityMode = this.deps.core.securityMode;
 
     const blockedResults: Array<{ index: number; result: ToolResult }> = [];
     const allowedCalls: Array<{ index: number; call: ToolCall }> = [];
@@ -371,13 +412,13 @@ export class ToolExecutor {
       if (!call) continue;
 
       // Subagent policy check
-      if (this.isSubagentSession(session)) {
+      if (isSubagentSession(session)) {
         const policy = this.evaluateSubagentToolPolicy(call.tool, session);
         if (!policy.allowed) {
-          void this.deps.logAuditEvent({
+          void this.deps.audit.logAuditEvent({
             id: `subagent-tool-policy-${call.id}`,
             timestamp: new Date().toISOString(),
-            instanceId: this.deps.instanceId,
+            instanceId: this.deps.core.instanceId,
             userId: session?.userId ?? 'unknown',
             sessionId,
             channel: session?.channel ?? 'unknown',
@@ -400,15 +441,15 @@ export class ToolExecutor {
       }
 
       // DLP scan on tool input
-      if (this.deps.dlp) {
+      if (this.deps.security.dlp) {
         const paramText = stringifyToolParameters(call.parameters);
         if (paramText) {
-          const scanResult = this.deps.dlp.scan(paramText, session?.channel);
+          const scanResult = this.deps.security.dlp.scan(paramText, session?.channel);
           if (!scanResult.allowed) {
-            void this.deps.logAuditEvent({
+            void this.deps.audit.logAuditEvent({
               id: `dlp-tool-${call.id}`,
               timestamp: new Date().toISOString(),
-              instanceId: this.deps.instanceId,
+              instanceId: this.deps.core.instanceId,
               userId: session?.userId ?? 'unknown',
               sessionId,
               channel: session?.channel ?? 'unknown',
@@ -438,10 +479,10 @@ export class ToolExecutor {
           }
 
           if (scanResult.action === 'alert') {
-            void this.deps.logAuditEvent({
+            void this.deps.audit.logAuditEvent({
               id: `dlp-tool-alert-${call.id}`,
               timestamp: new Date().toISOString(),
-              instanceId: this.deps.instanceId,
+              instanceId: this.deps.core.instanceId,
               userId: session?.userId ?? 'unknown',
               sessionId,
               channel: session?.channel ?? 'unknown',
@@ -464,7 +505,7 @@ export class ToolExecutor {
       const localResult = await this.executeLocalToolCall(call, session);
       if (localResult) {
         if (statusMeta) {
-          void this.deps.publishStatusEvent(
+          void this.deps.audit.publishStatusEvent(
             sessionId,
             'tool',
             statusMeta.channelId,
@@ -477,15 +518,15 @@ export class ToolExecutor {
       }
 
       // Sandbox resolution
-      if (this.deps.sandboxManager) {
-        const sandboxDecision = this.deps.sandboxManager.resolveToolSandbox(session!);
+      if (this.deps.security.sandboxManager) {
+        const sandboxDecision = this.deps.security.sandboxManager.resolveToolSandbox(session!);
         if (sandboxDecision.enabled && sandboxDecision.config) {
           call.sandbox = sandboxDecision.config;
         }
       }
 
       if (statusMeta) {
-        void this.deps.publishStatusEvent(
+        void this.deps.audit.publishStatusEvent(
           sessionId,
           'tool',
           statusMeta.channelId,
@@ -507,7 +548,7 @@ export class ToolExecutor {
     }
 
     const executedResults = allowedCalls.length
-      ? await this.deps.toolCoordinator.executeTools(allowedCalls.map((item) => item.call))
+      ? await this.deps.core.toolCoordinator.executeTools(allowedCalls.map((item) => item.call))
       : [];
 
     for (let i = 0; i < allowedCalls.length; i += 1) {
@@ -517,7 +558,7 @@ export class ToolExecutor {
     }
 
     // DLP scan on tool results
-    if (this.deps.dlp) {
+    if (this.deps.security.dlp) {
       for (let i = 0; i < results.length; i += 1) {
         const result = results[i];
         const call = calls[i];
@@ -588,7 +629,7 @@ export class ToolExecutor {
     session: Session | null
   ): Promise<ToolResult | null> {
     if (call.tool === 'sessions_spawn') {
-      if (!this.deps.subagentOrchestrator) {
+      if (!this.deps.core.subagentOrchestrator) {
         return this.formatToolError('SUBAGENT_DISABLED', 'Subagent execution is not configured');
       }
       if (!session) {
@@ -630,7 +671,7 @@ export class ToolExecutor {
         },
       };
 
-      const run = await this.deps.subagentOrchestrator.enqueue(runRequest);
+      const run = await this.deps.core.subagentOrchestrator.enqueue(runRequest);
       return {
         success: true,
         content: [
@@ -647,7 +688,7 @@ export class ToolExecutor {
     }
 
     if (call.tool === 'sessions_orchestrate') {
-      if (!this.deps.subagentOrchestrator) {
+      if (!this.deps.core.subagentOrchestrator) {
         return this.formatToolError('SUBAGENT_DISABLED', 'Subagent execution is not configured');
       }
       if (!session) {
@@ -683,7 +724,7 @@ export class ToolExecutor {
         }),
       };
 
-      const workflowRecord = await this.deps.subagentOrchestrator.enqueueWorkflow(workflow, {
+      const workflowRecord = await this.deps.core.subagentOrchestrator.enqueueWorkflow(workflow, {
         sessionId: session.id,
         channel: session.channel,
         conversationId: session.conversationId,
@@ -710,7 +751,7 @@ export class ToolExecutor {
     }
 
     if (call.tool === 'subagent_progress') {
-      if (!this.deps.subagentOrchestrator) {
+      if (!this.deps.core.subagentOrchestrator) {
         return this.formatToolError('SUBAGENT_DISABLED', 'Subagent execution is not configured');
       }
       if (!session) {
@@ -738,7 +779,7 @@ export class ToolExecutor {
           ? (call.parameters.metadata as Record<string, unknown>)
           : undefined;
 
-      const success = this.deps.subagentOrchestrator.reportProgress(
+      const success = this.deps.core.subagentOrchestrator.reportProgress(
         runId,
         status,
         percentage,
@@ -775,7 +816,7 @@ export class ToolExecutor {
     }
 
     if (call.tool === 'memory_search') {
-      if (!this.deps.stateLayer) {
+      if (!this.deps.state.stateLayer) {
         return this.formatToolError('STATE_LAYER_DISABLED', 'Memory is not configured');
       }
       if (!session) {
@@ -790,12 +831,12 @@ export class ToolExecutor {
         );
       }
 
-      const context = { ...this.buildStateContext(session), internalTool: true };
-      return executeMemorySearch(call, this.deps.stateLayer, context);
+      const context = { ...buildStateContext(session, this.deps.core.securityMode), internalTool: true };
+      return executeMemorySearch(call, this.deps.state.stateLayer, context);
     }
 
     if (call.tool === 'memory_get') {
-      if (!this.deps.stateLayer) {
+      if (!this.deps.state.stateLayer) {
         return this.formatToolError('STATE_LAYER_DISABLED', 'Memory is not configured');
       }
       if (!session) {
@@ -810,12 +851,12 @@ export class ToolExecutor {
         );
       }
 
-      const context = { ...this.buildStateContext(session), internalTool: true };
-      return executeMemoryGet(call, this.deps.stateLayer, context);
+      const context = { ...buildStateContext(session, this.deps.core.securityMode), internalTool: true };
+      return executeMemoryGet(call, this.deps.state.stateLayer, context);
     }
 
     if (call.tool === 'memory_write') {
-      if (!this.deps.stateLayer) {
+      if (!this.deps.state.stateLayer) {
         return this.formatToolError('STATE_LAYER_DISABLED', 'Memory is not configured');
       }
       if (!session) {
@@ -830,12 +871,12 @@ export class ToolExecutor {
         );
       }
 
-      const context = { ...this.buildStateContext(session), internalTool: true };
-      return executeMemoryWrite(call, this.deps.stateLayer, context);
+      const context = { ...buildStateContext(session, this.deps.core.securityMode), internalTool: true };
+      return executeMemoryWrite(call, this.deps.state.stateLayer, context);
     }
 
     if (call.tool === 'github') {
-      if (!this.deps.toolsConfig?.github?.enabled) {
+      if (!this.deps.core.toolsConfig?.github?.enabled) {
         return this.formatToolError('GITHUB_DISABLED', 'GitHub tool is not enabled');
       }
       if (!session) {
@@ -844,62 +885,62 @@ export class ToolExecutor {
 
       const githubConfig: GitHubConfig = {
         enabled: true,
-        default_repo: this.deps.toolsConfig.github.default_repo,
-        token_env: this.deps.toolsConfig.github.token_env || 'GITHUB_TOKEN',
-        repo_allowlist: this.deps.toolsConfig.github.repo_allowlist,
+        default_repo: this.deps.core.toolsConfig.github.default_repo,
+        token_env: this.deps.core.toolsConfig.github.token_env || 'GITHUB_TOKEN',
+        repo_allowlist: this.deps.core.toolsConfig.github.repo_allowlist,
       };
       return executeGitHub(call, githubConfig, session.userId);
     }
 
     // Cron scheduler tools
     if (call.tool === 'nachos_cron_add') {
-      if (!this.deps.scheduler) {
+      if (!this.deps.core.scheduler) {
         return this.formatToolError('SCHEDULER_DISABLED', 'Scheduler is not enabled');
       }
       if (!session) {
         return this.formatToolError('SESSION_NOT_FOUND', 'Session not found');
       }
-      return executeCronAdd(call, this.deps.scheduler, session.userId, session.id);
+      return executeCronAdd(call, this.deps.core.scheduler, session.userId, session.id);
     }
 
     if (call.tool === 'nachos_cron_list') {
-      if (!this.deps.scheduler) {
+      if (!this.deps.core.scheduler) {
         return this.formatToolError('SCHEDULER_DISABLED', 'Scheduler is not enabled');
       }
       if (!session) {
         return this.formatToolError('SESSION_NOT_FOUND', 'Session not found');
       }
-      return executeCronList(call, this.deps.scheduler, session.userId, session.id);
+      return executeCronList(call, this.deps.core.scheduler, session.userId, session.id);
     }
 
     if (call.tool === 'nachos_cron_remove') {
-      if (!this.deps.scheduler) {
+      if (!this.deps.core.scheduler) {
         return this.formatToolError('SCHEDULER_DISABLED', 'Scheduler is not enabled');
       }
       if (!session) {
         return this.formatToolError('SESSION_NOT_FOUND', 'Session not found');
       }
-      return executeCronRemove(call, this.deps.scheduler, session.userId);
+      return executeCronRemove(call, this.deps.core.scheduler, session.userId);
     }
 
     if (call.tool === 'nachos_cron_update') {
-      if (!this.deps.scheduler) {
+      if (!this.deps.core.scheduler) {
         return this.formatToolError('SCHEDULER_DISABLED', 'Scheduler is not enabled');
       }
       if (!session) {
         return this.formatToolError('SESSION_NOT_FOUND', 'Session not found');
       }
-      return executeCronUpdate(call, this.deps.scheduler, session.userId);
+      return executeCronUpdate(call, this.deps.core.scheduler, session.userId);
     }
 
     if (call.tool === 'nachos_cron_run') {
-      if (!this.deps.scheduler) {
+      if (!this.deps.core.scheduler) {
         return this.formatToolError('SCHEDULER_DISABLED', 'Scheduler is not enabled');
       }
       if (!session) {
         return this.formatToolError('SESSION_NOT_FOUND', 'Session not found');
       }
-      return executeCronRun(call, this.deps.scheduler, session.userId);
+      return executeCronRun(call, this.deps.core.scheduler, session.userId);
     }
 
     if (call.tool === 'bootstrap') {
@@ -911,7 +952,7 @@ export class ToolExecutor {
     }
 
     if (call.tool === 'bitbucket') {
-      if (!this.deps.toolsConfig?.bitbucket?.enabled) {
+      if (!this.deps.core.toolsConfig?.bitbucket?.enabled) {
         return this.formatToolError('BITBUCKET_DISABLED', 'Bitbucket tool is not enabled');
       }
       if (!session) {
@@ -919,37 +960,37 @@ export class ToolExecutor {
       }
       const bitbucketConfig: BitbucketConfig = {
         enabled: true,
-        default_workspace: this.deps.toolsConfig.bitbucket.default_workspace,
-        auth_type: this.deps.toolsConfig.bitbucket.auth_type || 'app_password',
-        username_env: this.deps.toolsConfig.bitbucket.username_env || 'BITBUCKET_USERNAME',
-        password_env: this.deps.toolsConfig.bitbucket.password_env || 'BITBUCKET_APP_PASSWORD',
-        token_env: this.deps.toolsConfig.bitbucket.token_env || 'BITBUCKET_TOKEN',
-        workspace_allowlist: this.deps.toolsConfig.bitbucket.workspace_allowlist,
+        default_workspace: this.deps.core.toolsConfig.bitbucket.default_workspace,
+        auth_type: this.deps.core.toolsConfig.bitbucket.auth_type || 'app_password',
+        username_env: this.deps.core.toolsConfig.bitbucket.username_env || 'BITBUCKET_USERNAME',
+        password_env: this.deps.core.toolsConfig.bitbucket.password_env || 'BITBUCKET_APP_PASSWORD',
+        token_env: this.deps.core.toolsConfig.bitbucket.token_env || 'BITBUCKET_TOKEN',
+        workspace_allowlist: this.deps.core.toolsConfig.bitbucket.workspace_allowlist,
       };
       return executeBitbucket(call, bitbucketConfig, session.userId);
     }
 
     if (call.tool === 'composio') {
-      if (!this.deps.toolsConfig?.composio?.enabled) {
+      if (!this.deps.core.toolsConfig?.composio?.enabled) {
         return this.formatToolError('COMPOSIO_DISABLED', 'Composio tool is not enabled');
       }
       if (!session) {
         return this.formatToolError('SESSION_NOT_FOUND', 'Session not found for Composio tool');
       }
 
-      const context = { ...this.buildStateContext(session), internalTool: false };
-      return executeComposio(call, this.deps.stateLayer!, context);
+      const context = { ...buildStateContext(session, this.deps.core.securityMode), internalTool: false };
+      return executeComposio(call, this.deps.state.stateLayer!, context);
     }
 
     if (call.tool === 'web_search') {
-      if (!this.deps.toolsConfig?.web_search?.enabled) {
+      if (!this.deps.core.toolsConfig?.web_search?.enabled) {
         return this.formatToolError('WEB_SEARCH_DISABLED', 'Web search tool is not enabled');
       }
       if (!session) {
         return this.formatToolError('SESSION_NOT_FOUND', 'Session not found');
       }
 
-      const apiKeyEnv = this.deps.toolsConfig.web_search.api_key_env || 'BRAVE_API_KEY';
+      const apiKeyEnv = this.deps.core.toolsConfig.web_search.api_key_env || 'BRAVE_API_KEY';
       const apiKey = process.env[apiKeyEnv];
       if (!apiKey) {
         return this.formatToolError(
@@ -960,16 +1001,16 @@ export class ToolExecutor {
 
       const webSearchConfig: WebSearchConfig = {
         api_key: apiKey,
-        default_country: this.deps.toolsConfig.web_search.default_country,
-        safe_search: this.deps.toolsConfig.web_search.safe_search,
-        max_results: this.deps.toolsConfig.web_search.max_results,
+        default_country: this.deps.core.toolsConfig.web_search.default_country,
+        safe_search: this.deps.core.toolsConfig.web_search.safe_search,
+        max_results: this.deps.core.toolsConfig.web_search.max_results,
       };
 
       return executeWebSearch(call, webSearchConfig, session.userId);
     }
 
     if (call.tool === 'web_fetch_native') {
-      if (!this.deps.toolsConfig?.web_fetch?.enabled) {
+      if (!this.deps.core.toolsConfig?.web_fetch?.enabled) {
         return this.formatToolError('WEB_FETCH_DISABLED', 'Web fetch tool is not enabled');
       }
       if (!session) {
@@ -977,9 +1018,9 @@ export class ToolExecutor {
       }
 
       const webFetchConfig: WebFetchConfig = {
-        timeout_ms: this.deps.toolsConfig.web_fetch.timeout_ms,
-        max_chars: this.deps.toolsConfig.web_fetch.max_chars,
-        domain_allowlist: this.deps.toolsConfig.web_fetch.domain_allowlist,
+        timeout_ms: this.deps.core.toolsConfig.web_fetch.timeout_ms,
+        max_chars: this.deps.core.toolsConfig.web_fetch.max_chars,
+        domain_allowlist: this.deps.core.toolsConfig.web_fetch.domain_allowlist,
       };
 
       return executeWebFetchNative(call, webFetchConfig, session.userId);
@@ -996,7 +1037,7 @@ export class ToolExecutor {
     call: ToolCall,
     session: Session | null
   ): Promise<ToolResult> {
-    if (!this.deps.stateLayer) {
+    if (!this.deps.state.stateLayer) {
       return this.formatToolError('STATE_LAYER_DISABLED', 'State layer is not configured');
     }
     if (!session) {
@@ -1008,8 +1049,8 @@ export class ToolExecutor {
       return this.formatToolError('INVALID_PARAMETERS', 'action is required');
     }
 
-    const agentId = this.resolveAgentId(session);
-    const context = { ...this.buildStateContext(session), internalTool: true };
+    const agentId = resolveAgentId(session);
+    const context = { ...buildStateContext(session, this.deps.core.securityMode), internalTool: true };
     const allowedKinds = new Set(['summary', 'preference', 'fact', 'decision', 'task', 'issue']);
 
     if (action === 'query') {
@@ -1032,7 +1073,7 @@ export class ToolExecutor {
         | Array<'summary' | 'preference' | 'fact' | 'decision' | 'task' | 'issue'>
         | undefined;
 
-      const result = await this.deps.stateLayer.queryMemory(
+      const result = await this.deps.state.stateLayer.queryMemory(
         {
           agentId,
           kinds: normalizedKinds ?? undefined,
@@ -1065,7 +1106,7 @@ export class ToolExecutor {
       const confidence = readOptionalNumber(call.parameters.confidence, { min: 0, max: 1 });
       const expiresAt = readOptionalString(call.parameters.expiresAt);
 
-      const entry = await this.deps.stateLayer.appendMemoryEntry(
+      const entry = await this.deps.state.stateLayer.appendMemoryEntry(
         {
           id: randomUUID(),
           agentId,
@@ -1128,7 +1169,7 @@ export class ToolExecutor {
         );
       }
 
-      const stored = await this.deps.stateLayer.appendMemoryFacts(facts, context);
+      const stored = await this.deps.state.stateLayer.appendMemoryFacts(facts, context);
       return {
         success: true,
         content: [{ type: 'text', text: JSON.stringify({ facts: stored }, null, 2) }],
@@ -1141,7 +1182,7 @@ export class ToolExecutor {
         return this.formatToolError('INVALID_PARAMETERS', 'id is required');
       }
 
-      await this.deps.stateLayer.deleteMemoryEntry(id, agentId, context);
+      await this.deps.state.stateLayer.deleteMemoryEntry(id, agentId, context);
       return {
         success: true,
         content: [{ type: 'text', text: JSON.stringify({ deleted: true, id }, null, 2) }],
@@ -1159,7 +1200,7 @@ export class ToolExecutor {
     call: ToolCall,
     session: Session | null
   ): Promise<ToolResult> {
-    if (!this.deps.stateLayer) {
+    if (!this.deps.state.stateLayer) {
       return this.formatToolError('STATE_LAYER_DISABLED', 'State layer is not configured');
     }
     if (!session) {
@@ -1176,11 +1217,11 @@ export class ToolExecutor {
       return this.formatToolError('INVALID_PARAMETERS', 'action is required');
     }
 
-    const agentId = this.resolveAgentId(session);
-    const context = { ...this.buildStateContext(session), internalTool: true };
+    const agentId = resolveAgentId(session);
+    const context = { ...buildStateContext(session, this.deps.core.securityMode), internalTool: true };
 
     if (action === 'get') {
-      const profile = await this.deps.stateLayer.getUserProfile(agentId, userId, context);
+      const profile = await this.deps.state.stateLayer.getUserProfile(agentId, userId, context);
       return {
         success: true,
         content: [{ type: 'text', text: JSON.stringify({ profile }, null, 2) }],
@@ -1193,8 +1234,8 @@ export class ToolExecutor {
         return this.formatToolError('INVALID_PARAMETERS', 'profile is required');
       }
 
-      const current = await this.deps.stateLayer.getUserProfile(agentId, userId, context);
-      const stored = await this.deps.stateLayer.putUserProfile(
+      const current = await this.deps.state.stateLayer.getUserProfile(agentId, userId, context);
+      const stored = await this.deps.state.stateLayer.putUserProfile(
         {
           userId,
           agentId,
@@ -1212,7 +1253,7 @@ export class ToolExecutor {
     }
 
     if (action === 'delete') {
-      await this.deps.stateLayer.deleteUserProfile(agentId, userId, context);
+      await this.deps.state.stateLayer.deleteUserProfile(agentId, userId, context);
       return {
         success: true,
         content: [{ type: 'text', text: JSON.stringify({ deleted: true }, null, 2) }],
@@ -1230,10 +1271,10 @@ export class ToolExecutor {
     call: ToolCall,
     session: Session | null
   ): Promise<ToolResult> {
-    if (this.deps.toolsConfig?.bootstrap?.enabled === false) {
+    if (this.deps.core.toolsConfig?.bootstrap?.enabled === false) {
       return this.formatToolError('TOOL_DISABLED', 'bootstrap tool is disabled');
     }
-    if (!this.deps.stateLayer) {
+    if (!this.deps.state.stateLayer) {
       return this.formatToolError('STATE_LAYER_DISABLED', 'State layer is not configured');
     }
     if (!session) {
@@ -1246,10 +1287,10 @@ export class ToolExecutor {
     }
 
     const identityCompleted = readOptionalBoolean(call.parameters.identityCompleted);
-    const agentId = this.resolveAgentId(session);
-    const context = { ...this.buildStateContext(session), internalTool: true };
+    const agentId = resolveAgentId(session);
+    const context = { ...buildStateContext(session, this.deps.core.securityMode), internalTool: true };
 
-    if (await this.deps.getIdentityCompletionStatus(session)) {
+    if (await this.deps.state.getIdentityCompletionStatus(session)) {
       if (action !== 'get') {
         return this.formatToolError(
           'TOOL_DISABLED',
@@ -1259,7 +1300,7 @@ export class ToolExecutor {
     }
 
     if (action === 'get') {
-      const profile = await this.deps.stateLayer.getBootstrap(agentId, context);
+      const profile = await this.deps.state.stateLayer.getBootstrap(agentId, context);
       return {
         success: true,
         content: [{ type: 'text', text: JSON.stringify({ profile }, null, 2) }],
@@ -1272,12 +1313,12 @@ export class ToolExecutor {
         return this.formatToolError('INVALID_PARAMETERS', 'content is required');
       }
 
-      const current = await this.deps.stateLayer.getBootstrap(agentId, context);
+      const current = await this.deps.state.stateLayer.getBootstrap(agentId, context);
       const nextContent = { ...content };
       if (identityCompleted) {
         delete nextContent.bootstrap;
       }
-      const stored = await this.deps.stateLayer.putBootstrap(
+      const stored = await this.deps.state.stateLayer.putBootstrap(
         {
           agentId,
           content: nextContent,
@@ -1288,7 +1329,7 @@ export class ToolExecutor {
       );
 
       if (identityCompleted) {
-        await this.deps.markIdentityCompleted(agentId, nextContent, context);
+        await this.deps.state.markIdentityCompleted(agentId, nextContent, context);
       }
 
       return {
@@ -1298,7 +1339,7 @@ export class ToolExecutor {
     }
 
     if (action === 'delete') {
-      await this.deps.stateLayer.deleteBootstrap(agentId, context);
+      await this.deps.state.stateLayer.deleteBootstrap(agentId, context);
       return {
         success: true,
         content: [{ type: 'text', text: JSON.stringify({ deleted: true }, null, 2) }],
@@ -1316,7 +1357,7 @@ export class ToolExecutor {
     call: ToolCall,
     session: Session | null
   ): Promise<ToolResult> {
-    if (!this.deps.subagentOrchestrator) {
+    if (!this.deps.core.subagentOrchestrator) {
       return this.formatToolError('SUBAGENT_DISABLED', 'Subagent orchestration is not configured');
     }
     if (!session) {
@@ -1329,7 +1370,7 @@ export class ToolExecutor {
     }
 
     if (action === 'list') {
-      const runs = this.filterSubagentRunsForSession(session, this.deps.listSubagents());
+      const runs = this.filterSubagentRunsForSession(session, this.deps.state.listSubagents());
       return {
         success: true,
         content: [{ type: 'text', text: JSON.stringify({ runs }, null, 2) }],
@@ -1341,7 +1382,7 @@ export class ToolExecutor {
       return this.formatToolError('INVALID_PARAMETERS', 'runId is required');
     }
 
-    const run = this.deps.getSubagentInfo(runId);
+    const run = this.deps.state.getSubagentInfo(runId);
     if (!run || !this.canAccessSubagentRun(session, run)) {
       return this.formatToolError('NOT_FOUND', 'Subagent run not found');
     }
@@ -1355,7 +1396,7 @@ export class ToolExecutor {
 
     if (action === 'log') {
       const limit = readOptionalNumber(call.parameters.limit, { min: 1 }) ?? 50;
-      const log = await this.deps.getSubagentLog(runId);
+      const log = await this.deps.state.getSubagentLog(runId);
       const messages = (log?.messages as unknown[]) ?? [];
       return {
         success: true,
@@ -1369,7 +1410,7 @@ export class ToolExecutor {
     }
 
     if (action === 'files_list') {
-      const workspaceDir = this.deps.subagentOrchestrator.getRunWorkspaceDir(runId);
+      const workspaceDir = this.deps.core.subagentOrchestrator.getRunWorkspaceDir(runId);
       if (!workspaceDir) {
         return this.formatToolError('NOT_FOUND', 'Subagent workspace not available');
       }
@@ -1388,7 +1429,7 @@ export class ToolExecutor {
     }
 
     if (action === 'files_get') {
-      const workspaceDir = this.deps.subagentOrchestrator.getRunWorkspaceDir(runId);
+      const workspaceDir = this.deps.core.subagentOrchestrator.getRunWorkspaceDir(runId);
       if (!workspaceDir) {
         return this.formatToolError('NOT_FOUND', 'Subagent workspace not available');
       }
@@ -1412,7 +1453,7 @@ export class ToolExecutor {
     }
 
     if (action === 'stop') {
-      const stopped = this.deps.stopSubagent(runId);
+      const stopped = this.deps.state.stopSubagent(runId);
       return {
         success: stopped,
         content: [
@@ -1440,7 +1481,7 @@ export class ToolExecutor {
         return this.formatToolError('INVALID_PARAMETERS', 'message is required for steer action');
       }
 
-      const steered = await this.deps.steerSubagent(runId, message);
+      const steered = await this.deps.state.steerSubagent(runId, message);
       return {
         success: steered,
         content: [
@@ -1463,7 +1504,7 @@ export class ToolExecutor {
     }
 
     if (action === 'workflow_list') {
-      const workflows = this.deps.subagentOrchestrator.listWorkflows();
+      const workflows = this.deps.core.subagentOrchestrator.listWorkflows();
       const serializedWorkflows = workflows.map((wf) => ({
         ...wf,
         stepResults: Object.fromEntries(wf.stepResults),
@@ -1489,7 +1530,7 @@ export class ToolExecutor {
         );
       }
 
-      const workflow = this.deps.subagentOrchestrator.getWorkflow(workflowId);
+      const workflow = this.deps.core.subagentOrchestrator.getWorkflow(workflowId);
       if (!workflow) {
         return this.formatToolError('NOT_FOUND', 'Workflow not found');
       }
@@ -1520,32 +1561,10 @@ export class ToolExecutor {
     };
   }
 
-  private resolveAgentId(session: Session): string {
-    return session.userId ?? session.id;
-  }
-
-  private buildStateContext(session: Session): StateOperationContext {
-    return {
-      sessionId: session.id,
-      userId: session.userId,
-      securityMode: this.deps.securityMode,
-      channel: session.channel,
-    };
-  }
-
   private sanitizeToolSchema(schema: Record<string, unknown>): Record<string, unknown> {
     const cloned = JSON.parse(JSON.stringify(schema)) as Record<string, unknown>;
     delete cloned.$id;
     return cloned;
-  }
-
-  private isSubagentSession(session: Session | null): boolean {
-    if (!session?.metadata) return false;
-    return 'subagent' in session.metadata;
-  }
-
-  private normalizeToolName(tool: string): string {
-    return tool.trim().toLowerCase();
   }
 
   private canAccessSubagentRun(session: Session, run: SubagentRunRecord): boolean {
@@ -1584,15 +1603,15 @@ export class ToolExecutor {
       'sessions_spawn',
     ]);
 
-    const normalized = this.normalizeToolName(tool);
-    const policy = this.deps.subagentToolPolicy;
+    const normalized = normalizeToolName(tool);
+    const policy = this.deps.policy.subagentToolPolicy;
     const profileName = this.resolveSubagentProfile(session ?? null);
     const profilePolicy = this.resolveSubagentProfilePolicy(profileName);
     const denyList = new Set(
       [
         ...DEFAULT_SUBAGENT_DENY_TOOLS,
-        ...(policy?.deny ?? []).map((entry) => this.normalizeToolName(entry)),
-        ...(profilePolicy?.deny ?? []).map((entry) => this.normalizeToolName(entry)),
+        ...(policy?.deny ?? []).map((entry) => normalizeToolName(entry)),
+        ...(profilePolicy?.deny ?? []).map((entry) => normalizeToolName(entry)),
       ].filter((entry) => entry.length > 0)
     );
 
@@ -1604,7 +1623,7 @@ export class ToolExecutor {
       profilePolicy?.allow && profilePolicy.allow.length > 0
         ? profilePolicy.allow
         : (policy?.allow ?? []);
-    const allow = allowListSource.map((entry) => this.normalizeToolName(entry));
+    const allow = allowListSource.map((entry) => normalizeToolName(entry));
     if (allow.length > 0 && !allow.includes(normalized)) {
       const profileSuffix = profileName ? ` (profile: ${profileName})` : '';
       return {
@@ -1617,7 +1636,7 @@ export class ToolExecutor {
   }
 
   private resolveSubagentProfile(session: Session | null): string | undefined {
-    const defaultProfile = readOptionalString(this.deps.subagentToolPolicy?.default_profile);
+    const defaultProfile = readOptionalString(this.deps.policy.subagentToolPolicy?.default_profile);
     if (!session?.metadata || typeof session.metadata !== 'object') {
       return defaultProfile;
     }
@@ -1627,14 +1646,14 @@ export class ToolExecutor {
   }
 
   private resolveSubagentProfilePolicy(profile?: string): SubagentToolProfileConfig | undefined {
-    const profiles = this.deps.subagentToolPolicy?.profiles;
+    const profiles = this.deps.policy.subagentToolPolicy?.profiles;
     if (!profile || !profiles) return undefined;
 
     if (profiles[profile]) return profiles[profile];
 
-    const normalized = this.normalizeToolName(profile);
+    const normalized = normalizeToolName(profile);
     const match = Object.entries(profiles).find(
-      ([name]) => this.normalizeToolName(name) === normalized
+      ([name]) => normalizeToolName(name) === normalized
     );
     return match?.[1];
   }
@@ -1671,7 +1690,7 @@ export class ToolExecutor {
     reason?: string;
     redactedContent?: ToolResult['content'];
   } {
-    if (!this.deps.dlp || result.content.length === 0) {
+    if (!this.deps.security.dlp || result.content.length === 0) {
       return { allowed: true };
     }
 
@@ -1681,14 +1700,14 @@ export class ToolExecutor {
 
     for (const block of result.content) {
       if (block.type === 'text') {
-        const scanResult = this.deps.dlp.scan(block.text, session?.channel);
+        const scanResult = this.deps.security.dlp.scan(block.text, session?.channel);
         if (!scanResult.allowed) {
           blocked = true;
           blockReason = scanResult.reason;
-          void this.deps.logAuditEvent({
+          void this.deps.audit.logAuditEvent({
             id: `dlp-tool-result-${Date.now()}`,
             timestamp: new Date().toISOString(),
-            instanceId: this.deps.instanceId,
+            instanceId: this.deps.core.instanceId,
             userId: session?.userId ?? 'unknown',
             sessionId: session?.id ?? 'unknown',
             channel: session?.channel ?? 'unknown',
@@ -1713,10 +1732,10 @@ export class ToolExecutor {
         }
 
         if (scanResult.action === 'alert') {
-          void this.deps.logAuditEvent({
+          void this.deps.audit.logAuditEvent({
             id: `dlp-tool-result-alert-${Date.now()}`,
             timestamp: new Date().toISOString(),
-            instanceId: this.deps.instanceId,
+            instanceId: this.deps.core.instanceId,
             userId: session?.userId ?? 'unknown',
             sessionId: session?.id ?? 'unknown',
             channel: session?.channel ?? 'unknown',
@@ -1752,14 +1771,14 @@ export class ToolExecutor {
       }
 
       for (const text of structuredText) {
-        const scanResult = this.deps.dlp.scan(text, session?.channel);
+        const scanResult = this.deps.security.dlp.scan(text, session?.channel);
         if (!scanResult.allowed) {
           blocked = true;
           blockReason = scanResult.reason;
-          void this.deps.logAuditEvent({
+          void this.deps.audit.logAuditEvent({
             id: `dlp-tool-result-structured-${Date.now()}`,
             timestamp: new Date().toISOString(),
-            instanceId: this.deps.instanceId,
+            instanceId: this.deps.core.instanceId,
             userId: session?.userId ?? 'unknown',
             sessionId: session?.id ?? 'unknown',
             channel: session?.channel ?? 'unknown',

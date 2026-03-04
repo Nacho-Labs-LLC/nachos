@@ -35,6 +35,40 @@ configRouter.put('/', async (c) => {
     return c.json({ error: 'Invalid TOML syntax', details: String(err) }, 400);
   }
 
+  // Semantic validation: prevent security-critical downgrades via the API.
+  // These settings must be changed by editing nachos.toml directly, not
+  // through the admin API, to prevent accidental or malicious weakening.
+  try {
+    const parsed = TOML.parse(body.content) as Record<string, unknown>;
+    const security = parsed['security'] as Record<string, unknown> | undefined;
+    if (security && security['mode'] === 'permissive') {
+      return c.json(
+        {
+          error: 'Security policy violation',
+          details:
+            'Cannot set security_mode to "permissive" via the API. Edit nachos.toml directly.',
+        },
+        403
+      );
+    }
+
+    const dlp = parsed['dlp'] as Record<string, unknown> | undefined;
+    if (dlp && dlp['default_action'] === 'allow') {
+      return c.json(
+        {
+          error: 'Security policy violation',
+          details:
+            'Cannot set DLP default_action to "allow" via the API. Edit nachos.toml directly.',
+        },
+        403
+      );
+    }
+  } catch {
+    // parseToml succeeded above, so a TOML.parse failure here is unexpected.
+    // Fall through — the content is valid TOML, just not parseable by the
+    // secondary parser. The primary parseToml check is authoritative.
+  }
+
   const backupPath = CONFIG_PATH + '.bak';
   const tmpPath = CONFIG_PATH + '.tmp';
 
@@ -57,6 +91,28 @@ configRouter.patch('/', async (c) => {
 
   if (!body.path || body.value === undefined) {
     return c.json({ error: 'path and value are required' }, 400);
+  }
+
+  // Semantic validation: block security-critical downgrades via PATCH
+  if (body.path === 'security.mode' && body.value === 'permissive') {
+    return c.json(
+      {
+        error: 'Security policy violation',
+        details:
+          'Cannot set security_mode to "permissive" via the API. Edit nachos.toml directly.',
+      },
+      403
+    );
+  }
+  if (body.path === 'dlp.default_action' && body.value === 'allow') {
+    return c.json(
+      {
+        error: 'Security policy violation',
+        details:
+          'Cannot set DLP default_action to "allow" via the API. Edit nachos.toml directly.',
+      },
+      403
+    );
   }
 
   if (!existsSync(CONFIG_PATH)) {

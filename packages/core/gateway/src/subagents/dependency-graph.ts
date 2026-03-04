@@ -4,6 +4,8 @@
  * Provides DAG validation, topological sort, and execution order computation.
  */
 
+import { createValidationError } from '@nachos/types';
+
 export interface WorkflowStep {
   id: string;
   task: string;
@@ -195,7 +197,7 @@ export function computeExecutionPlan(workflow: WorkflowDefinition): ExecutionPla
 
     if (batch.length === 0) {
       // Should not happen if validation passed
-      throw new Error('Invalid workflow: unable to compute execution order');
+      throw createValidationError('Invalid workflow: unable to compute execution order', { component: 'gateway' });
     }
 
     batches.push(batch);

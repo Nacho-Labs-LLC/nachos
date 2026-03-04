@@ -8,7 +8,7 @@
 import { connect, StringCodec, NatsError, ErrorCode } from 'nats';
 import type { NatsConnection, Subscription } from 'nats';
 import { randomUUID } from 'node:crypto';
-import { createLogger } from '@nachos/types';
+import { createLogger, createBusConnectionError, createTimeoutError } from '@nachos/types';
 
 const logger = createLogger('bus');
 import type {
@@ -149,7 +149,7 @@ export class NachosBusClient implements INachosBusClient {
    */
   publish<T>(topic: string, payload: T, options?: PublishOptions): void {
     if (!this.connection) {
-      throw new Error('Not connected to NATS');
+      throw createBusConnectionError('Not connected to NATS', { component: 'bus' });
     }
 
     const envelope = this.createEnvelope(
@@ -174,7 +174,7 @@ export class NachosBusClient implements INachosBusClient {
     options?: SubscribeOptions
   ): Promise<BusSubscription> {
     if (!this.connection) {
-      throw new Error('Not connected to NATS');
+      throw createBusConnectionError('Not connected to NATS', { component: 'bus' });
     }
 
     const subOpts: { queue?: string; max?: number } = {};
@@ -240,7 +240,7 @@ export class NachosBusClient implements INachosBusClient {
     options?: RequestOptions
   ): Promise<MessageEnvelope<TRes>> {
     if (!this.connection) {
-      throw new Error('Not connected to NATS');
+      throw createBusConnectionError('Not connected to NATS', { component: 'bus' });
     }
 
     const correlationId = randomUUID();
@@ -255,7 +255,7 @@ export class NachosBusClient implements INachosBusClient {
       return JSON.parse(responseData) as MessageEnvelope<TRes>;
     } catch (error) {
       if (error instanceof NatsError && error.code === ErrorCode.Timeout) {
-        throw new Error(`Request to ${topic} timed out after ${timeout}ms`);
+        throw createTimeoutError(`Request to ${topic} timed out after ${timeout}ms`, { component: 'bus' });
       }
       throw error;
     }

@@ -8,6 +8,7 @@ import { Hono, type Context } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { createBusClient, type NachosBusClient } from '@nachos/bus';
 import { createLogger } from '@nachos/types';
+import { createHash } from 'node:crypto';
 import type {
   ListSessionsResponse,
   ListArchivedResponse,
@@ -42,11 +43,31 @@ async function getBusClient(): Promise<NachosBusClient> {
   return busClient;
 }
 
-// Helper to extract userId from request (from auth middleware or headers)
+/**
+ * Derive a stable user ID from the admin token.
+ *
+ * The admin auth middleware already validated the Bearer token or cookie before
+ * this handler runs. We derive the user identity from the authenticated token
+ * rather than trusting a client-supplied X-User-Id header, which is trivially
+ * spoofable. The SHA-256 hash ensures the raw token is never used as an
+ * identifier and produces a stable, deterministic ID for the same token.
+ */
 function getUserId(c: Context): string {
-  // In a real implementation, this would come from the auth middleware
-  // For now, use a header or default value
-  return c.req.header('X-User-Id') || 'webchat-user';
+  const authHeader = c.req.header('Authorization');
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
+
+  if (!token) {
+    // Auth middleware already validated the request, so this path should only
+    // be reached if authentication came via cookie. Fall back to a hash of the
+    // configured admin token to keep identity stable.
+    const envToken = process.env['NACHOS_ADMIN_TOKEN'];
+    if (envToken) {
+      return `admin-${createHash('sha256').update(envToken).digest('hex').slice(0, 16)}`;
+    }
+    return 'admin-default';
+  }
+
+  return `admin-${createHash('sha256').update(token).digest('hex').slice(0, 16)}`;
 }
 
 // RPC request payload types
