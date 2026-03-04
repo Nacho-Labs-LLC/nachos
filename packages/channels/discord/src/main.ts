@@ -23,6 +23,41 @@ function buildSecrets(): Record<string, string> {
   return secrets;
 }
 
+/**
+ * Merge CHANNEL_DISCORD_* env vars into channel config when TOML sections are missing.
+ * TOML config always takes precedence — env vars are only the fallback.
+ */
+export function applyEnvBridge(channelConfig: Record<string, unknown>): void {
+  const servers = channelConfig.servers as Array<Record<string, unknown>> | undefined;
+  if (!servers?.length) {
+    const guildId = process.env.CHANNEL_DISCORD_GUILD_ID;
+    if (guildId) {
+      channelConfig.servers = [
+        {
+          ids: [guildId],
+          channel_ids: process.env.CHANNEL_DISCORD_CHANNEL_IDS?.split(',').filter(Boolean) ?? [],
+          user_allowlist:
+            process.env.CHANNEL_DISCORD_USER_ALLOWLIST?.split(',').filter(Boolean) ?? [],
+          mention_gating: process.env.CHANNEL_DISCORD_MENTION_GATING !== 'false',
+        },
+      ];
+      logger.info({ guildId }, 'Built server config from CHANNEL_DISCORD_* env vars');
+    }
+  }
+
+  const dm = channelConfig.dm as { user_allowlist?: string[] } | undefined;
+  if (!dm?.user_allowlist?.length) {
+    const dmAllowlist = process.env.CHANNEL_DISCORD_DM_ALLOWLIST;
+    if (dmAllowlist) {
+      channelConfig.dm = {
+        ...dm,
+        user_allowlist: dmAllowlist.split(',').filter(Boolean),
+      };
+      logger.info('Built DM allowlist from CHANNEL_DISCORD_DM_ALLOWLIST env var');
+    }
+  }
+}
+
 async function main(): Promise<void> {
   if (!process.env.DISCORD_BOT_TOKEN) {
     logger.warn(
@@ -38,6 +73,8 @@ async function main(): Promise<void> {
   const config = loadConfigSafe();
   const channelConfig = (config?.channels?.discord ?? {}) as Record<string, unknown>;
   const securityMode = config?.security?.mode ?? 'standard';
+
+  applyEnvBridge(channelConfig);
 
   const busClient = createBusClient({
     servers: process.env.NATS_URL ?? 'nats://bus:4222',

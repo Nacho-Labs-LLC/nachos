@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { listActiveSessions, pinSession, type SessionInfo } from '../api/webchat';
 
 const props = defineProps<{

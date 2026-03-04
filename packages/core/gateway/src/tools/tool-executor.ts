@@ -29,8 +29,10 @@ import {
 import {
   MemorySearchToolSchema,
   MemoryGetToolSchema,
+  MemoryWriteToolSchema,
   executeMemorySearch,
   executeMemoryGet,
+  executeMemoryWrite,
 } from './memory-tools.js';
 import { WebSearchToolSchema, executeWebSearch, type WebSearchConfig } from './web-search-tools.js';
 import {
@@ -189,6 +191,12 @@ export class ToolExecutor {
         description:
           'Read specific memory file sections (MEMORY.md, memory/YYYY-MM-DD.md, AGENTS.md, etc.). Use when you need full file content or specific line ranges. Complements memory_search for detailed context.',
         parameters: this.sanitizeToolSchema(MemoryGetToolSchema),
+      });
+      tools.push({
+        name: 'memory_write',
+        description:
+          'Save a memory entry for future recall. Use to remember user preferences, important decisions, learned facts, active tasks, or issues. Memories persist across sessions and can be retrieved with memory_search.',
+        parameters: this.sanitizeToolSchema(MemoryWriteToolSchema),
       });
     }
 
@@ -804,6 +812,26 @@ export class ToolExecutor {
 
       const context = { ...this.buildStateContext(session), internalTool: true };
       return executeMemoryGet(call, this.deps.stateLayer, context);
+    }
+
+    if (call.tool === 'memory_write') {
+      if (!this.deps.stateLayer) {
+        return this.formatToolError('STATE_LAYER_DISABLED', 'Memory is not configured');
+      }
+      if (!session) {
+        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found for memory write');
+      }
+
+      const rateLimitResult = this.checkMemoryToolRateLimit(session.id);
+      if (!rateLimitResult.allowed) {
+        return this.formatToolError(
+          'RATE_LIMIT_EXCEEDED',
+          `Memory tool rate limit exceeded. Try again in ${rateLimitResult.retryAfterSeconds} seconds.`
+        );
+      }
+
+      const context = { ...this.buildStateContext(session), internalTool: true };
+      return executeMemoryWrite(call, this.deps.stateLayer, context);
     }
 
     if (call.tool === 'github') {

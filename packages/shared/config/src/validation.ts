@@ -676,6 +676,22 @@ function validateSecurityConfig(config: NachosConfig, errors: string[], _warning
 }
 
 /**
+ * Check if a path is relative (starts with ./ or ../ or doesn't start with /)
+ * and emit a warning about Docker deployment issues.
+ */
+function warnIfRelativePath(path: string, configKey: string, warnings: string[]): void {
+  if (
+    path.startsWith('./') ||
+    path.startsWith('../') ||
+    (!path.startsWith('/') && !path.match(/^[A-Za-z]:\\/))
+  ) {
+    warnings.push(
+      `${configKey} is a relative path — in Docker, this resolves from the gateway WORKDIR, not the project root. Use absolute paths for Docker deployments.`
+    );
+  }
+}
+
+/**
  * Validate runtime configuration
  */
 function validateRuntimeConfig(config: NachosConfig, errors: string[], _warnings: string[]): void {
@@ -809,6 +825,33 @@ function validateRuntimeConfig(config: NachosConfig, errors: string[], _warnings
     config.runtime.gateway_streaming_min_interval_ms < 0
   ) {
     errors.push('runtime.gateway_streaming_min_interval_ms must be 0 or greater');
+  }
+
+  // Warn about relative paths that may fail in Docker
+  if (config.runtime.state_dir) {
+    warnIfRelativePath(config.runtime.state_dir, 'runtime.state_dir', _warnings);
+  }
+
+  if (config.runtime.state) {
+    const storeLabels = ['identity', 'memory', 'user_profile', 'bootstrap'] as const;
+    for (const label of storeLabels) {
+      const store = config.runtime.state[label];
+      if (store?.filesystem?.dir) {
+        warnIfRelativePath(
+          store.filesystem.dir,
+          `runtime.state.${label}.filesystem.dir`,
+          _warnings
+        );
+      }
+    }
+
+    if (config.runtime.state.sessions?.sqlite?.db_path) {
+      warnIfRelativePath(
+        config.runtime.state.sessions.sqlite.db_path,
+        'runtime.state.sessions.sqlite.db_path',
+        _warnings
+      );
+    }
   }
 }
 

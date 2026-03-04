@@ -262,10 +262,19 @@ describe('Gateway', () => {
         userId: 'user-1',
       });
 
-      const toolExecutor = (customGateway as unknown as { toolExecutor: { buildToolDefinitions: (s: Session) => unknown; updateDeps: (partial: Record<string, unknown>) => void } }).toolExecutor;
+      const toolExecutor = (
+        customGateway as unknown as {
+          toolExecutor: {
+            buildToolDefinitions: (s: Session) => unknown;
+            updateDeps: (partial: Record<string, unknown>) => void;
+          };
+        }
+      ).toolExecutor;
       toolExecutor.updateDeps({ stateLayer: {} as unknown });
 
-      const tools = toolExecutor.buildToolDefinitions(session) as Array<{ name?: string }> | undefined;
+      const tools = toolExecutor.buildToolDefinitions(session) as
+        | Array<{ name?: string }>
+        | undefined;
 
       expect(tools?.some((tool) => tool.name === 'bootstrap')).toBe(false);
 
@@ -293,8 +302,15 @@ describe('Gateway', () => {
         close: vi.fn().mockResolvedValue(undefined),
       };
 
-      const toolExecutor = (gateway as unknown as { toolExecutor: { updateDeps: (partial: Record<string, unknown>) => void } }).toolExecutor;
-      toolExecutor.updateDeps({ stateLayer, getIdentityCompletionStatus: vi.fn().mockResolvedValue(false) });
+      const toolExecutor = (
+        gateway as unknown as {
+          toolExecutor: { updateDeps: (partial: Record<string, unknown>) => void };
+        }
+      ).toolExecutor;
+      toolExecutor.updateDeps({
+        stateLayer,
+        getIdentityCompletionStatus: vi.fn().mockResolvedValue(false),
+      });
 
       const call = {
         tool: 'bootstrap',
@@ -483,6 +499,692 @@ describe('Gateway', () => {
 
       expect(session).toBeDefined();
       expect(session.id).toBeDefined();
+    });
+  });
+
+  describe('Status Events (SE)', () => {
+    it('[SE-01] should publish thinking event on NATS with correct topic', async () => {
+      const bus = gateway.getRouter().getBus();
+      const publishSpy = vi.spyOn(bus, 'publish');
+
+      const session = await gateway.getSessionManager().createSession({
+        channel: 'slack',
+        conversationId: 'conv-se-1',
+        userId: 'user-se-1',
+      });
+
+      const publishStatusEvent = (
+        gateway as unknown as {
+          publishStatusEvent: (
+            sessionId: string,
+            status: string,
+            channelId: string,
+            channelMessageId?: string,
+            toolName?: string
+          ) => Promise<void>;
+        }
+      ).publishStatusEvent.bind(gateway);
+
+      await publishStatusEvent(session.id, 'thinking', 'conv-se-1');
+
+      expect(publishSpy).toHaveBeenCalledWith(
+        expect.stringContaining(`nachos.status.${session.id}.thinking`),
+        expect.objectContaining({
+          type: 'status.thinking',
+          source: 'gateway',
+          payload: expect.objectContaining({
+            sessionId: session.id,
+            status: 'thinking',
+            channelId: 'conv-se-1',
+          }),
+        })
+      );
+    });
+
+    it('[SE-02] should publish tool event with toolName', async () => {
+      const bus = gateway.getRouter().getBus();
+      const publishSpy = vi.spyOn(bus, 'publish');
+
+      const session = await gateway.getSessionManager().createSession({
+        channel: 'slack',
+        conversationId: 'conv-se-2',
+        userId: 'user-se-2',
+      });
+
+      const publishStatusEvent = (
+        gateway as unknown as {
+          publishStatusEvent: (
+            sessionId: string,
+            status: string,
+            channelId: string,
+            channelMessageId?: string,
+            toolName?: string
+          ) => Promise<void>;
+        }
+      ).publishStatusEvent.bind(gateway);
+
+      await publishStatusEvent(session.id, 'tool', 'conv-se-2', 'msg-id', 'web_search');
+
+      expect(publishSpy).toHaveBeenCalledWith(
+        expect.stringContaining(`nachos.status.${session.id}.tool`),
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            status: 'tool',
+            toolName: 'web_search',
+          }),
+        })
+      );
+    });
+
+    it('[SE-03] should publish done event on completion', async () => {
+      const bus = gateway.getRouter().getBus();
+      const publishSpy = vi.spyOn(bus, 'publish');
+
+      const session = await gateway.getSessionManager().createSession({
+        channel: 'slack',
+        conversationId: 'conv-se-3',
+        userId: 'user-se-3',
+      });
+
+      const publishStatusEvent = (
+        gateway as unknown as {
+          publishStatusEvent: (
+            sessionId: string,
+            status: string,
+            channelId: string,
+            channelMessageId?: string,
+            toolName?: string
+          ) => Promise<void>;
+        }
+      ).publishStatusEvent.bind(gateway);
+
+      await publishStatusEvent(session.id, 'done', 'conv-se-3', 'msg-done');
+
+      expect(publishSpy).toHaveBeenCalledWith(
+        expect.stringContaining(`nachos.status.${session.id}.done`),
+        expect.objectContaining({
+          type: 'status.done',
+          payload: expect.objectContaining({
+            status: 'done',
+            sessionId: session.id,
+          }),
+        })
+      );
+    });
+
+    it('[SE-04] should publish error event on failure', async () => {
+      const bus = gateway.getRouter().getBus();
+      const publishSpy = vi.spyOn(bus, 'publish');
+
+      const session = await gateway.getSessionManager().createSession({
+        channel: 'slack',
+        conversationId: 'conv-se-4',
+        userId: 'user-se-4',
+      });
+
+      const publishStatusEvent = (
+        gateway as unknown as {
+          publishStatusEvent: (
+            sessionId: string,
+            status: string,
+            channelId: string,
+            channelMessageId?: string,
+            toolName?: string
+          ) => Promise<void>;
+        }
+      ).publishStatusEvent.bind(gateway);
+
+      await publishStatusEvent(session.id, 'error', 'conv-se-4');
+
+      expect(publishSpy).toHaveBeenCalledWith(
+        expect.stringContaining(`nachos.status.${session.id}.error`),
+        expect.objectContaining({
+          type: 'status.error',
+          payload: expect.objectContaining({
+            status: 'error',
+          }),
+        })
+      );
+    });
+
+    it('[SE-05] should not crash message processing when status event publish fails', async () => {
+      const bus = gateway.getRouter().getBus();
+      vi.spyOn(bus, 'publish').mockRejectedValue(new Error('NATS connection failed'));
+
+      const publishStatusEvent = (
+        gateway as unknown as {
+          publishStatusEvent: (
+            sessionId: string,
+            status: string,
+            channelId: string,
+            channelMessageId?: string,
+            toolName?: string
+          ) => Promise<void>;
+        }
+      ).publishStatusEvent.bind(gateway);
+
+      // Should not throw - status events are best-effort
+      await expect(
+        publishStatusEvent('session-broken', 'thinking', 'conv-broken')
+      ).resolves.toBeUndefined();
+    });
+
+    it('[SE-06] should include sessionId, channelId, and channelMessageId in status event', async () => {
+      const bus = gateway.getRouter().getBus();
+      const publishSpy = vi.spyOn(bus, 'publish');
+
+      const session = await gateway.getSessionManager().createSession({
+        channel: 'slack',
+        conversationId: 'conv-se-6',
+        userId: 'user-se-6',
+      });
+
+      const publishStatusEvent = (
+        gateway as unknown as {
+          publishStatusEvent: (
+            sessionId: string,
+            status: string,
+            channelId: string,
+            channelMessageId?: string,
+            toolName?: string
+          ) => Promise<void>;
+        }
+      ).publishStatusEvent.bind(gateway);
+
+      await publishStatusEvent(session.id, 'thinking', 'conv-se-6', 'msg-se-6');
+
+      expect(publishSpy).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            sessionId: session.id,
+            channelId: 'conv-se-6',
+            channelMessageId: 'msg-se-6',
+          }),
+        })
+      );
+    });
+  });
+
+  describe('Bootstrap Assembly (BS)', () => {
+    it('[BS-02] should inject bootstrap profile blocks into system prompt', async () => {
+      const customGateway = new Gateway({
+        dbPath: ':memory:',
+        defaultSystemPrompt: 'Base prompt',
+      });
+
+      const session = await customGateway.getSessionManager().createSession({
+        channel: 'slack',
+        conversationId: 'conv-bs-2',
+        userId: 'user-bs-2',
+      });
+
+      const mockStateLayer = {
+        getIdentity: vi.fn().mockResolvedValue(null),
+        getBootstrap: vi.fn().mockResolvedValue({
+          agentId: 'user-bs-2',
+          content: { personality: 'friendly helper' },
+          updatedAt: '2024-01-01T00:00:00.000Z',
+          version: 1,
+          source: 'db',
+        }),
+        getUserProfile: vi.fn().mockResolvedValue(null),
+        queryMemory: vi.fn().mockResolvedValue({ entries: [], facts: [] }),
+        getSessionState: vi.fn().mockResolvedValue(null),
+        assemblePrompt: vi.fn().mockReturnValue({
+          prompt: 'Base prompt\n\n## Bootstrap\npersonality: friendly helper',
+          report: {
+            totalChars: 100,
+            totalTokens: 25,
+            sections: [],
+            generatedAt: new Date().toISOString(),
+          },
+        }),
+        close: vi.fn().mockResolvedValue(undefined),
+      };
+
+      // Inject mock state layer
+      (customGateway as unknown as { stateLayer: unknown }).stateLayer = mockStateLayer;
+
+      const buildLLMRequest = (
+        customGateway as unknown as {
+          buildLLMRequest: (
+            sessionId: string,
+            extraMessages?: unknown[],
+            stream?: boolean
+          ) => Promise<{ messages: Array<{ role: string; content: string }>; tools?: unknown }>;
+        }
+      ).buildLLMRequest.bind(customGateway);
+
+      const request = await buildLLMRequest(session.id);
+
+      expect(mockStateLayer.getBootstrap).toHaveBeenCalled();
+      expect(mockStateLayer.assemblePrompt).toHaveBeenCalledWith(
+        expect.objectContaining({
+          bootstrap: expect.objectContaining({
+            content: { personality: 'friendly helper' },
+          }),
+        })
+      );
+      const systemMsg = request.messages.find((m) => m.role === 'system');
+      expect(systemMsg?.content).toContain('Bootstrap');
+
+      customGateway.getStorage().close();
+    });
+
+    it('[BS-03] should inject identity data into prompt when identity exists', async () => {
+      const customGateway = new Gateway({
+        dbPath: ':memory:',
+        defaultSystemPrompt: 'Base prompt',
+      });
+
+      const session = await customGateway.getSessionManager().createSession({
+        channel: 'slack',
+        conversationId: 'conv-bs-3',
+        userId: 'user-bs-3',
+      });
+
+      const mockIdentity = {
+        agentId: 'user-bs-3',
+        soul: 'A helpful AI assistant',
+        identity: { name: 'Nachos Agent' },
+        identityCompleted: false,
+      };
+
+      const mockStateLayer = {
+        getIdentity: vi.fn().mockResolvedValue(mockIdentity),
+        getBootstrap: vi.fn().mockResolvedValue(null),
+        getUserProfile: vi.fn().mockResolvedValue(null),
+        queryMemory: vi.fn().mockResolvedValue({ entries: [], facts: [] }),
+        getSessionState: vi.fn().mockResolvedValue(null),
+        assemblePrompt: vi.fn().mockReturnValue({
+          prompt: 'Base prompt\n\n## Identity\nname: Nachos Agent\nsoul: A helpful AI assistant',
+          report: {
+            totalChars: 120,
+            totalTokens: 30,
+            sections: [],
+            generatedAt: new Date().toISOString(),
+          },
+        }),
+        close: vi.fn().mockResolvedValue(undefined),
+      };
+
+      (customGateway as unknown as { stateLayer: unknown }).stateLayer = mockStateLayer;
+
+      const buildLLMRequest = (
+        customGateway as unknown as {
+          buildLLMRequest: (
+            sessionId: string,
+            extraMessages?: unknown[],
+            stream?: boolean
+          ) => Promise<{ messages: Array<{ role: string; content: string }>; tools?: unknown }>;
+        }
+      ).buildLLMRequest.bind(customGateway);
+
+      const request = await buildLLMRequest(session.id);
+
+      expect(mockStateLayer.getIdentity).toHaveBeenCalled();
+      expect(mockStateLayer.assemblePrompt).toHaveBeenCalledWith(
+        expect.objectContaining({
+          identity: expect.objectContaining({
+            soul: 'A helpful AI assistant',
+          }),
+        })
+      );
+      const systemMsg = request.messages.find((m) => m.role === 'system');
+      expect(systemMsg?.content).toContain('Identity');
+
+      customGateway.getStorage().close();
+    });
+
+    it('[BS-04] should inject memory entries into prompt', async () => {
+      const customGateway = new Gateway({
+        dbPath: ':memory:',
+        defaultSystemPrompt: 'Base prompt',
+      });
+
+      const session = await customGateway.getSessionManager().createSession({
+        channel: 'slack',
+        conversationId: 'conv-bs-4',
+        userId: 'user-bs-4',
+      });
+
+      const memoryEntries = [
+        { id: 'mem-1', kind: 'fact', content: 'User prefers dark mode', createdAt: '2024-01-01' },
+      ];
+      const memoryFacts = [{ key: 'preference', value: 'dark mode' }];
+
+      const mockStateLayer = {
+        getIdentity: vi.fn().mockResolvedValue(null),
+        getBootstrap: vi.fn().mockResolvedValue(null),
+        getUserProfile: vi.fn().mockResolvedValue(null),
+        queryMemory: vi.fn().mockResolvedValue({ entries: memoryEntries, facts: memoryFacts }),
+        getSessionState: vi.fn().mockResolvedValue(null),
+        assemblePrompt: vi.fn().mockReturnValue({
+          prompt: 'Base prompt\n\n## Memory\nUser prefers dark mode',
+          report: {
+            totalChars: 80,
+            totalTokens: 20,
+            sections: [],
+            generatedAt: new Date().toISOString(),
+          },
+        }),
+        close: vi.fn().mockResolvedValue(undefined),
+      };
+
+      (customGateway as unknown as { stateLayer: unknown }).stateLayer = mockStateLayer;
+
+      const buildLLMRequest = (
+        customGateway as unknown as {
+          buildLLMRequest: (
+            sessionId: string,
+            extraMessages?: unknown[],
+            stream?: boolean
+          ) => Promise<{ messages: Array<{ role: string; content: string }>; tools?: unknown }>;
+        }
+      ).buildLLMRequest.bind(customGateway);
+
+      await buildLLMRequest(session.id);
+
+      expect(mockStateLayer.queryMemory).toHaveBeenCalledWith(
+        expect.objectContaining({ agentId: 'user-bs-4', limit: 200 }),
+        expect.anything()
+      );
+      expect(mockStateLayer.assemblePrompt).toHaveBeenCalledWith(
+        expect.objectContaining({
+          memoryEntries,
+          memoryFacts: memoryFacts,
+        })
+      );
+
+      customGateway.getStorage().close();
+    });
+
+    it('[BS-05] should include skills documentation in assembled prompt', async () => {
+      const customGateway = new Gateway({
+        dbPath: ':memory:',
+        defaultSystemPrompt: 'Base prompt',
+      });
+
+      const session = await customGateway.getSessionManager().createSession({
+        channel: 'slack',
+        conversationId: 'conv-bs-5',
+        userId: 'user-bs-5',
+      });
+
+      // Mock the skills manager to return a skills prompt
+      const skillsManager = (
+        customGateway as unknown as { skillsManager: { getSkillsPrompt: () => string | null } }
+      ).skillsManager;
+      vi.spyOn(skillsManager, 'getSkillsPrompt').mockReturnValue(
+        '## Skills\ngoplaces: lookup tool'
+      );
+
+      const mockStateLayer = {
+        getIdentity: vi.fn().mockResolvedValue(null),
+        getBootstrap: vi.fn().mockResolvedValue(null),
+        getUserProfile: vi.fn().mockResolvedValue(null),
+        queryMemory: vi.fn().mockResolvedValue({ entries: [], facts: [] }),
+        getSessionState: vi.fn().mockResolvedValue(null),
+        assemblePrompt: vi.fn().mockReturnValue({
+          prompt: 'Base prompt\n\n## Skills\ngoplaces: lookup tool',
+          report: {
+            totalChars: 80,
+            totalTokens: 20,
+            sections: [],
+            generatedAt: new Date().toISOString(),
+          },
+        }),
+        close: vi.fn().mockResolvedValue(undefined),
+      };
+
+      (customGateway as unknown as { stateLayer: unknown }).stateLayer = mockStateLayer;
+
+      const buildLLMRequest = (
+        customGateway as unknown as {
+          buildLLMRequest: (
+            sessionId: string,
+            extraMessages?: unknown[],
+            stream?: boolean
+          ) => Promise<{ messages: Array<{ role: string; content: string }>; tools?: unknown }>;
+        }
+      ).buildLLMRequest.bind(customGateway);
+
+      await buildLLMRequest(session.id);
+
+      expect(mockStateLayer.assemblePrompt).toHaveBeenCalledWith(
+        expect.objectContaining({
+          skills: '## Skills\ngoplaces: lookup tool',
+        })
+      );
+
+      customGateway.getStorage().close();
+    });
+
+    it('[BS-09] should prune bootstrap block after identity completion', async () => {
+      const customGateway = new Gateway({
+        dbPath: ':memory:',
+        defaultSystemPrompt: 'Base prompt',
+      });
+
+      const session = await customGateway.getSessionManager().createSession({
+        channel: 'slack',
+        conversationId: 'conv-bs-9',
+        userId: 'user-bs-9',
+      });
+
+      const completedIdentity = {
+        agentId: 'user-bs-9',
+        soul: 'completed',
+        identity: { name: 'Agent' },
+        identityCompleted: true,
+      };
+
+      const bootstrapProfile = {
+        agentId: 'user-bs-9',
+        content: { bootstrap: 'setup data', personality: 'friendly' },
+        updatedAt: '2024-01-01T00:00:00.000Z',
+        version: 3,
+        source: 'db',
+      };
+
+      const mockStateLayer = {
+        getIdentity: vi.fn().mockResolvedValue(completedIdentity),
+        getBootstrap: vi.fn().mockResolvedValue(bootstrapProfile),
+        getUserProfile: vi.fn().mockResolvedValue(null),
+        queryMemory: vi.fn().mockResolvedValue({ entries: [], facts: [] }),
+        getSessionState: vi.fn().mockResolvedValue(null),
+        assemblePrompt: vi.fn().mockReturnValue({
+          prompt: 'Base prompt\n\n## Identity\nAgent',
+          report: {
+            totalChars: 60,
+            totalTokens: 15,
+            sections: [],
+            generatedAt: new Date().toISOString(),
+          },
+        }),
+        close: vi.fn().mockResolvedValue(undefined),
+      };
+
+      (customGateway as unknown as { stateLayer: unknown }).stateLayer = mockStateLayer;
+
+      // Mock pruneBootstrapAfterCompletion to verify it is called
+      const pruneSpy = vi.fn().mockResolvedValue({
+        ...bootstrapProfile,
+        content: { personality: 'friendly' }, // bootstrap key pruned
+      });
+      (
+        customGateway as unknown as {
+          pruneBootstrapAfterCompletion: typeof pruneSpy;
+        }
+      ).pruneBootstrapAfterCompletion = pruneSpy;
+
+      const buildLLMRequest = (
+        customGateway as unknown as {
+          buildLLMRequest: (
+            sessionId: string,
+            extraMessages?: unknown[],
+            stream?: boolean
+          ) => Promise<{ messages: Array<{ role: string; content: string }>; tools?: unknown }>;
+        }
+      ).buildLLMRequest.bind(customGateway);
+
+      await buildLLMRequest(session.id);
+
+      // When identity is completed, pruneBootstrapAfterCompletion should be called
+      expect(pruneSpy).toHaveBeenCalledWith(bootstrapProfile, expect.anything());
+
+      customGateway.getStorage().close();
+    });
+
+    it('[BS-10] should include all session messages in LLM request', async () => {
+      const customGateway = new Gateway({
+        dbPath: ':memory:',
+        defaultSystemPrompt: 'Base prompt',
+      });
+
+      const session = await customGateway.getSessionManager().createSession({
+        channel: 'slack',
+        conversationId: 'conv-bs-10',
+        userId: 'user-bs-10',
+      });
+
+      // Add some messages to session
+      await customGateway.getSessionManager().addMessage(session.id, {
+        role: 'user',
+        content: 'Hello there',
+      });
+      await customGateway.getSessionManager().addMessage(session.id, {
+        role: 'assistant',
+        content: 'Hi! How can I help?',
+      });
+      await customGateway.getSessionManager().addMessage(session.id, {
+        role: 'user',
+        content: 'Tell me about nachos',
+      });
+
+      const buildLLMRequest = (
+        customGateway as unknown as {
+          buildLLMRequest: (
+            sessionId: string,
+            extraMessages?: unknown[],
+            stream?: boolean
+          ) => Promise<{ messages: Array<{ role: string; content: string }>; tools?: unknown }>;
+        }
+      ).buildLLMRequest.bind(customGateway);
+
+      const request = await buildLLMRequest(session.id);
+
+      // Should contain system prompt + 3 messages
+      const userMsgs = request.messages.filter((m) => m.role === 'user');
+      const assistantMsgs = request.messages.filter((m) => m.role === 'assistant');
+
+      expect(userMsgs).toHaveLength(2);
+      expect(assistantMsgs).toHaveLength(1);
+      expect(userMsgs[0]?.content).toBe('Hello there');
+      expect(assistantMsgs[0]?.content).toBe('Hi! How can I help?');
+      expect(userMsgs[1]?.content).toBe('Tell me about nachos');
+
+      customGateway.getStorage().close();
+    });
+
+    it('[BS-11] should include tool definitions in LLM request', async () => {
+      const customGateway = new Gateway({
+        dbPath: ':memory:',
+        defaultSystemPrompt: 'Base prompt',
+        toolsConfig: { bootstrap: { enabled: true } },
+      });
+
+      const session = await customGateway.getSessionManager().createSession({
+        channel: 'slack',
+        conversationId: 'conv-bs-11',
+        userId: 'user-bs-11',
+      });
+
+      // Inject a mock stateLayer so tool definitions include memory tools etc.
+      const mockStateLayer = {
+        getIdentity: vi.fn().mockResolvedValue(null),
+        getBootstrap: vi.fn().mockResolvedValue(null),
+        getUserProfile: vi.fn().mockResolvedValue(null),
+        queryMemory: vi.fn().mockResolvedValue({ entries: [], facts: [] }),
+        getSessionState: vi.fn().mockResolvedValue(null),
+        assemblePrompt: vi.fn().mockReturnValue({
+          prompt: 'Base prompt',
+          report: {
+            totalChars: 20,
+            totalTokens: 5,
+            sections: [],
+            generatedAt: new Date().toISOString(),
+          },
+        }),
+        close: vi.fn().mockResolvedValue(undefined),
+      };
+
+      (customGateway as unknown as { stateLayer: unknown }).stateLayer = mockStateLayer;
+
+      // Also update the toolExecutor deps so buildToolDefinitions sees the stateLayer
+      const toolExecutor = (
+        customGateway as unknown as {
+          toolExecutor: { updateDeps: (partial: Record<string, unknown>) => void };
+        }
+      ).toolExecutor;
+      toolExecutor.updateDeps({ stateLayer: mockStateLayer });
+
+      const buildLLMRequest = (
+        customGateway as unknown as {
+          buildLLMRequest: (
+            sessionId: string,
+            extraMessages?: unknown[],
+            stream?: boolean
+          ) => Promise<{
+            messages: Array<{ role: string; content: string }>;
+            tools?: Array<{ name: string }>;
+          }>;
+        }
+      ).buildLLMRequest.bind(customGateway);
+
+      const request = await buildLLMRequest(session.id);
+
+      // Should have tools defined (at least memory_search, memory_get, user_profile, bootstrap)
+      expect(request.tools).toBeDefined();
+      expect(Array.isArray(request.tools)).toBe(true);
+      const toolNames = request.tools!.map((t) => t.name);
+      expect(toolNames).toContain('memory_search');
+      expect(toolNames).toContain('user_profile');
+      expect(toolNames).toContain('bootstrap');
+
+      customGateway.getStorage().close();
+    });
+
+    it('[BS-01] should start with base system prompt from session or gateway default', async () => {
+      const customGateway = new Gateway({
+        dbPath: ':memory:',
+        defaultSystemPrompt: 'You are a helpful assistant',
+      });
+
+      const session = await customGateway.getSessionManager().createSession({
+        channel: 'slack',
+        conversationId: 'conv-bs-1',
+        userId: 'user-bs-1',
+      });
+
+      const buildLLMRequest = (
+        customGateway as unknown as {
+          buildLLMRequest: (
+            sessionId: string,
+            extraMessages?: unknown[],
+            stream?: boolean
+          ) => Promise<{ messages: Array<{ role: string; content: string }>; tools?: unknown }>;
+        }
+      ).buildLLMRequest.bind(customGateway);
+
+      const request = await buildLLMRequest(session.id);
+
+      // Without state layer, should use base prompt directly
+      const systemMsg = request.messages.find((m) => m.role === 'system');
+      expect(systemMsg?.content).toBe('You are a helpful assistant');
+
+      customGateway.getStorage().close();
     });
   });
 });

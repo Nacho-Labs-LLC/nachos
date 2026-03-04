@@ -173,7 +173,7 @@ function subscribeToSession(sid: string) {
         sessionId: message.sessionId,
         role: message.role,
         content: message.content,
-        timestamp: message.timestamp,
+        createdAt: message.timestamp,
         toolCalls: message.toolCalls,
       });
       
@@ -195,7 +195,7 @@ function subscribeToSession(sid: string) {
           }, 1000);
         } else if (status.type === 'error') {
           currentStatus.value = { type: 'error', error: status.error };
-          error.value = status.error;
+          error.value = status.error ?? null;
           loading.value = false;
         }
       },
@@ -241,7 +241,7 @@ async function sendMessage() {
     sessionId: sessionId.value,
     role: 'user',
     content: userMessage,
-    timestamp: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
   });
   
   await nextTick();
@@ -443,7 +443,7 @@ onUnmounted(() => {
             <span class="message-role">
               {{ msg.role === 'user' ? 'You' : msg.role === 'assistant' ? 'Assistant' : 'System' }}
             </span>
-            <span class="message-time">{{ formatTime(msg.timestamp) }}</span>
+            <span class="message-time">{{ formatTime(msg.createdAt) }}</span>
           </div>
           <div
             v-if="msg.role === 'assistant'"

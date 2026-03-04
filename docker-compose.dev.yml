@@ -57,6 +57,7 @@ x-channel-defaults: &channel-defaults
     - nachos-internal
   volumes:
     - ./data/channels:/app/state
+    - ./nachos.toml:/app/nachos.toml:ro
   logging: *default-logging
 
 x-tool-security: &tool-security
@@ -126,6 +127,9 @@ services:
     shm_size: 256m
     volumes:
       - ./data/gateway:/app/data
+      - ./state:/app/state
+      - ./nachos.toml:/app/nachos.toml:ro
+      - ./packages/core/gateway/src:/app/packages/core/gateway/src:ro
     develop:
       watch:
         - action: sync
@@ -239,6 +243,8 @@ services:
       <<: *common-env
       PORT: "3001"
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_SETUP_TOKEN: ${ANTHROPIC_SETUP_TOKEN:-}
+      ANTHROPIC_SETUP_TOKEN_2: ${ANTHROPIC_SETUP_TOKEN_2:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       # AWS Bedrock credentials (uses host env if not set in .env)
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
@@ -435,7 +441,7 @@ services:
     environment:
       <<: *common-env
       TOOL_MODE: read
-      ALLOWED_PATHS: ./workspace
+      ALLOWED_PATHS: /workspace
     volumes:
       - ./workspace:/workspace:ro
     tmpfs:
@@ -465,7 +471,7 @@ services:
     environment:
       <<: *common-env
       TOOL_MODE: readwrite
-      ALLOWED_PATHS: ./workspace
+      ALLOWED_PATHS: /workspace
       MAX_FILE_SIZE: 10MB
     volumes:
       - ./workspace:/workspace:rw

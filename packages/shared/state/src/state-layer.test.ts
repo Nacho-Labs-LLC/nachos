@@ -4,14 +4,19 @@
 
 import { describe, it, expect, vi } from 'vitest';
 
-// Mock external dependencies
-vi.mock('@nachos/types', () => ({
-  createLogger: () => ({
+// Shared mock logger — vi.hoisted ensures it's available when vi.mock factory runs
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: {
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
     debug: vi.fn(),
-  }),
+  },
+}));
+
+// Mock external dependencies
+vi.mock('@nachos/types', () => ({
+  createLogger: () => mockLogger,
   createConfigError: (msg: string) => new Error(msg),
   createPolicyDeniedError: (msg: string) => new Error(msg),
 }));
@@ -351,6 +356,44 @@ describe('StateLayer', () => {
         userId: 'user-1',
         sessionId: 'session-1',
       })
+    );
+  });
+
+  it('logs warning when bootstrap seeding fails', async () => {
+    // Clear previous warn calls so we can assert on just this test's call
+    mockLogger.warn.mockClear();
+
+    const config = makeFilesystemConfig();
+    const layer = createStateLayer(config);
+
+    const context = {
+      sessionId: 'session-1',
+      userId: 'user-1',
+      securityMode: 'standard' as const,
+    };
+
+    // Mock bootstrapStore.get to return null (no existing profile)
+    // and bootstrapStore.put to throw (simulating filesystem error)
+    const bootstrapStore = (
+      layer as unknown as {
+        bootstrapStore: { get: ReturnType<typeof vi.fn>; put: ReturnType<typeof vi.fn> };
+      }
+    ).bootstrapStore;
+    bootstrapStore.get.mockResolvedValue(null);
+    bootstrapStore.put.mockRejectedValue(new Error('EACCES: permission denied'));
+
+    const result = await layer.getBootstrap('agent-1', context);
+
+    // Should return null instead of throwing
+    expect(result).toBeNull();
+
+    // Should have logged the warning with error and agentId
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.any(Error),
+        agentId: 'agent-1',
+      }),
+      'Bootstrap seeding failed'
     );
   });
 });

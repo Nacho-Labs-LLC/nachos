@@ -342,6 +342,95 @@ describe('Configuration Validation', () => {
       expect(result.valid).toBe(true);
       expect(result.warnings.some((w) => w.includes('filesystem.write'))).toBe(true);
     });
+
+    it('should warn when runtime.state_dir is a relative path', () => {
+      const config: NachosConfig = {
+        nachos: { name: 'test', version: '1.0' },
+        llm: { provider: 'anthropic', model: 'claude' },
+        security: { mode: 'standard' },
+        runtime: { state_dir: './state' },
+      };
+
+      const result = validateConfig(config);
+
+      expect(result.valid).toBe(true);
+      expect(result.warnings.some((w) => w.includes('runtime.state_dir is a relative path'))).toBe(
+        true
+      );
+    });
+
+    it('should warn when filesystem provider dir is a relative path', () => {
+      const config: NachosConfig = {
+        nachos: { name: 'test', version: '1.0' },
+        llm: { provider: 'anthropic', model: 'claude' },
+        security: { mode: 'standard' },
+        runtime: {
+          state: {
+            identity: { provider: 'filesystem', filesystem: { dir: './state/identity' } },
+            bootstrap: { provider: 'filesystem', filesystem: { dir: '../state/bootstrap' } },
+          },
+        },
+      };
+
+      const result = validateConfig(config);
+
+      expect(result.valid).toBe(true);
+      expect(
+        result.warnings.some((w) =>
+          w.includes('runtime.state.identity.filesystem.dir is a relative path')
+        )
+      ).toBe(true);
+      expect(
+        result.warnings.some((w) =>
+          w.includes('runtime.state.bootstrap.filesystem.dir is a relative path')
+        )
+      ).toBe(true);
+    });
+
+    it('should warn when sessions sqlite db_path is a relative path', () => {
+      const config: NachosConfig = {
+        nachos: { name: 'test', version: '1.0' },
+        llm: { provider: 'anthropic', model: 'claude' },
+        security: { mode: 'standard' },
+        runtime: {
+          state: {
+            sessions: { provider: 'sqlite', sqlite: { db_path: 'data/sessions.db' } },
+          },
+        },
+      };
+
+      const result = validateConfig(config);
+
+      expect(result.valid).toBe(true);
+      expect(
+        result.warnings.some((w) =>
+          w.includes('runtime.state.sessions.sqlite.db_path is a relative path')
+        )
+      ).toBe(true);
+    });
+
+    it('should not warn when paths are absolute', () => {
+      const config: NachosConfig = {
+        nachos: { name: 'test', version: '1.0' },
+        llm: { provider: 'anthropic', model: 'claude' },
+        security: { mode: 'standard' },
+        runtime: {
+          state_dir: '/data/nachos/state',
+          state: {
+            identity: { provider: 'filesystem', filesystem: { dir: '/data/nachos/identity' } },
+            sessions: {
+              provider: 'sqlite',
+              sqlite: { db_path: '/data/nachos/sessions.db' },
+            },
+          },
+        },
+      };
+
+      const result = validateConfig(config);
+
+      // Should not have any relative path warnings
+      expect(result.warnings.some((w) => w.includes('is a relative path'))).toBe(false);
+    });
   });
 
   describe('validateConfigOrThrow', () => {

@@ -49,6 +49,39 @@ const INIT_SCHEMA = `
 `;
 
 /**
+ * Schema version tracking table
+ */
+const SCHEMA_VERSION_INIT = `
+  CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL);
+`;
+
+/**
+ * Migration definition
+ */
+interface Migration {
+  version: number;
+  sql: string[];
+}
+
+/**
+ * Schema migrations applied in order.
+ * Each migration has a version number and an array of SQL statements.
+ * SQLite does not support ADD COLUMN IF NOT EXISTS, so we use try/catch
+ * around each ALTER TABLE to handle already-existing columns gracefully.
+ */
+const MIGRATIONS: Migration[] = [
+  {
+    version: 1,
+    sql: [
+      'ALTER TABLE sessions ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE sessions ADD COLUMN is_archived INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE sessions ADD COLUMN last_activity TEXT',
+      'UPDATE sessions SET last_activity = updated_at WHERE last_activity IS NULL',
+    ],
+  },
+];
+
+/**
  * Data for creating a new session
  */
 export interface CreateSessionData {
@@ -122,6 +155,53 @@ export class StateStorage {
     this.db.pragma('journal_mode = WAL');
     this.db.exec(INIT_SCHEMA);
     this.db.exec(SCHEDULER_SCHEMA);
+    this.runMigrations();
+  }
+
+  /**
+   * Run pending schema migrations.
+   * Checks the current schema version and applies any migrations
+   * with a version greater than the current one.
+   */
+  private runMigrations(): void {
+    // Ensure schema_version table exists
+    this.db.exec(SCHEMA_VERSION_INIT);
+
+    // Get current version (0 if no rows)
+    const row = this.db
+      .prepare('SELECT version FROM schema_version ORDER BY version DESC LIMIT 1')
+      .get() as { version: number } | undefined;
+    const currentVersion = row?.version ?? 0;
+
+    // Apply pending migrations
+    for (const migration of MIGRATIONS) {
+      if (migration.version <= currentVersion) continue;
+
+      for (const sql of migration.sql) {
+        try {
+          this.db.exec(sql);
+        } catch (error) {
+          // SQLite errors on duplicate columns — skip gracefully
+          const message = error instanceof Error ? error.message : String(error);
+          if (message.includes('duplicate column')) continue;
+          throw error;
+        }
+      }
+
+      // Update schema version
+      if (currentVersion === 0 && migration.version === MIGRATIONS[0]?.version) {
+        // First migration — insert the version row
+        this.db.prepare('INSERT INTO schema_version (version) VALUES (?)').run(migration.version);
+      } else {
+        // Subsequent migrations — update if row exists, insert otherwise
+        const existing = this.db.prepare('SELECT version FROM schema_version LIMIT 1').get();
+        if (existing) {
+          this.db.prepare('UPDATE schema_version SET version = ?').run(migration.version);
+        } else {
+          this.db.prepare('INSERT INTO schema_version (version) VALUES (?)').run(migration.version);
+        }
+      }
+    }
   }
 
   /**
@@ -532,7 +612,9 @@ export class StateStorage {
    * Archive a session
    */
   async archive(id: string): Promise<boolean> {
-    const stmt = this.db.prepare('UPDATE sessions SET is_archived = 1, updated_at = ? WHERE id = ?');
+    const stmt = this.db.prepare(
+      'UPDATE sessions SET is_archived = 1, updated_at = ? WHERE id = ?'
+    );
     const result = stmt.run(new Date().toISOString(), id);
     return result.changes > 0;
   }
@@ -541,7 +623,9 @@ export class StateStorage {
    * Restore an archived session
    */
   async restore(id: string): Promise<boolean> {
-    const stmt = this.db.prepare('UPDATE sessions SET is_archived = 0, updated_at = ? WHERE id = ?');
+    const stmt = this.db.prepare(
+      'UPDATE sessions SET is_archived = 0, updated_at = ? WHERE id = ?'
+    );
     const result = stmt.run(new Date().toISOString(), id);
     return result.changes > 0;
   }

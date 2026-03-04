@@ -86,10 +86,12 @@ describeIfInfra('WebChatRPCService', () => {
   });
 
   beforeEach(async () => {
-    // Clean up tables before each test
-    if (store) {
+    // Clean up tables and create fresh store before each test
+    // (the store caches initialized=true, so we need a new instance after dropping tables)
+    if (pool) {
       await pool.query(`DROP TABLE IF EXISTS "${TEST_SCHEMA}".messages CASCADE`);
       await pool.query(`DROP TABLE IF EXISTS "${TEST_SCHEMA}".sessions CASCADE`);
+      store = new PostgresSessionsStore(pool, TEST_SCHEMA);
     }
   });
 
