@@ -1,4 +1,6 @@
 import Database from 'better-sqlite3';
+import { mkdirSync } from 'node:fs';
+import { dirname } from 'node:path';
 
 export interface AdminChatSession {
   id: string;
@@ -12,6 +14,7 @@ export class AdminChatSessionStore {
   private db: Database.Database;
 
   constructor(dbPath: string) {
+    mkdirSync(dirname(dbPath), { recursive: true });
     this.db = new Database(dbPath);
     this.db.pragma('journal_mode = WAL');
     this.db.exec(`

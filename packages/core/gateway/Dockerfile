@@ -39,12 +39,13 @@ ENV CHROME_BIN=/usr/bin/chromium-browser
 ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 # Install Go-based skill CLI tools
-RUN go install github.com/steipete/goplaces/cmd/goplaces@latest && \
-    go install github.com/steipete/gifgrep/cmd/gifgrep@latest && \
-    go install github.com/steipete/gogcli/cmd/gog@latest
+# Pin skill CLI tool versions for reproducible builds (last updated 2026-03-05)
+RUN go install github.com/steipete/goplaces/cmd/goplaces@v0.3.0 && \
+    go install github.com/steipete/gifgrep/cmd/gifgrep@v0.2.3 && \
+    go install github.com/steipete/gogcli/cmd/gog@v0.11.0
 
 # Install Node-based skill CLI tools
-RUN npm install -g @steipete/summarize
+RUN npm install -g @steipete/summarize@0.11.1
 
 # Create non-root user BEFORE any file copies
 RUN addgroup -g 1001 -S nachos && \

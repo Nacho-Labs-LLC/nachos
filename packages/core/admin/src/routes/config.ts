@@ -46,7 +46,7 @@ configRouter.put('/', async (c) => {
         {
           error: 'Security policy violation',
           details:
-            'Cannot set security_mode to "permissive" via the API. Edit nachos.toml directly.',
+            'Cannot set security.mode to "permissive" via the API. Edit nachos.toml ([security].mode) directly.',
         },
         403
       );
@@ -98,7 +98,7 @@ configRouter.patch('/', async (c) => {
     return c.json(
       {
         error: 'Security policy violation',
-        details: 'Cannot set security_mode to "permissive" via the API. Edit nachos.toml directly.',
+        details: 'Cannot set security.mode to "permissive" via the API. Edit nachos.toml ([security].mode) directly.',
       },
       403
     );
