@@ -8,12 +8,15 @@ import type {
 } from '@nachos/types';
 import { createLogger } from '@nachos/types';
 import { randomUUID } from 'node:crypto';
+import path from 'node:path';
+import { AdminChatSessionStore } from './admin-chat-session-store.js';
 
 const logger = createLogger('admin-chat');
 
 const NATS_URL = process.env['NATS_URL'] ?? 'nats://localhost:4222';
 const NATS_TOKEN = process.env['NATS_TOKEN'] ?? '';
 const CHANNEL_ID = 'webchat';
+const STATE_DIR = process.env['NACHOS_STATE_DIR'] ?? '/app/state';
 
 export const chatRouter = new Hono();
 
@@ -32,8 +35,8 @@ async function getBusClient(): Promise<NachosBusClient> {
   return busClient;
 }
 
-// Session store (in-memory for now, could be moved to DB)
-const sessions = new Map<string, { sessionId: string; userId: string; conversationId: string }>();
+// SQLite-backed session store (persists across restarts)
+const sessions = new AdminChatSessionStore(path.join(STATE_DIR, 'admin-chat.db'));
 
 // POST /api/chat/send
 chatRouter.post('/send', async (c) => {
@@ -48,22 +51,25 @@ chatRouter.post('/send', async (c) => {
     const bus = await getBusClient();
 
     // Get or create session
-    let session = clientSessionId ? sessions.get(clientSessionId) : null;
+    let session = clientSessionId ? sessions.get(clientSessionId) : undefined;
     if (!session) {
       const newSessionId = randomUUID();
+      const now = new Date().toISOString();
       session = {
-        sessionId: newSessionId,
+        id: newSessionId,
         userId: `web-user-${newSessionId.slice(0, 8)}`,
         conversationId: newSessionId,
+        createdAt: now,
+        updatedAt: now,
       };
-      sessions.set(newSessionId, session);
+      sessions.set(session);
     }
 
     // Publish message to gateway via bus client (auto-wraps in envelope)
     const inboundMsg: ChannelInboundMessage = {
       channel: CHANNEL_ID,
       channelMessageId: randomUUID(),
-      sessionId: session.sessionId,
+      sessionId: session.id,
       sender: {
         id: session.userId,
         name: 'Web User',
@@ -84,7 +90,7 @@ chatRouter.post('/send', async (c) => {
 
     return c.json({
       ok: true,
-      sessionId: session.sessionId,
+      sessionId: session.id,
       messageId: randomUUID(),
     });
   } catch (err) {

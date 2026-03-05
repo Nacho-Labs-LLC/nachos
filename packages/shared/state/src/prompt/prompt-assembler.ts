@@ -245,6 +245,11 @@ If user asks "What was that Python library we discussed last week?", use:
 }
 \`\`\`
 
+**Deleting Memories:**
+Use \`memory_delete\` to remove outdated, incorrect, or no longer relevant memories.
+First use \`memory_search\` to find the memory entry ID, then delete it by ID.
+Only delete memories when the user requests it or when you discover a memory is clearly wrong.
+
 **Limits:**
 - Maximum 1-2 memory searches per response
 - Only search when genuinely needed (don't search "just in case")

@@ -6,7 +6,7 @@ import { loadAndValidateConfig } from '@nachos/config';
 import { createLogger } from '@nachos/types';
 
 const logger = createLogger('gateway');
-import { createContextManager } from '@nachos/context-manager';
+import { createContextManager, createSnapshotService } from '@nachos/context-manager';
 import { createDefaultDLPConfig, type DLPConfig } from './security/dlp.js';
 import {
   Gateway,
@@ -63,6 +63,15 @@ async function start(): Promise<void> {
     runtime?.context_management?.commands;
 
   const proactiveHistory = contextManagement?.proactive_history;
+
+  // Create snapshot service if proactive history snapshots are enabled
+  const snapshotService = proactiveHistory?.snapshots?.enabled
+    ? createSnapshotService({
+        stateDir: proactiveHistory.snapshots.dir ?? runtime?.state_dir ?? './data',
+        maxSnapshots: proactiveHistory.snapshots.maxSnapshots ?? 50,
+      })
+    : undefined;
+
   const stateLayerConfig = buildStateLayerConfig(runtime);
   const memoryPipelineConfig = proactiveHistory?.enabled
     ? {
@@ -132,6 +141,7 @@ async function start(): Promise<void> {
     healthPort: gatewayConfig.healthPort,
     bus: busAdapter,
     defaultSystemPrompt: gatewayConfig.defaultSystemPrompt,
+    assistantName: gatewayConfig.assistantName,
     channels: gatewayConfig.channels,
     policyConfig: {
       policiesPath: gatewayConfig.policy?.policiesPath ?? '/app/policies',
@@ -147,6 +157,7 @@ async function start(): Promise<void> {
     streamingMinIntervalMs: gatewayConfig.streamingMinIntervalMs,
     dlpConfig,
     contextManager,
+    snapshotService,
     stateLayerConfig,
     memoryPipelineConfig,
     contextCommandConfig,

@@ -169,6 +169,105 @@ user_allowlist = ["U1"]
 
       expect(config.rateLimiter?.redisUrl).toBe('redis://runtime:6379');
     });
+
+    it('should load system_prompt from nachos.toml [assistant] when env is unset', () => {
+      delete process.env.GATEWAY_SYSTEM_PROMPT;
+
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nachos-gateway-'));
+      const configPath = path.join(tempDir, 'nachos.toml');
+      fs.writeFileSync(
+        configPath,
+        `
+[nachos]
+name = "test"
+version = "1.0"
+
+[llm]
+provider = "anthropic"
+model = "claude"
+
+[security]
+mode = "standard"
+
+[assistant]
+system_prompt = "You are a helpful nachos assistant."
+name = "Nacho"
+        `
+      );
+
+      process.env.NACHOS_CONFIG_PATH = configPath;
+
+      const config = loadConfig();
+
+      expect(config.defaultSystemPrompt).toBe('You are a helpful nachos assistant.');
+      expect(config.assistantName).toBe('Nacho');
+
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    });
+
+    it('should prefer GATEWAY_SYSTEM_PROMPT env var over nachos.toml assistant.system_prompt', () => {
+      process.env.GATEWAY_SYSTEM_PROMPT = 'Env prompt wins';
+
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nachos-gateway-'));
+      const configPath = path.join(tempDir, 'nachos.toml');
+      fs.writeFileSync(
+        configPath,
+        `
+[nachos]
+name = "test"
+version = "1.0"
+
+[llm]
+provider = "anthropic"
+model = "claude"
+
+[security]
+mode = "standard"
+
+[assistant]
+system_prompt = "TOML prompt should be overridden"
+        `
+      );
+
+      process.env.NACHOS_CONFIG_PATH = configPath;
+
+      const config = loadConfig();
+
+      expect(config.defaultSystemPrompt).toBe('Env prompt wins');
+
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    });
+
+    it('should return undefined assistantName when nachos.toml has no [assistant] section', () => {
+      delete process.env.GATEWAY_SYSTEM_PROMPT;
+
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nachos-gateway-'));
+      const configPath = path.join(tempDir, 'nachos.toml');
+      fs.writeFileSync(
+        configPath,
+        `
+[nachos]
+name = "test"
+version = "1.0"
+
+[llm]
+provider = "anthropic"
+model = "claude"
+
+[security]
+mode = "standard"
+        `
+      );
+
+      process.env.NACHOS_CONFIG_PATH = configPath;
+
+      const config = loadConfig();
+
+      expect(config.assistantName).toBeUndefined();
+      expect(config.defaultSystemPrompt).toBeUndefined();
+
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    });
   });
 
   describe('validateConfig', () => {

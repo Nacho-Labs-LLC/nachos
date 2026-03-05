@@ -20,9 +20,6 @@ const CONFIG_SHAPE: SchemaNode = {
     provider: true,
     model: true,
     fallback_order: true,
-    providers: {
-      __array: { name: true, type: true, base_url: true, models: true, profiles: true },
-    },
     profiles: {
       __array: { name: true, provider: true, api_key_env: true, base_url: true },
     },
@@ -397,7 +394,7 @@ const CONFIG_SHAPE: SchemaNode = {
       network: true,
     },
   },
-  assistant: { name: true, system_prompt: true, context_files: true },
+  assistant: { name: true, system_prompt: true },
   skills: {
     enabled: true,
     allow: true,

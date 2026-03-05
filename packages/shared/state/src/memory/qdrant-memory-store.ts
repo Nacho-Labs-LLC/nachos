@@ -16,6 +16,9 @@ import { createLogger, createInternalError, createValidationError } from '@nacho
 
 const logger = createLogger('qdrant-memory-store');
 
+// Lazy import to avoid crashing on platforms without glibc (e.g., Alpine)
+type EmbedderType = import('@nacho-labs/nachos-embeddings').Embedder;
+
 interface QdrantEntryPayload {
   agent_id: string;
   kind: 'decision' | 'observation' | 'conversation' | 'tool_result';
@@ -68,6 +71,7 @@ export interface QdrantConfig {
   apiKey?: string;
   embeddingModel?: string;
   embeddingDimensions?: number;
+  embeddingCacheDir?: string;
 }
 
 /**
@@ -80,13 +84,18 @@ export class QdrantMemoryStore implements MemoryStore {
   private collection: string;
   private apiKey?: string;
   private embeddingDimensions: number;
-  private embedWarningLogged = false;
+  private embedder: EmbedderType | null = null;
+  private embedderFailed = false;
+  private embeddingModel?: string;
+  private embeddingCacheDir?: string;
 
   constructor(config: QdrantConfig) {
     this.url = config.url.replace(/\/$/, '');
     this.collection = config.collection;
     this.apiKey = config.apiKey;
-    this.embeddingDimensions = config.embeddingDimensions ?? 1536;
+    this.embeddingDimensions = config.embeddingDimensions ?? 384;
+    this.embeddingModel = config.embeddingModel;
+    this.embeddingCacheDir = config.embeddingCacheDir;
   }
 
   /**
@@ -109,9 +118,45 @@ export class QdrantMemoryStore implements MemoryStore {
   }
 
   /**
+   * Lazily initialize the embedder from @nacho-labs/nachos-embeddings.
+   * Falls back to zero vectors if the library is unavailable (e.g., Alpine/glibc).
+   */
+  private async initEmbedder(): Promise<void> {
+    if (this.embedder || this.embedderFailed) return;
+
+    try {
+      const { Embedder } = await import('@nacho-labs/nachos-embeddings');
+      this.embedder = new Embedder({
+        model: this.embeddingModel,
+        cacheDir: this.embeddingCacheDir,
+      });
+      await this.embedder.init();
+
+      const detectedDimension = this.embedder.getDimension();
+      if (detectedDimension) {
+        this.embeddingDimensions = detectedDimension;
+      }
+
+      logger.info(
+        { dimensions: this.embeddingDimensions },
+        'Embedder initialized for Qdrant store'
+      );
+    } catch (err) {
+      logger.warn(
+        { err: (err as Error).message },
+        'Embedder initialization failed, falling back to zero vectors'
+      );
+      this.embedderFailed = true;
+    }
+  }
+
+  /**
    * Initialize Qdrant collection
    */
   private async initCollection(): Promise<void> {
+    // Initialize embedder first to auto-detect correct dimensions
+    await this.initEmbedder();
+
     try {
       const checkResponse = await this.request(`/collections/${this.collection}`, 'GET');
 
@@ -184,13 +229,12 @@ export class QdrantMemoryStore implements MemoryStore {
   }
 
   /**
-   * Generate embedding for text (placeholder - requires external embedding service)
+   * Generate embedding for text using nachos-embeddings.
+   * Falls back to zero vectors if embedder is unavailable.
    */
-  private async embed(_text: string): Promise<number[]> {
-    // TODO: Integrate with actual embedding service (OpenAI, Cohere, local model, etc.)
-    if (!this.embedWarningLogged) {
-      logger.warn('Embedding generation not implemented, returning zero vector');
-      this.embedWarningLogged = true;
+  private async embed(text: string): Promise<number[]> {
+    if (this.embedder?.isInitialized()) {
+      return this.embedder.embed(text);
     }
     return new Array(this.embeddingDimensions).fill(0);
   }

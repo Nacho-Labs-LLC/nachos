@@ -10,6 +10,7 @@ import {
   listEnabledChannels,
   loadAndValidateConfig,
 } from '@nachos/config';
+import type { AssistantConfig } from '@nachos/config';
 import { createValidationError } from '@nachos/types';
 import { createDefaultRateLimiterConfig, type RateLimiterConfig } from './security/rate-limiter.js';
 import type { PolicyEngineConfig } from './cheese/types/index.js';
@@ -26,6 +27,8 @@ export interface GatewayConfig {
   natsServers: string | string[];
   /** Default system prompt for new sessions */
   defaultSystemPrompt?: string;
+  /** Assistant name from nachos.toml [assistant] section */
+  assistantName?: string;
   /** Channels to subscribe to */
   channels: string[];
   /** Log level */
@@ -61,6 +64,22 @@ const defaults: GatewayConfig = {
 };
 
 /**
+ * Resolve the [assistant] section from nachos.toml, if available.
+ */
+function resolveAssistantFromConfig(): AssistantConfig | undefined {
+  try {
+    const configPath = process.env.NACHOS_CONFIG_PATH;
+    const config = loadAndValidateConfig({ configPath });
+    return config.assistant;
+  } catch (error) {
+    if (error instanceof ConfigLoadError || error instanceof ConfigValidationError) {
+      return undefined;
+    }
+    throw error;
+  }
+}
+
+/**
  * Load configuration from environment variables
  */
 export function loadConfig(): GatewayConfig {
@@ -69,11 +88,17 @@ export function loadConfig(): GatewayConfig {
   const modeDefaults = rateLimiterDefaults.presets?.[securityMode] ?? rateLimiterDefaults.limits;
   const envChannels = process.env.GATEWAY_CHANNELS?.split(',').filter(Boolean);
 
+  // Resolve assistant config from nachos.toml (used as fallback for env vars)
+  const assistant = resolveAssistantFromConfig();
+
   return {
     dbPath: process.env.GATEWAY_DB_PATH ?? defaults.dbPath,
     healthPort: parseInt(process.env.GATEWAY_HEALTH_PORT ?? String(defaults.healthPort), 10),
     natsServers: process.env.NATS_SERVERS?.split(',') ?? defaults.natsServers,
-    defaultSystemPrompt: process.env.GATEWAY_SYSTEM_PROMPT ?? defaults.defaultSystemPrompt,
+    // Priority: env var > nachos.toml [assistant].system_prompt > default
+    defaultSystemPrompt:
+      process.env.GATEWAY_SYSTEM_PROMPT ?? assistant?.system_prompt ?? defaults.defaultSystemPrompt,
+    assistantName: assistant?.name,
     channels: envChannels ?? resolveChannelsFromConfig(),
     logLevel: (process.env.GATEWAY_LOG_LEVEL as GatewayConfig['logLevel']) ?? defaults.logLevel,
     streamingPassthrough:

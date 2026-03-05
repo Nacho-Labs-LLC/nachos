@@ -10,7 +10,8 @@ import type {
   SubagentToolPolicyConfig,
   SubagentToolProfileConfig,
 } from '@nachos/config';
-import type { StateLayer, StateOperationContext } from '@nachos/state';
+import type { StateLayer, StateOperationContext, SessionsStore } from '@nachos/state';
+import type { IContextSnapshotService } from '@nachos/context-manager';
 import type { AuditEvent } from '../audit/types.js';
 import type { DLPSecurityLayer } from '../security/dlp.js';
 import type { ToolCoordinator } from './coordinator.js';
@@ -30,10 +31,18 @@ import {
   MemorySearchToolSchema,
   MemoryGetToolSchema,
   MemoryWriteToolSchema,
+  MemoryDeleteToolSchema,
   executeMemorySearch,
   executeMemoryGet,
   executeMemoryWrite,
+  executeMemoryDelete,
 } from './memory-tools.js';
+import {
+  SnapshotListToolSchema,
+  SnapshotRestoreToolSchema,
+  executeSnapshotList,
+  executeSnapshotRestore,
+} from './snapshot-tools.js';
 import { WebSearchToolSchema, executeWebSearch, type WebSearchConfig } from './web-search-tools.js';
 import {
   WebFetchNativeToolSchema,
@@ -120,6 +129,10 @@ export interface ToolExecutorAuditDeps {
 
 export interface ToolExecutorStateDeps {
   stateLayer?: StateLayer;
+  /** Sessions store for snapshot restore */
+  sessionsStore?: SessionsStore;
+  /** Snapshot service for listing/restoring snapshots */
+  snapshotService?: IContextSnapshotService;
   /** Get session by ID */
   getSession(sessionId: string): Promise<Session | null>;
   /** Get messages for a session */
@@ -240,6 +253,28 @@ export class ToolExecutor {
         description:
           'Save a memory entry for future recall. Use to remember user preferences, important decisions, learned facts, active tasks, or issues. Memories persist across sessions and can be retrieved with memory_search.',
         parameters: this.sanitizeToolSchema(MemoryWriteToolSchema),
+      });
+      tools.push({
+        name: 'memory_delete',
+        description:
+          'Delete a memory entry by ID. Use to remove outdated, incorrect, or no longer relevant memories. Get the memory ID from memory_search results.',
+        parameters: this.sanitizeToolSchema(MemoryDeleteToolSchema),
+      });
+    }
+
+    // Snapshot tools (available when snapshot service is configured)
+    if (this.deps.state.snapshotService && this.deps.state.sessionsStore && !bootstrapLocked) {
+      tools.push({
+        name: 'snapshot_list',
+        description:
+          'List available context snapshots for the current session. Snapshots are created before compaction and can be used to restore conversation history.',
+        parameters: this.sanitizeToolSchema(SnapshotListToolSchema),
+      });
+      tools.push({
+        name: 'snapshot_restore',
+        description:
+          'Restore session conversation history from a snapshot. This replaces the current messages with those from the snapshot. Use with caution — current messages will be lost. Only use when the user explicitly requests restoring a previous conversation state.',
+        parameters: this.sanitizeToolSchema(SnapshotRestoreToolSchema),
       });
     }
 
@@ -928,6 +963,57 @@ export class ToolExecutor {
         internalTool: true,
       };
       return executeMemoryWrite(call, this.deps.state.stateLayer, context);
+    }
+
+    if (call.tool === 'memory_delete') {
+      if (!this.deps.state.stateLayer) {
+        return this.formatToolError('STATE_LAYER_DISABLED', 'Memory is not configured');
+      }
+      if (!session) {
+        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found for memory delete');
+      }
+
+      const rateLimitResult = this.checkMemoryToolRateLimit(session.id);
+      if (!rateLimitResult.allowed) {
+        return this.formatToolError(
+          'RATE_LIMIT_EXCEEDED',
+          `Memory tool rate limit exceeded. Try again in ${rateLimitResult.retryAfterSeconds} seconds.`
+        );
+      }
+
+      const context = {
+        ...buildStateContext(session, this.deps.core.securityMode),
+        internalTool: true,
+      };
+      return executeMemoryDelete(call, this.deps.state.stateLayer, context);
+    }
+
+    if (call.tool === 'snapshot_list') {
+      if (!this.deps.state.snapshotService) {
+        return this.formatToolError('SNAPSHOTS_DISABLED', 'Snapshot service is not configured');
+      }
+      if (!session) {
+        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found for snapshot list');
+      }
+      return executeSnapshotList(call, this.deps.state.snapshotService, session.id);
+    }
+
+    if (call.tool === 'snapshot_restore') {
+      if (!this.deps.state.snapshotService) {
+        return this.formatToolError('SNAPSHOTS_DISABLED', 'Snapshot service is not configured');
+      }
+      if (!this.deps.state.sessionsStore) {
+        return this.formatToolError('SESSIONS_DISABLED', 'Sessions store is not configured');
+      }
+      if (!session) {
+        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found for snapshot restore');
+      }
+      return executeSnapshotRestore(
+        call,
+        this.deps.state.snapshotService,
+        this.deps.state.sessionsStore,
+        session.id
+      );
     }
 
     if (call.tool === 'github') {

@@ -73,7 +73,7 @@ import {
 } from '@nachos/state';
 import type { MemoryPipelineConfig } from '@nachos/state';
 import { tokenEstimator } from '@nachos/context-manager';
-import type { ContextManager } from '@nachos/context-manager';
+import type { ContextManager, IContextSnapshotService } from '@nachos/context-manager';
 import { SubagentManager } from './subagents/subagent-manager.js';
 import { SubagentOrchestrator } from './subagents/subagent-orchestrator.js';
 import { resolveSubagentWorkspaceRoot } from './subagents/workspace-utils.js';
@@ -135,6 +135,7 @@ type ResolvedContextCommandConfig = {
   resetTriggers: string[];
   contextTriggers: string[];
   identityTriggers: string[];
+  helpTriggers: string[];
 };
 
 type ContextCommandOutcome = {
@@ -156,6 +157,8 @@ export interface GatewayOptions {
   bus?: MessageBus;
   /** Default system prompt for new sessions */
   defaultSystemPrompt?: string;
+  /** Assistant name (prepended to system prompt) */
+  assistantName?: string;
   /** Channels to subscribe to */
   channels?: string[];
   /** Policy engine configuration */
@@ -178,6 +181,8 @@ export interface GatewayOptions {
   streamingMinIntervalMs?: number;
   /** Context manager instance */
   contextManager?: ContextManager;
+  /** Snapshot service for context snapshot operations */
+  snapshotService?: IContextSnapshotService;
   /** State layer instance */
   stateLayer?: StateLayer;
   /** State layer configuration (used if stateLayer not provided) */
@@ -447,6 +452,8 @@ export class Gateway {
       },
       state: {
         stateLayer: this.stateLayer,
+        sessionsStore: this.sessionsStore,
+        snapshotService: options.snapshotService,
         getSession: (sessionId) => this.sessionsStore.getSession(sessionId),
         getMessages: (sessionId) => this.sessionsStore.getMessages(sessionId),
         getIdentityCompletionStatus: (session) => this.getIdentityCompletionStatus(session),
@@ -929,13 +936,18 @@ export class Gateway {
       resetTriggers: (config.reset_triggers ?? ['/new', '/reset']).filter(Boolean),
       contextTriggers: (config.context_triggers ?? ['/context']).filter(Boolean),
       identityTriggers: (config.identity_triggers ?? ['/identity']).filter(Boolean),
+      helpTriggers: (config.help_triggers ?? ['/help', '!help']).filter(Boolean),
     };
   }
 
   private parseContextCommand(
     text: string,
     config: ResolvedContextCommandConfig
-  ): { type: 'reset' | 'context' | 'identity'; trigger: string; remainder: string } | null {
+  ): {
+    type: 'reset' | 'context' | 'identity' | 'help';
+    trigger: string;
+    remainder: string;
+  } | null {
     const trimmed = text.trim();
     if (!trimmed) return null;
 
@@ -968,6 +980,11 @@ export class Gateway {
     const context = matchTrigger(config.contextTriggers);
     if (context) {
       return { type: 'context', trigger: context.trigger, remainder: context.remainder };
+    }
+
+    const help = matchTrigger(config.helpTriggers);
+    if (help) {
+      return { type: 'help', trigger: help.trigger, remainder: help.remainder };
     }
 
     return null;
@@ -1012,6 +1029,19 @@ export class Gateway {
       return {
         handled: true,
         replyText: 'Session commands are disabled in channels.',
+      };
+    }
+
+    if (parsed.type === 'help') {
+      return {
+        handled: true,
+        replyText: [
+          'Available commands:',
+          '/reset - Start a new conversation',
+          '/context on|off|status - Manage context window',
+          '/identity status|reset - View or reset identity (admin only)',
+          '/help - Show this help message',
+        ].join('\n'),
       };
     }
 
@@ -1226,7 +1256,11 @@ export class Gateway {
     }
 
     const messages: LLMRequestType['messages'] = [];
-    const basePrompt = session.systemPrompt ?? this.options.defaultSystemPrompt ?? '';
+    const rawPrompt = session.systemPrompt ?? this.options.defaultSystemPrompt ?? '';
+    // Prepend assistant name if configured
+    const basePrompt = this.options.assistantName
+      ? `Your name is ${this.options.assistantName}.\n\n${rawPrompt}`
+      : rawPrompt;
 
     let prompt = basePrompt;
     let promptReport: PromptReport | undefined;
@@ -1991,6 +2025,7 @@ export class Gateway {
           conversationType: inbound.conversation.type,
           replyToMessageId: inbound.channelMessageId,
           userId: inbound.sender.id,
+          ...inbound.metadata,
         },
         timestamp: new Date(),
       });

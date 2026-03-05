@@ -104,6 +104,12 @@ export class TelegramChannelAdapter implements ChannelAdapter {
 
     await this.bot.launch();
 
+    await this.bot.telegram.setMyCommands([
+      { command: 'reset', description: 'Start a new conversation' },
+      { command: 'context', description: 'Manage context (on/off/status)' },
+      { command: 'help', description: 'Show available commands' },
+    ]);
+
     await this.config.bus.subscribe(TOPICS.channel.outbound(this.channelId), async (payload) => {
       await this.sendMessage(payload as OutboundMessage);
     });
@@ -355,6 +361,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
       },
       metadata: {
         chatType: chat.type,
+        ...(isDm ? { is_paired: true } : {}),
       },
     };
 
@@ -473,6 +480,7 @@ export class TelegramChannelAdapter implements ChannelAdapter {
       metadata: {
         chatType: chat.type,
         mediaType,
+        ...(isDm ? { is_paired: true } : {}),
       },
     };
 

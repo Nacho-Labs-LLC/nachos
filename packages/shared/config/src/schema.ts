@@ -22,14 +22,6 @@ export interface LLMAuthProfileConfig {
   base_url?: string;
 }
 
-export interface LLMProviderConfig {
-  name: string;
-  type: 'anthropic' | 'openai' | 'ollama' | 'bedrock' | 'custom';
-  base_url?: string;
-  models?: string[];
-  profiles?: string[];
-}
-
 export interface LLMRetryConfig {
   attempts?: number;
   min_delay_ms?: number;
@@ -49,7 +41,6 @@ export interface LLMConfig {
   provider: 'anthropic' | 'openai' | 'ollama' | 'bedrock' | 'custom';
   model: string;
   fallback_order?: string[];
-  providers?: LLMProviderConfig[];
   profiles?: LLMAuthProfileConfig[];
   profile_order?: string[];
   retry?: LLMRetryConfig;
@@ -530,6 +521,7 @@ export interface ContextManagementCommandsConfig {
   reset_triggers?: string[];
   context_triggers?: string[];
   identity_triggers?: string[];
+  help_triggers?: string[];
 }
 
 /**
@@ -601,6 +593,8 @@ export interface SemanticSearchQdrantConfig {
   url?: string;
   collection?: string;
   api_key?: string;
+  embedding_model?: string;
+  embedding_cache_dir?: string;
 }
 
 export interface SemanticSearchConfig {
@@ -704,7 +698,6 @@ export interface RuntimeConfig {
 export interface AssistantConfig {
   name?: string;
   system_prompt?: string;
-  context_files?: string[];
 }
 
 /**
