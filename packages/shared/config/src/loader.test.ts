@@ -66,6 +66,72 @@ name = "Helper"
       expect(config.runtime?.log_level).toBe('info');
     });
 
+    it('should parse [assistant] section with name and system_prompt', () => {
+      const toml = `
+[nachos]
+name = "test"
+version = "1.0"
+
+[llm]
+provider = "anthropic"
+model = "claude"
+
+[security]
+mode = "standard"
+
+[assistant]
+name = "Nacho"
+system_prompt = "You are a helpful nachos assistant."
+      `;
+
+      const config = parseToml(toml);
+
+      expect(config.assistant?.name).toBe('Nacho');
+      expect(config.assistant?.system_prompt).toBe('You are a helpful nachos assistant.');
+    });
+
+    it('should parse [assistant] section with only name', () => {
+      const toml = `
+[nachos]
+name = "test"
+version = "1.0"
+
+[llm]
+provider = "anthropic"
+model = "claude"
+
+[security]
+mode = "standard"
+
+[assistant]
+name = "MyBot"
+      `;
+
+      const config = parseToml(toml);
+
+      expect(config.assistant?.name).toBe('MyBot');
+      expect(config.assistant?.system_prompt).toBeUndefined();
+    });
+
+    it('should have undefined assistant when section is omitted', () => {
+      const toml = `
+[nachos]
+name = "test"
+version = "1.0"
+
+[llm]
+provider = "anthropic"
+model = "claude"
+
+[security]
+mode = "standard"
+      `;
+
+      const config = parseToml(toml);
+
+      expect(config.assistant).toBeUndefined();
+    });
+
     it('should throw ConfigLoadError for invalid TOML', () => {
       const invalidToml = `
 [nachos

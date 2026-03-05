@@ -429,6 +429,7 @@ export class DiscordChannelAdapter implements ChannelAdapter {
       },
       metadata: {
         guildId: message.guildId ?? null,
+        ...(isDm ? { is_paired: true } : {}),
       },
     };
 

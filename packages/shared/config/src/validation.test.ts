@@ -261,6 +261,49 @@ describe('Configuration Validation', () => {
       ).toBe(true);
     });
 
+    it('should reject context_files as unknown assistant key', () => {
+      const config = {
+        nachos: { name: 'test', version: '1.0' },
+        llm: { provider: 'anthropic', model: 'claude' },
+        security: { mode: 'standard' },
+        assistant: { name: 'Bot', system_prompt: 'Hello', context_files: ['./foo.md'] },
+      } as unknown as NachosConfig;
+
+      const result = validateConfig(config);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some((e) => e.includes('Unknown config key: assistant.context_files'))
+      ).toBe(true);
+    });
+
+    it('should accept valid assistant config with name and system_prompt', () => {
+      const config: NachosConfig = {
+        nachos: { name: 'test', version: '1.0' },
+        llm: { provider: 'anthropic', model: 'claude' },
+        security: { mode: 'standard' },
+        assistant: { name: 'Nacho', system_prompt: 'You are helpful.' },
+      };
+
+      const result = validateConfig(config);
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject llm.providers as unknown key', () => {
+      const config = {
+        nachos: { name: 'test', version: '1.0' },
+        llm: {
+          provider: 'anthropic',
+          model: 'claude',
+          providers: [{ name: 'p', type: 'anthropic' }],
+        },
+        security: { mode: 'standard' },
+      } as unknown as NachosConfig;
+
+      const result = validateConfig(config);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.includes('Unknown config key: llm.providers'))).toBe(true);
+    });
+
     it('should reject invalid redis url', () => {
       const config: NachosConfig = {
         nachos: { name: 'test', version: '1.0' },

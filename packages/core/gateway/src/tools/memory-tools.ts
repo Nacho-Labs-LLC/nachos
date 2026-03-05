@@ -132,7 +132,7 @@ export async function executeMemorySearch(
         const confidenceStr = entry.confidence
           ? ` (${params.semantic ? 'similarity' : 'confidence'}: ${entry.confidence.toFixed(2)})`
           : '';
-        return `${idx + 1}. [${entry.kind}]${tagsStr}${confidenceStr}\n   ${entry.content}`;
+        return `${idx + 1}. [${entry.kind}] (id: ${entry.id})${tagsStr}${confidenceStr}\n   ${entry.content}`;
       })
       .join('\n\n');
 
@@ -271,6 +271,71 @@ export async function executeMemoryWrite(
       error: {
         code: 'MEMORY_WRITE_FAILED',
         message: error instanceof Error ? error.message : 'Unknown error during memory write',
+      },
+    };
+  }
+}
+
+/**
+ * memory_delete tool schema
+ * Deletes a specific memory entry by ID
+ */
+export const MemoryDeleteToolSchema = {
+  $id: 'memory_delete',
+  type: 'object',
+  properties: {
+    id: {
+      type: 'string',
+      description: 'The ID of the memory entry to delete (obtained from memory_search results)',
+    },
+  },
+  required: ['id'],
+};
+
+/**
+ * Execute memory_delete tool
+ */
+export async function executeMemoryDelete(
+  call: ToolCall,
+  stateLayer: StateLayer,
+  context: StateOperationContext
+): Promise<ToolResult> {
+  try {
+    const params = call.parameters as {
+      id?: string;
+    };
+
+    if (!params.id || typeof params.id !== 'string') {
+      return {
+        success: false,
+        content: [],
+        error: {
+          code: 'INVALID_PARAMETERS',
+          message: 'id parameter is required and must be a string',
+        },
+      };
+    }
+
+    const agentId = context.userId ?? context.sessionId;
+
+    await stateLayer.deleteMemoryEntry(params.id, agentId, context);
+
+    return {
+      success: true,
+      content: [
+        {
+          type: 'text',
+          text: `Deleted memory entry (id: ${params.id})`,
+        },
+      ],
+    };
+  } catch (error) {
+    return {
+      success: false,
+      content: [],
+      error: {
+        code: 'MEMORY_DELETE_FAILED',
+        message: error instanceof Error ? error.message : 'Unknown error during memory delete',
       },
     };
   }

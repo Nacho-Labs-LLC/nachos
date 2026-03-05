@@ -391,6 +391,7 @@ export class MatrixChannelAdapter implements ChannelAdapter {
         roomId,
         eventId,
         timestamp: event.getTs(),
+        ...(isDm ? { is_paired: true } : {}),
       },
     };
 

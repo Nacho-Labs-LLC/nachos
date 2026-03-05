@@ -357,6 +357,7 @@ export class SlackChannelAdapter implements ChannelAdapter {
         teamId: serverId,
         thread_ts: event.thread_ts,
         event_ts: (event as { event_ts?: string }).event_ts,
+        ...(isDm ? { is_paired: true } : {}),
       },
     };
 

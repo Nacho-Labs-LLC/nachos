@@ -806,6 +806,7 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
               phoneNumberId: metadata?.phone_number_id,
               displayPhoneNumber: metadata?.display_phone_number,
               mediaType: isMediaMessage ? messageType : undefined,
+              is_paired: true,
             },
           };
 

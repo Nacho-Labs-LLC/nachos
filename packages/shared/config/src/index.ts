@@ -12,7 +12,6 @@ export type {
   NachosSection,
   LLMConfig,
   LLMAuthProfileConfig,
-  LLMProviderConfig,
   LLMRetryConfig,
   LLMCooldownConfig,
   ChannelsConfig,
