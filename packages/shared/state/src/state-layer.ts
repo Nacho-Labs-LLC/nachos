@@ -26,7 +26,7 @@ import type {
   UserProfileStore,
 } from '@nachos/types';
 import type { StateLayerConfig, StateLayerDependencies, StatePolicyRequest } from './types.js';
-import type { StateStorePostgresConfig, SessionsStorePostgresConfig } from './types.js';
+import type { StateStorePostgresConfig, SessionsStorePostgresConfig, WorkspaceDocumentStoreConfig } from './types.js';
 import { FilesystemIdentityStore } from './identity/filesystem-identity-store.js';
 import { PostgresIdentityStore } from './identity/postgres-identity-store.js';
 import { FilesystemBootstrapStore } from './bootstrap/filesystem-bootstrap-store.js';
@@ -35,6 +35,7 @@ import { createDefaultBootstrapBlocks } from './bootstrap/bootstrap-templates.js
 import { sanitizeBootstrapContent } from './bootstrap/sanitizer.js';
 import { FilesystemMemoryStore } from './memory/filesystem-memory-store.js';
 import { PostgresMemoryStore } from './memory/postgres-memory-store.js';
+import { SqliteMemoryStore } from './memory/sqlite-memory-store.js';
 import { FilesystemUserProfileStore } from './user-profile/filesystem-user-profile-store.js';
 import { PostgresUserProfileStore } from './user-profile/postgres-user-profile-store.js';
 import {
@@ -44,6 +45,9 @@ import {
 import type { SessionsStore } from './sessions/sessions-store-interface.js';
 import { PostgresSessionsStore } from './sessions/postgres-sessions-store.js';
 import { SqliteSessionsStore } from './sessions/sqlite-sessions-store.js';
+import type { WorkspaceDocumentStore } from '@nachos/types';
+import { SqliteWorkspaceDocumentStore } from './workspace/sqlite-workspace-document-store.js';
+import { PostgresWorkspaceDocumentStore } from './workspace/postgres-workspace-document-store.js';
 import { PromptAssembler } from './prompt/prompt-assembler.js';
 import type { PromptAssemblyParams } from './prompt/prompt-assembler.js';
 
@@ -62,6 +66,7 @@ export class StateLayer {
   private userProfileStore: UserProfileStore;
   private sessionStateStore: SessionStateStore;
   private _sessionsStore: SessionsStore | undefined;
+  private _workspaceStore: WorkspaceDocumentStore | undefined;
   private promptAssembler: PromptAssembler;
   private dependencies: StateLayerDependencies;
   private pgPools: Pool[];
@@ -73,6 +78,7 @@ export class StateLayer {
     userProfileStore: UserProfileStore;
     sessionStateStore: SessionStateStore;
     sessionsStore?: SessionsStore;
+    workspaceStore?: WorkspaceDocumentStore;
     promptAssembler: PromptAssembler;
     dependencies?: StateLayerDependencies;
     pgPools?: Pool[];
@@ -83,6 +89,7 @@ export class StateLayer {
     this.userProfileStore = params.userProfileStore;
     this.sessionStateStore = params.sessionStateStore;
     this._sessionsStore = params.sessionsStore;
+    this._workspaceStore = params.workspaceStore;
     this.promptAssembler = params.promptAssembler;
     this.dependencies = params.dependencies ?? {};
     this.pgPools = params.pgPools ?? [];
@@ -114,6 +121,14 @@ export class StateLayer {
    */
   get sessionsStore(): SessionsStore | undefined {
     return this._sessionsStore;
+  }
+
+  /**
+   * Get the workspace document store (RAG indexing).
+   * Returns undefined if no workspace store was configured.
+   */
+  get workspaceStore(): WorkspaceDocumentStore | undefined {
+    return this._workspaceStore;
   }
 
   async getIdentity(
@@ -355,6 +370,7 @@ export class StateLayer {
       this.userProfileStore,
       this.sessionStateStore,
       this._sessionsStore,
+      this._workspaceStore,
     ].filter(Boolean) as Array<{
       close?: () => Promise<void>;
     }>;
@@ -472,6 +488,9 @@ export function createStateLayer(
   const userProfileStore = createUserProfileStore(config, getOrCreatePool);
   const sessionStore = createSessionStateStore(config);
   const sessionsStore = config.sessions ? createSessionsStore(config, getOrCreatePool) : undefined;
+  const workspaceStore = config.workspace
+    ? createWorkspaceDocumentStore(config.workspace, getOrCreatePool)
+    : undefined;
   const promptAssembler = new PromptAssembler(config.prompt);
 
   return new StateLayer({
@@ -481,6 +500,7 @@ export function createStateLayer(
     userProfileStore,
     sessionStateStore: sessionStore,
     sessionsStore,
+    workspaceStore,
     promptAssembler,
     dependencies: deps,
     pgPools,
@@ -541,6 +561,24 @@ function createMemoryStore(
       });
     }
     return new PostgresMemoryStore(getOrCreatePool(settings), settings.schema);
+  }
+
+  if (config.memory.provider === 'sqlite') {
+    const dbPath = config.memory.sqlite?.dbPath;
+    if (!dbPath) {
+      throw createConfigError('SQLite memory store requires dbPath', { component: 'state-layer' });
+    }
+    try {
+      const esmRequire = createRequire(import.meta.url);
+      const Database = esmRequire('better-sqlite3') as typeof import('better-sqlite3');
+      const db = new Database(dbPath);
+      return new SqliteMemoryStore(db);
+    } catch {
+      throw createConfigError(
+        'SQLite memory store requires better-sqlite3. Install it with: pnpm add better-sqlite3',
+        { component: 'state-layer' }
+      );
+    }
   }
 
   const dir = config.memory.filesystem?.dir;
@@ -633,6 +671,45 @@ function createSessionsStore(
   }
 
   throw createConfigError(`Unknown sessions provider: ${sessionsConfig.provider}`, {
+    component: 'state-layer',
+  });
+}
+
+function createWorkspaceDocumentStore(
+  config: WorkspaceDocumentStoreConfig,
+  getOrCreatePool: (settings: StateStorePostgresConfig) => Pool
+): WorkspaceDocumentStore {
+  if (config.provider === 'postgres') {
+    const settings = config.postgres;
+    if (!settings?.connectionString) {
+      throw createConfigError('Postgres workspace store requires connectionString', {
+        component: 'state-layer',
+      });
+    }
+    return new PostgresWorkspaceDocumentStore(getOrCreatePool(settings), settings.schema);
+  }
+
+  if (config.provider === 'sqlite') {
+    const dbPath = config.sqlite?.dbPath;
+    if (!dbPath) {
+      throw createConfigError('SQLite workspace store requires dbPath', {
+        component: 'state-layer',
+      });
+    }
+    try {
+      const esmRequire = createRequire(import.meta.url);
+      const Database = esmRequire('better-sqlite3') as typeof import('better-sqlite3');
+      const db = new Database(dbPath);
+      return new SqliteWorkspaceDocumentStore(db);
+    } catch {
+      throw createConfigError(
+        'SQLite workspace store requires better-sqlite3. Install it with: pnpm add better-sqlite3',
+        { component: 'state-layer' }
+      );
+    }
+  }
+
+  throw createConfigError(`Unknown workspace provider: ${config.provider}`, {
     component: 'state-layer',
   });
 }

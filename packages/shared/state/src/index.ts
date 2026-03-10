@@ -16,12 +16,14 @@ export type {
   PromptAssemblyConfig,
   StateStoreSemanticConfig,
   StateStoreConfig,
+  StateStoreSqliteConfig,
   SessionStateConfig,
   SessionsStoreConfig,
   SessionsStoreSqliteConfig,
   SessionsStorePostgresConfig,
   StateStoreFilesystemConfig,
   StateStorePostgresConfig,
+  WorkspaceDocumentStoreConfig,
 } from './types.js';
 export {
   MemoryPipeline,
@@ -48,3 +50,8 @@ export {
   FilesystemMemoryStore,
   type FilesystemMemoryStoreConfig,
 } from './memory/filesystem-memory-store.js';
+export { SqliteMemoryStore } from './memory/sqlite-memory-store.js';
+
+// Workspace document stores
+export { SqliteWorkspaceDocumentStore } from './workspace/sqlite-workspace-document-store.js';
+export { PostgresWorkspaceDocumentStore } from './workspace/postgres-workspace-document-store.js';

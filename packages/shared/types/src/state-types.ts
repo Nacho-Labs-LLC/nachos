@@ -46,15 +46,28 @@ export interface MemoryEntry {
   expiresAt?: string;
 }
 
+export type MemoryFactType =
+  | 'attribute'
+  | 'relationship'
+  | 'preference'
+  | 'skill'
+  | 'event'
+  | 'general';
+
 export interface MemoryFact {
   id: string;
   agentId: string;
   subject: string;
   predicate: string;
   object: string;
+  type?: MemoryFactType;
   confidence?: number;
+  properties?: Record<string, unknown>;
   sourceEntryId?: string;
+  sourceContext?: string;
   createdAt: string;
+  updatedAt?: string;
+  expiresAt?: string;
 }
 
 export interface UserProfile {
@@ -64,6 +77,27 @@ export interface UserProfile {
   updatedAt: string;
   version: number;
   source?: IdentitySource;
+}
+
+export interface WorkspaceDocument {
+  id: string;
+  path: string;
+  contentHash: string;
+  projectId?: string;
+  metadata?: Record<string, unknown>;
+  chunkCount: number;
+  lastIndexed: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DocumentChunk {
+  id: string;
+  documentId: string;
+  chunkIndex: number;
+  content: string;
+  tokenCount?: number;
+  createdAt: string;
 }
 
 export interface MemoryQuery {
@@ -105,6 +139,23 @@ export interface UserProfileStore {
   get(agentId: string, userId: string): Promise<UserProfile | null>;
   put(profile: UserProfile): Promise<UserProfile>;
   delete(agentId: string, userId: string): Promise<void>;
+}
+
+export interface WorkspaceDocumentQuery {
+  projectId?: string;
+  path?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface WorkspaceDocumentStore {
+  indexDocument(doc: WorkspaceDocument, chunks: DocumentChunk[]): Promise<WorkspaceDocument>;
+  getDocument(id: string): Promise<WorkspaceDocument | null>;
+  getDocumentByPath(path: string, projectId?: string): Promise<WorkspaceDocument | null>;
+  getChunks(documentId: string): Promise<DocumentChunk[]>;
+  removeDocument(id: string): Promise<boolean>;
+  listDocuments(query?: WorkspaceDocumentQuery): Promise<WorkspaceDocument[]>;
+  close(): Promise<void>;
 }
 
 export interface SessionStateRecord {
