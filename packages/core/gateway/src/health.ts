@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url';
 import { createLogger } from '@nachos/types';
 import type { HealthCheck, HealthStatus } from '@nachos/types';
 import type { ChannelRegistry, ChannelPresence } from './channel-registry.js';
+import type { HookStats } from './hooks/index.js';
 
 const logger = createLogger('health');
 
@@ -40,6 +41,7 @@ export interface HealthCheckDeps {
   checkDatabase?: () => boolean;
   checkBus?: () => boolean;
   channelRegistry?: ChannelRegistry;
+  getHookStats?: () => HookStats;
 }
 
 /**
@@ -73,7 +75,7 @@ export function resetStartTime(): void {
 /**
  * Perform health checks and return status
  */
-export function performHealthCheck(deps?: HealthCheckDeps): HealthCheck {
+export function performHealthCheck(deps?: HealthCheckDeps): HealthCheck & { hookStats?: HookStats } {
   const checks: Record<string, 'ok' | 'error'> = {};
   let overallStatus: HealthStatus = 'healthy';
 
@@ -115,13 +117,30 @@ export function performHealthCheck(deps?: HealthCheckDeps): HealthCheck {
     overallStatus = 'unhealthy';
   }
 
-  return {
+  // Check hooks (observability only — failures do NOT affect overall liveness/health status)
+  let hookStats: HookStats | undefined;
+  if (deps?.getHookStats) {
+    try {
+      hookStats = deps.getHookStats();
+      checks['hooks'] = hookStats.totalFailures === 0 ? 'ok' : 'error';
+    } catch {
+      checks['hooks'] = 'error';
+    }
+  }
+
+  const result: HealthCheck & { hookStats?: HookStats } = {
     status: overallStatus,
     component: 'gateway',
     version: VERSION,
     uptime: getUptime(),
     checks,
   };
+
+  if (hookStats) {
+    result.hookStats = hookStats;
+  }
+
+  return result;
 }
 
 /**
