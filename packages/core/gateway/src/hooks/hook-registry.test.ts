@@ -5,17 +5,20 @@ import type {
   MutableBeforeResponseSentPayload,
 } from './hook-types.js';
 
-// Suppress logger output during tests
+// Shared mock logger so we can spy on calls — vi.hoisted ensures it's
+// available when vi.mock's factory runs (which is hoisted to the top).
+const mockLogger = vi.hoisted(() => ({
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  fatal: vi.fn(),
+  trace: vi.fn(),
+  child: vi.fn().mockReturnThis(),
+}));
+
 vi.mock('@nachos/types', () => ({
-  createLogger: () => ({
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    fatal: vi.fn(),
-    trace: vi.fn(),
-    child: vi.fn().mockReturnThis(),
-  }),
+  createLogger: () => mockLogger,
 }));
 
 describe('HookRegistry', () => {
@@ -23,6 +26,7 @@ describe('HookRegistry', () => {
 
   beforeEach(() => {
     hooks = new HookRegistry();
+    vi.clearAllMocks();
   });
 
   // ---------------------------------------------------------------------------
@@ -568,6 +572,168 @@ describe('HookRegistry', () => {
 
       expect(observeHandler).toHaveBeenCalledOnce(); // still only 1
       expect(mutableHandler).toHaveBeenCalledOnce();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Hook stats / failure observability
+  // ---------------------------------------------------------------------------
+
+  describe('hook stats', () => {
+    function makeMessagePayload() {
+      return {
+        envelopeId: 'env-1',
+        channel: 'slack',
+        channelMessageId: 'msg-1',
+        sender: { id: 'user-1', isAllowed: true },
+        conversation: { id: 'conv-1', type: 'dm' as const },
+        text: 'hello',
+        sessionId: 'sess-1',
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    it('should return zero counts initially', () => {
+      const stats = hooks.getStats();
+      expect(stats.totalEmits).toBe(0);
+      expect(stats.totalFailures).toBe(0);
+      expect(Object.keys(stats.events)).toHaveLength(0);
+    });
+
+    it('should increment successCount on successful emit', async () => {
+      hooks.register('message:received', async () => {});
+      await hooks.emit('message:received', makeMessagePayload());
+
+      const stats = hooks.getStats();
+      expect(stats.events['message:received'].successCount).toBe(1);
+      expect(stats.events['message:received'].failureCount).toBe(0);
+      expect(stats.totalEmits).toBe(1);
+      expect(stats.totalFailures).toBe(0);
+    });
+
+    it('should increment failureCount and record lastFailure on error', async () => {
+      hooks.register('message:received', async () => {
+        throw new Error('handler-error');
+      }, { label: 'bad-handler' });
+
+      await hooks.emit('message:received', makeMessagePayload());
+
+      const stats = hooks.getStats();
+      expect(stats.events['message:received'].failureCount).toBe(1);
+      expect(stats.events['message:received'].lastFailure).toBeDefined();
+      expect(stats.events['message:received'].lastFailure!.error).toBe('handler-error');
+      expect(stats.events['message:received'].lastFailure!.label).toBe('bad-handler');
+      expect(stats.totalFailures).toBe(1);
+    });
+
+    it('should increment timeoutCount for timeout errors', async () => {
+      const shortHooks = new HookRegistry({ handlerTimeoutMs: 10 });
+      shortHooks.register('gateway:startup', async () => {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }, { label: 'slow' });
+
+      await shortHooks.emit('gateway:startup', {
+        instanceId: 'gw-1',
+        channels: ['slack'],
+        securityMode: 'standard',
+        streamingEnabled: false,
+        timestamp: new Date().toISOString(),
+      });
+
+      const stats = shortHooks.getStats();
+      expect(stats.events['gateway:startup'].timeoutCount).toBe(1);
+      expect(stats.events['gateway:startup'].failureCount).toBe(1);
+    });
+
+    it('should track per-event stats independently', async () => {
+      hooks.register('message:received', async () => {});
+      hooks.register('session:created', async () => {
+        throw new Error('fail');
+      });
+
+      await hooks.emit('message:received', makeMessagePayload());
+      await hooks.emit('session:created', {
+        session: { id: 's1', channel: 'slack', conversationId: 'c1', userId: 'u1', status: 'active', createdAt: new Date().toISOString() },
+        timestamp: new Date().toISOString(),
+      });
+
+      const stats = hooks.getStats();
+      expect(stats.events['message:received'].successCount).toBe(1);
+      expect(stats.events['message:received'].failureCount).toBe(0);
+      expect(stats.events['session:created'].successCount).toBe(0);
+      expect(stats.events['session:created'].failureCount).toBe(1);
+      expect(stats.totalEmits).toBe(2);
+      expect(stats.totalFailures).toBe(1);
+    });
+
+    it('should clear everything on resetStats()', async () => {
+      hooks.register('message:received', async () => {});
+      await hooks.emit('message:received', makeMessagePayload());
+
+      hooks.resetStats();
+
+      const stats = hooks.getStats();
+      expect(stats.totalEmits).toBe(0);
+      expect(stats.totalFailures).toBe(0);
+      expect(Object.keys(stats.events)).toHaveLength(0);
+    });
+
+    it('should log at warn level for critical hook failures', async () => {
+      hooks.register('session:created', async () => {
+        throw new Error('critical-fail');
+      }, { label: 'my-handler' });
+
+      await hooks.emit('session:created', {
+        session: { id: 's1', channel: 'slack', conversationId: 'c1', userId: 'u1', status: 'active', createdAt: new Date().toISOString() },
+        timestamp: new Date().toISOString(),
+      });
+
+      // Should have been called with critical: true
+      const warnCalls = mockLogger.warn.mock.calls;
+      const criticalCall = warnCalls.find(
+        (call: unknown[]) => call[0] && typeof call[0] === 'object' && (call[0] as Record<string, unknown>).critical === true
+      );
+      expect(criticalCall).toBeDefined();
+      expect(criticalCall![0].event).toBe('session:created');
+    });
+
+    it('should fire repeated failure alert at threshold', async () => {
+      const alertHooks = new HookRegistry({ failureAlertThreshold: 3 });
+      alertHooks.register('message:received', async () => {
+        throw new Error('repeated');
+      });
+
+      // Emit 3 times to cross threshold
+      for (let i = 0; i < 3; i++) {
+        await alertHooks.emit('message:received', makeMessagePayload());
+      }
+
+      const alertCalls = mockLogger.warn.mock.calls.filter(
+        (call: unknown[]) => call[0] && typeof call[0] === 'object' && (call[0] as Record<string, unknown>).hookAlert === true
+      );
+      expect(alertCalls.length).toBeGreaterThanOrEqual(1);
+      expect(alertCalls[0][0].failureCount).toBe(3);
+    });
+
+    it('should track stats for mutable hooks too', async () => {
+      hooks.registerMutable('response:before-send', async () => {
+        throw new Error('mutable-fail');
+      }, { label: 'mutable-bad' });
+
+      await hooks.emitMutable('response:before-send', {
+        sessionId: 'sess-1',
+        channel: 'slack',
+        conversationId: 'conv-1',
+        text: 'hello',
+        format: 'plain',
+        replyToMessageId: undefined,
+        timestamp: new Date().toISOString(),
+      });
+
+      const stats = hooks.getStats();
+      expect(stats.events['response:before-send'].failureCount).toBe(1);
+      expect(stats.events['response:before-send'].lastFailure!.error).toBe('mutable-fail');
+      expect(stats.totalFailures).toBe(1);
     });
   });
 });

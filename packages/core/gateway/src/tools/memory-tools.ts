@@ -461,3 +461,125 @@ export async function executeMemoryGet(
     };
   }
 }
+
+/**
+ * nachos_search_conversations tool schema
+ * Semantically searches raw conversation turns (user + assistant messages).
+ * Requires [runtime.state.semantic] enabled = true in nachos.toml.
+ */
+export const ConversationSearchToolSchema = {
+  $id: 'nachos_search_conversations',
+  type: 'object',
+  properties: {
+    query: {
+      type: 'string',
+      description:
+        'Natural language query about past conversations (e.g. "what did I say about TypeScript strict mode last week?")',
+    },
+    limit: {
+      type: 'number',
+      description: 'Maximum results to return (default: 5)',
+      default: 5,
+    },
+    since: {
+      type: 'string',
+      description: 'Only search messages after this ISO date (e.g. "2026-03-01")',
+    },
+    sessionId: {
+      type: 'string',
+      description: 'Narrow search to a specific session ID (optional)',
+    },
+  },
+  required: ['query'],
+};
+
+/**
+ * Execute nachos_search_conversations tool
+ */
+export async function executeConversationSearch(
+  call: ToolCall,
+  stateLayer: StateLayer,
+  context: StateOperationContext
+): Promise<ToolResult> {
+  try {
+    const params = call.parameters as {
+      query?: string;
+      limit?: number;
+      since?: string;
+      sessionId?: string;
+    };
+
+    if (!params.query || typeof params.query !== 'string') {
+      return {
+        success: false,
+        content: [],
+        error: {
+          code: 'INVALID_PARAMETERS',
+          message: 'query parameter is required and must be a string',
+        },
+      };
+    }
+
+    const sessionsStore = stateLayer.sessionsStore;
+    if (!sessionsStore?.searchMessages) {
+      return {
+        success: false,
+        content: [
+          {
+            type: 'text',
+            text: 'Conversation semantic search is not enabled. Set enabled = true under [runtime.state.semantic] in nachos.toml and restart.',
+          },
+        ],
+        error: {
+          code: 'NOT_ENABLED',
+          message: 'Conversation semantic search not configured',
+        },
+      };
+    }
+
+    const results = await sessionsStore.searchMessages(params.query, {
+      limit: params.limit ?? 5,
+      sessionId: params.sessionId,
+      since: params.since,
+    });
+
+    if (results.length === 0) {
+      return {
+        success: true,
+        content: [
+          {
+            type: 'text',
+            text: `No conversation history found matching: "${params.query}"`,
+          },
+        ],
+      };
+    }
+
+    const formatted = results
+      .map((r, i) => {
+        const date = r.timestamp ? new Date(r.timestamp).toLocaleString() : 'unknown date';
+        const preview = r.content.length > 300 ? r.content.slice(0, 300) + '\u2026' : r.content;
+        return `${i + 1}. [${(r.similarity * 100).toFixed(0)}%] [${date}] ${r.role}: ${preview}`;
+      })
+      .join('\n\n');
+
+    return {
+      success: true,
+      content: [
+        {
+          type: 'text',
+          text: `Found ${results.length} relevant conversation turn(s) for "${params.query}":\n\n${formatted}`,
+        },
+      ],
+    };
+  } catch (error) {
+    return {
+      success: false,
+      content: [],
+      error: {
+        code: 'CONVERSATION_SEARCH_FAILED',
+        message: error instanceof Error ? error.message : 'Unknown error during conversation search',
+      },
+    };
+  }
+}

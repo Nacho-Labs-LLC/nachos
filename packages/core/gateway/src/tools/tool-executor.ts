@@ -36,6 +36,8 @@ import {
   executeMemoryGet,
   executeMemoryWrite,
   executeMemoryDelete,
+  ConversationSearchToolSchema,
+  executeConversationSearch,
 } from './memory-tools.js';
 import {
   SnapshotListToolSchema,
@@ -265,6 +267,15 @@ export class ToolExecutor {
           'Delete a memory entry by ID. Use to remove outdated, incorrect, or no longer relevant memories. Get the memory ID from memory_search results.',
         parameters: this.sanitizeToolSchema(MemoryDeleteToolSchema),
       });
+      // Only expose conversation search if semantic search is available
+      if (this.deps.state.sessionsStore?.searchMessages) {
+        tools.push({
+          name: 'nachos_search_conversations',
+          description:
+            'Search the full conversation history by meaning. Use when the user asks about something said in a past conversation (e.g. "what did I say about X last week?"). Searches verbatim message content, not extracted summaries.',
+          parameters: this.sanitizeToolSchema(ConversationSearchToolSchema),
+        });
+      }
     }
 
     // Snapshot tools (available when snapshot service is configured)
@@ -945,6 +956,29 @@ export class ToolExecutor {
         internalTool: true,
       };
       return executeMemoryGet(call, this.deps.state.stateLayer, context);
+    }
+
+    if (call.tool === 'nachos_search_conversations') {
+      if (!this.deps.state.stateLayer) {
+        return this.formatToolError('STATE_LAYER_DISABLED', 'Memory is not configured');
+      }
+      if (!session) {
+        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found for conversation search');
+      }
+
+      const rateLimitResult = this.checkMemoryToolRateLimit(session.id);
+      if (!rateLimitResult.allowed) {
+        return this.formatToolError(
+          'RATE_LIMIT_EXCEEDED',
+          `Memory tool rate limit exceeded. Try again in ${rateLimitResult.retryAfterSeconds} seconds.`
+        );
+      }
+
+      const context = {
+        ...buildStateContext(session, this.deps.core.securityMode),
+        internalTool: true,
+      };
+      return executeConversationSearch(call, this.deps.state.stateLayer, context);
     }
 
     if (call.tool === 'memory_write') {

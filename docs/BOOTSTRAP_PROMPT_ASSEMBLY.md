@@ -93,7 +93,7 @@ The `PromptAssembler` concatenates sections in this exact order, separated by `\
 | 3 | **Bootstrap Blocks** | `BootstrapStore` (filesystem or Postgres) | Has content after pruning/filtering |
 | 4 | **Identity Profile** | `IdentityStore` | At least one field non-empty; skipped for subagents |
 | 5 | **User Profile** | `UserProfileStore` | Session has `userId`; skipped for subagents |
-| 6 | **Memory Entries** | `MemoryStore` (filesystem, Postgres, or Qdrant) | Query returns entries; capped at 50 |
+| 6 | **Memory Entries** | `MemoryStore` (filesystem, Postgres, or SQLite) | Query returns entries; capped at 50 |
 | 7 | **Memory Facts** | `MemoryStore` | Query returns facts; capped at 50 |
 | 8 | **Skills** | `SkillsManager.getSkillsPrompt()` | Skills loaded from `SKILL.md` files |
 | 9 | **Session State** | `SessionStateStore` (Redis or memory) | Disabled by default (`includeSessionState: false`) |
@@ -320,7 +320,7 @@ Each section is independently hashed (SHA-256) for change detection and auditing
 | `packages/shared/state/src/state-layer.ts` | Store coordination, policy checks, bootstrap seeding |
 | `packages/shared/state/src/bootstrap/` | Bootstrap store (filesystem + Postgres) |
 | `packages/shared/state/src/identity/` | Identity store (filesystem + Postgres) |
-| `packages/shared/state/src/memory/` | Memory stores (filesystem, Postgres, Qdrant) |
+| `packages/shared/state/src/memory/` | Memory stores (filesystem, Postgres, SQLite) |
 | `packages/shared/state/src/user-profiles/` | User profile store (filesystem + Postgres) |
 | `packages/core/gateway/src/skills/skills-manager.ts` | SKILL.md loading and prompt formatting |
 | `packages/core/gateway/src/config.ts` | Resolves `[assistant]` config from nachos.toml |

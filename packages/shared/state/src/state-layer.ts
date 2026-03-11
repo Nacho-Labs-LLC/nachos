@@ -113,6 +113,10 @@ export class StateLayer {
     if ('init' in this.memoryStore && typeof this.memoryStore.init === 'function') {
       await this.memoryStore.init();
     }
+    // Initialize sessions store semantic search for conversation history embedding
+    if (this._sessionsStore && 'init' in this._sessionsStore && typeof this._sessionsStore.init === 'function') {
+      await this._sessionsStore.init();
+    }
   }
 
   /**
@@ -703,7 +707,16 @@ function createSessionsStore(
       const esmRequire = createRequire(import.meta.url);
       const Database = esmRequire('better-sqlite3') as typeof import('better-sqlite3');
       const db = new Database(dbPath);
-      return new SqliteSessionsStore(db);
+      const semanticConfig = config.memory.semantic?.enabled
+        ? {
+            model: config.memory.semantic.model,
+            cacheDir: config.memory.semantic.cacheDir,
+            storePath: dbPath.endsWith('.db')
+              ? dbPath.replace(/\.db$/, '-embeddings.json')
+              : `${dbPath}.embeddings.json`,
+          }
+        : undefined;
+      return new SqliteSessionsStore(db, semanticConfig);
     } catch {
       throw createConfigError(
         'SQLite sessions store requires better-sqlite3. Install it with: pnpm add better-sqlite3',

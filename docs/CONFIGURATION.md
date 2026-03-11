@@ -539,12 +539,9 @@ Storage backends for different data types.
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `provider` | string | `local` or `qdrant` |
+| `provider` | string | `local` |
 | `local.model` | string | Embedding model name |
 | `local.cache_dir` | string | Embedding cache directory |
-| `qdrant.url` | string | Qdrant server URL |
-| `qdrant.collection` | string | Collection name |
-| `qdrant.api_key` | string | Qdrant API key |
 
 **`[runtime.state.prompt_report]`**
 

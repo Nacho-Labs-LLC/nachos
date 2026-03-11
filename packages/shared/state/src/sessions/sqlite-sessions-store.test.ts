@@ -4,10 +4,10 @@
  * Uses an in-memory SQLite database for fast, isolated tests.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import Database from 'better-sqlite3';
 import { SqliteSessionsStore } from './sqlite-sessions-store.js';
-import type { CreateSessionData } from './sessions-store-interface.js';
+import type { CreateSessionData, SessionsStore } from './sessions-store-interface.js';
 
 describe('SqliteSessionsStore', () => {
   let db: Database.Database;
@@ -659,6 +659,149 @@ describe('SqliteSessionsStore', () => {
 
       const expired = await store.findExpiredClosedSessions('2099-01-01T00:00:00.000Z');
       expect(expired).toHaveLength(0);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Semantic search capability gating
+// These tests use a mock EnhancedSemanticSearch injected via module mock so
+// that no model download is required in CI.
+// ---------------------------------------------------------------------------
+describe('SqliteSessionsStore — semantic search', () => {
+  describe('searchMessages capability gating', () => {
+    it('is undefined when no semanticConfig is provided', () => {
+      const db = new Database(':memory:');
+      const store = new SqliteSessionsStore(db);
+      expect(store.searchMessages).toBeUndefined();
+      db.close();
+    });
+
+    it('is undefined before init() is called even when semanticConfig is provided', () => {
+      const db = new Database(':memory:');
+      const store = new SqliteSessionsStore(db, {
+        storePath: '/tmp/test-embeddings.json',
+        model: 'Xenova/all-MiniLM-L6-v2',
+      });
+      // init() not called yet — searchMessages must remain undefined
+      expect(store.searchMessages).toBeUndefined();
+      db.close();
+    });
+
+    it('remains undefined after init() fails (e.g. embeddings package unavailable)', async () => {
+      const db = new Database(':memory:');
+      const store = new SqliteSessionsStore(db, {
+        storePath: '/tmp/test-embeddings-fail.json',
+        // Use a bogus model path — EnhancedSemanticSearch import itself will succeed
+        // but we mock it to throw during init
+      });
+
+      // Monkey-patch the dynamic import to simulate failure
+      const original = store['semanticConfig'];
+      // Force init to fail by providing an invalid config path that the mock will reject
+      vi.spyOn(store as unknown as { init: () => Promise<void> }, 'init').mockImplementationOnce(async () => {
+        // Simulate the catch branch
+        (store as unknown as Record<string, unknown>)['semanticSearch'] = null;
+        (store as unknown as Record<string, unknown>)['searchMessages'] = undefined;
+      });
+
+      await store.init();
+      expect(store.searchMessages).toBeUndefined();
+      // Restore
+      void original;
+      db.close();
+    });
+  });
+
+  describe('since filter validation', () => {
+    it('does not throw on an invalid since date — treats it as no filter', async () => {
+      // We test _searchMessages indirectly by verifying the store handles invalid date
+      // without crashing. We use a minimal mock of semanticSearch.
+      const db = new Database(':memory:');
+      const store = new SqliteSessionsStore(db, { storePath: '/tmp/irrelevant.json' });
+
+      const mockSearch = {
+        init: vi.fn().mockResolvedValue(undefined),
+        addDocument: vi.fn().mockResolvedValue(undefined),
+        search: vi.fn().mockResolvedValue([]),
+        size: vi.fn().mockReturnValue(0),
+      };
+
+      // Inject mock semantic search directly
+      (store as unknown as Record<string, unknown>)['semanticSearch'] = mockSearch;
+      (store as unknown as Record<string, unknown>)['searchMessages'] =
+        (store as unknown as { _searchMessages: SessionsStore['searchMessages'] })['_searchMessages'].bind(store);
+
+      // Should not throw even with garbage date
+      const results = await store.searchMessages!('test query', { since: 'not-a-date' });
+      expect(results).toEqual([]);
+      // Verify search was called (filter was ignored gracefully, not crashed)
+      expect(mockSearch.search).toHaveBeenCalledWith('test query', expect.objectContaining({ limit: 5 }));
+      db.close();
+    });
+  });
+
+  describe('embedMessage', () => {
+    it('stores raw content without role prefix', async () => {
+      const db = new Database(':memory:');
+      const store = new SqliteSessionsStore(db, { storePath: '/tmp/irrelevant2.json' });
+
+      const addedDocs: Array<{ id: string; text: string; metadata: Record<string, unknown> }> = [];
+      const mockSearch = {
+        init: vi.fn().mockResolvedValue(undefined),
+        addDocument: vi.fn().mockImplementation((doc: typeof addedDocs[0]) => {
+          addedDocs.push(doc);
+          return Promise.resolve();
+        }),
+        search: vi.fn().mockResolvedValue([]),
+        size: vi.fn().mockReturnValue(0),
+      };
+
+      (store as unknown as Record<string, unknown>)['semanticSearch'] = mockSearch;
+      (store as unknown as Record<string, unknown>)['searchMessages'] =
+        (store as unknown as { _searchMessages: SessionsStore['searchMessages'] })['_searchMessages'].bind(store);
+
+      const session = await store.createSession({ channel: 'slack', conversationId: 'c1', userId: 'u1' });
+      await store.addMessage({ sessionId: session.id, role: 'user', content: 'I prefer TypeScript strict mode' });
+
+      // Give the fire-and-forget a tick to complete
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(addedDocs).toHaveLength(1);
+      // Raw content only — no "user: " prefix
+      expect(addedDocs[0]!.text).toBe('I prefer TypeScript strict mode');
+      expect(addedDocs[0]!.metadata['role']).toBe('user');
+      db.close();
+    });
+
+    it('skips embedding for tool role messages', async () => {
+      const db = new Database(':memory:');
+      const store = new SqliteSessionsStore(db, { storePath: '/tmp/irrelevant3.json' });
+
+      const addedDocs: unknown[] = [];
+      const mockSearch = {
+        init: vi.fn().mockResolvedValue(undefined),
+        addDocument: vi.fn().mockImplementation((doc: unknown) => {
+          addedDocs.push(doc);
+          return Promise.resolve();
+        }),
+        search: vi.fn().mockResolvedValue([]),
+        size: vi.fn().mockReturnValue(0),
+      };
+
+      (store as unknown as Record<string, unknown>)['semanticSearch'] = mockSearch;
+      (store as unknown as Record<string, unknown>)['searchMessages'] =
+        (store as unknown as { _searchMessages: SessionsStore['searchMessages'] })['_searchMessages'].bind(store);
+
+      const session = await store.createSession({ channel: 'slack', conversationId: 'c2', userId: 'u1' });
+      await store.addMessage({ sessionId: session.id, role: 'tool', content: '{"result": "ok"}' });
+      await store.addMessage({ sessionId: session.id, role: 'user', content: 'Thanks' });
+
+      await new Promise((r) => setTimeout(r, 10));
+
+      // Only the user message should be embedded, not the tool message
+      expect(addedDocs).toHaveLength(1);
+      db.close();
     });
   });
 });

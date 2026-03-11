@@ -1,8 +1,9 @@
 # ADR 005: Modular Storage Backends
 
-**Status:** Accepted  
-**Date:** 2026-02-25  
-**Decision Makers:** Nachos Core Team  
+**Status:** Accepted
+**Date:** 2026-02-25
+**Updated:** 2026-03-11 (removed Qdrant — unnecessary for single-user architecture)
+**Decision Makers:** Nachos Core Team
 **Tags:** architecture, storage, scalability, multi-instance
 
 ## Context
@@ -23,10 +24,7 @@ We will make sessions/messages storage configurable with support for:
 - **SQLite** (default): Fast, embedded, zero-config for single-instance deployments
 - **PostgreSQL** (optional): Shared storage for multi-instance deployments
 
-Additionally, we will add support for semantic search backends:
-
-- **Local** (default): Filesystem + Transformers.js embeddings
-- **Qdrant** (optional): Vector database for production semantic search
+Semantic search uses local Transformers.js embeddings (via `nachos-embeddings`). An external vector database (Qdrant) was previously considered but removed — Nachos is a single-user personal assistant and local embeddings handle the scale well.
 
 ## Architecture
 
@@ -35,12 +33,12 @@ Additionally, we will add support for semantic search backends:
 ```
 State Layer
 ├── Identity (filesystem | postgres) ← already configurable
-├── Memory (filesystem | postgres) ← already configurable  
+├── Memory (filesystem | postgres) ← already configurable
 ├── User Profiles (filesystem | postgres) ← already configurable
 ├── Bootstrap (filesystem | postgres) ← already configurable
 ├── Session State (redis | memory) ← already configurable
 ├── Sessions/Messages (sqlite | postgres) ← NEW
-└── Semantic Search (local | qdrant) ← NEW
+└── Semantic Search (local embeddings)
 ```
 
 ### Configuration Schema
@@ -58,24 +56,18 @@ db_path = "./data/gateway.db"
 # schema = "public"
 
 [runtime.state.semantic]
-provider = "local"  # "local" (default) | "qdrant"
+provider = "local"
 
 # Local config (default):
 model = "Xenova/all-MiniLM-L6-v2"
 cache_dir = "./state/embeddings"
-
-# Qdrant config (uncomment for production):
-# [runtime.state.semantic.qdrant]
-# url = "http://qdrant:6333"
-# collection = "nachos-memory"
-# api_key = "${QDRANT_API_KEY}"  # optional
 ```
 
 ### Implementation
 
 1. **Config Schema** (`packages/shared/config/src/schema.ts`)
    - Added `SessionsStorageConfig` with sqlite/postgres providers
-   - Added `SemanticSearchConfig` with local/qdrant providers
+   - Added `SemanticSearchConfig` with local provider
 
 2. **PostgreSQL Sessions Store** (`packages/core/gateway/src/state-layer/sessions/postgres-sessions-store.ts`)
    - Implements same interface as SQLite `StateStorage`
@@ -83,13 +75,7 @@ cache_dir = "./state/embeddings"
    - Schema matches SQLite (sessions + messages tables)
    - Atomic operations with PostgreSQL transactions
 
-3. **Qdrant Memory Store** (`packages/core/gateway/src/state-layer/memory/qdrant-memory-store.ts`)
-   - Implements `MemoryStore` interface
-   - HTTP-based Qdrant client
-   - Vector + metadata hybrid search
-   - Automatic collection initialization
-
-4. **Gateway Integration** (`packages/core/gateway/src/gateway.ts`)
+3. **Gateway Integration** (`packages/core/gateway/src/gateway.ts`)
    - Reads `runtime.state.sessions.provider` from config
    - Initializes appropriate storage backend
    - Scheduler continues using SQLite (separate DB when using Postgres sessions)
@@ -113,23 +99,6 @@ cache_dir = "./state/embeddings"
 - ✅ Large-scale deployments (>1M messages)
 - ✅ Need for advanced querying and analytics
 
-### Semantic Search
-
-#### Use Local (Transformers.js) when:
-- ✅ Development and testing
-- ✅ Single-instance deployments
-- ✅ Privacy-sensitive environments (no external services)
-- ✅ Small memory datasets (<10K entries)
-- ✅ Offline/air-gapped deployments
-
-#### Use Qdrant when:
-- ✅ Production deployments
-- ✅ Large memory datasets (>100K entries)
-- ✅ Advanced vector search features
-- ✅ Multi-tenancy with isolation
-- ✅ High-performance semantic search requirements
-- ✅ Hybrid vector + metadata filtering
-
 ## Performance Implications
 
 ### SQLite vs PostgreSQL
@@ -144,18 +113,6 @@ cache_dir = "./state/embeddings"
 | **HA** | None | Replication, failover |
 
 **Recommendation**: Start with SQLite, migrate to Postgres when you need multi-instance or >100K messages.
-
-### Local vs Qdrant
-
-| Aspect | Local (Transformers.js) | Qdrant |
-|--------|------------------------|--------|
-| **Embedding Generation** | ~50-200ms (CPU) | External service required |
-| **Search Latency** | ~10-100ms | ~1-10ms |
-| **Memory Usage** | Model in RAM (~100MB) | Separate service |
-| **Scalability** | Limited by node resources | Horizontal scaling |
-| **Features** | Basic vector search | Advanced filters, HNSW, quantization |
-
-**Recommendation**: Use local for development, Qdrant for production with >10K memory entries.
 
 ## Migration Guide
 
@@ -187,32 +144,6 @@ cache_dir = "./state/embeddings"
 
 5. **Restart gateway**
 
-### Local → Qdrant
-
-1. **Deploy Qdrant**:
-   ```yaml
-   # docker-compose.yml
-   qdrant:
-     image: qdrant/qdrant:latest
-     ports:
-       - "6333:6333"
-     volumes:
-       - qdrant-data:/qdrant/storage
-   ```
-
-2. **Update config**:
-   ```toml
-   [runtime.state.semantic]
-   provider = "qdrant"
-   [runtime.state.semantic.qdrant]
-   url = "http://qdrant:6333"
-   collection = "nachos-memory"
-   ```
-
-3. **Re-index existing memory** (automatic on first query)
-
-4. **Restart gateway**
-
 ## Constraints and Limitations
 
 ### Current Limitations
@@ -226,11 +157,6 @@ cache_dir = "./state/embeddings"
    - Currently synchronous (assumes SQLite)
    - Postgres implementation ready but not fully integrated
    - Future: Refactor SessionManager to async/await
-
-3. **Embedding Generation**:
-   - Qdrant store requires external embedding service
-   - Placeholder implementation returns zero vectors
-   - Future: Integrate with OpenAI, Cohere, or local models
 
 ### Schema Compatibility
 
@@ -270,23 +196,21 @@ CREATE TABLE messages (
 
 ### Positive
 
-✅ **Flexibility**: Users choose the right backend for their scale  
-✅ **Consistency**: Sessions storage follows same pattern as identity/memory  
-✅ **Scalability**: PostgreSQL enables multi-instance deployments  
-✅ **Performance**: Qdrant provides production-grade semantic search  
-✅ **No Breaking Changes**: SQLite remains the default  
+✅ **Flexibility**: Users choose the right backend for their scale
+✅ **Consistency**: Sessions storage follows same pattern as identity/memory
+✅ **Scalability**: PostgreSQL enables multi-instance deployments
+✅ **No Breaking Changes**: SQLite remains the default
 
 ### Negative
 
-⚠️ **Complexity**: More configuration options to understand  
-⚠️ **Testing**: Need to test both SQLite and Postgres paths  
-⚠️ **Documentation**: Users need guidance on when to use each option  
-⚠️ **Migration**: Switching backends requires data migration  
+⚠️ **Complexity**: More configuration options to understand
+⚠️ **Testing**: Need to test both SQLite and Postgres paths
+⚠️ **Documentation**: Users need guidance on when to use each option
+⚠️ **Migration**: Switching backends requires data migration
 
 ### Risks
 
 - **SessionManager Refactoring**: Current sync API limits Postgres adoption
-- **Embedding Service**: Qdrant requires external embedding generation
 - **Scheduler Coupling**: Scheduler still depends on SQLite
 
 ## Future Work
@@ -300,26 +224,14 @@ CREATE TABLE messages (
    - Support Postgres for scheduler jobs/runs
    - Share cron jobs across gateway instances
 
-3. **Embedding Service Integration** (`MEDIUM PRIORITY`)
-   - OpenAI embeddings connector
-   - Cohere embeddings connector
-   - Local embedding server (Ollama, vLLM)
-
-4. **Migration Tooling** (`LOW PRIORITY`)
+3. **Migration Tooling** (`LOW PRIORITY`)
    - CLI command: `nachos migrate sqlite-to-postgres`
    - Automatic schema conversion
    - Zero-downtime migration support
 
-5. **Additional Backends** (`FUTURE`)
-   - MySQL/MariaDB for sessions
-   - MongoDB for semi-structured data
-   - Redis for ephemeral sessions
-   - Weaviate/Pinecone for semantic search
-
 ## References
 
 - [PostgreSQL Connection Pooling Best Practices](https://www.postgresql.org/docs/current/runtime-config-connection.html)
-- [Qdrant Documentation](https://qdrant.tech/documentation/)
 - [SQLite When To Use](https://www.sqlite.org/whentouse.html)
 - [Nachos State Layer Architecture](../README.md)
 
@@ -332,7 +244,7 @@ CREATE TABLE messages (
 
 ## Approval
 
-**Proposed**: 2026-02-25  
-**Reviewed**: -  
-**Approved**: -  
+**Proposed**: 2026-02-25
+**Reviewed**: -
+**Approved**: -
 **Implemented**: Partially (schema + stores complete, Gateway integration pending SessionManager async refactor)

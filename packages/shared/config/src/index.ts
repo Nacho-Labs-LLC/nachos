@@ -62,7 +62,6 @@ export type {
   SessionsStoragePostgresConfig,
   SessionsStorageConfig,
   SemanticSearchLocalConfig,
-  SemanticSearchQdrantConfig,
   SemanticSearchConfig,
   PromptReportConfig,
   StateLayerConfig,

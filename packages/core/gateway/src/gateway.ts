@@ -2972,6 +2972,7 @@ export class Gateway {
         }
       },
       checkBus: () => this.isConnected,
+      getHookStats: () => this.hooks.getStats(),
     });
 
     // Add Cheese statistics if available

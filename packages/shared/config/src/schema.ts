@@ -593,18 +593,9 @@ export interface SemanticSearchLocalConfig {
   cache_dir?: string;
 }
 
-export interface SemanticSearchQdrantConfig {
-  url?: string;
-  collection?: string;
-  api_key?: string;
-  embedding_model?: string;
-  embedding_cache_dir?: string;
-}
-
 export interface SemanticSearchConfig {
-  provider?: 'local' | 'qdrant';
+  provider?: 'local';
   local?: SemanticSearchLocalConfig;
-  qdrant?: SemanticSearchQdrantConfig;
 }
 
 export interface PromptReportConfig {
