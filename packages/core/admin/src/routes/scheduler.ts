@@ -20,6 +20,8 @@ import type {
 } from '../types.js';
 
 const STATE_DIR = process.env['NACHOS_STATE_DIR'] ?? '/app/state';
+const ADMIN_USER_ID = '__admin__';
+const RESERVED_USER_IDS = new Set(['__config__', '__system__']);
 
 export const schedulerRouter = new Hono();
 
@@ -27,6 +29,13 @@ export const schedulerRouter = new Hono();
 
 function getDbPath(): string {
   return join(STATE_DIR, 'nachos.db');
+}
+
+/** Open a DB connection with consistent pragmas. Caller MUST close in finally. */
+function openDb(readonly: boolean): InstanceType<typeof Database> {
+  const db = new Database(getDbPath(), { readonly, fileMustExist: true });
+  db.pragma('foreign_keys = ON');
+  return db;
 }
 
 function rowToJob(row: SchedulerJobRow): SchedulerJob {
@@ -93,6 +102,39 @@ function validateScheduleValue(scheduleType: string, scheduleValue: string): str
   }
 }
 
+/** Validate actionData shape matches the actionType */
+function validateActionData(
+  actionType: string,
+  actionData: Record<string, unknown>
+): string | null {
+  if (actionType === 'systemEvent') {
+    if (typeof actionData['text'] !== 'string' || !actionData['text']) {
+      return 'actionData must include a non-empty "text" string for actionType "systemEvent"';
+    }
+    if (actionData['type'] !== undefined && actionData['type'] !== 'systemEvent') {
+      return 'actionData.type must be "systemEvent" when actionType is "systemEvent"';
+    }
+  } else if (actionType === 'agentTurn') {
+    if (typeof actionData['prompt'] !== 'string' || !actionData['prompt']) {
+      return 'actionData must include a non-empty "prompt" string for actionType "agentTurn"';
+    }
+    if (actionData['type'] !== undefined && actionData['type'] !== 'agentTurn') {
+      return 'actionData.type must be "agentTurn" when actionType is "agentTurn"';
+    }
+  }
+  return null;
+}
+
+/** Validate timezone is a recognized IANA zone */
+function validateTimezone(timezone: string): string | null {
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: timezone });
+    return null;
+  } catch {
+    return `Invalid timezone: "${timezone}". Must be a valid IANA timezone (e.g., "America/New_York", "UTC")`;
+  }
+}
+
 // ── GET /jobs ────────────────────────────────────────────────────────
 
 schedulerRouter.get('/jobs', (c) => {
@@ -107,9 +149,8 @@ schedulerRouter.get('/jobs', (c) => {
     return c.json(empty);
   }
 
+  const db = openDb(true);
   try {
-    const db = new Database(dbPath, { readonly: true, fileMustExist: true });
-
     const conditions: string[] = [];
     const params: (string | number)[] = [];
 
@@ -138,8 +179,6 @@ schedulerRouter.get('/jobs', (c) => {
       )
       .all(...params, pageSize, offset);
 
-    db.close();
-
     const response: SchedulerJobsResponse = {
       jobs: rows.map(rowToJob),
       total,
@@ -149,6 +188,8 @@ schedulerRouter.get('/jobs', (c) => {
     return c.json(response);
   } catch (err) {
     return c.json({ error: 'Failed to list scheduler jobs', details: String(err) }, 500);
+  } finally {
+    db.close();
   }
 });
 
@@ -162,17 +203,18 @@ schedulerRouter.get('/jobs/:id', (c) => {
     return c.json({ error: 'Job not found' }, 404);
   }
 
+  const db = openDb(true);
   try {
-    const db = new Database(dbPath, { readonly: true, fileMustExist: true });
     const row = db
       .prepare<[string], SchedulerJobRow>('SELECT * FROM cron_jobs WHERE id = ?')
       .get(id);
-    db.close();
 
     if (!row) return c.json({ error: 'Job not found' }, 404);
     return c.json(rowToJob(row));
   } catch (err) {
     return c.json({ error: 'Failed to get job', details: String(err) }, 500);
+  } finally {
+    db.close();
   }
 });
 
@@ -188,7 +230,6 @@ interface CreateJobBody {
   actionData: Record<string, unknown>;
   deliveryChannel?: string;
   deliveryAnnounce?: boolean;
-  userId: string;
   sessionId?: string;
   metadata?: Record<string, unknown>;
 }
@@ -202,7 +243,6 @@ schedulerRouter.post('/jobs', async (c) => {
   if (!body.scheduleValue) return c.json({ error: 'scheduleValue is required' }, 400);
   if (!body.actionType) return c.json({ error: 'actionType is required' }, 400);
   if (!body.actionData) return c.json({ error: 'actionData is required' }, 400);
-  if (!body.userId?.trim()) return c.json({ error: 'userId is required' }, 400);
 
   // Validate schedule type
   if (!VALID_SCHEDULE_TYPES.includes(body.scheduleType as typeof VALID_SCHEDULE_TYPES[number])) {
@@ -218,13 +258,23 @@ schedulerRouter.post('/jobs', async (c) => {
   const scheduleError = validateScheduleValue(body.scheduleType, body.scheduleValue);
   if (scheduleError) return c.json({ error: scheduleError }, 400);
 
+  // Validate actionData shape
+  const actionDataError = validateActionData(body.actionType, body.actionData);
+  if (actionDataError) return c.json({ error: actionDataError }, 400);
+
+  // Validate timezone if provided
+  if (body.timezone) {
+    const tzError = validateTimezone(body.timezone);
+    if (tzError) return c.json({ error: tzError }, 400);
+  }
+
   const dbPath = getDbPath();
   if (!existsSync(dbPath)) {
     return c.json({ error: 'Scheduler database not initialized' }, 503);
   }
 
+  const db = openDb(false);
   try {
-    const db = new Database(dbPath, { readonly: false, fileMustExist: true });
     const now = new Date().toISOString();
     const id = randomUUID();
 
@@ -248,7 +298,7 @@ schedulerRouter.post('/jobs', async (c) => {
       body.deliveryAnnounce ? 1 : 0,
       1, // enabled by default
       body.sessionId ?? null,
-      body.userId.trim(),
+      ADMIN_USER_ID, // Always use admin identity — never trust client-supplied userId
       body.metadata ? JSON.stringify(body.metadata) : null,
       now,
       now
@@ -257,12 +307,13 @@ schedulerRouter.post('/jobs', async (c) => {
     const row = db
       .prepare<[string], SchedulerJobRow>('SELECT * FROM cron_jobs WHERE id = ?')
       .get(id);
-    db.close();
 
     if (!row) return c.json({ error: 'Failed to retrieve created job' }, 500);
     return c.json(rowToJob(row), 201);
   } catch (err) {
     return c.json({ error: 'Failed to create job', details: String(err) }, 500);
+  } finally {
+    db.close();
   }
 });
 
@@ -289,25 +340,41 @@ schedulerRouter.put('/jobs/:id', async (c) => {
     return c.json({ error: 'Job not found' }, 404);
   }
 
+  const db = openDb(false);
   try {
-    const db = new Database(dbPath, { readonly: false, fileMustExist: true });
-
     // Check job exists
     const existing = db
       .prepare<[string], SchedulerJobRow>('SELECT * FROM cron_jobs WHERE id = ?')
       .get(id);
     if (!existing) {
-      db.close();
       return c.json({ error: 'Job not found' }, 404);
+    }
+
+    // Block updates to reserved jobs
+    if (RESERVED_USER_IDS.has(existing.user_id)) {
+      return c.json({ error: 'Cannot modify config-managed or system jobs via admin API' }, 403);
     }
 
     // Validate schedule value if provided
     if (body.scheduleValue !== undefined) {
       const scheduleError = validateScheduleValue(existing.schedule_type, body.scheduleValue);
       if (scheduleError) {
-        db.close();
         return c.json({ error: scheduleError }, 400);
       }
+    }
+
+    // Validate actionData shape if provided
+    if (body.actionData !== undefined) {
+      const actionDataError = validateActionData(existing.action_type, body.actionData);
+      if (actionDataError) {
+        return c.json({ error: actionDataError }, 400);
+      }
+    }
+
+    // Validate timezone if provided
+    if (body.timezone !== undefined) {
+      const tzError = validateTimezone(body.timezone);
+      if (tzError) return c.json({ error: tzError }, 400);
     }
 
     const now = new Date().toISOString();
@@ -358,12 +425,13 @@ schedulerRouter.put('/jobs/:id', async (c) => {
     const row = db
       .prepare<[string], SchedulerJobRow>('SELECT * FROM cron_jobs WHERE id = ?')
       .get(id);
-    db.close();
 
     if (!row) return c.json({ error: 'Failed to retrieve updated job' }, 500);
     return c.json(rowToJob(row));
   } catch (err) {
     return c.json({ error: 'Failed to update job', details: String(err) }, 500);
+  } finally {
+    db.close();
   }
 });
 
@@ -377,15 +445,22 @@ schedulerRouter.delete('/jobs/:id', (c) => {
     return c.json({ error: 'Job not found' }, 404);
   }
 
+  const db = openDb(false);
   try {
-    const db = new Database(dbPath, { readonly: false, fileMustExist: true });
-    const result = db.prepare('DELETE FROM cron_jobs WHERE id = ?').run(id);
-    db.close();
+    // Explicitly delete runs + job in a transaction (foreign_keys may not cascade reliably)
+    const deleteJobWithRuns = db.transaction((jobId: string) => {
+      db.prepare('DELETE FROM cron_runs WHERE job_id = ?').run(jobId);
+      return db.prepare('DELETE FROM cron_jobs WHERE id = ?').run(jobId);
+    });
+
+    const result = deleteJobWithRuns(id);
 
     if (result.changes === 0) return c.json({ error: 'Job not found' }, 404);
     return c.json({ ok: true });
   } catch (err) {
     return c.json({ error: 'Failed to delete job', details: String(err) }, 500);
+  } finally {
+    db.close();
   }
 });
 
@@ -399,36 +474,28 @@ schedulerRouter.post('/jobs/:id/trigger', (c) => {
     return c.json({ error: 'Job not found' }, 404);
   }
 
+  const db = openDb(false);
   try {
-    const db = new Database(dbPath, { readonly: false, fileMustExist: true });
-
     const job = db
       .prepare<[string], SchedulerJobRow>('SELECT * FROM cron_jobs WHERE id = ?')
       .get(id);
     if (!job) {
-      db.close();
       return c.json({ error: 'Job not found' }, 404);
     }
 
-    // Create a run record to signal the scheduler to pick it up
+    // Update next_run_at to now so the scheduler picks it up on next tick.
+    // Don't create a run record — the scheduler creates its own when it executes.
     const now = new Date().toISOString();
-    const runId = randomUUID();
 
-    db.prepare(`
-      INSERT INTO cron_runs (id, job_id, status, started_at)
-      VALUES (?, ?, 'pending', ?)
-    `).run(runId, id, now);
-
-    // Update next_run_at to now so the scheduler picks it up on next tick
     db.prepare(`
       UPDATE cron_jobs SET next_run_at = ?, updated_at = ? WHERE id = ?
     `).run(now, now, id);
 
-    db.close();
-
-    return c.json({ ok: true, runId, message: 'Job trigger queued — will execute on next scheduler tick' });
+    return c.json({ ok: true, message: 'Job scheduled to run on next scheduler tick' });
   } catch (err) {
     return c.json({ error: 'Failed to trigger job', details: String(err) }, 500);
+  } finally {
+    db.close();
   }
 });
 
@@ -446,9 +513,8 @@ schedulerRouter.get('/runs', (c) => {
     return c.json(empty);
   }
 
+  const db = openDb(true);
   try {
-    const db = new Database(dbPath, { readonly: true, fileMustExist: true });
-
     const conditions: string[] = [];
     const params: (string | number)[] = [];
 
@@ -477,8 +543,6 @@ schedulerRouter.get('/runs', (c) => {
       )
       .all(...params, pageSize, offset);
 
-    db.close();
-
     const response: SchedulerRunsResponse = {
       runs: rows.map(rowToRun),
       total,
@@ -488,6 +552,8 @@ schedulerRouter.get('/runs', (c) => {
     return c.json(response);
   } catch (err) {
     return c.json({ error: 'Failed to list scheduler runs', details: String(err) }, 500);
+  } finally {
+    db.close();
   }
 });
 
@@ -501,16 +567,17 @@ schedulerRouter.get('/runs/:id', (c) => {
     return c.json({ error: 'Run not found' }, 404);
   }
 
+  const db = openDb(true);
   try {
-    const db = new Database(dbPath, { readonly: true, fileMustExist: true });
     const row = db
       .prepare<[string], SchedulerRunRow>('SELECT * FROM cron_runs WHERE id = ?')
       .get(id);
-    db.close();
 
     if (!row) return c.json({ error: 'Run not found' }, 404);
     return c.json(rowToRun(row));
   } catch (err) {
     return c.json({ error: 'Failed to get run', details: String(err) }, 500);
+  } finally {
+    db.close();
   }
 });

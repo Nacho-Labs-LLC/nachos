@@ -33,6 +33,7 @@ export interface ConfigJobDefinition {
  *
  * - Creates new jobs for config entries that don't exist yet
  * - Updates existing config jobs if their definition changed
+ * - Recreates jobs when scheduleType or actionType changes (not updatable)
  * - Disables config jobs that were removed from config
  */
 export async function syncConfigJobs(
@@ -61,14 +62,45 @@ export async function syncConfigJobs(
     const existing = existingByName.get(def.name);
 
     if (existing) {
-      // Check if anything changed — update if so
+      // If scheduleType or actionType changed, we must delete+recreate
+      // because UpdateCronJobOptions cannot change these fields
+      const scheduleTypeChanged = existing.scheduleType !== def.schedule_type;
+      const actionTypeChanged = existing.actionType !== def.action_type;
+
+      if (scheduleTypeChanged || actionTypeChanged) {
+        await scheduler.deleteJob(existing.id);
+        await scheduler.createJob({
+          name: def.name,
+          description: def.description,
+          scheduleType: def.schedule_type,
+          scheduleValue: def.schedule_value,
+          timezone: def.timezone ?? 'UTC',
+          actionType: def.action_type,
+          actionData,
+          deliveryChannel: def.delivery_channel,
+          userId: CONFIG_USER_ID,
+          metadata: { source: CONFIG_SOURCE },
+        });
+        // If config says disabled, immediately disable the recreated job
+        if (def.enabled === false) {
+          const recreated = scheduler.listJobs({ userId: CONFIG_USER_ID })
+            .find((j) => j.name === def.name);
+          if (recreated) {
+            await scheduler.updateJob(recreated.id, { enabled: false });
+          }
+        }
+        stats.updated++;
+        logger.info({ jobName: def.name }, 'Recreated config-defined job (type changed)');
+        continue;
+      }
+
+      // Check if any other fields changed
       const needsUpdate =
-        existing.scheduleType !== def.schedule_type ||
         existing.scheduleValue !== def.schedule_value ||
         existing.timezone !== (def.timezone ?? 'UTC') ||
-        existing.actionType !== def.action_type ||
         JSON.stringify(existing.actionData) !== JSON.stringify(actionData) ||
         existing.deliveryChannel !== def.delivery_channel ||
+        (existing.description ?? '') !== (def.description ?? '') ||
         existing.enabled !== (def.enabled ?? true);
 
       if (needsUpdate) {
@@ -86,7 +118,7 @@ export async function syncConfigJobs(
       }
     } else {
       // Create new job
-      await scheduler.createJob({
+      const job = await scheduler.createJob({
         name: def.name,
         description: def.description,
         scheduleType: def.schedule_type,
@@ -98,6 +130,10 @@ export async function syncConfigJobs(
         userId: CONFIG_USER_ID,
         metadata: { source: CONFIG_SOURCE },
       });
+      // createJob always sets enabled=true; honor config's enabled flag
+      if (def.enabled === false) {
+        await scheduler.updateJob(job.id, { enabled: false });
+      }
       stats.created++;
       logger.info({ jobName: def.name }, 'Created config-defined job');
     }

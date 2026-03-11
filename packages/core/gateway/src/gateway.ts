@@ -2434,10 +2434,10 @@ export class Gateway {
     if (this.scheduler) {
       this.scheduler.setMessageBus(this.router.getBus());
 
-      // Sync config-defined jobs before starting the scheduler loop
-      if (this.options.schedulerJobs?.length) {
-        await syncConfigJobs(this.scheduler, this.options.schedulerJobs);
-      }
+      // Sync config-defined jobs before starting the scheduler loop.
+      // Treat undefined as empty list so removing all jobs from config
+      // correctly disables previously-configured jobs.
+      await syncConfigJobs(this.scheduler, this.options.schedulerJobs ?? []);
 
       await this.scheduler.start();
       logger.info('Scheduler started');

@@ -143,4 +143,77 @@ describe('Config Sync', () => {
     expect(jobs[0]?.actionType).toBe('agentTurn');
     expect(jobs[0]?.actionData).toEqual({ type: 'agentTurn', prompt: 'Run morning briefing' });
   });
+
+  it('should create job with enabled=false when config says disabled', async () => {
+    await syncConfigJobs(scheduler, [
+      makeJob({ name: 'disabled-job', enabled: false }),
+    ]);
+
+    const jobs = scheduler.listJobs({ userId: '__config__' });
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]?.enabled).toBe(false);
+  });
+
+  it('should detect and apply description-only changes', async () => {
+    await syncConfigJobs(scheduler, [
+      makeJob({ name: 'desc-job', description: 'Original description' }),
+    ]);
+
+    const result = await syncConfigJobs(scheduler, [
+      makeJob({ name: 'desc-job', description: 'Updated description' }),
+    ]);
+
+    expect(result.updated).toBe(1);
+
+    const jobs = scheduler.listJobs({ userId: '__config__' });
+    expect(jobs[0]?.description).toBe('Updated description');
+  });
+
+  it('should recreate job when schedule_type changes', async () => {
+    await syncConfigJobs(scheduler, [
+      makeJob({ name: 'type-change', schedule_type: 'every', schedule_value: '60000' }),
+    ]);
+
+    const result = await syncConfigJobs(scheduler, [
+      makeJob({ name: 'type-change', schedule_type: 'cron', schedule_value: '0 9 * * *' }),
+    ]);
+
+    expect(result.updated).toBe(1);
+
+    const jobs = scheduler.listJobs({ userId: '__config__' });
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]?.scheduleType).toBe('cron');
+    expect(jobs[0]?.scheduleValue).toBe('0 9 * * *');
+  });
+
+  it('should recreate job when action_type changes', async () => {
+    await syncConfigJobs(scheduler, [
+      makeJob({ name: 'action-change', action_type: 'systemEvent', action_text: 'Hello' }),
+    ]);
+
+    const result = await syncConfigJobs(scheduler, [
+      makeJob({ name: 'action-change', action_type: 'agentTurn', action_prompt: 'Do stuff' }),
+    ]);
+
+    expect(result.updated).toBe(1);
+
+    const jobs = scheduler.listJobs({ userId: '__config__' });
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]?.actionType).toBe('agentTurn');
+    expect(jobs[0]?.actionData).toEqual({ type: 'agentTurn', prompt: 'Do stuff' });
+  });
+
+  it('should disable all config jobs when synced with empty array', async () => {
+    await syncConfigJobs(scheduler, [
+      makeJob({ name: 'will-be-removed-a' }),
+      makeJob({ name: 'will-be-removed-b' }),
+    ]);
+
+    const result = await syncConfigJobs(scheduler, []);
+
+    expect(result.disabled).toBe(2);
+
+    const jobs = scheduler.listJobs({ userId: '__config__' });
+    expect(jobs.every((j) => !j.enabled)).toBe(true);
+  });
 });
