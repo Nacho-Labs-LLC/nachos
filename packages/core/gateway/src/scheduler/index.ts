@@ -7,3 +7,4 @@ export * from './storage.js';
 export * from './schedule-evaluator.js';
 export * from './scheduler.js';
 export * from './heartbeat.js';
+export * from './config-sync.js';

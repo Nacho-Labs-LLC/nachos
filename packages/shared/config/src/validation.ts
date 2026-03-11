@@ -409,6 +409,20 @@ const CONFIG_SHAPE: SchemaNode = {
     check_interval_seconds: true,
     max_concurrent_jobs: true,
     run_missed_on_startup: true,
+    jobs: {
+      __array: {
+        name: true,
+        description: true,
+        schedule_type: true,
+        schedule_value: true,
+        timezone: true,
+        action_type: true,
+        action_text: true,
+        action_prompt: true,
+        delivery_channel: true,
+        enabled: true,
+      },
+    },
   },
   heartbeat: {
     enabled: true,
@@ -1036,6 +1050,55 @@ function validateToolsConfig(config: NachosConfig, errors: string[], warnings: s
 /**
  * Validate complete configuration
  */
+function validateSchedulerConfig(config: NachosConfig, errors: string[], _warnings: string[]): void {
+  const jobs = config.scheduler?.jobs;
+  if (!jobs || !Array.isArray(jobs)) return;
+
+  const VALID_SCHEDULE_TYPES = ['at', 'every', 'cron'];
+  const VALID_ACTION_TYPES = ['systemEvent', 'agentTurn'];
+  const seenNames = new Set<string>();
+
+  for (let i = 0; i < jobs.length; i++) {
+    const job = jobs[i];
+    const prefix = `scheduler.jobs[${i}]`;
+
+    if (!job) continue;
+
+    if (!job.name?.trim()) {
+      errors.push(`${prefix}.name is required`);
+    } else if (seenNames.has(job.name)) {
+      errors.push(`${prefix}.name "${job.name}" is duplicated — job names must be unique`);
+    } else {
+      seenNames.add(job.name);
+    }
+
+    if (!job.schedule_type) {
+      errors.push(`${prefix}.schedule_type is required`);
+    } else if (!VALID_SCHEDULE_TYPES.includes(job.schedule_type)) {
+      errors.push(`${prefix}.schedule_type must be one of: ${VALID_SCHEDULE_TYPES.join(', ')}`);
+    }
+
+    if (!job.schedule_value) {
+      errors.push(`${prefix}.schedule_value is required`);
+    } else if (job.schedule_type === 'every') {
+      const ms = parseInt(job.schedule_value, 10);
+      if (isNaN(ms) || ms <= 0) {
+        errors.push(`${prefix}.schedule_value must be a positive integer (milliseconds) for type "every"`);
+      }
+    }
+
+    if (!job.action_type) {
+      errors.push(`${prefix}.action_type is required`);
+    } else if (!VALID_ACTION_TYPES.includes(job.action_type)) {
+      errors.push(`${prefix}.action_type must be one of: ${VALID_ACTION_TYPES.join(', ')}`);
+    } else if (job.action_type === 'systemEvent' && !job.action_text?.trim()) {
+      errors.push(`${prefix}.action_text is required when action_type is "systemEvent"`);
+    } else if (job.action_type === 'agentTurn' && !job.action_prompt?.trim()) {
+      errors.push(`${prefix}.action_prompt is required when action_type is "agentTurn"`);
+    }
+  }
+}
+
 export function validateConfig(config: NachosConfig): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -1047,6 +1110,7 @@ export function validateConfig(config: NachosConfig): ValidationResult {
   validateRuntimeConfig(config, errors, warnings);
   validateChannelsConfig(config, errors, warnings);
   validateToolsConfig(config, errors, warnings);
+  validateSchedulerConfig(config, errors, warnings);
 
   return {
     valid: errors.length === 0,

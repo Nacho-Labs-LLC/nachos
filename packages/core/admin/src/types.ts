@@ -99,3 +99,83 @@ export interface ServiceStatus {
 export interface ServicesResponse {
   services: ServiceStatus[];
 }
+
+// ── Scheduler types ──────────────────────────────────────────────────
+
+export interface SchedulerJobRow {
+  id: string;
+  name: string;
+  description: string | null;
+  schedule_type: string;
+  schedule_value: string;
+  timezone: string;
+  action_type: string;
+  action_data: string;
+  delivery_channel: string | null;
+  delivery_announce: number;
+  enabled: number;
+  session_id: string | null;
+  user_id: string;
+  metadata: string | null;
+  created_at: string;
+  updated_at: string;
+  last_run_at: string | null;
+  next_run_at: string | null;
+}
+
+export interface SchedulerJob {
+  id: string;
+  name: string;
+  description?: string;
+  scheduleType: string;
+  scheduleValue: string;
+  timezone: string;
+  actionType: string;
+  actionData: Record<string, unknown>;
+  deliveryChannel?: string;
+  deliveryAnnounce: boolean;
+  enabled: boolean;
+  sessionId?: string;
+  userId: string;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+  lastRunAt?: string;
+  nextRunAt?: string;
+}
+
+export interface SchedulerJobsResponse {
+  jobs: SchedulerJob[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface SchedulerRunRow {
+  id: string;
+  job_id: string;
+  status: string;
+  started_at: string;
+  completed_at: string | null;
+  result: string | null;
+  error: string | null;
+  duration_ms: number | null;
+}
+
+export interface SchedulerRun {
+  id: string;
+  jobId: string;
+  status: string;
+  startedAt: string;
+  completedAt?: string;
+  result?: string;
+  error?: string;
+  durationMs?: number;
+}
+
+export interface SchedulerRunsResponse {
+  runs: SchedulerRun[];
+  total: number;
+  page: number;
+  pageSize: number;
+}

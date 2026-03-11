@@ -14,6 +14,7 @@ import { servicesRouter } from './routes/services.js';
 import { logsRouter } from './routes/logs.js';
 import { chatRouter } from './routes/chat.js';
 import { webchatRouter } from './routes/webchat.js';
+import { schedulerRouter } from './routes/scheduler.js';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -74,6 +75,7 @@ app.route('/api/services', servicesRouter);
 app.route('/api/logs', logsRouter);
 app.route('/api/chat', chatRouter);
 app.route('/api/webchat', webchatRouter);
+app.route('/api/scheduler', schedulerRouter);
 
 app.get('/api/health', (c) =>
   c.json({ status: 'ok', service: 'nachos-admin', timestamp: new Date().toISOString() })

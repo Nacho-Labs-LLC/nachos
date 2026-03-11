@@ -1,92 +1,34 @@
 /**
  * Schedule evaluation logic for different schedule types
+ *
+ * Uses the cron-parser library for robust cron expression parsing
+ * instead of a hand-rolled implementation.
  */
 import { DateTime } from 'luxon';
+import { CronExpressionParser } from 'cron-parser';
 import { createLogger } from '@nachos/types';
 import type { CronJob } from './types.js';
 
 const logger = createLogger('schedule-evaluator');
 
 /**
- * Parse cron expression and get next run time
- * Supports standard cron format: minute hour day month weekday
+ * Parse cron expression and get next run time using cron-parser library.
+ * Supports standard 5-field cron format: minute hour day month weekday
  * Example: "0 9 * * 1-5" = 9:00 AM on weekdays
  */
 function parseCronExpression(expression: string, timezone: string, fromTime?: Date): Date | null {
   try {
-    // Simple cron parser - for production, consider using a library like 'cron-parser'
-    const parts = expression.trim().split(/\s+/);
-    if (parts.length !== 5) {
-      logger.warn({ expression }, 'Invalid cron expression format');
-      return null;
-    }
+    const expr = CronExpressionParser.parse(expression, {
+      tz: timezone,
+      currentDate: fromTime ?? new Date(),
+    });
 
-    const [minute = '*', hour = '*', dayOfMonth = '*', month = '*', dayOfWeek = '*'] = parts;
-    const now = fromTime
-      ? DateTime.fromJSDate(fromTime).setZone(timezone)
-      : DateTime.now().setZone(timezone);
-
-    // Start from next minute
-    let candidate = now.plus({ minutes: 1 }).startOf('minute');
-
-    // Find next matching time (max 1000 iterations to prevent infinite loops)
-    for (let i = 0; i < 1000; i++) {
-      if (
-        matchesCronPart(minute, candidate.minute) &&
-        matchesCronPart(hour, candidate.hour) &&
-        matchesCronPart(dayOfMonth, candidate.day) &&
-        matchesCronPart(month, candidate.month) &&
-        matchesCronPart(dayOfWeek, candidate.weekday % 7) // 0=Sunday
-      ) {
-        return candidate.toJSDate();
-      }
-
-      // Move to next minute
-      candidate = candidate.plus({ minutes: 1 });
-    }
-
-    logger.warn({ expression }, 'Could not find next cron match within 1000 iterations');
-    return null;
+    const next = expr.next();
+    return next.toDate();
   } catch (error) {
-    logger.error({ expression, error }, 'Error parsing cron expression');
+    logger.error({ expression, timezone, error }, 'Error parsing cron expression');
     return null;
   }
-}
-
-/**
- * Check if a value matches a cron part (supports *, ranges, lists, steps)
- */
-function matchesCronPart(part: string, value: number): boolean {
-  // * matches everything
-  if (part === '*') {
-    return true;
-  }
-
-  // Handle step values (e.g., */5)
-  if (part.includes('/')) {
-    const [range, step] = part.split('/');
-    const stepNum = parseInt(step ?? '1', 10);
-    if (range === '*') {
-      return value % stepNum === 0;
-    }
-  }
-
-  // Handle ranges (e.g., 1-5)
-  if (part.includes('-')) {
-    const rangeParts = part.split('-');
-    const start = parseInt(rangeParts[0] ?? '0', 10);
-    const end = parseInt(rangeParts[1] ?? '0', 10);
-    return value >= start && value <= end;
-  }
-
-  // Handle lists (e.g., 1,3,5)
-  if (part.includes(',')) {
-    const values = part.split(',').map((n) => parseInt(n, 10));
-    return values.includes(value);
-  }
-
-  // Exact match
-  return parseInt(part, 10) === value;
 }
 
 /**
@@ -131,7 +73,7 @@ export function calculateNextRunTime(job: CronJob, fromTime?: Date): Date | null
     }
 
     case 'cron': {
-      // Cron expression
+      // Cron expression — delegated to cron-parser
       return parseCronExpression(job.scheduleValue, job.timezone, now);
     }
 
@@ -158,7 +100,8 @@ export function shouldRunNow(job: CronJob, currentTime: Date = new Date()): bool
 }
 
 /**
- * Validate schedule value for a given schedule type
+ * Validate schedule value for a given schedule type.
+ * Returns true if the value is syntactically valid.
  */
 export function validateScheduleValue(scheduleType: string, scheduleValue: string): boolean {
   switch (scheduleType) {
@@ -175,9 +118,13 @@ export function validateScheduleValue(scheduleType: string, scheduleValue: strin
     }
 
     case 'cron': {
-      // Must be valid cron expression (5 parts)
-      const parts = scheduleValue.trim().split(/\s+/);
-      return parts.length === 5;
+      // Use cron-parser to validate
+      try {
+        CronExpressionParser.parse(scheduleValue);
+        return true;
+      } catch {
+        return false;
+      }
     }
 
     default:

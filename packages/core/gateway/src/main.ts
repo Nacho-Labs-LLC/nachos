@@ -171,6 +171,7 @@ async function start(): Promise<void> {
     skillsConfig: nachosConfig.skills,
     nachosConfig,
     schedulerConfig,
+    schedulerJobs: nachosConfig.scheduler?.jobs,
     heartbeatConfig,
   });
 

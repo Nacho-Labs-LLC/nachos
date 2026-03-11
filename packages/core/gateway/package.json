@@ -30,6 +30,7 @@
     "@nachos/types": "workspace:*",
     "@playwright/mcp": "^0.0.45",
     "better-sqlite3": "^12.6.2",
+    "cron-parser": "^5.5.0",
     "dockerode": "^4.0.2",
     "luxon": "^3.7.2",
     "pg": "^8.13.1",

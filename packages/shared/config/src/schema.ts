@@ -731,6 +731,29 @@ export interface AdminConfig {
 }
 
 /**
+ * A single scheduled job defined in nachos.toml
+ */
+export interface SchedulerJobConfig {
+  /** Unique job name (used as stable identifier for config sync) */
+  name: string;
+  description?: string;
+  /** Schedule type: 'at' (one-shot ISO timestamp), 'every' (interval ms), 'cron' (5-field cron) */
+  schedule_type: 'at' | 'every' | 'cron';
+  /** Schedule value — ISO timestamp, milliseconds, or cron expression */
+  schedule_value: string;
+  timezone?: string;
+  /** Action type when job fires */
+  action_type: 'systemEvent' | 'agentTurn';
+  /** Text to inject (for systemEvent) */
+  action_text?: string;
+  /** Prompt for the LLM (for agentTurn) */
+  action_prompt?: string;
+  /** Target channel to deliver the job output */
+  delivery_channel?: string;
+  enabled?: boolean;
+}
+
+/**
  * Scheduler configuration
  */
 export interface SchedulerConfig {
@@ -738,6 +761,8 @@ export interface SchedulerConfig {
   check_interval_seconds?: number;
   max_concurrent_jobs?: number;
   run_missed_on_startup?: boolean;
+  /** Declarative job definitions — synced to SQLite registry on startup */
+  jobs?: SchedulerJobConfig[];
 }
 
 /**
