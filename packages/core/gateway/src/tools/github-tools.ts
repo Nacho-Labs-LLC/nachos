@@ -7,13 +7,39 @@
 
 import type { ToolCall, ToolResult } from '@nachos/types';
 import { createToolFailedError } from '@nachos/types';
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { ToolRateLimiter } from './tool-rate-limiter.js';
 
 const execFileAsync = promisify(execFile);
 
 const MAX_OUTPUT_SIZE = 50 * 1024; // 50KB limit for large diffs
+const MAX_BODY_SIZE = 100 * 1024; // 100KB limit for request bodies
+
+/**
+ * Actions that perform write operations (create, update, delete).
+ * Used for policy evaluation and audit logging.
+ */
+export const GITHUB_WRITE_ACTIONS = [
+  'issue_create',
+  'issue_comment',
+  'pr_create',
+  'pr_merge',
+] as const;
+
+/**
+ * Check whether a GitHub action is a write operation.
+ * For the generic `api` action, any non-GET method is considered a write.
+ */
+export function isWriteAction(action: string, httpMethod?: string): boolean {
+  if ((GITHUB_WRITE_ACTIONS as readonly string[]).includes(action)) {
+    return true;
+  }
+  if (action === 'api' && httpMethod && httpMethod !== 'GET') {
+    return true;
+  }
+  return false;
+}
 
 const rateLimiter = new ToolRateLimiter(60 * 1000, 30, 'GitHub');
 
@@ -187,13 +213,9 @@ function validateRepo(
 }
 
 /**
- * Execute GitHub CLI command
+ * Build environment for GitHub CLI execution
  */
-async function execGitHub(
-  args: string[],
-  config: GitHubConfig
-): Promise<{ stdout: string; stderr: string }> {
-  // Set up environment with GitHub token if configured
+function buildGitHubEnv(config: GitHubConfig): NodeJS.ProcessEnv {
   const env = { ...process.env };
   if (config.token_env) {
     const token = process.env[config.token_env];
@@ -202,6 +224,17 @@ async function execGitHub(
       env.GITHUB_TOKEN = token;
     }
   }
+  return env;
+}
+
+/**
+ * Execute GitHub CLI command
+ */
+async function execGitHub(
+  args: string[],
+  config: GitHubConfig
+): Promise<{ stdout: string; stderr: string }> {
+  const env = buildGitHubEnv(config);
 
   try {
     const result = await execFileAsync('gh', args, {
@@ -219,6 +252,112 @@ async function execGitHub(
     }
     throw error;
   }
+}
+
+/**
+ * Execute GitHub CLI command with stdin input (for api action with body).
+ * Uses spawn instead of execFile to pipe body data via stdin.
+ */
+async function execGitHubWithStdin(
+  args: string[],
+  stdinData: string,
+  config: GitHubConfig
+): Promise<{ stdout: string; stderr: string }> {
+  const env = buildGitHubEnv(config);
+
+  return new Promise((resolve, reject) => {
+    const child = spawn('gh', args, {
+      env,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      timeout: 30000,
+    });
+
+    let stdout = '';
+    let stderr = '';
+    let stdoutSize = 0;
+    const maxBuffer = 10 * 1024 * 1024; // 10MB
+
+    child.stdout.on('data', (data: Buffer) => {
+      stdoutSize += data.length;
+      if (stdoutSize <= maxBuffer) {
+        stdout += data.toString();
+      }
+    });
+
+    child.stderr.on('data', (data: Buffer) => {
+      stderr += data.toString();
+    });
+
+    child.on('error', (error: NodeJS.ErrnoException) => {
+      if (error.code === 'ENOENT') {
+        reject(
+          createToolFailedError('GitHub CLI (gh) is not installed or not in PATH', {
+            component: 'gateway',
+          })
+        );
+      } else {
+        reject(error);
+      }
+    });
+
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve({ stdout, stderr });
+      } else {
+        const error = Object.assign(new Error(`gh exited with code ${code}`), {
+          stderr,
+          stdout,
+          code: code,
+        });
+        reject(error);
+      }
+    });
+
+    // Write body to stdin and close
+    child.stdin.write(stdinData);
+    child.stdin.end();
+  });
+}
+
+/**
+ * Classify GitHub CLI errors into specific error codes
+ */
+function classifyGitHubError(stderr: string, message?: string): { code: string; message: string } {
+  const text = stderr || message || '';
+
+  // HTTP 401 — authentication failure
+  if (/HTTP 401|401 Unauthorized|authentication|login required/i.test(text)) {
+    return { code: 'GITHUB_AUTH_FAILED', message: `Authentication failed: ${text}` };
+  }
+
+  // HTTP 403 — forbidden / secondary rate limit
+  if (/HTTP 403|403 Forbidden|forbidden|Resource not accessible/i.test(text)) {
+    return { code: 'GITHUB_FORBIDDEN', message: `Access denied: ${text}` };
+  }
+
+  // HTTP 429 or primary rate limit
+  if (/HTTP 429|rate limit|API rate limit exceeded/i.test(text)) {
+    // Try to extract reset time
+    const resetMatch = /retry after (\d+)/i.exec(text) || /reset.*?(\d{10,})/i.exec(text);
+    const retryInfo = resetMatch ? ` (retry after ${resetMatch[1]}s)` : '';
+    return {
+      code: 'GITHUB_RATE_LIMITED',
+      message: `GitHub API rate limit exceeded${retryInfo}: ${text}`,
+    };
+  }
+
+  // HTTP 422 — validation error
+  if (/HTTP 422|422 Unprocessable|Validation Failed/i.test(text)) {
+    return { code: 'GITHUB_VALIDATION_ERROR', message: `Validation failed: ${text}` };
+  }
+
+  // HTTP 404 — not found
+  if (/HTTP 404|404 Not Found|Could not resolve/i.test(text)) {
+    return { code: 'GITHUB_NOT_FOUND', message: `Not found: ${text}` };
+  }
+
+  // Default
+  return { code: 'GITHUB_CLI_ERROR', message: text || 'Unknown error executing GitHub CLI' };
 }
 
 /**
@@ -540,18 +679,61 @@ export async function executeGitHub(
             error: { code: 'MISSING_PARAMETER', message: 'endpoint is required for api action' },
           };
         }
+
+        // Validate endpoint starts with /
+        if (!params.endpoint.startsWith('/')) {
+          return {
+            success: false,
+            content: [],
+            error: {
+              code: 'INVALID_PARAMETER',
+              message: 'endpoint must start with "/" (e.g., "/repos/owner/repo/issues")',
+            },
+          };
+        }
+
         ghArgs = ['api', params.endpoint];
         if (params.http_method && params.http_method !== 'GET') {
           ghArgs.push('--method', params.http_method);
         }
+
+        // Handle body via stdin piping using spawn
         if (params.body) {
+          if (params.body.length > MAX_BODY_SIZE) {
+            return {
+              success: false,
+              content: [],
+              error: {
+                code: 'BODY_TOO_LARGE',
+                message: `Request body exceeds maximum size of ${MAX_BODY_SIZE / 1024}KB`,
+              },
+            };
+          }
           ghArgs.push('--input', '-');
-          // Note: For stdin input, we'd need to use a different approach
-          // For now, we'll skip body support in api action
+
+          const { stdout, stderr } = await execGitHubWithStdin(ghArgs, params.body, config);
+          let apiResultText = '';
+          if (stdout) {
+            try {
+              const jsonData = JSON.parse(stdout);
+              apiResultText = JSON.stringify(jsonData, null, 2);
+            } catch {
+              apiResultText = stdout;
+            }
+          }
+          if (stderr) {
+            apiResultText += `\n\nWarnings/Info:\n${stderr}`;
+          }
+          apiResultText = truncateOutput(apiResultText);
+
           return {
-            success: false,
-            content: [],
-            error: { code: 'NOT_IMPLEMENTED', message: 'API action with body not yet implemented' },
+            success: true,
+            content: [
+              {
+                type: 'text',
+                text: apiResultText || 'Command completed successfully (no output)',
+              },
+            ],
           };
         }
         break;
@@ -598,13 +780,11 @@ export async function executeGitHub(
     };
   } catch (error: unknown) {
     const err = error as { stderr?: string; message?: string };
+    const classified = classifyGitHubError(err.stderr || '', err.message);
     return {
       success: false,
       content: [],
-      error: {
-        code: 'GITHUB_CLI_ERROR',
-        message: err.stderr || err.message || 'Unknown error executing GitHub CLI',
-      },
+      error: classified,
     };
   }
 }

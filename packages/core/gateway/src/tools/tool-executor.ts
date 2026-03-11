@@ -51,7 +51,12 @@ import {
 } from './web-fetch-tools.js';
 import { BitbucketToolSchema, executeBitbucket, type BitbucketConfig } from './bitbucket-tools.js';
 import { ComposioToolSchema, executeComposio } from './composio-tools.js';
-import { GitHubToolSchema, executeGitHub, type GitHubConfig } from './github-tools.js';
+import {
+  GitHubToolSchema,
+  executeGitHub,
+  isWriteAction,
+  type GitHubConfig,
+} from './github-tools.js';
 import {
   CronAddToolSchema,
   CronListToolSchema,
@@ -1030,7 +1035,50 @@ export class ToolExecutor {
         token_env: this.deps.core.toolsConfig.github.token_env || 'GITHUB_TOKEN',
         repo_allowlist: this.deps.core.toolsConfig.github.repo_allowlist,
       };
-      return executeGitHub(call, githubConfig, session.userId);
+
+      const ghParams = call.parameters as {
+        action?: string;
+        http_method?: string;
+        repo?: string;
+        number?: number;
+        endpoint?: string;
+      };
+      const ghAction = ghParams.action || 'unknown';
+      const isWrite = isWriteAction(ghAction, ghParams.http_method);
+
+      const startTime = Date.now();
+      const result = await executeGitHub(call, githubConfig, session.userId);
+
+      // Audit log write operations
+      if (isWrite) {
+        void this.deps.audit.logAuditEvent({
+          id: `github-write-${call.id}`,
+          timestamp: new Date().toISOString(),
+          instanceId: this.deps.core.instanceId,
+          userId: session.userId,
+          sessionId: session.id,
+          channel: session.channel ?? 'unknown',
+          eventType: 'tool_execute',
+          action: `github.${ghAction}`,
+          resource: ghParams.repo || githubConfig.default_repo || 'unknown',
+          outcome: result.success ? 'allowed' : 'error',
+          reason: result.success ? undefined : result.error?.message,
+          securityMode: this.deps.core.securityMode,
+          toolMetadata: {
+            toolName: 'github',
+            operation: ghAction,
+            resource: ghParams.endpoint || (ghParams.number ? `#${ghParams.number}` : undefined),
+            duration: Date.now() - startTime,
+            success: result.success,
+          },
+          details: {
+            http_method: ghParams.http_method,
+            is_write: true,
+          },
+        });
+      }
+
+      return result;
     }
 
     // Cron scheduler tools
