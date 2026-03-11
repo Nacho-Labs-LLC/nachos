@@ -7,7 +7,8 @@
  */
 
 import type { MemoryEntry, MemoryFact, MemoryStore, MemoryQueryResult } from '@nachos/types';
-import type { SessionsStore } from '../sessions/sessions-store-interface.js';
+// SessionsStore accepted for future use (e.g. recent session topic extraction)
+import type { SessionsStore as _SessionsStore } from '../sessions/sessions-store-interface.js';
 import { createLogger } from '@nachos/types';
 
 const logger = createLogger('memory-manifest');
@@ -50,7 +51,7 @@ const DEFAULT_CONFIG: MemoryManifestConfig = {
 export async function buildMemoryManifest(
   agentId: string,
   memoryStore: MemoryStore,
-  sessionsStore?: SessionsStore,
+  _sessionsStore?: _SessionsStore,
   config?: Partial<MemoryManifestConfig>,
 ): Promise<MemoryManifest> {
   const cfg = { ...DEFAULT_CONFIG, ...config };
@@ -111,20 +112,8 @@ export async function buildMemoryManifest(
     }
   }
 
-  // 4. Total entry count (cheap query)
-  let totalEntries = 0;
-  try {
-    const countResult: MemoryQueryResult = await memoryStore.query({
-      agentId,
-      limit: 1,
-    });
-    // Entries returned will be at most 1, but we want total.
-    // Re-use fact total + entries count as approximation.
-    totalEntries =
-      preferences.length + recentTopics.length + totalFacts;
-  } catch {
-    // Non-critical
-  }
+  // 4. Total entry count (approximation based on manifest components)
+  const totalEntries = preferences.length + recentTopics.length;
 
   return {
     preferences,
@@ -159,7 +148,7 @@ export function formatManifestForPrompt(
     lines.push('');
     lines.push('**Known Preferences:**');
     for (const pref of manifest.preferences) {
-      lines.push(`- ${pref.value}`);
+      lines.push(`- ${pref.key}`);
     }
   }
 

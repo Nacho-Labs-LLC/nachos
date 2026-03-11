@@ -187,7 +187,7 @@ describe('formatManifestForPrompt', () => {
     const text = formatManifestForPrompt(manifest);
 
     expect(text).toContain('Known Preferences');
-    expect(text).toContain('User prefers dark themes');
+    expect(text).toContain('Dark mode');
   });
 
   it('should include recent topics section', () => {

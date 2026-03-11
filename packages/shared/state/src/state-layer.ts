@@ -405,15 +405,16 @@ export class StateLayer {
         this._sessionsStore,
         config,
       );
-      // If there is nothing to show, skip injection
-      if (
-        manifest.totalFacts === 0 &&
-        manifest.preferences.length === 0 &&
-        manifest.recentTopics.length === 0
-      ) {
-        return null;
-      }
-      return formatManifestForPrompt(manifest, config);
+      const hasData =
+        manifest.totalFacts > 0 ||
+        manifest.preferences.length > 0 ||
+        manifest.recentTopics.length > 0;
+
+      const result = hasData ? formatManifestForPrompt(manifest, config) : null;
+
+      await this.auditAllowed('state.memory.query', context, agentId);
+
+      return result;
     } catch (error) {
       logger.warn({ err: error }, 'Failed to build memory manifest');
       return null;

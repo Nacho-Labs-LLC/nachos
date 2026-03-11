@@ -1312,9 +1312,16 @@ export class Gateway {
             ? await this.stateLayer.getUserProfile(agentId, session.userId, context)
             : null;
         // Build lightweight memory manifest for prompt injection (skip for subagents)
-        const memoryManifest = isSubagent
+        const memInjCfg = this.nachosConfig?.runtime?.state?.memory_injection;
+        const manifestEnabled = memInjCfg?.enabled !== false; // Default: enabled
+        const memoryManifest = isSubagent || !manifestEnabled
           ? null
-          : await this.stateLayer.buildMemoryManifest(agentId, context);
+          : await this.stateLayer.buildMemoryManifest(agentId, context, {
+              maxTokens: memInjCfg?.manifest_max_tokens,
+              includePreferences: memInjCfg?.manifest_preferences,
+              recentTopicCount: memInjCfg?.manifest_recent_topics,
+              includeFactCounts: memInjCfg?.manifest_fact_counts,
+            });
 
         // Only load critical entries (preferences, active tasks) — not the full 200
         const memory = isSubagent

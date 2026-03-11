@@ -745,7 +745,7 @@ describe('memory_recall', () => {
       id: 'recall-4',
       tool: 'memory_recall',
       sessionId: 'test-session',
-      parameters: { topic: 'nonexistent-xyz-topic' },
+      parameters: { topic: 'nonexistent-xyz-topic', sources: ['memories', 'facts'] },
     };
 
     const mockStateLayer = {
@@ -759,6 +759,42 @@ describe('memory_recall', () => {
     expect(result.success).toBe(true);
     const text = result.content[0]?.text ?? '';
     expect(text).toContain('No memories found');
+  });
+
+  it('should show unavailable message when conversations source is requested but not enabled', async () => {
+    const call: ToolCall = {
+      id: 'recall-4b',
+      tool: 'memory_recall',
+      sessionId: 'test-session',
+      parameters: { topic: 'test', sources: ['conversations'] },
+    };
+
+    const mockStateLayer = {
+      queryMemory: vi.fn().mockResolvedValue({ entries: [], facts: [] }),
+      queryMemoryFacts: vi.fn().mockResolvedValue([]),
+      sessionsStore: undefined,
+    } as unknown as StateLayer;
+
+    const result = await executeMemoryRecall(call, mockStateLayer, context);
+
+    expect(result.success).toBe(true);
+    const text = result.content[0]?.text ?? '';
+    expect(text).toContain('search not available');
+  });
+
+  it('should return error for invalid sources', async () => {
+    const call: ToolCall = {
+      id: 'recall-4c',
+      tool: 'memory_recall',
+      sessionId: 'test-session',
+      parameters: { topic: 'test', sources: ['invalid'] },
+    };
+
+    const mockStateLayer = {} as unknown as StateLayer;
+    const result = await executeMemoryRecall(call, mockStateLayer, context);
+
+    expect(result.success).toBe(false);
+    expect(result.error?.code).toBe('INVALID_PARAMETERS');
   });
 
   it('should respect the since date filter', async () => {

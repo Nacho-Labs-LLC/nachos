@@ -658,13 +658,39 @@ export async function executeMemoryRecall(
     }
 
     const agentId = context.userId ?? context.sessionId;
-    const limit = Math.min(params.limit ?? 5, 20); // Cap at 20
+
+    // Validate and bound limit parameter
+    const DEFAULT_LIMIT = 5;
+    const MAX_LIMIT = 20;
+    const rawLimit = typeof params.limit === 'number' && Number.isFinite(params.limit) && params.limit > 0
+      ? params.limit
+      : DEFAULT_LIMIT;
+    const limit = Math.min(rawLimit, MAX_LIMIT);
+
+    // Validate since parameter if provided
+    const sinceTimestamp = params.since !== undefined ? Date.parse(params.since) : undefined;
+    const hasValidSince = sinceTimestamp !== undefined && !Number.isNaN(sinceTimestamp);
 
     // Determine which sources to query
-    const requestedSources: RecallSource[] =
-      params.sources && params.sources.length > 0
-        ? (params.sources.filter((s) => ALL_SOURCES.includes(s as RecallSource)) as RecallSource[])
-        : ALL_SOURCES;
+    let requestedSources: RecallSource[];
+    if (params.sources && Array.isArray(params.sources) && params.sources.length > 0) {
+      const filtered = params.sources.filter((s) =>
+        ALL_SOURCES.includes(s as RecallSource),
+      ) as RecallSource[];
+      if (filtered.length === 0) {
+        return {
+          success: false,
+          content: [],
+          error: {
+            code: 'INVALID_PARAMETERS',
+            message: `sources must include at least one valid source: ${ALL_SOURCES.join(', ')}`,
+          },
+        };
+      }
+      requestedSources = filtered;
+    } else {
+      requestedSources = ALL_SOURCES;
+    }
 
     const sections: string[] = [];
     let totalResults = 0;
@@ -680,8 +706,11 @@ export async function executeMemoryRecall(
           minSimilarity: 0.6,
         };
         const result = await stateLayer.queryMemory(query, context);
-        const filtered = params.since
-          ? result.entries.filter((e) => e.createdAt >= params.since!)
+        const filtered = hasValidSince
+          ? result.entries.filter((e) => {
+              const ts = Date.parse(e.createdAt);
+              return !Number.isNaN(ts) && ts >= sinceTimestamp!;
+            })
           : result.entries;
 
         if (filtered.length > 0) {
@@ -720,8 +749,11 @@ export async function executeMemoryRecall(
             f.object.toLowerCase().includes(topicLower),
         );
 
-        if (params.since) {
-          matched = matched.filter((f) => f.createdAt >= params.since!);
+        if (hasValidSince) {
+          matched = matched.filter((f) => {
+            const ts = Date.parse(f.createdAt);
+            return !Number.isNaN(ts) && ts >= sinceTimestamp!;
+          });
         }
 
         matched = matched.slice(0, limit);
@@ -769,6 +801,10 @@ export async function executeMemoryRecall(
             `**Conversations**: search failed — ${err instanceof Error ? err.message : 'unknown error'}`,
           );
         }
+      } else {
+        sections.push(
+          '**Conversations**: search not available — conversation semantic search is not enabled in this deployment',
+        );
       }
     }
 
