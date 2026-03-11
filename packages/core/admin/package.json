@@ -21,6 +21,7 @@
     "@nachos/config": "workspace:*",
     "@nachos/types": "workspace:*",
     "better-sqlite3": "^12.6.2",
+    "cron-parser": "^5.5.0",
     "hono": "^4.6.0",
     "markdown-it": "^14.1.0",
     "nats": "^2.29.3"

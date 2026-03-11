@@ -22,8 +22,10 @@ import { initComposioClient } from './tools/composio-tools.js';
 import {
   Scheduler,
   HeartbeatManager,
+  syncConfigJobs,
   type SchedulerConfig,
   type HeartbeatConfig,
+  type ConfigJobDefinition,
 } from './scheduler/index.js';
 import { SCHEDULER_SCHEMA } from './scheduler/schema.js';
 import type {
@@ -105,6 +107,13 @@ const DEFAULT_TOOL_GROUPS: Record<string, string[]> = {
   summarize: ['summarize'],
   workspace: ['gog'],
   state: ['memory', 'user_profile', 'bootstrap'],
+  scheduler: [
+    'nachos_cron_add',
+    'nachos_cron_list',
+    'nachos_cron_remove',
+    'nachos_cron_update',
+    'nachos_cron_run',
+  ],
   browser: [
     'browser_navigate',
     'browser_snapshot',
@@ -213,6 +222,8 @@ export interface GatewayOptions {
   nachosConfig?: NachosConfig;
   /** Scheduler configuration */
   schedulerConfig?: SchedulerConfig;
+  /** Config-defined scheduler jobs (from [[scheduler.jobs]] in nachos.toml) */
+  schedulerJobs?: ConfigJobDefinition[];
   /** Heartbeat configuration */
   heartbeatConfig?: HeartbeatConfig;
 }
@@ -2422,6 +2433,12 @@ export class Gateway {
     // Start scheduler if enabled
     if (this.scheduler) {
       this.scheduler.setMessageBus(this.router.getBus());
+
+      // Sync config-defined jobs before starting the scheduler loop.
+      // Treat undefined as empty list so removing all jobs from config
+      // correctly disables previously-configured jobs.
+      await syncConfigJobs(this.scheduler, this.options.schedulerJobs ?? []);
+
       await this.scheduler.start();
       logger.info('Scheduler started');
 
