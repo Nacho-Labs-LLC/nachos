@@ -511,6 +511,13 @@ function createIdentityStore(
   config: StateLayerConfig,
   getOrCreatePool: (settings: StateStorePostgresConfig) => Pool
 ): IdentityStore {
+  if (config.identity.provider === 'sqlite') {
+    throw createConfigError(
+      'Identity store does not support sqlite provider. Use "filesystem" or "postgres".',
+      { component: 'state-layer' }
+    );
+  }
+
   if (config.identity.provider === 'postgres') {
     const settings = config.identity.postgres;
     if (!settings?.connectionString) {
@@ -532,6 +539,13 @@ function createBootstrapStore(
   config: StateLayerConfig,
   getOrCreatePool: (settings: StateStorePostgresConfig) => Pool
 ): BootstrapStore {
+  if (config.bootstrap.provider === 'sqlite') {
+    throw createConfigError(
+      'Bootstrap store does not support sqlite provider. Use "filesystem" or "postgres".',
+      { component: 'state-layer' }
+    );
+  }
+
   if (config.bootstrap.provider === 'postgres') {
     const settings = config.bootstrap.postgres;
     if (!settings?.connectionString) {
@@ -598,6 +612,13 @@ function createUserProfileStore(
   config: StateLayerConfig,
   getOrCreatePool: (settings: StateStorePostgresConfig) => Pool
 ): UserProfileStore {
+  if (config.userProfile.provider === 'sqlite') {
+    throw createConfigError(
+      'User profile store does not support sqlite provider. Use "filesystem" or "postgres".',
+      { component: 'state-layer' }
+    );
+  }
+
   if (config.userProfile.provider === 'postgres') {
     const settings = config.userProfile.postgres;
     if (!settings?.connectionString) {

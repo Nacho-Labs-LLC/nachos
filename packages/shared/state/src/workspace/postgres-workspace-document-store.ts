@@ -89,7 +89,7 @@ export class PostgresWorkspaceDocumentStore implements WorkspaceDocumentStore {
         `INSERT INTO ${this.qualified('workspace_documents')}
           (id, path, content_hash, project_id, metadata, chunk_count, last_indexed, created_at, updated_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-         ON CONFLICT (path, COALESCE(project_id, ''))
+         ON CONFLICT (path, (COALESCE(project_id, '')))
          DO UPDATE SET
            content_hash = EXCLUDED.content_hash,
            metadata = EXCLUDED.metadata,
@@ -222,11 +222,11 @@ export class PostgresWorkspaceDocumentStore implements WorkspaceDocumentStore {
     }
     sql += ' ORDER BY last_indexed DESC';
 
-    if (query?.limit) {
+    if (query && query.limit !== undefined) {
       values.push(query.limit);
       sql += ` LIMIT $${values.length}`;
     }
-    if (query?.offset) {
+    if (query && query.offset !== undefined) {
       values.push(query.offset);
       sql += ` OFFSET $${values.length}`;
     }

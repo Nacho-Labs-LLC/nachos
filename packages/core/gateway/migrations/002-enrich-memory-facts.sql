@@ -4,9 +4,9 @@
 -- a full graph database. Supports fact categorization, arbitrary properties,
 -- source tracking, and expiration.
 
--- Add new columns to memory_facts (both SQLite and Postgres compatible)
+-- Add new columns to memory_facts (Postgres migration — use JSONB for properties)
 ALTER TABLE memory_facts ADD COLUMN type TEXT DEFAULT 'general';
-ALTER TABLE memory_facts ADD COLUMN properties TEXT; -- JSON in SQLite, JSONB in Postgres
+ALTER TABLE memory_facts ADD COLUMN properties JSONB;
 ALTER TABLE memory_facts ADD COLUMN source_context TEXT;
 ALTER TABLE memory_facts ADD COLUMN updated_at TEXT;
 ALTER TABLE memory_facts ADD COLUMN expires_at TEXT;

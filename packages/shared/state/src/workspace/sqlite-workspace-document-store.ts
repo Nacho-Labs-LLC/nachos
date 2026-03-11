@@ -267,11 +267,11 @@ export class SqliteWorkspaceDocumentStore implements WorkspaceDocumentStore {
     }
     sql += ' ORDER BY last_indexed DESC';
 
-    if (query?.limit) {
+    if (query && query.limit !== undefined) {
       sql += ' LIMIT ?';
       values.push(query.limit);
     }
-    if (query?.offset) {
+    if (query && query.offset !== undefined) {
       sql += ' OFFSET ?';
       values.push(query.offset);
     }
@@ -281,6 +281,10 @@ export class SqliteWorkspaceDocumentStore implements WorkspaceDocumentStore {
   }
 
   async close(): Promise<void> {
-    // DB lifecycle managed externally
+    try {
+      this.db.close();
+    } catch {
+      // Ignore close errors to avoid impacting callers
+    }
   }
 }

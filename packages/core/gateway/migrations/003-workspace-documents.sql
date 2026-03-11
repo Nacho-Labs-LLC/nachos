@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS workspace_documents (
   path TEXT NOT NULL,
   content_hash TEXT NOT NULL,
   project_id TEXT,
-  metadata TEXT, -- JSON in SQLite, JSONB in Postgres
+  metadata JSONB,
   chunk_count INTEGER NOT NULL DEFAULT 0,
   last_indexed TEXT NOT NULL,
   created_at TEXT NOT NULL,

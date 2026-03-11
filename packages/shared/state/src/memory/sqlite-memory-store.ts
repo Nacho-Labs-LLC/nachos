@@ -191,9 +191,11 @@ export class SqliteMemoryStore implements MemoryStore {
     );
 
     const now = new Date().toISOString();
+    const result: MemoryFact[] = [];
     const txn = this.db.transaction(() => {
       for (const fact of facts) {
         const id = fact.id || uuid();
+        const createdAt = fact.createdAt || now;
         insert.run(
           id,
           fact.agentId,
@@ -205,15 +207,16 @@ export class SqliteMemoryStore implements MemoryStore {
           fact.properties ? JSON.stringify(fact.properties) : null,
           fact.sourceEntryId ?? null,
           fact.sourceContext ?? null,
-          fact.createdAt || now,
+          createdAt,
           fact.updatedAt ?? null,
           fact.expiresAt ?? null
         );
+        result.push({ ...fact, id, createdAt });
       }
     });
 
     txn();
-    return facts;
+    return result;
   }
 
   async query(query: MemoryQuery): Promise<MemoryQueryResult> {
@@ -294,6 +297,10 @@ export class SqliteMemoryStore implements MemoryStore {
   }
 
   async close(): Promise<void> {
-    // DB lifecycle managed externally (shared with other stores)
+    try {
+      this.db.close();
+    } catch {
+      // Ignore close errors to avoid impacting callers
+    }
   }
 }
