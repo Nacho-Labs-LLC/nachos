@@ -690,7 +690,9 @@ function createSessionsStore(
         ? {
             model: config.memory.semantic.model,
             cacheDir: config.memory.semantic.cacheDir,
-            storePath: dbPath.replace(/\.db$/, '-embeddings.json'),
+            storePath: dbPath.endsWith('.db')
+              ? dbPath.replace(/\.db$/, '-embeddings.json')
+              : `${dbPath}.embeddings.json`,
           }
         : undefined;
       return new SqliteSessionsStore(db, semanticConfig);

@@ -19,7 +19,7 @@ export interface ConversationSearchResult {
   messageId: string;
   sessionId: string;
   similarity: number;
-  role: string;
+  role: MessageRole | 'unknown';
   content: string;
   timestamp: string;
   channel?: string;
