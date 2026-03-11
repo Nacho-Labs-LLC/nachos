@@ -25,6 +25,13 @@ services:
   nats:
     image: nats:2.10-alpine
     command: ["-m", "8222"]
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:noexec,nosuid,size=10m
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8222/healthz"]
       interval: 5s
@@ -35,6 +42,14 @@ services:
   # -------------------- Redis (for rate limiter + session state tests) --------------------
   redis:
     image: redis:7-alpine
+    user: "999:1000"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:noexec,nosuid,size=10m
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
