@@ -8,6 +8,7 @@ import {
   executeMemoryGet,
   executeMemoryWrite,
   executeMemoryDelete,
+  executeConversationSearch,
 } from './memory-tools.js';
 import type { ToolCall } from '@nachos/types';
 import type { StateLayer, StateOperationContext } from '@nachos/state';
@@ -449,5 +450,179 @@ describe('memory_delete', () => {
     expect(result.success).toBe(false);
     expect(result.error?.code).toBe('MEMORY_DELETE_FAILED');
     expect(result.error?.message).toContain('Entry not found');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// nachos_search_conversations
+// ---------------------------------------------------------------------------
+describe('nachos_search_conversations', () => {
+  const context: StateOperationContext = {
+    sessionId: 'test-session',
+    userId: 'test-user',
+    securityMode: 'standard',
+    internalTool: true,
+  };
+
+  it('returns INVALID_PARAMETERS when query is missing', async () => {
+    const call: ToolCall = {
+      id: 'cs-1',
+      tool: 'nachos_search_conversations',
+      sessionId: 'test-session',
+      parameters: {},
+    };
+
+    const mockStateLayer = {
+      sessionsStore: { searchMessages: vi.fn() },
+    } as unknown as StateLayer;
+
+    const result = await executeConversationSearch(call, mockStateLayer, context);
+    expect(result.success).toBe(false);
+    expect(result.error?.code).toBe('INVALID_PARAMETERS');
+  });
+
+  it('returns NOT_ENABLED when sessionsStore.searchMessages is absent', async () => {
+    const call: ToolCall = {
+      id: 'cs-2',
+      tool: 'nachos_search_conversations',
+      sessionId: 'test-session',
+      parameters: { query: 'TypeScript strict mode' },
+    };
+
+    // No searchMessages property → semantic disabled
+    const mockStateLayer = {
+      sessionsStore: {},
+    } as unknown as StateLayer;
+
+    const result = await executeConversationSearch(call, mockStateLayer, context);
+    expect(result.success).toBe(false);
+    expect(result.error?.code).toBe('NOT_ENABLED');
+  });
+
+  it('returns NOT_ENABLED when sessionsStore is undefined', async () => {
+    const call: ToolCall = {
+      id: 'cs-3',
+      tool: 'nachos_search_conversations',
+      sessionId: 'test-session',
+      parameters: { query: 'something' },
+    };
+
+    const mockStateLayer = {
+      sessionsStore: undefined,
+    } as unknown as StateLayer;
+
+    const result = await executeConversationSearch(call, mockStateLayer, context);
+    expect(result.success).toBe(false);
+    expect(result.error?.code).toBe('NOT_ENABLED');
+  });
+
+  it('returns empty message when no results found', async () => {
+    const call: ToolCall = {
+      id: 'cs-4',
+      tool: 'nachos_search_conversations',
+      sessionId: 'test-session',
+      parameters: { query: 'nothing matches this' },
+    };
+
+    const mockStateLayer = {
+      sessionsStore: {
+        searchMessages: vi.fn().mockResolvedValue([]),
+      },
+    } as unknown as StateLayer;
+
+    const result = await executeConversationSearch(call, mockStateLayer, context);
+    expect(result.success).toBe(true);
+    expect(result.content[0]!.text).toContain('No conversation history found');
+  });
+
+  it('formats results with similarity, date, role, and verbatim content', async () => {
+    const call: ToolCall = {
+      id: 'cs-5',
+      tool: 'nachos_search_conversations',
+      sessionId: 'test-session',
+      parameters: { query: 'TypeScript', limit: 2 },
+    };
+
+    const mockResults = [
+      {
+        messageId: 'msg-1',
+        sessionId: 'sess-1',
+        similarity: 0.92,
+        role: 'user',
+        content: 'I prefer TypeScript strict mode',
+        timestamp: '2026-03-01T10:00:00.000Z',
+      },
+      {
+        messageId: 'msg-2',
+        sessionId: 'sess-1',
+        similarity: 0.78,
+        role: 'assistant',
+        content: 'Got it, I will use strict TypeScript settings',
+        timestamp: '2026-03-01T10:00:05.000Z',
+      },
+    ];
+
+    const searchMessages = vi.fn().mockResolvedValue(mockResults);
+    const mockStateLayer = {
+      sessionsStore: { searchMessages },
+    } as unknown as StateLayer;
+
+    const result = await executeConversationSearch(call, mockStateLayer, context);
+    expect(result.success).toBe(true);
+
+    const text = result.content[0]!.text;
+    // Similarity shown as percentage
+    expect(text).toContain('92%');
+    expect(text).toContain('78%');
+    // Role is shown once (not doubled)
+    expect(text).toContain('user: I prefer TypeScript strict mode');
+    expect(text).toContain('assistant: Got it');
+    // Content does NOT start with "user: user:" (no double-prefix bug)
+    expect(text).not.toMatch(/user: user:/);
+
+    // Verify options were forwarded
+    expect(searchMessages).toHaveBeenCalledWith('TypeScript', expect.objectContaining({ limit: 2 }));
+  });
+
+  it('forwards since and sessionId options to searchMessages', async () => {
+    const call: ToolCall = {
+      id: 'cs-6',
+      tool: 'nachos_search_conversations',
+      sessionId: 'test-session',
+      parameters: { query: 'deploy', since: '2026-03-01', sessionId: 'sess-abc' },
+    };
+
+    const searchMessages = vi.fn().mockResolvedValue([]);
+    const mockStateLayer = {
+      sessionsStore: { searchMessages },
+    } as unknown as StateLayer;
+
+    await executeConversationSearch(call, mockStateLayer, context);
+
+    expect(searchMessages).toHaveBeenCalledWith('deploy', {
+      limit: 5,
+      since: '2026-03-01',
+      sessionId: 'sess-abc',
+    });
+  });
+
+  it('returns error on unexpected exception', async () => {
+    const call: ToolCall = {
+      id: 'cs-7',
+      tool: 'nachos_search_conversations',
+      sessionId: 'test-session',
+      parameters: { query: 'crash test' },
+    };
+
+    const mockStateLayer = {
+      sessionsStore: {
+        searchMessages: vi.fn().mockRejectedValue(new Error('vector store unavailable')),
+      },
+    } as unknown as StateLayer;
+
+    const result = await executeConversationSearch(call, mockStateLayer, context);
+    expect(result.success).toBe(false);
+    expect(result.error?.code).toBe('CONVERSATION_SEARCH_FAILED');
+    expect(result.error?.message).toContain('vector store unavailable');
   });
 });

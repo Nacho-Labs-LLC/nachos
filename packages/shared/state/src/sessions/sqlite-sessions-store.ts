@@ -13,13 +13,26 @@ import type {
   MessageRole,
   SessionWithMessages,
 } from '@nachos/types';
+import { createLogger } from '@nachos/types';
 import { v4 as uuid } from 'uuid';
 import type {
   CreateSessionData,
   UpdateSessionData,
   CreateMessageData,
   SessionsStore,
+  ConversationSearchResult,
 } from './sessions-store-interface.js';
+
+const logger = createLogger('sqlite-sessions-store');
+
+// Lazy import to avoid crashing on platforms without glibc (e.g., Alpine)
+type EnhancedSemanticSearchType = import('@nacho-labs/nachos-embeddings').EnhancedSemanticSearch;
+
+export interface SqliteSessionsStoreSemanticConfig {
+  model?: string;
+  cacheDir?: string;
+  storePath: string;
+}
 
 /**
  * Row type for session database queries
@@ -58,10 +71,52 @@ interface MessageRow {
 export class SqliteSessionsStore implements SessionsStore {
   private db: Database.Database;
   private initialized = false;
+  private semanticSearch: EnhancedSemanticSearchType | null = null;
+  private semanticConfig: SqliteSessionsStoreSemanticConfig | null = null;
 
-  constructor(db: Database.Database) {
+  /**
+   * Semantic search over raw conversation turns. Only present after a successful
+   * call to `init()` with a valid semanticConfig. ToolExecutor uses its presence
+   * as the capability signal — undefined means the feature is disabled.
+   */
+  searchMessages?: SessionsStore['searchMessages'];
+
+  constructor(db: Database.Database, semanticConfig?: SqliteSessionsStoreSemanticConfig) {
     this.db = db;
+    this.semanticConfig = semanticConfig ?? null;
     this.ensureSchema();
+  }
+
+  /**
+   * Initialize semantic search for conversation history.
+   * Must be called explicitly (e.g. by StateLayer.init()).
+   * Safe to call multiple times (idempotent).
+   * When successful, assigns `searchMessages` — making the capability visible to callers.
+   */
+  async init(): Promise<void> {
+    if (!this.semanticConfig || this.semanticSearch) return;
+    try {
+      const { EnhancedSemanticSearch } = await import('@nacho-labs/nachos-embeddings');
+      this.semanticSearch = new EnhancedSemanticSearch({
+        model: this.semanticConfig.model,
+        cacheDir: this.semanticConfig.cacheDir,
+        autoSave: true,
+        storePath: this.semanticConfig.storePath,
+        temporalBoost: true,
+        deduplicateExact: true,
+      });
+      await this.semanticSearch.init(); // loads persisted index from disk
+      logger.info(
+        { storePath: this.semanticConfig.storePath, size: this.semanticSearch.size() },
+        'Conversation semantic search initialized'
+      );
+      // Only expose searchMessages once semantic search is confirmed available
+      this.searchMessages = this._searchMessages.bind(this);
+    } catch (err) {
+      logger.warn({ err }, 'Conversation semantic search unavailable — continuing without it');
+      this.semanticSearch = null;
+      this.searchMessages = undefined;
+    }
   }
 
   /**
@@ -385,7 +440,7 @@ export class SqliteSessionsStore implements SessionsStore {
 
     txn();
 
-    return {
+    const saved: Message = {
       id,
       sessionId: data.sessionId,
       role: data.role,
@@ -393,6 +448,77 @@ export class SqliteSessionsStore implements SessionsStore {
       toolCalls: data.toolCalls,
       createdAt: now,
     };
+
+    // Fire-and-forget embedding — never blocks or fails the message save
+    if (this.semanticSearch && (data.role === 'user' || data.role === 'assistant')) {
+      void this.embedMessage(saved).catch((err) =>
+        logger.warn({ err, messageId: id }, 'Failed to embed conversation turn')
+      );
+    }
+
+    return saved;
+  }
+
+  private async embedMessage(msg: Message): Promise<void> {
+    if (!this.semanticSearch) return;
+    // Store raw message content; role is kept in metadata only to avoid
+    // double-prefixing when results are formatted by the caller.
+    await this.semanticSearch.addDocument({
+      id: msg.id,
+      text: msg.content,
+      metadata: {
+        messageId: msg.id,
+        sessionId: msg.sessionId,
+        role: msg.role,
+        timestamp: msg.createdAt ? new Date(msg.createdAt).getTime() : Date.now(),
+      },
+    });
+  }
+
+  private async _searchMessages(
+    query: string,
+    options?: {
+      limit?: number;
+      minSimilarity?: number;
+      sessionId?: string;
+      since?: string;
+    }
+  ): Promise<ConversationSearchResult[]> {
+    if (!this.semanticSearch) return [];
+
+    // Guard against invalid date strings — new Date('bad').getTime() === NaN,
+    // which would silently disable the since filter for all results.
+    const rawSinceMs = options?.since ? new Date(options.since).getTime() : undefined;
+    const sinceMs = rawSinceMs !== undefined && Number.isFinite(rawSinceMs) ? rawSinceMs : undefined;
+    if (options?.since && sinceMs === undefined) {
+      logger.warn({ since: options.since }, 'Invalid "since" date — filter ignored');
+    }
+
+    const results = await this.semanticSearch.search(query, {
+      limit: options?.limit ?? 5,
+      minSimilarity: options?.minSimilarity,
+      filter:
+        options?.sessionId || sinceMs !== undefined
+          ? (meta: Record<string, unknown> | undefined) => {
+              if (options?.sessionId && meta?.['sessionId'] !== options.sessionId) return false;
+              if (sinceMs !== undefined && typeof meta?.['timestamp'] === 'number' && (meta['timestamp'] as number) < sinceMs) return false;
+              return true;
+            }
+          : undefined,
+    });
+
+    type SearchHit = { id: string; similarity: number; text: string; metadata?: Record<string, unknown> };
+    return (results as SearchHit[]).map((r) => ({
+      messageId: (r.metadata?.messageId as string | undefined) ?? r.id,
+      sessionId: (r.metadata?.sessionId as string | undefined) ?? '',
+      similarity: r.similarity,
+      role: ((r.metadata?.role as string | undefined) ?? 'unknown') as import('./sessions-store-interface.js').ConversationSearchResult['role'],
+      content: r.text,
+      timestamp:
+        typeof r.metadata?.timestamp === 'number'
+          ? new Date(r.metadata.timestamp).toISOString()
+          : new Date().toISOString(),
+    }));
   }
 
   async getMessages(

@@ -13,6 +13,19 @@ import type {
 } from '@nachos/types';
 
 /**
+ * A single result from semantic search over conversation history
+ */
+export interface ConversationSearchResult {
+  messageId: string;
+  sessionId: string;
+  similarity: number;
+  role: MessageRole | 'unknown';
+  content: string;
+  timestamp: string;
+  channel?: string;
+}
+
+/**
  * Data for creating a new session
  */
 export interface CreateSessionData {
@@ -150,6 +163,21 @@ export interface SessionsStore {
    * Pin or unpin a session
    */
   pin(sessionId: string, pinned: boolean): Promise<boolean>;
+
+  /**
+   * Semantic search over raw conversation turns.
+   * Only available when semantic search is enabled via [runtime.state.semantic] in nachos.toml.
+   * Searches user and assistant messages (tool messages are excluded).
+   */
+  searchMessages?(
+    query: string,
+    options?: {
+      limit?: number;
+      minSimilarity?: number;
+      sessionId?: string;
+      since?: string; // ISO date lower bound
+    }
+  ): Promise<ConversationSearchResult[]>;
 
   /**
    * Close the storage connection
