@@ -74,6 +74,14 @@ export class SqliteSessionsStore implements SessionsStore {
   private semanticSearch: EnhancedSemanticSearchType | null = null;
   private semanticConfig: SqliteSessionsStoreSemanticConfig | null = null;
 
+  /**
+   * Semantic search over raw conversation turns. Only present after a successful
+   * call to `init()` with a valid semanticConfig. ToolExecutor uses its presence
+   * as the capability signal — undefined means the feature is disabled.
+   */
+  searchMessages?: SessionsStore['searchMessages'];
+
+
   constructor(db: Database.Database, semanticConfig?: SqliteSessionsStoreSemanticConfig) {
     this.db = db;
     this.semanticConfig = semanticConfig ?? null;
@@ -82,8 +90,9 @@ export class SqliteSessionsStore implements SessionsStore {
 
   /**
    * Initialize semantic search for conversation history.
-   * Called automatically if semanticConfig was provided to the constructor.
+   * Must be called explicitly (e.g. by StateLayer.init()).
    * Safe to call multiple times (idempotent).
+   * When successful, assigns `searchMessages` — making the capability visible to callers.
    */
   async init(): Promise<void> {
     if (!this.semanticConfig || this.semanticSearch) return;
@@ -102,9 +111,12 @@ export class SqliteSessionsStore implements SessionsStore {
         { storePath: this.semanticConfig.storePath, size: this.semanticSearch.size() },
         'Conversation semantic search initialized'
       );
+      // Only expose searchMessages once semantic search is confirmed available
+      this.searchMessages = this._searchMessages.bind(this);
     } catch (err) {
       logger.warn({ err }, 'Conversation semantic search unavailable — continuing without it');
       this.semanticSearch = null;
+      this.searchMessages = undefined;
     }
   }
 
@@ -450,10 +462,11 @@ export class SqliteSessionsStore implements SessionsStore {
 
   private async embedMessage(msg: Message): Promise<void> {
     if (!this.semanticSearch) return;
-    const text = `${msg.role}: ${msg.content}`;
+    // Store raw message content; role is kept in metadata only to avoid
+    // double-prefixing when results are formatted by the caller.
     await this.semanticSearch.addDocument({
       id: msg.id,
-      text,
+      text: msg.content,
       metadata: {
         messageId: msg.id,
         sessionId: msg.sessionId,
@@ -463,7 +476,7 @@ export class SqliteSessionsStore implements SessionsStore {
     });
   }
 
-  async searchMessages(
+  private async _searchMessages(
     query: string,
     options?: {
       limit?: number;
@@ -474,7 +487,13 @@ export class SqliteSessionsStore implements SessionsStore {
   ): Promise<ConversationSearchResult[]> {
     if (!this.semanticSearch) return [];
 
-    const sinceMs = options?.since ? new Date(options.since).getTime() : undefined;
+    // Guard against invalid date strings — new Date('bad').getTime() === NaN,
+    // which would silently disable the since filter for all results.
+    const rawSinceMs = options?.since ? new Date(options.since).getTime() : undefined;
+    const sinceMs = rawSinceMs !== undefined && Number.isFinite(rawSinceMs) ? rawSinceMs : undefined;
+    if (options?.since && sinceMs === undefined) {
+      logger.warn({ since: options.since }, 'Invalid "since" date — filter ignored');
+    }
 
     const results = await this.semanticSearch.search(query, {
       limit: options?.limit ?? 5,
@@ -494,7 +513,7 @@ export class SqliteSessionsStore implements SessionsStore {
       messageId: (r.metadata?.messageId as string | undefined) ?? r.id,
       sessionId: (r.metadata?.sessionId as string | undefined) ?? '',
       similarity: r.similarity,
-      role: (r.metadata?.role as string | undefined) ?? 'unknown',
+      role: ((r.metadata?.role as string | undefined) ?? 'unknown') as import('./sessions-store-interface.js').ConversationSearchResult['role'],
       content: r.text,
       timestamp:
         typeof r.metadata?.timestamp === 'number'

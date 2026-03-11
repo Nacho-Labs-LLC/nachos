@@ -49,6 +49,10 @@ export type {
   HookHandler,
   HookRegistration,
 
+  // Stats types
+  HookEventStats,
+  HookStats,
+
   // Mutable hook types
   MutableBeforeLLMRequestPayload,
   MutableBeforeResponseSentPayload,

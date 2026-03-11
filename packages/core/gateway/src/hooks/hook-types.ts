@@ -317,6 +317,29 @@ export type MutableHookHandler<E extends MutableHookEvent> = (
   payload: MutableHookPayloadMap[E]
 ) => Promise<void>;
 
+// ---------------------------------------------------------------------------
+// Hook Stats Types (for failure observability)
+// ---------------------------------------------------------------------------
+
+/**
+ * Per-event statistics tracking success/failure counts and last failure details.
+ */
+export interface HookEventStats {
+  successCount: number;
+  failureCount: number;
+  lastFailure?: { error: string; label: string; timestamp: string };
+  timeoutCount: number;
+}
+
+/**
+ * Aggregated statistics across all hook events.
+ */
+export interface HookStats {
+  events: Record<string, HookEventStats>;
+  totalEmits: number;
+  totalFailures: number;
+}
+
 /**
  * Internal registration record used by HookRegistry.
  */

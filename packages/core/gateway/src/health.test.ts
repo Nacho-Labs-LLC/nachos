@@ -6,6 +6,7 @@ import {
   resetStartTime,
   type HealthCheckDeps,
 } from './health.js';
+import type { HookStats } from './hooks/index.js';
 
 describe('Health Check', () => {
   beforeEach(() => {
@@ -75,6 +76,50 @@ describe('Health Check', () => {
 
       expect(health.status).toBe('unhealthy');
       expect(health.checks.database).toBe('error');
+    });
+
+    it('should return hooks ok when hook stats have no failures', () => {
+      const hookStats: HookStats = {
+        events: { 'message:received': { successCount: 5, failureCount: 0, timeoutCount: 0 } },
+        totalEmits: 5,
+        totalFailures: 0,
+      };
+
+      const health = performHealthCheck({
+        checkDatabase: () => true,
+        checkBus: () => true,
+        getHookStats: () => hookStats,
+      });
+
+      expect(health.status).toBe('healthy');
+      expect(health.checks['hooks']).toBe('ok');
+      expect(health.hookStats).toEqual(hookStats);
+    });
+
+    it('should return hooks error without affecting overall status when hook stats have failures', () => {
+      const hookStats: HookStats = {
+        events: {
+          'message:received': {
+            successCount: 3,
+            failureCount: 2,
+            timeoutCount: 1,
+            lastFailure: { error: 'boom', label: 'test', timestamp: new Date().toISOString() },
+          },
+        },
+        totalEmits: 5,
+        totalFailures: 2,
+      };
+
+      const health = performHealthCheck({
+        checkDatabase: () => true,
+        checkBus: () => true,
+        getHookStats: () => hookStats,
+      });
+
+      // Hook failures should NOT make the gateway unhealthy — they are observability only
+      expect(health.status).toBe('healthy');
+      expect(health.checks['hooks']).toBe('error');
+      expect(health.hookStats).toEqual(hookStats);
     });
   });
 
