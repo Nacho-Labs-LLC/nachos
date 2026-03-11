@@ -7,7 +7,7 @@
 import { randomUUID } from 'node:crypto';
 import type { ToolCall, ToolResult } from '@nachos/types';
 import type { StateLayer, StateOperationContext } from '@nachos/state';
-import type { MemoryQuery, MemoryKind, MemoryEntry } from '@nachos/types';
+import type { MemoryQuery, MemoryKind, MemoryEntry, MemoryFact } from '@nachos/types';
 
 /**
  * memory_search tool schema
@@ -579,6 +579,267 @@ export async function executeConversationSearch(
       error: {
         code: 'CONVERSATION_SEARCH_FAILED',
         message: error instanceof Error ? error.message : 'Unknown error during conversation search',
+      },
+    };
+  }
+}
+
+// ── memory_recall — Enhanced cross-source memory retrieval ─────────────────
+
+/**
+ * memory_recall tool schema
+ *
+ * Recalls detailed memories about a topic, person, or past conversation.
+ * Designed to complement the lightweight memory manifest in the system prompt.
+ */
+export const MemoryRecallToolSchema = {
+  $id: 'memory_recall',
+  type: 'object',
+  properties: {
+    topic: {
+      type: 'string',
+      description:
+        'Natural language query describing what you want to recall (e.g. "user preferences for code style", "last discussion about deployment")',
+    },
+    sources: {
+      type: 'array',
+      items: {
+        type: 'string',
+        enum: ['memories', 'conversations', 'facts'],
+      },
+      description:
+        'Which stores to search. Default: all available. "memories" = memory entries, "facts" = structured facts, "conversations" = raw conversation history.',
+    },
+    limit: {
+      type: 'number',
+      description: 'Maximum results per source (default: 5)',
+      default: 5,
+    },
+    since: {
+      type: 'string',
+      description: 'Only return results after this ISO date (e.g. "2026-03-01"). Optional.',
+    },
+  },
+  required: ['topic'],
+};
+
+type RecallSource = 'memories' | 'conversations' | 'facts';
+
+const ALL_SOURCES: RecallSource[] = ['memories', 'facts', 'conversations'];
+
+/**
+ * Execute memory_recall tool
+ *
+ * Queries multiple stores (memory entries, facts, conversation history),
+ * merges results, and returns a formatted summary with source attribution.
+ */
+export async function executeMemoryRecall(
+  call: ToolCall,
+  stateLayer: StateLayer,
+  context: StateOperationContext,
+): Promise<ToolResult> {
+  try {
+    const params = call.parameters as {
+      topic?: string;
+      sources?: string[];
+      limit?: number;
+      since?: string;
+    };
+
+    if (!params.topic || typeof params.topic !== 'string') {
+      return {
+        success: false,
+        content: [],
+        error: {
+          code: 'INVALID_PARAMETERS',
+          message: 'topic parameter is required and must be a string',
+        },
+      };
+    }
+
+    const agentId = context.userId ?? context.sessionId;
+
+    // Validate and bound limit parameter
+    const DEFAULT_LIMIT = 5;
+    const MAX_LIMIT = 20;
+    const rawLimit = typeof params.limit === 'number' && Number.isFinite(params.limit) && params.limit > 0
+      ? params.limit
+      : DEFAULT_LIMIT;
+    const limit = Math.min(rawLimit, MAX_LIMIT);
+
+    // Validate since parameter if provided
+    const sinceTimestamp = params.since !== undefined ? Date.parse(params.since) : undefined;
+    const hasValidSince = sinceTimestamp !== undefined && !Number.isNaN(sinceTimestamp);
+
+    // Determine which sources to query
+    let requestedSources: RecallSource[];
+    if (params.sources && Array.isArray(params.sources) && params.sources.length > 0) {
+      const filtered = params.sources.filter((s) =>
+        ALL_SOURCES.includes(s as RecallSource),
+      ) as RecallSource[];
+      if (filtered.length === 0) {
+        return {
+          success: false,
+          content: [],
+          error: {
+            code: 'INVALID_PARAMETERS',
+            message: `sources must include at least one valid source: ${ALL_SOURCES.join(', ')}`,
+          },
+        };
+      }
+      requestedSources = filtered;
+    } else {
+      requestedSources = ALL_SOURCES;
+    }
+
+    const sections: string[] = [];
+    let totalResults = 0;
+
+    // 1. Memory entries (semantic or text search)
+    if (requestedSources.includes('memories')) {
+      try {
+        const query: MemoryQuery = {
+          agentId,
+          text: params.topic,
+          limit,
+          semantic: true,
+          minSimilarity: 0.6,
+        };
+        const result = await stateLayer.queryMemory(query, context);
+        const filtered = hasValidSince
+          ? result.entries.filter((e) => {
+              const ts = Date.parse(e.createdAt);
+              return !Number.isNaN(ts) && ts >= sinceTimestamp!;
+            })
+          : result.entries;
+
+        if (filtered.length > 0) {
+          totalResults += filtered.length;
+          const lines = filtered.map((entry, idx) => {
+            const tags =
+              entry.tags && entry.tags.length > 0 ? ` [${entry.tags.join(', ')}]` : '';
+            const conf = entry.confidence
+              ? ` (${(entry.confidence * 100).toFixed(0)}% match)`
+              : '';
+            return `  ${idx + 1}. [${entry.kind}]${tags}${conf} — ${entry.content}`;
+          });
+          sections.push(`**Memory Entries** (${filtered.length}):\n${lines.join('\n')}`);
+        }
+      } catch (err) {
+        sections.push(
+          `**Memory Entries**: search failed — ${err instanceof Error ? err.message : 'unknown error'}`,
+        );
+      }
+    }
+
+    // 2. Structured facts (subject match)
+    if (requestedSources.includes('facts')) {
+      try {
+        const allFacts: MemoryFact[] = await stateLayer.queryMemoryFacts(
+          agentId,
+          context,
+          undefined,
+        );
+        // Text-match filter on subject, predicate, or object
+        const topicLower = params.topic.toLowerCase();
+        let matched = allFacts.filter(
+          (f) =>
+            f.subject.toLowerCase().includes(topicLower) ||
+            f.predicate.toLowerCase().includes(topicLower) ||
+            f.object.toLowerCase().includes(topicLower),
+        );
+
+        if (hasValidSince) {
+          matched = matched.filter((f) => {
+            const ts = Date.parse(f.createdAt);
+            return !Number.isNaN(ts) && ts >= sinceTimestamp!;
+          });
+        }
+
+        matched = matched.slice(0, limit);
+
+        if (matched.length > 0) {
+          totalResults += matched.length;
+          const lines = matched.map(
+            (fact, idx) =>
+              `  ${idx + 1}. ${fact.subject} ${fact.predicate} ${fact.object}` +
+              (fact.type ? ` [${fact.type}]` : ''),
+          );
+          sections.push(`**Facts** (${matched.length}):\n${lines.join('\n')}`);
+        }
+      } catch (err) {
+        sections.push(
+          `**Facts**: search failed — ${err instanceof Error ? err.message : 'unknown error'}`,
+        );
+      }
+    }
+
+    // 3. Conversation history (semantic search, if available)
+    if (requestedSources.includes('conversations')) {
+      const sessionsStore = stateLayer.sessionsStore;
+      if (sessionsStore?.searchMessages) {
+        try {
+          const results = await sessionsStore.searchMessages(params.topic, {
+            limit,
+            since: params.since,
+          });
+
+          if (results.length > 0) {
+            totalResults += results.length;
+            const lines = results.map((r, i) => {
+              const date = r.timestamp
+                ? new Date(r.timestamp).toLocaleString()
+                : 'unknown date';
+              const preview =
+                r.content.length > 250 ? r.content.slice(0, 250) + '\u2026' : r.content;
+              return `  ${i + 1}. [${(r.similarity * 100).toFixed(0)}%] ${r.role} (${date}): ${preview}`;
+            });
+            sections.push(`**Conversations** (${results.length}):\n${lines.join('\n')}`);
+          }
+        } catch (err) {
+          sections.push(
+            `**Conversations**: search failed — ${err instanceof Error ? err.message : 'unknown error'}`,
+          );
+        }
+      } else {
+        sections.push(
+          '**Conversations**: search not available — conversation semantic search is not enabled in this deployment',
+        );
+      }
+    }
+
+    // Format final output
+    if (totalResults === 0 && sections.length === 0) {
+      return {
+        success: true,
+        content: [
+          {
+            type: 'text',
+            text: `No memories found for topic: "${params.topic}"`,
+          },
+        ],
+      };
+    }
+
+    const header = `Recalled ${totalResults} result(s) for "${params.topic}" from ${requestedSources.join(', ')}:`;
+    const body = sections.join('\n\n');
+
+    return {
+      success: true,
+      content: [
+        {
+          type: 'text',
+          text: `${header}\n\n${body}`,
+        },
+      ],
+    };
+  } catch (error) {
+    return {
+      success: false,
+      content: [],
+      error: {
+        code: 'MEMORY_RECALL_FAILED',
+        message: error instanceof Error ? error.message : 'Unknown error during memory recall',
       },
     };
   }

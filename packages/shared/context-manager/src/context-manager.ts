@@ -420,60 +420,16 @@ export class ContextManager {
   /**
    * H2: Auto-inject semantic search results into context
    *
-   * Before each LLM turn, extract topic from user message, run semantic search
-   * on memory, and inject top results into context.
+   * @deprecated Memory injection is now handled via the memory manifest in
+   * the system prompt (see memory-manifest.ts) and the `memory_recall` LLM
+   * tool. This method is intentionally a no-op to preserve backward
+   * compatibility — callers that pass `injectMemory: true` will not break.
    */
-  private async injectSemanticMemory(messages: ContextMessage[]): Promise<void> {
-    if (!this.memorySearch) {
-      return;
-    }
-
-    // Get the most recent user message
-    const lastUserMessage = messages.filter((m) => m.role === 'user').pop();
-    if (!lastUserMessage) {
-      return;
-    }
-
-    // Extract topic for search
-    const topic = this.extractTopicFromMessage(lastUserMessage);
-    if (!topic) {
-      return;
-    }
-
-    try {
-      // Run semantic search
-      const searchResults = await this.memorySearch({
-        text: topic,
-        limit: 5, // Top 5 most relevant memories
-        semantic: true,
-        minSimilarity: 0.6,
-      });
-
-      // If we have results, inject them as a system-style context message
-      if (searchResults.entries && searchResults.entries.length > 0) {
-        const memoryContent = this.formatMemoryResults(searchResults.entries);
-
-        // Create a context injection message
-        const memoryMessage: ContextMessage = {
-          role: 'system',
-          content: memoryContent,
-          timestamp: Date.now(),
-          _tokenCache: this.messageAdapter.estimateMessageTokens({
-            role: 'system',
-            content: memoryContent,
-          } as ContextMessage),
-        };
-
-        // Insert before the last user message (so it's fresh context for the LLM)
-        const insertIndex = messages.indexOf(lastUserMessage);
-        messages.splice(insertIndex, 0, memoryMessage);
-
-        logger.debug({ count: searchResults.entries.length }, 'Injected semantic memory results');
-      }
-    } catch (error) {
-      logger.warn({ err: error }, 'Semantic memory injection failed');
-      // Non-critical, continue without memory injection
-    }
+  private async injectSemanticMemory(_messages: ContextMessage[]): Promise<void> {
+    // No-op: manifest-based approach replaces per-turn shotgun injection.
+    // The lightweight manifest is assembled in prompt-assembler.ts and the
+    // LLM uses the `memory_recall` tool for detailed retrieval on demand.
+    return;
   }
 
   /**

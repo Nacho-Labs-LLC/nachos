@@ -412,6 +412,19 @@ export interface ResourcesConfig {
 }
 
 /**
+ * Per-service resource overrides for Docker Compose generation
+ */
+export interface ServiceResourceOverrides {
+  gateway?: ResourcesConfig;
+  llm_proxy?: ResourcesConfig;
+  admin?: ResourcesConfig;
+  bus?: ResourcesConfig;
+  redis?: ResourcesConfig;
+  channels?: ResourcesConfig;
+  tools?: ResourcesConfig;
+}
+
+/**
  * Context Management - Zone Thresholds
  */
 export interface ContextZoneThresholds {
@@ -606,6 +619,26 @@ export interface PromptReportConfig {
   include_session_state?: boolean;
 }
 
+/**
+ * Memory injection configuration — controls the hybrid manifest + recall approach
+ */
+export interface MemoryInjectionConfig {
+  /** Enable memory manifest injection into system prompt (default: true). */
+  enabled?: boolean;
+  /** Maximum tokens for the manifest section (default: 400). */
+  manifest_max_tokens?: number;
+  /** Include user preferences in the manifest (default: true). */
+  manifest_preferences?: boolean;
+  /** Number of recent topics to surface (default: 5). */
+  manifest_recent_topics?: number;
+  /** Include grouped fact counts in the manifest (default: true). */
+  manifest_fact_counts?: boolean;
+  /** Default per-source result limit for memory_recall tool (default: 5). */
+  recall_default_limit?: number;
+  /** Minimum similarity score for semantic recall (0-1, default: 0.6). */
+  recall_min_similarity?: number;
+}
+
 export interface StateLayerConfig {
   identity?: StateStoreConfig;
   memory?: StateStoreConfig;
@@ -615,6 +648,7 @@ export interface StateLayerConfig {
   sessions?: SessionsStorageConfig;
   semantic?: SemanticSearchConfig;
   prompt_report?: PromptReportConfig;
+  memory_injection?: MemoryInjectionConfig;
 }
 
 /**
@@ -678,6 +712,7 @@ export interface RuntimeConfig {
   log_format?: 'pretty' | 'json';
   redis_url?: string;
   resources?: ResourcesConfig;
+  service_resources?: ServiceResourceOverrides;
   gateway_streaming_passthrough?: boolean;
   gateway_streaming_chunk_size?: number;
   gateway_streaming_min_interval_ms?: number;

@@ -728,6 +728,7 @@ describe('Gateway', () => {
           source: 'db',
         }),
         getUserProfile: vi.fn().mockResolvedValue(null),
+        buildMemoryManifest: vi.fn().mockResolvedValue(null),
         queryMemory: vi.fn().mockResolvedValue({ entries: [], facts: [] }),
         getSessionState: vi.fn().mockResolvedValue(null),
         assemblePrompt: vi.fn().mockReturnValue({
@@ -794,6 +795,7 @@ describe('Gateway', () => {
         getIdentity: vi.fn().mockResolvedValue(mockIdentity),
         getBootstrap: vi.fn().mockResolvedValue(null),
         getUserProfile: vi.fn().mockResolvedValue(null),
+        buildMemoryManifest: vi.fn().mockResolvedValue(null),
         queryMemory: vi.fn().mockResolvedValue({ entries: [], facts: [] }),
         getSessionState: vi.fn().mockResolvedValue(null),
         assemblePrompt: vi.fn().mockReturnValue({
@@ -857,6 +859,7 @@ describe('Gateway', () => {
         getIdentity: vi.fn().mockResolvedValue(null),
         getBootstrap: vi.fn().mockResolvedValue(null),
         getUserProfile: vi.fn().mockResolvedValue(null),
+        buildMemoryManifest: vi.fn().mockResolvedValue(null),
         queryMemory: vi.fn().mockResolvedValue({ entries: memoryEntries, facts: memoryFacts }),
         getSessionState: vi.fn().mockResolvedValue(null),
         assemblePrompt: vi.fn().mockReturnValue({
@@ -886,7 +889,7 @@ describe('Gateway', () => {
       await buildLLMRequest(session.id);
 
       expect(mockStateLayer.queryMemory).toHaveBeenCalledWith(
-        expect.objectContaining({ agentId: 'user-bs-4', limit: 200 }),
+        expect.objectContaining({ agentId: 'user-bs-4', limit: 20, kinds: ['preference', 'task'] }),
         expect.anything()
       );
       expect(mockStateLayer.assemblePrompt).toHaveBeenCalledWith(
@@ -923,6 +926,7 @@ describe('Gateway', () => {
         getIdentity: vi.fn().mockResolvedValue(null),
         getBootstrap: vi.fn().mockResolvedValue(null),
         getUserProfile: vi.fn().mockResolvedValue(null),
+        buildMemoryManifest: vi.fn().mockResolvedValue(null),
         queryMemory: vi.fn().mockResolvedValue({ entries: [], facts: [] }),
         getSessionState: vi.fn().mockResolvedValue(null),
         assemblePrompt: vi.fn().mockReturnValue({
@@ -991,6 +995,7 @@ describe('Gateway', () => {
         getIdentity: vi.fn().mockResolvedValue(completedIdentity),
         getBootstrap: vi.fn().mockResolvedValue(bootstrapProfile),
         getUserProfile: vi.fn().mockResolvedValue(null),
+        buildMemoryManifest: vi.fn().mockResolvedValue(null),
         queryMemory: vi.fn().mockResolvedValue({ entries: [], facts: [] }),
         getSessionState: vi.fn().mockResolvedValue(null),
         assemblePrompt: vi.fn().mockReturnValue({
@@ -1108,6 +1113,7 @@ describe('Gateway', () => {
         getIdentity: vi.fn().mockResolvedValue(null),
         getBootstrap: vi.fn().mockResolvedValue(null),
         getUserProfile: vi.fn().mockResolvedValue(null),
+        buildMemoryManifest: vi.fn().mockResolvedValue(null),
         queryMemory: vi.fn().mockResolvedValue({ entries: [], facts: [] }),
         getSessionState: vi.fn().mockResolvedValue(null),
         assemblePrompt: vi.fn().mockReturnValue({
