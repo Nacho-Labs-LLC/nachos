@@ -81,6 +81,7 @@ export class SqliteSessionsStore implements SessionsStore {
    */
   searchMessages?: SessionsStore['searchMessages'];
 
+
   constructor(db: Database.Database, semanticConfig?: SqliteSessionsStoreSemanticConfig) {
     this.db = db;
     this.semanticConfig = semanticConfig ?? null;
