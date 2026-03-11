@@ -16,9 +16,11 @@
 import { createLogger } from '@nachos/types';
 import type {
   HookEvent,
+  HookEventStats,
   HookHandler,
   HookPayloadMap,
   HookRegistration,
+  HookStats,
   MutableHookEvent,
   MutableHookHandler,
   MutableHookPayloadMap,
@@ -33,6 +35,21 @@ const DEFAULT_PRIORITY = 100;
 /** Default per-handler timeout in milliseconds */
 const DEFAULT_HANDLER_TIMEOUT_MS = 5000;
 
+/** Default failure count before a summary alert is logged */
+const DEFAULT_FAILURE_ALERT_THRESHOLD = 5;
+
+/**
+ * Hook events considered critical for gateway operation.
+ * Failures on these hooks generate an additional structured warn log
+ * with `critical: true` to simplify alerting.
+ */
+const CRITICAL_HOOKS: Set<string> = new Set([
+  'session:created',
+  'message:received',
+  'gateway:startup',
+  'gateway:shutdown',
+]);
+
 /**
  * Options for configuring a HookRegistry instance.
  */
@@ -42,6 +59,12 @@ export interface HookRegistryOptions {
    * before being considered timed out. Default: 5000.
    */
   handlerTimeoutMs?: number;
+
+  /**
+   * Number of failures for a single event before a summary alert is logged.
+   * The alert fires once per threshold crossing. Default: 5.
+   */
+  failureAlertThreshold?: number;
 }
 
 /**
@@ -72,8 +95,18 @@ export class HookRegistry {
   /** Per-handler timeout */
   private handlerTimeoutMs: number;
 
+  /** Per-event failure/success statistics */
+  private stats: Map<string, HookEventStats> = new Map();
+
+  /** Failure threshold for repeated-failure alerting */
+  private failureAlertThreshold: number;
+
+  /** Tracks the last failure count at which an alert was fired per event */
+  private lastAlertedAt: Map<string, number> = new Map();
+
   constructor(options?: HookRegistryOptions) {
     this.handlerTimeoutMs = options?.handlerTimeoutMs ?? DEFAULT_HANDLER_TIMEOUT_MS;
+    this.failureAlertThreshold = options?.failureAlertThreshold ?? DEFAULT_FAILURE_ALERT_THRESHOLD;
   }
 
   /**
@@ -162,7 +195,12 @@ export class HookRegistry {
           label
         );
         successCount++;
+        this.recordSuccess(event);
       } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const isTimeout = errorMessage.includes('timed out');
+        this.recordFailure(event, label, errorMessage, isTimeout);
+
         logger.error(
           {
             event,
@@ -172,6 +210,13 @@ export class HookRegistry {
           },
           'Hook handler failed'
         );
+
+        if (CRITICAL_HOOKS.has(event)) {
+          logger.warn(
+            { event, label, critical: true, errorMessage },
+            'Critical hook handler failed'
+          );
+        }
       }
     }
 
@@ -273,7 +318,12 @@ export class HookRegistry {
           event,
           label
         );
+        this.recordSuccess(event);
       } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const isTimeout = errorMessage.includes('timed out');
+        this.recordFailure(event, label, errorMessage, isTimeout);
+
         logger.error(
           {
             event,
@@ -283,6 +333,13 @@ export class HookRegistry {
           },
           'Mutable hook handler failed'
         );
+
+        if (CRITICAL_HOOKS.has(event)) {
+          logger.warn(
+            { event, label, critical: true, errorMessage },
+            'Critical hook handler failed'
+          );
+        }
       }
     }
 
@@ -341,6 +398,77 @@ export class HookRegistry {
       events.add(key);
     }
     return Array.from(events) as HookEvent[];
+  }
+
+  // -------------------------------------------------------------------------
+  // Stats / observability
+  // -------------------------------------------------------------------------
+
+  /**
+   * Returns a snapshot of all per-event hook statistics plus aggregated totals.
+   */
+  getStats(): HookStats {
+    const events: Record<string, HookEventStats> = {};
+    let totalEmits = 0;
+    let totalFailures = 0;
+
+    for (const [event, eventStats] of this.stats) {
+      events[event] = { ...eventStats, lastFailure: eventStats.lastFailure ? { ...eventStats.lastFailure } : undefined };
+      totalEmits += eventStats.successCount + eventStats.failureCount;
+      totalFailures += eventStats.failureCount;
+    }
+
+    return { events, totalEmits, totalFailures };
+  }
+
+  /**
+   * Reset all statistics. Primarily useful for testing.
+   */
+  resetStats(): void {
+    this.stats.clear();
+    this.lastAlertedAt.clear();
+  }
+
+  /** Get or create the stats entry for an event */
+  private getOrCreateEventStats(event: string): HookEventStats {
+    let eventStats = this.stats.get(event);
+    if (!eventStats) {
+      eventStats = { successCount: 0, failureCount: 0, timeoutCount: 0 };
+      this.stats.set(event, eventStats);
+    }
+    return eventStats;
+  }
+
+  /** Record a successful handler execution */
+  private recordSuccess(event: string): void {
+    this.getOrCreateEventStats(event).successCount++;
+  }
+
+  /** Record a handler failure with optional timeout tracking and alerting */
+  private recordFailure(event: string, label: string, errorMessage: string, isTimeout: boolean): void {
+    const eventStats = this.getOrCreateEventStats(event);
+    eventStats.failureCount++;
+    eventStats.lastFailure = { error: errorMessage, label, timestamp: new Date().toISOString() };
+    if (isTimeout) {
+      eventStats.timeoutCount++;
+    }
+
+    // Check repeated-failure alert threshold
+    const lastAlerted = this.lastAlertedAt.get(event) ?? 0;
+    const nextThreshold = lastAlerted + this.failureAlertThreshold;
+    if (eventStats.failureCount >= nextThreshold) {
+      logger.warn(
+        {
+          event,
+          hookAlert: true,
+          failureCount: eventStats.failureCount,
+          timeoutCount: eventStats.timeoutCount,
+          lastFailure: eventStats.lastFailure,
+        },
+        `Hook "${event}" has reached ${eventStats.failureCount} failures`
+      );
+      this.lastAlertedAt.set(event, eventStats.failureCount);
+    }
   }
 
   // -------------------------------------------------------------------------
