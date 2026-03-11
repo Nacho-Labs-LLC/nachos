@@ -35,6 +35,11 @@ export interface UpdateSessionData {
 }
 
 /**
+ * Reason a session was closed
+ */
+export type CloseSessionReason = 'inactivity' | 'explicit' | 'admin' | 'shutdown';
+
+/**
  * Data for creating a new message
  */
 export interface CreateMessageData {
@@ -150,6 +155,24 @@ export interface SessionsStore {
    * Pin or unpin a session
    */
   pin(sessionId: string, pinned: boolean): Promise<boolean>;
+
+  /**
+   * Close a session — sets status to 'ended' and records closedAt timestamp.
+   * Returns the closed session, or null if not found.
+   */
+  closeSession(sessionId: string, reason: CloseSessionReason): Promise<Session | null>;
+
+  /**
+   * Find sessions that have been inactive longer than the given threshold.
+   * Returns active sessions where lastActivity is older than cutoffTime.
+   */
+  findInactiveSessions(cutoffTime: string): Promise<Session[]>;
+
+  /**
+   * Find sessions with status 'ended' whose closedAt is older than cutoffTime.
+   * Used by the sweeper to hard-delete expired archived sessions.
+   */
+  findExpiredClosedSessions(cutoffTime: string): Promise<Session[]>;
 
   /**
    * Close the storage connection

@@ -132,7 +132,7 @@ export class QdrantMemoryStore implements MemoryStore {
       });
       await this.embedder.init();
 
-      const detectedDimension = this.embedder.getDimension();
+      const detectedDimension = await this.embedder.getDimension();
       if (detectedDimension) {
         this.embeddingDimensions = detectedDimension;
       }
@@ -469,6 +469,96 @@ export class QdrantMemoryStore implements MemoryStore {
         ],
       },
     });
+  }
+
+  /**
+   * Query facts by agentId and optional subject filter.
+   * Used for deduplication before inserting new extracted facts.
+   */
+  async queryFacts(agentId: string, subject?: string): Promise<MemoryFact[]> {
+    await this.ensureCollection();
+
+    const mustClauses: unknown[] = [
+      { key: 'agent_id', match: { value: agentId } },
+      { key: 'kind', match: { value: 'fact' } },
+    ];
+
+    if (subject) {
+      mustClauses.push({ key: 'subject', match: { value: subject.toLowerCase() } });
+    }
+
+    const response = await this.request(`/collections/${this.collection}/points/scroll`, 'POST', {
+      filter: { must: mustClauses },
+      limit: 1000,
+      with_payload: true,
+    });
+
+    if (!response.data || typeof response.data !== 'object' || !('result' in response.data)) {
+      return [];
+    }
+
+    const data = response.data as { result: { points: QdrantPoint[] } };
+    const points = data.result.points;
+
+    return points
+      .filter((p) => isFactPayload(p.payload))
+      .map((p) => {
+        const payload = p.payload as QdrantFactPayload;
+        return {
+          id: p.id,
+          agentId: payload.agent_id,
+          subject: payload.subject,
+          predicate: payload.predicate,
+          object: payload.object,
+          confidence: payload.confidence,
+          sourceEntryId: payload.source_entry_id,
+          createdAt: payload.created_at,
+        };
+      });
+  }
+
+  /**
+   * Update an existing fact (used for dedup — bumps confidence and merges properties).
+   * Qdrant does not support partial payload updates that preserve other fields,
+   * so we retrieve the current point, merge, then upsert.
+   */
+  async updateFact(fact: MemoryFact): Promise<MemoryFact | null> {
+    await this.ensureCollection();
+
+    // Fetch the existing point by ID
+    const getResponse = await this.request(
+      `/collections/${this.collection}/points/${fact.id}`,
+      'GET'
+    );
+
+    if (!getResponse.data || typeof getResponse.data !== 'object' || !('result' in getResponse.data)) {
+      return null;
+    }
+
+    const data = getResponse.data as { result: QdrantPoint | null };
+    if (!data.result) return null;
+
+    const existing = data.result;
+    const text = `${fact.subject} ${fact.predicate} ${fact.object}`;
+    const vector = await this.embed(text);
+
+    const updatedPayload: QdrantFactPayload = {
+      agent_id: fact.agentId,
+      kind: 'fact',
+      content: text,
+      subject: fact.subject,
+      predicate: fact.predicate,
+      object: fact.object,
+      confidence: fact.confidence,
+      source_entry_id: fact.sourceEntryId,
+      created_at: (existing.payload as QdrantFactPayload).created_at,
+    };
+
+    await this.request(`/collections/${this.collection}/points`, 'PUT', {
+      points: [{ id: fact.id, vector, payload: updatedPayload }],
+    });
+
+    return fact;
   }
 
   /**

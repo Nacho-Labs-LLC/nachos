@@ -173,6 +173,7 @@ async function start(): Promise<void> {
     schedulerConfig,
     schedulerJobs: nachosConfig.scheduler?.jobs,
     heartbeatConfig,
+    sessionsConfig: nachosConfig.sessions,
   });
 
   const shutdown = async (signal: string) => {

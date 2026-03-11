@@ -276,6 +276,27 @@ export class StateLayer {
     return result;
   }
 
+  async queryMemoryFacts(
+    agentId: string,
+    context: StateOperationContext,
+    subject?: string
+  ): Promise<MemoryFact[]> {
+    await this.ensureAllowed('state.memory.query', context, agentId);
+    const facts = await this.memoryStore.queryFacts(agentId, subject);
+    await this.auditAllowed('state.memory.query', context, agentId);
+    return facts;
+  }
+
+  async updateMemoryFact(
+    fact: MemoryFact,
+    context: StateOperationContext
+  ): Promise<MemoryFact | null> {
+    await this.ensureAllowed('state.memory.append', context, fact.agentId);
+    const updated = await this.memoryStore.updateFact(fact);
+    await this.auditAllowed('state.memory.append', context, fact.agentId);
+    return updated;
+  }
+
   async deleteMemoryEntry(
     id: string,
     agentId: string,
