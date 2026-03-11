@@ -21,6 +21,7 @@ import type {
   CreateMessageData,
   SessionsStore,
   ConversationSearchResult,
+  CloseSessionReason,
 } from './sessions-store-interface.js';
 
 const logger = createLogger('sqlite-sessions-store');
@@ -51,6 +52,7 @@ interface SessionRow {
   is_pinned: number; // SQLite stores booleans as 0/1
   is_archived: number;
   last_activity: string;
+  closed_at: string | null;
 }
 
 /**
@@ -144,9 +146,17 @@ export class SqliteSessionsStore implements SessionsStore {
         is_pinned INTEGER DEFAULT 0,
         is_archived INTEGER DEFAULT 0,
         last_activity TEXT NOT NULL,
+        closed_at TEXT,
         UNIQUE(channel, conversation_id)
       )
     `);
+
+    // Migrate existing databases: add closed_at column if missing
+    try {
+      this.db.exec('ALTER TABLE sessions ADD COLUMN closed_at TEXT');
+    } catch {
+      // Column already exists — ignore
+    }
 
     this.db.exec(`
       CREATE INDEX IF NOT EXISTS sessions_channel_conversation_idx
@@ -200,6 +210,7 @@ export class SqliteSessionsStore implements SessionsStore {
       isPinned: row.is_pinned === 1,
       isArchived: row.is_archived === 1,
       lastActivity: row.last_activity,
+      closedAt: row.closed_at ?? undefined,
     };
   }
 
@@ -687,6 +698,46 @@ export class SqliteSessionsStore implements SessionsStore {
       .prepare('UPDATE sessions SET is_pinned = ?, updated_at = ? WHERE id = ?')
       .run(pinned ? 1 : 0, now, sessionId);
     return result.changes > 0;
+  }
+
+  async closeSession(sessionId: string, _reason: CloseSessionReason): Promise<Session | null> {
+    const now = new Date().toISOString();
+    const result = this.db
+      .prepare(
+        `UPDATE sessions
+         SET status = 'ended', closed_at = ?, updated_at = ?
+         WHERE id = ? AND status != 'ended'`
+      )
+      .run(now, now, sessionId);
+
+    if (result.changes === 0) return null;
+    return await this.getSession(sessionId);
+  }
+
+  async findInactiveSessions(cutoffTime: string): Promise<Session[]> {
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM sessions
+         WHERE status = 'active'
+           AND is_archived = 0
+           AND last_activity < ?
+         ORDER BY last_activity ASC`
+      )
+      .all(cutoffTime) as SessionRow[];
+    return rows.map((row) => this.rowToSession(row));
+  }
+
+  async findExpiredClosedSessions(cutoffTime: string): Promise<Session[]> {
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM sessions
+         WHERE status = 'ended'
+           AND closed_at IS NOT NULL
+           AND closed_at < ?
+         ORDER BY closed_at ASC`
+      )
+      .all(cutoffTime) as SessionRow[];
+    return rows.map((row) => this.rowToSession(row));
   }
 
   async close(): Promise<void> {

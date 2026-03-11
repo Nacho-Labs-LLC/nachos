@@ -429,6 +429,10 @@ const CONFIG_SHAPE: SchemaNode = {
     prompt: true,
     channel: true,
   },
+  sessions: {
+    inactivity_timeout: true,
+    archive_ttl: true,
+  },
   // Plugin config sections are dynamic — validated by PluginConfigRegistry, not CONFIG_SHAPE.
   plugins: true,
 };

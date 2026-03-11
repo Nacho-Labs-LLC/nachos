@@ -296,6 +296,45 @@ export class SqliteMemoryStore implements MemoryStore {
       .run(id, agentId);
   }
 
+  async queryFacts(agentId: string, subject?: string): Promise<MemoryFact[]> {
+    let sql = 'SELECT * FROM memory_facts WHERE agent_id = ?';
+    const values: unknown[] = [agentId];
+
+    if (subject !== undefined) {
+      sql += ' AND LOWER(subject) = LOWER(?)';
+      values.push(subject);
+    }
+
+    sql += ' ORDER BY created_at DESC';
+    const rows = this.db.prepare(sql).all(...values) as MemoryFactRow[];
+    return rows.map((row) => this.rowToFact(row));
+  }
+
+  async updateFact(fact: MemoryFact): Promise<MemoryFact | null> {
+    const now = new Date().toISOString();
+    const result = this.db
+      .prepare(
+        `UPDATE memory_facts
+         SET confidence = ?,
+             properties = ?,
+             updated_at = ?
+         WHERE id = ? AND agent_id = ?`
+      )
+      .run(
+        fact.confidence ?? null,
+        fact.properties ? JSON.stringify(fact.properties) : null,
+        now,
+        fact.id,
+        fact.agentId
+      );
+
+    if (result.changes === 0) return null;
+    const row = this.db
+      .prepare('SELECT * FROM memory_facts WHERE id = ? AND agent_id = ?')
+      .get(fact.id, fact.agentId) as MemoryFactRow | undefined;
+    return row ? this.rowToFact(row) : null;
+  }
+
   async close(): Promise<void> {
     try {
       this.db.close();

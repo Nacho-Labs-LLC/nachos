@@ -208,6 +208,26 @@ export class FilesystemMemoryStore implements MemoryStore {
     }
   }
 
+  async queryFacts(agentId: string, subject?: string): Promise<MemoryFact[]> {
+    const facts = await this.readFacts(agentId);
+    if (!subject) return facts;
+    const lower = subject.toLowerCase();
+    return facts.filter((f) => f.subject.toLowerCase() === lower);
+  }
+
+  async updateFact(fact: MemoryFact): Promise<MemoryFact | null> {
+    const facts = await this.readFacts(fact.agentId);
+    const idx = facts.findIndex((f) => f.id === fact.id);
+    if (idx === -1) return null;
+
+    const now = new Date().toISOString();
+    const updated: MemoryFact = { ...fact, updatedAt: now };
+    facts[idx] = updated;
+    await this.ensureDir(fact.agentId);
+    await fs.writeFile(this.factsPath(fact.agentId), this.serializeJsonl(facts), 'utf-8');
+    return updated;
+  }
+
   private async ensureDir(agentId: string): Promise<void> {
     await fs.mkdir(path.join(this.baseDir, agentId), { recursive: true });
   }

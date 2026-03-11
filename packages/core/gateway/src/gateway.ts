@@ -100,6 +100,13 @@ import { SkillsManager } from './skills/skills-manager.js';
 import { StreamingSessionManager } from './streaming/streaming-session-manager.js';
 import { ToolExecutor } from './tools/tool-executor.js';
 import { HookRegistry } from './hooks/index.js';
+import {
+  LLMExtractionAdapter,
+  deduplicateFacts,
+  type ExtractionMessage,
+  type LLMCallFn,
+} from '@nachos/state';
+import type { SessionsLifecycleConfig } from '@nachos/config';
 
 const DEFAULT_TOOL_GROUPS: Record<string, string[]> = {
   lookup: ['web_fetch', 'goplaces'],
@@ -226,6 +233,8 @@ export interface GatewayOptions {
   schedulerJobs?: ConfigJobDefinition[];
   /** Heartbeat configuration */
   heartbeatConfig?: HeartbeatConfig;
+  /** Session lifecycle configuration (inactivity timeout, archive TTL) */
+  sessionsConfig?: SessionsLifecycleConfig;
 }
 
 /**
@@ -253,6 +262,8 @@ export class Gateway {
   private stateLayer?: StateLayer;
   private memoryPipeline?: MemoryPipeline;
   private memoryPipelineInterval?: NodeJS.Timeout;
+  private sessionSweeperInterval?: NodeJS.Timeout;
+  private sessionsLifecycleConfig?: SessionsLifecycleConfig;
   private securityMode: 'strict' | 'standard' | 'permissive';
   private contextCommandConfig?: ContextManagementCommandsConfig;
   private subagentManager?: SubagentManager;
@@ -289,6 +300,7 @@ export class Gateway {
     this.subagentToolPolicy = options.subagentToolPolicy;
     this.subagentWorkspaceRoot = resolveSubagentWorkspaceRoot(options.workspaceDir);
     this.contextCommandConfig = options.contextCommandConfig;
+    this.sessionsLifecycleConfig = options.sessionsConfig;
     if (options.toolSandboxConfig) {
       this.sandboxManager = new SandboxManager(options.toolSandboxConfig, {
         workspaceDir: options.workspaceDir,
@@ -2398,6 +2410,7 @@ export class Gateway {
     await this.registerManagementHandlers();
 
     this.startMemoryPipelineScheduler();
+    this.startSessionSweeper();
     await this.router.getBus().subscribe(TOPICS.config.update, async (data) => {
       await this.handleConfigUpdate(data);
     });
@@ -2636,6 +2649,11 @@ export class Gateway {
       this.memoryPipelineInterval = undefined;
     }
 
+    if (this.sessionSweeperInterval) {
+      clearInterval(this.sessionSweeperInterval);
+      this.sessionSweeperInterval = undefined;
+    }
+
     this.streamingManager.stop();
 
     if (this.toolCache) {
@@ -2742,37 +2760,194 @@ export class Gateway {
     await this.auditLogger.log(event);
   }
 
+  /**
+   * @deprecated Periodic DLP extraction replaced by session-end LLM extraction (startSessionSweeper).
+   * Kept as no-op for backward compatibility — will be removed in a future release.
+   */
   private startMemoryPipelineScheduler(): void {
-    const memoryPipeline = this.memoryPipeline;
-    if (!memoryPipeline) return;
-    const intervalMs = memoryPipeline.getPeriodicIntervalMs();
-    if (!intervalMs) return;
+    // No-op: periodic extraction is now handled by session-end LLM extraction.
+    // The session sweeper (startSessionSweeper) closes inactive sessions and triggers
+    // knowledge extraction via onSessionClosed().
+    // Compaction-based extraction in router.ts still uses MemoryPipeline.storeExtracted() directly.
+  }
 
-    this.memoryPipelineInterval = setInterval(async () => {
-      try {
-        const sessions = await this.sessionsStore.listSessions({ status: 'active' });
-        for (const session of sessions) {
-          if (!this.isContextManagementEnabledForSession(session)) {
-            continue;
-          }
-          const context = buildStateContext(session, this.securityMode);
-          const shouldRun = await memoryPipeline.shouldRunPeriodic(session, context);
-          if (!shouldRun) continue;
+  /**
+   * Start the session sweeper — runs every 30 minutes.
+   *
+   * Responsibilities:
+   * 1. Close active sessions that have been inactive longer than `inactivity_timeout`
+   *    → triggers end-of-session LLM extraction
+   * 2. Hard-delete closed sessions older than `archive_ttl`
+   *    → knowledge already extracted into MemoryFacts; safe to delete
+   */
+  private startSessionSweeper(): void {
+    const cfg = this.sessionsLifecycleConfig;
+    const inactivityMs = parseDurationMs(cfg?.inactivity_timeout ?? '4h', 4 * 60 * 60 * 1000);
+    const archiveTtlMs = parseDurationMs(cfg?.archive_ttl ?? '30d', 30 * 24 * 60 * 60 * 1000);
 
-          const withMessages = await this.sessionsStore.getSessionWithMessages(session.id);
-          if (!withMessages) continue;
+    // Run every 30 minutes
+    const CHECK_INTERVAL_MS = 30 * 60 * 1000;
 
-          await memoryPipeline.handleExtraction({
-            session,
-            messages: withMessages.messages,
-            context,
-            trigger: 'periodic',
+    this.sessionSweeperInterval = setInterval(() => {
+      void this.runSessionSweep(inactivityMs, archiveTtlMs);
+    }, CHECK_INTERVAL_MS);
+
+    logger.info(
+      {
+        inactivityTimeout: cfg?.inactivity_timeout ?? '4h',
+        archiveTtl: cfg?.archive_ttl ?? '30d',
+      },
+      'Session sweeper started'
+    );
+  }
+
+  private async runSessionSweep(inactivityMs: number, archiveTtlMs: number): Promise<void> {
+    try {
+      const now = Date.now();
+      const inactivityCutoff = new Date(now - inactivityMs).toISOString();
+      const archiveCutoff = new Date(now - archiveTtlMs).toISOString();
+
+      // 1. Close inactive sessions
+      const inactiveSessions = await this.sessionsStore.findInactiveSessions(inactivityCutoff);
+      for (const session of inactiveSessions) {
+        logger.info(
+          { sessionId: session.id, lastActivity: session.lastActivity },
+          'Session sweeper: closing inactive session'
+        );
+        const closed = await this.sessionsStore.closeSession(session.id, 'inactivity');
+        if (closed) {
+          // Fire-and-forget extraction — never blocks session close
+          void this.onSessionClosed(closed).catch((err) => {
+            logger.warn({ err, sessionId: session.id }, 'Post-close extraction failed');
           });
         }
-      } catch (error) {
-        logger.warn({ err: error }, 'Periodic memory extraction failed');
       }
-    }, intervalMs);
+
+      // 2. Hard-delete expired closed sessions (knowledge already in MemoryFacts)
+      const expiredSessions = await this.sessionsStore.findExpiredClosedSessions(archiveCutoff);
+      for (const session of expiredSessions) {
+        logger.info(
+          { sessionId: session.id, closedAt: session.closedAt },
+          'Session sweeper: deleting expired closed session'
+        );
+        await this.sessionsStore.deleteSession(session.id);
+      }
+
+      if (inactiveSessions.length > 0 || expiredSessions.length > 0) {
+        logger.info(
+          { closed: inactiveSessions.length, deleted: expiredSessions.length },
+          'Session sweeper cycle complete'
+        );
+      }
+    } catch (err) {
+      logger.warn({ err }, 'Session sweeper cycle failed');
+    }
+  }
+
+  /**
+   * Called after a session is closed.
+   * Extracts knowledge from the session's conversation into permanent MemoryFacts.
+   * Runs async — errors are logged but never surface to callers.
+   */
+  private async onSessionClosed(session: import('@nachos/types').Session): Promise<void> {
+    if (!this.stateLayer) return;
+
+    const sessionWithMessages = await this.sessionsStore.getSessionWithMessages(session.id);
+    if (!sessionWithMessages || sessionWithMessages.messages.length === 0) {
+      logger.debug({ sessionId: session.id }, 'Session closed with no messages — skipping extraction');
+      return;
+    }
+
+    const agentId = resolveAgentId(sessionWithMessages);
+    const stateContext = buildStateContext(sessionWithMessages, this.securityMode);
+    const llmCall = this.createExtractionLLMCall(session.id);
+
+    const adapter = new LLMExtractionAdapter(llmCall, {
+      agentId,
+      sessionId: session.id,
+      maxConversationChars: 60_000,
+    });
+
+    const extractionMessages: ExtractionMessage[] = sessionWithMessages.messages
+      .filter((m) => m.role === 'user' || m.role === 'assistant')
+      .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+
+    const result = await adapter.extract(extractionMessages);
+
+    if (result.facts.length === 0) {
+      logger.debug({ sessionId: session.id }, 'No facts extracted from session');
+      return;
+    }
+
+    // Dedup: fetch all existing facts for this agent, then filter to relevant subjects in-memory
+    const subjects = new Set(result.facts.map((f) => f.subject));
+    const allExistingFacts = await this.stateLayer.queryMemoryFacts(agentId, stateContext, undefined);
+    const relevantExistingFacts = allExistingFacts.filter((fact) => subjects.has(fact.subject));
+
+    const { toInsert, toUpdate } = deduplicateFacts(result.facts, relevantExistingFacts);
+
+    if (toInsert.length > 0) {
+      await this.stateLayer.appendMemoryFacts(toInsert, stateContext);
+    }
+
+    for (const fact of toUpdate) {
+      await this.stateLayer.updateMemoryFact(fact, stateContext);
+    }
+
+    logger.info(
+      {
+        sessionId: session.id,
+        agentId,
+        inserted: toInsert.length,
+        merged: toUpdate.length,
+        total: result.rawCount,
+      },
+      'Session knowledge extraction complete'
+    );
+  }
+
+  /**
+   * Create a simple LLM call function for extraction.
+   * Sends a direct request to the LLM bus topic, bypassing session routing,
+   * context management, and rate limiting.
+   */
+  private createExtractionLLMCall(sessionId: string): LLMCallFn {
+    return async ({ systemPrompt, userMessage, maxTokens }) => {
+      const request: import('@nachos/types').LLMRequest = {
+        sessionId: `extraction:${sessionId}`,
+        messages: [
+          { role: 'user', content: userMessage },
+        ],
+        options: {
+          maxTokens: maxTokens ?? 2048,
+        },
+      };
+
+      // Include system prompt as a system message
+      if (systemPrompt) {
+        request.messages = [
+          { role: 'system', content: systemPrompt },
+          ...request.messages,
+        ];
+      }
+
+      const envelope = createEnvelope('gateway-extraction', 'llm.request', request);
+      const rawResponse = await this.router
+        .getBus()
+        .request(TOPICS.llm.request, envelope, 60000);
+
+      // Unwrap envelope: the bus may return { payload: LLMResponse } or LLMResponse directly
+      const response = (
+        rawResponse &&
+        typeof rawResponse === 'object' &&
+        'payload' in (rawResponse as object)
+          ? (rawResponse as { payload: LLMResponseType }).payload
+          : rawResponse
+      ) as LLMResponseType | undefined;
+
+      if (!response?.success || !response.message) return '';
+      return coerceLLMContentText(response.message.content) ?? '';
+    };
   }
 
   /**
@@ -2914,5 +3089,26 @@ export class Gateway {
     }
 
     return session;
+  }
+}
+
+/**
+ * Parse a duration string (e.g. '4h', '30m', '30d') into milliseconds.
+ * Returns the default value if parsing fails.
+ */
+function parseDurationMs(value: string, defaultMs: number = 4 * 60 * 60 * 1000): number {
+  const match = value.trim().match(/^(\d+)(ms|s|m|h|d)$/i);
+  if (!match) return defaultMs;
+  const amount = Number.parseInt(match[1] ?? '', 10);
+  const unit = (match[2] ?? '').toLowerCase();
+  if (Number.isNaN(amount)) return defaultMs;
+
+  switch (unit) {
+    case 'ms': return amount;
+    case 's': return amount * 1000;
+    case 'm': return amount * 60 * 1000;
+    case 'h': return amount * 60 * 60 * 1000;
+    case 'd': return amount * 24 * 60 * 60 * 1000;
+    default: return defaultMs;
   }
 }

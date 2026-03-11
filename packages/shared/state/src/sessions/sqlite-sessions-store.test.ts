@@ -538,6 +538,129 @@ describe('SqliteSessionsStore', () => {
       }).toThrow();
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Session lifecycle (T-005)
+  // ---------------------------------------------------------------------------
+
+  describe('closeSession', () => {
+    it('closes an active session and sets status to ended', async () => {
+      const session = await store.createSession(defaultSession);
+
+      const closed = await store.closeSession(session.id, 'inactivity');
+
+      expect(closed).not.toBeNull();
+      expect(closed!.status).toBe('ended');
+      expect(closed!.closedAt).toBeDefined();
+    });
+
+    it('returns null when session does not exist', async () => {
+      const closed = await store.closeSession('nonexistent-id', 'explicit');
+      expect(closed).toBeNull();
+    });
+
+    it('returns null when session is already ended', async () => {
+      const session = await store.createSession(defaultSession);
+      await store.closeSession(session.id, 'explicit');
+
+      // Closing again should return null (no-op)
+      const secondClose = await store.closeSession(session.id, 'admin');
+      expect(secondClose).toBeNull();
+    });
+
+    it('preserves closedAt timestamp after close', async () => {
+      const session = await store.createSession(defaultSession);
+      const closed = await store.closeSession(session.id, 'shutdown');
+
+      const fetched = await store.getSession(session.id);
+      expect(fetched!.closedAt).toBe(closed!.closedAt);
+    });
+  });
+
+  describe('findInactiveSessions', () => {
+    it('finds sessions inactive before cutoff time', async () => {
+      // Create sessions with different lastActivity times via touch
+      const old = await store.createSession({
+        ...defaultSession,
+        conversationId: 'conv-old',
+      });
+      const recent = await store.createSession({
+        ...defaultSession,
+        conversationId: 'conv-recent',
+      });
+
+      // Manually backdate the "old" session's lastActivity
+      db.prepare(
+        "UPDATE sessions SET last_activity = '2025-01-01T00:00:00.000Z' WHERE id = ?"
+      ).run(old.id);
+
+      // Cutoff: anything before 2026-01-01 is inactive
+      const inactive = await store.findInactiveSessions('2026-01-01T00:00:00.000Z');
+
+      expect(inactive).toHaveLength(1);
+      expect(inactive[0]!.id).toBe(old.id);
+    });
+
+    it('excludes archived sessions', async () => {
+      const session = await store.createSession(defaultSession);
+      db.prepare(
+        "UPDATE sessions SET last_activity = '2025-01-01T00:00:00.000Z', is_archived = 1 WHERE id = ?"
+      ).run(session.id);
+
+      const inactive = await store.findInactiveSessions('2026-01-01T00:00:00.000Z');
+      expect(inactive).toHaveLength(0);
+    });
+
+    it('excludes already-ended sessions', async () => {
+      const session = await store.createSession(defaultSession);
+      db.prepare(
+        "UPDATE sessions SET last_activity = '2025-01-01T00:00:00.000Z', status = 'ended' WHERE id = ?"
+      ).run(session.id);
+
+      const inactive = await store.findInactiveSessions('2026-01-01T00:00:00.000Z');
+      expect(inactive).toHaveLength(0);
+    });
+
+    it('returns empty array when no sessions are inactive', async () => {
+      await store.createSession(defaultSession);
+
+      // Use a cutoff far in the past
+      const inactive = await store.findInactiveSessions('2020-01-01T00:00:00.000Z');
+      expect(inactive).toHaveLength(0);
+    });
+  });
+
+  describe('findExpiredClosedSessions', () => {
+    it('finds closed sessions with closedAt before cutoff', async () => {
+      const session = await store.createSession(defaultSession);
+      await store.closeSession(session.id, 'inactivity');
+
+      // Backdate the closedAt
+      db.prepare(
+        "UPDATE sessions SET closed_at = '2025-01-01T00:00:00.000Z' WHERE id = ?"
+      ).run(session.id);
+
+      const expired = await store.findExpiredClosedSessions('2026-01-01T00:00:00.000Z');
+      expect(expired).toHaveLength(1);
+      expect(expired[0]!.id).toBe(session.id);
+    });
+
+    it('excludes recently closed sessions', async () => {
+      const session = await store.createSession(defaultSession);
+      await store.closeSession(session.id, 'explicit');
+
+      // closedAt is "now" — use a cutoff far in the past
+      const expired = await store.findExpiredClosedSessions('2020-01-01T00:00:00.000Z');
+      expect(expired).toHaveLength(0);
+    });
+
+    it('excludes active sessions', async () => {
+      await store.createSession(defaultSession);
+
+      const expired = await store.findExpiredClosedSessions('2099-01-01T00:00:00.000Z');
+      expect(expired).toHaveLength(0);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------

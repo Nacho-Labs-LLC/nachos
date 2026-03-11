@@ -6,6 +6,7 @@ import type { Pool } from 'pg';
 import type {
   MemoryEntry,
   MemoryFact,
+  MemoryFactType,
   MemoryQuery,
   MemoryQueryResult,
   MemoryStore,
@@ -188,7 +189,7 @@ export class PostgresMemoryStore implements MemoryStore {
         subject: row.subject,
         predicate: row.predicate,
         object: row.object,
-        type: row.type ?? undefined,
+        type: (row.type ?? undefined) as MemoryFactType | undefined,
         confidence: row.confidence ?? undefined,
         properties: row.properties ?? undefined,
         sourceEntryId: row.source_entry_id ?? undefined,
@@ -208,6 +209,70 @@ export class PostgresMemoryStore implements MemoryStore {
       `DELETE FROM ${this.qualified('memory_entries')} WHERE id = $1 AND agent_id = $2`,
       [id, agentId]
     );
+  }
+
+  async queryFacts(agentId: string, subject?: string): Promise<MemoryFact[]> {
+    await this.ensureSchema();
+    let sql = `SELECT * FROM ${this.qualified('memory_facts')} WHERE agent_id = $1`;
+    const values: unknown[] = [agentId];
+
+    if (subject !== undefined) {
+      sql += ` AND LOWER(subject) = LOWER($2)`;
+      values.push(subject);
+    }
+
+    sql += ' ORDER BY created_at DESC';
+    const result = await this.pool.query(sql, values);
+    return result.rows.map((row: MemoryFactRow) => ({
+      id: row.id,
+      agentId: row.agent_id,
+      subject: row.subject,
+      predicate: row.predicate,
+      object: row.object,
+      type: (row.type ?? undefined) as MemoryFactType | undefined,
+      confidence: row.confidence ?? undefined,
+      properties: row.properties ?? undefined,
+      sourceEntryId: row.source_entry_id ?? undefined,
+      sourceContext: row.source_context ?? undefined,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at ?? undefined,
+      expiresAt: row.expires_at ?? undefined,
+    }));
+  }
+
+  async updateFact(fact: MemoryFact): Promise<MemoryFact | null> {
+    await this.ensureSchema();
+    const now = new Date().toISOString();
+    const result = await this.pool.query(
+      `UPDATE ${this.qualified('memory_facts')}
+       SET confidence = $1, properties = $2, updated_at = $3
+       WHERE id = $4 AND agent_id = $5
+       RETURNING *`,
+      [
+        fact.confidence ?? null,
+        fact.properties ? JSON.stringify(fact.properties) : null,
+        now,
+        fact.id,
+        fact.agentId,
+      ]
+    );
+    if (result.rowCount === 0 || !result.rows[0]) return null;
+    const row = result.rows[0] as MemoryFactRow;
+    return {
+      id: row.id,
+      agentId: row.agent_id,
+      subject: row.subject,
+      predicate: row.predicate,
+      object: row.object,
+      type: (row.type ?? undefined) as MemoryFactType | undefined,
+      confidence: row.confidence ?? undefined,
+      properties: row.properties ?? undefined,
+      sourceEntryId: row.source_entry_id ?? undefined,
+      sourceContext: row.source_context ?? undefined,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at ?? undefined,
+      expiresAt: row.expires_at ?? undefined,
+    };
   }
 
   private qualified(table: string): string {

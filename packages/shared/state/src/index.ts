@@ -40,6 +40,7 @@ export type {
   UpdateSessionData,
   CreateMessageData,
   ISessionsStore,
+  CloseSessionReason,
 } from './sessions/sessions-store-interface.js';
 export { PostgresSessionsStore } from './sessions/postgres-sessions-store.js';
 export { SqliteSessionsStore } from './sessions/sqlite-sessions-store.js';
@@ -50,6 +51,23 @@ export {
   type FilesystemMemoryStoreConfig,
 } from './memory/filesystem-memory-store.js';
 export { SqliteMemoryStore } from './memory/sqlite-memory-store.js';
+
+// LLM extraction pipeline (session-end knowledge extraction)
+export {
+  LLMExtractionAdapter,
+  deduplicateFacts,
+  isExactMatch,
+  mergeFact,
+  EXTRACTION_SYSTEM_PROMPT,
+  buildExtractionUserMessage,
+} from './extraction/index.js';
+export type {
+  LLMCallFn,
+  ExtractionMessage,
+  RawExtractedFact,
+  ExtractionResult,
+  LLMExtractionAdapterConfig,
+} from './extraction/index.js';
 
 // Workspace document stores
 export { SqliteWorkspaceDocumentStore } from './workspace/sqlite-workspace-document-store.js';

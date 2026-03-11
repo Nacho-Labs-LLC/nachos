@@ -380,6 +380,7 @@ export const SessionSchema = Type.Object(
     isPinned: Type.Boolean({ description: 'Whether this session is pinned', default: false }),
     isArchived: Type.Boolean({ description: 'Whether this session is archived', default: false }),
     lastActivity: TimestampSchema,
+    closedAt: Type.Optional(TimestampSchema),
   },
   { $id: 'Session', description: 'Session data structure' }
 );

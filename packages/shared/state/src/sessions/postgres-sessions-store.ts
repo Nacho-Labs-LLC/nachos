@@ -19,6 +19,7 @@ import type {
   UpdateSessionData,
   CreateMessageData,
   SessionsStore,
+  CloseSessionReason,
 } from './sessions-store-interface.js';
 
 /**
@@ -38,6 +39,7 @@ interface SessionRow {
   is_pinned: boolean;
   is_archived: boolean;
   last_activity: string;
+  closed_at: string | null;
 }
 
 /**
@@ -108,8 +110,14 @@ export class PostgresSessionsStore implements SessionsStore {
         is_pinned BOOLEAN DEFAULT false,
         is_archived BOOLEAN DEFAULT false,
         last_activity TEXT NOT NULL,
+        closed_at TEXT,
         UNIQUE(channel, conversation_id)
       )`
+    );
+
+    // Migrate existing databases: add closed_at column if missing
+    await this.pool.query(
+      `ALTER TABLE ${this.qualified('sessions')} ADD COLUMN IF NOT EXISTS closed_at TEXT`
     );
 
     await this.pool.query(
@@ -183,6 +191,7 @@ export class PostgresSessionsStore implements SessionsStore {
       isPinned: row.is_pinned,
       isArchived: row.is_archived,
       lastActivity: row.last_activity,
+      closedAt: row.closed_at ?? undefined,
     };
   }
 
@@ -766,6 +775,55 @@ export class PostgresSessionsStore implements SessionsStore {
     );
 
     return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  /**
+   * Close a session — sets status to 'ended' and records closedAt timestamp.
+   */
+  async closeSession(sessionId: string, _reason: CloseSessionReason): Promise<Session | null> {
+    await this.ensureSchema();
+    const now = new Date().toISOString();
+    const result = await this.pool.query(
+      `UPDATE ${this.qualified('sessions')}
+       SET status = 'ended', closed_at = $1, updated_at = $1
+       WHERE id = $2 AND status != 'ended'
+       RETURNING *`,
+      [now, sessionId]
+    );
+    if (result.rowCount === 0 || !result.rows[0]) return null;
+    return this.rowToSession(result.rows[0] as SessionRow);
+  }
+
+  /**
+   * Find sessions that have been inactive longer than the given cutoff.
+   */
+  async findInactiveSessions(cutoffTime: string): Promise<Session[]> {
+    await this.ensureSchema();
+    const result = await this.pool.query(
+      `SELECT * FROM ${this.qualified('sessions')}
+       WHERE status = 'active'
+         AND is_archived = false
+         AND last_activity < $1
+       ORDER BY last_activity ASC`,
+      [cutoffTime]
+    );
+    return result.rows.map((row: SessionRow) => this.rowToSession(row));
+  }
+
+  /**
+   * Find closed sessions whose closedAt is older than the cutoff (ready for deletion).
+   */
+  async findExpiredClosedSessions(cutoffTime: string): Promise<Session[]> {
+    await this.ensureSchema();
+    const result = await this.pool.query(
+      `SELECT * FROM ${this.qualified('sessions')}
+       WHERE status = 'ended'
+         AND closed_at IS NOT NULL
+         AND closed_at < $1
+       ORDER BY closed_at ASC`,
+      [cutoffTime]
+    );
+    return result.rows.map((row: SessionRow) => this.rowToSession(row));
   }
 
   /**

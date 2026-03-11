@@ -127,6 +127,16 @@ export interface MemoryStore {
   appendFacts(facts: MemoryFact[]): Promise<MemoryFact[]>;
   query(query: MemoryQuery): Promise<MemoryQueryResult>;
   deleteEntry(id: string, agentId: string): Promise<void>;
+  /**
+   * Query facts by agentId and optional subject filter.
+   * Used for deduplication before inserting new extracted facts.
+   */
+  queryFacts(agentId: string, subject?: string): Promise<MemoryFact[]>;
+  /**
+   * Update an existing fact (used for dedup — bumps confidence and merges properties).
+   * If the fact does not exist, does nothing.
+   */
+  updateFact(fact: MemoryFact): Promise<MemoryFact | null>;
 }
 
 export interface BootstrapStore {

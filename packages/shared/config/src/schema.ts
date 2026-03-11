@@ -479,10 +479,14 @@ export interface ProactiveHistoryConfig {
     files?: boolean;
   };
   triggers?: {
+    /** DLP extraction on context compaction (still active) */
     on_compaction?: boolean;
+    /** @deprecated Threshold triggers removed — extraction now happens at session end */
     on_threshold?: number;
+    /** @deprecated Memory flush triggers removed — extraction now happens at session end */
     on_memory_flush?: boolean;
-    periodic?: string; // e.g., '1h', '30m'
+    /** @deprecated Periodic extraction removed — extraction now happens at session end via session sweeper */
+    periodic?: string;
   };
   snapshots?: {
     enabled?: boolean;
@@ -767,6 +771,25 @@ export interface HeartbeatConfig {
 }
 
 /**
+ * Session lifecycle configuration
+ */
+export interface SessionsLifecycleConfig {
+  /**
+   * Duration after which an active session with no activity is automatically closed.
+   * Parsed as a duration string: '4h', '30m', '1d', etc.
+   * Default: '4h'
+   */
+  inactivity_timeout?: string;
+  /**
+   * Duration after which a closed session's raw conversation is hard-deleted.
+   * Knowledge has already been extracted into MemoryFacts at this point.
+   * Parsed as a duration string: '30d', '7d', etc.
+   * Default: '30d'
+   */
+  archive_ttl?: string;
+}
+
+/**
  * Complete Nachos configuration
  */
 export interface NachosConfig {
@@ -781,6 +804,7 @@ export interface NachosConfig {
   admin?: AdminConfig;
   scheduler?: SchedulerConfig;
   heartbeat?: HeartbeatConfig;
+  sessions?: SessionsLifecycleConfig;
   /** Plugin-specific configuration sections. Each key is a plugin ID. */
   plugins?: Record<string, Record<string, unknown>>;
 }

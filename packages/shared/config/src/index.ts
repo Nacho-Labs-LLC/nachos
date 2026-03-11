@@ -78,6 +78,7 @@ export type {
   AdminConfig,
   SchedulerConfig,
   HeartbeatConfig,
+  SessionsLifecycleConfig,
 } from './schema.js';
 
 // Export loader functions
