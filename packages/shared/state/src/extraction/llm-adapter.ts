@@ -102,7 +102,7 @@ export class LLMExtractionAdapter {
       parsed = JSON.parse(cleaned);
     } catch {
       logger.warn(
-        { sessionId: this.config.sessionId, rawOutput: cleaned.slice(0, 200) },
+        { sessionId: this.config.sessionId, rawOutputLength: cleaned.length },
         'LLM extraction returned non-JSON output'
       );
       return { facts: [], rawCount: 0, parseSuccess: false };
@@ -163,7 +163,14 @@ export class LLMExtractionAdapter {
     const object = typeof item['object'] === 'string' ? item['object'].trim() : '';
 
     if (!subject || !predicate || !object) {
-      logger.debug({ item }, 'Skipping malformed extraction fact (missing fields)');
+      const missingFields: string[] = [];
+      if (!subject) missingFields.push('subject');
+      if (!predicate) missingFields.push('predicate');
+      if (!object) missingFields.push('object');
+      logger.debug(
+        { sessionId: this.config.sessionId, missingFields, itemKeys: Object.keys(item) },
+        'Skipping malformed extraction fact (missing required fields)'
+      );
       return null;
     }
 

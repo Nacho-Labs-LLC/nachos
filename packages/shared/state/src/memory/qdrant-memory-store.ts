@@ -38,8 +38,10 @@ interface QdrantFactPayload {
   predicate: string;
   object: string;
   confidence?: number;
+  properties?: Record<string, unknown>;
   source_entry_id?: string;
   created_at: string;
+  updated_at?: string;
   content: string;
 }
 
@@ -484,7 +486,7 @@ export class QdrantMemoryStore implements MemoryStore {
     ];
 
     if (subject) {
-      mustClauses.push({ key: 'subject', match: { value: subject.toLowerCase() } });
+      mustClauses.push({ key: 'subject', match: { value: subject } });
     }
 
     const response = await this.request(`/collections/${this.collection}/points/scroll`, 'POST', {
@@ -511,8 +513,10 @@ export class QdrantMemoryStore implements MemoryStore {
           predicate: payload.predicate,
           object: payload.object,
           confidence: payload.confidence,
+          properties: payload.properties,
           sourceEntryId: payload.source_entry_id,
           createdAt: payload.created_at,
+          updatedAt: payload.updated_at,
         };
       });
   }
@@ -539,6 +543,17 @@ export class QdrantMemoryStore implements MemoryStore {
     if (!data.result) return null;
 
     const existing = data.result;
+    const existingPayload = existing.payload as QdrantFactPayload;
+
+    // Verify the fact belongs to the same agent to prevent cross-agent overwrites
+    if (existingPayload.agent_id !== fact.agentId) {
+      logger.warn(
+        { factId: fact.id, expectedAgent: fact.agentId, actualAgent: existingPayload.agent_id },
+        'Refusing to update fact owned by different agent'
+      );
+      return null;
+    }
+
     const text = `${fact.subject} ${fact.predicate} ${fact.object}`;
     const vector = await this.embed(text);
 
@@ -550,8 +565,10 @@ export class QdrantMemoryStore implements MemoryStore {
       predicate: fact.predicate,
       object: fact.object,
       confidence: fact.confidence,
+      properties: fact.properties,
       source_entry_id: fact.sourceEntryId,
-      created_at: (existing.payload as QdrantFactPayload).created_at,
+      created_at: existingPayload.created_at,
+      updated_at: new Date().toISOString(),
     };
 
     await this.request(`/collections/${this.collection}/points`, 'PUT', {

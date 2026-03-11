@@ -2782,8 +2782,8 @@ export class Gateway {
    */
   private startSessionSweeper(): void {
     const cfg = this.sessionsLifecycleConfig;
-    const inactivityMs = parseDurationMs(cfg?.inactivity_timeout ?? '4h');
-    const archiveTtlMs = parseDurationMs(cfg?.archive_ttl ?? '30d');
+    const inactivityMs = parseDurationMs(cfg?.inactivity_timeout ?? '4h', 4 * 60 * 60 * 1000);
+    const archiveTtlMs = parseDurationMs(cfg?.archive_ttl ?? '30d', 30 * 24 * 60 * 60 * 1000);
 
     // Run every 30 minutes
     const CHECK_INTERVAL_MS = 30 * 60 * 1000;
@@ -2879,15 +2879,12 @@ export class Gateway {
       return;
     }
 
-    // Dedup: query existing facts for all unique subjects in the new facts
-    const subjects = [...new Set(result.facts.map((f) => f.subject))];
-    const existingFacts: import('@nachos/types').MemoryFact[] = [];
-    for (const subject of subjects) {
-      const subjectFacts = await this.stateLayer.queryMemoryFacts(agentId, stateContext, subject);
-      existingFacts.push(...subjectFacts);
-    }
+    // Dedup: fetch all existing facts for this agent, then filter to relevant subjects in-memory
+    const subjects = new Set(result.facts.map((f) => f.subject));
+    const allExistingFacts = await this.stateLayer.queryMemoryFacts(agentId, stateContext, undefined);
+    const relevantExistingFacts = allExistingFacts.filter((fact) => subjects.has(fact.subject));
 
-    const { toInsert, toUpdate } = deduplicateFacts(result.facts, existingFacts);
+    const { toInsert, toUpdate } = deduplicateFacts(result.facts, relevantExistingFacts);
 
     if (toInsert.length > 0) {
       await this.stateLayer.appendMemoryFacts(toInsert, stateContext);

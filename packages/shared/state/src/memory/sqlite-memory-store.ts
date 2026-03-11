@@ -330,8 +330,8 @@ export class SqliteMemoryStore implements MemoryStore {
 
     if (result.changes === 0) return null;
     const row = this.db
-      .prepare('SELECT * FROM memory_facts WHERE id = ?')
-      .get(fact.id) as MemoryFactRow | undefined;
+      .prepare('SELECT * FROM memory_facts WHERE id = ? AND agent_id = ?')
+      .get(fact.id, fact.agentId) as MemoryFactRow | undefined;
     return row ? this.rowToFact(row) : null;
   }
 

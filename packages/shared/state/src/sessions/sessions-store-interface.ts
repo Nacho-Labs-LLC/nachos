@@ -158,7 +158,7 @@ export interface SessionsStore {
 
   /**
    * Close a session — sets status to 'ended' and records closedAt timestamp.
-   * Returns the closed session, or null if not found.
+   * Returns the closed session, or null if not found or already ended (no-op).
    */
   closeSession(sessionId: string, reason: CloseSessionReason): Promise<Session | null>;
 
