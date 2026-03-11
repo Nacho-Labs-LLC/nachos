@@ -45,7 +45,6 @@ export { PostgresSessionsStore } from './sessions/postgres-sessions-store.js';
 export { SqliteSessionsStore } from './sessions/sqlite-sessions-store.js';
 
 // Memory stores
-export { QdrantMemoryStore, type QdrantConfig } from './memory/qdrant-memory-store.js';
 export {
   FilesystemMemoryStore,
   type FilesystemMemoryStoreConfig,

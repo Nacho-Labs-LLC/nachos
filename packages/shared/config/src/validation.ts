@@ -357,7 +357,6 @@ const CONFIG_SHAPE: SchemaNode = {
       semantic: {
         provider: true,
         local: { model: true, cache_dir: true },
-        qdrant: { url: true, collection: true, api_key: true },
       },
       prompt_report: {
         hash: true,
