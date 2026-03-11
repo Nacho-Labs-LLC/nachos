@@ -1,5 +1,5 @@
 /**
- * Tests for memory tools (memory_search, memory_get, memory_write, memory_delete)
+ * Tests for memory tools (memory_search, memory_get, memory_write, memory_delete, memory_recall)
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -9,6 +9,7 @@ import {
   executeMemoryWrite,
   executeMemoryDelete,
   executeConversationSearch,
+  executeMemoryRecall,
 } from './memory-tools.js';
 import type { ToolCall } from '@nachos/types';
 import type { StateLayer, StateOperationContext } from '@nachos/state';
@@ -624,5 +625,229 @@ describe('nachos_search_conversations', () => {
     expect(result.success).toBe(false);
     expect(result.error?.code).toBe('CONVERSATION_SEARCH_FAILED');
     expect(result.error?.message).toContain('vector store unavailable');
+  });
+});
+
+describe('memory_recall', () => {
+  const context: StateOperationContext = {
+    sessionId: 'test-session',
+    userId: 'test-user',
+    securityMode: 'standard',
+    internalTool: true,
+  };
+
+  it('should return error if topic is missing', async () => {
+    const call: ToolCall = {
+      id: 'recall-1',
+      tool: 'memory_recall',
+      sessionId: 'test-session',
+      parameters: {},
+    };
+
+    const mockStateLayer = {} as unknown as StateLayer;
+    const result = await executeMemoryRecall(call, mockStateLayer, context);
+
+    expect(result.success).toBe(false);
+    expect(result.error?.code).toBe('INVALID_PARAMETERS');
+  });
+
+  it('should search across memories and facts', async () => {
+    const call: ToolCall = {
+      id: 'recall-2',
+      tool: 'memory_recall',
+      sessionId: 'test-session',
+      parameters: {
+        topic: 'TypeScript',
+        sources: ['memories', 'facts'],
+      },
+    };
+
+    const mockStateLayer = {
+      queryMemory: vi.fn().mockResolvedValue({
+        entries: [
+          {
+            id: 'e1',
+            kind: 'decision',
+            content: 'Decided to use TypeScript strict mode',
+            tags: ['typescript'],
+            confidence: 0.9,
+            createdAt: '2026-03-01T00:00:00Z',
+          },
+        ],
+        facts: [],
+      }),
+      queryMemoryFacts: vi.fn().mockResolvedValue([
+        {
+          id: 'f1',
+          agentId: 'test-user',
+          subject: 'project',
+          predicate: 'uses',
+          object: 'TypeScript',
+          type: 'general',
+          createdAt: '2026-03-01T00:00:00Z',
+        },
+      ]),
+      sessionsStore: undefined,
+    } as unknown as StateLayer;
+
+    const result = await executeMemoryRecall(call, mockStateLayer, context);
+
+    expect(result.success).toBe(true);
+    const text = result.content[0]?.text ?? '';
+    expect(text).toContain('Recalled');
+    expect(text).toContain('Memory Entries');
+    expect(text).toContain('TypeScript strict mode');
+    expect(text).toContain('Facts');
+    expect(text).toContain('TypeScript');
+  });
+
+  it('should search conversations when available', async () => {
+    const call: ToolCall = {
+      id: 'recall-3',
+      tool: 'memory_recall',
+      sessionId: 'test-session',
+      parameters: {
+        topic: 'deployment',
+        sources: ['conversations'],
+      },
+    };
+
+    const mockSessionsStore = {
+      searchMessages: vi.fn().mockResolvedValue([
+        {
+          messageId: 'm1',
+          sessionId: 's1',
+          similarity: 0.85,
+          role: 'user',
+          content: 'We should deploy to production on Friday',
+          timestamp: '2026-03-08T10:00:00Z',
+        },
+      ]),
+    };
+
+    const mockStateLayer = {
+      queryMemory: vi.fn().mockResolvedValue({ entries: [], facts: [] }),
+      queryMemoryFacts: vi.fn().mockResolvedValue([]),
+      sessionsStore: mockSessionsStore,
+    } as unknown as StateLayer;
+
+    const result = await executeMemoryRecall(call, mockStateLayer, context);
+
+    expect(result.success).toBe(true);
+    const text = result.content[0]?.text ?? '';
+    expect(text).toContain('Conversations');
+    expect(text).toContain('deploy to production');
+    expect(text).toContain('85%');
+  });
+
+  it('should return no results message when nothing matches', async () => {
+    const call: ToolCall = {
+      id: 'recall-4',
+      tool: 'memory_recall',
+      sessionId: 'test-session',
+      parameters: { topic: 'nonexistent-xyz-topic' },
+    };
+
+    const mockStateLayer = {
+      queryMemory: vi.fn().mockResolvedValue({ entries: [], facts: [] }),
+      queryMemoryFacts: vi.fn().mockResolvedValue([]),
+      sessionsStore: undefined,
+    } as unknown as StateLayer;
+
+    const result = await executeMemoryRecall(call, mockStateLayer, context);
+
+    expect(result.success).toBe(true);
+    const text = result.content[0]?.text ?? '';
+    expect(text).toContain('No memories found');
+  });
+
+  it('should respect the since date filter', async () => {
+    const call: ToolCall = {
+      id: 'recall-5',
+      tool: 'memory_recall',
+      sessionId: 'test-session',
+      parameters: {
+        topic: 'TypeScript',
+        since: '2026-03-10',
+      },
+    };
+
+    const mockStateLayer = {
+      queryMemory: vi.fn().mockResolvedValue({
+        entries: [
+          {
+            id: 'e1',
+            kind: 'fact',
+            content: 'Old fact about TS',
+            createdAt: '2026-03-01T00:00:00Z',
+          },
+          {
+            id: 'e2',
+            kind: 'fact',
+            content: 'Recent TS update',
+            createdAt: '2026-03-11T00:00:00Z',
+          },
+        ],
+        facts: [],
+      }),
+      queryMemoryFacts: vi.fn().mockResolvedValue([]),
+      sessionsStore: undefined,
+    } as unknown as StateLayer;
+
+    const result = await executeMemoryRecall(call, mockStateLayer, context);
+
+    expect(result.success).toBe(true);
+    const text = result.content[0]?.text ?? '';
+    // Only the recent entry should be included
+    expect(text).toContain('Recent TS update');
+    expect(text).not.toContain('Old fact about TS');
+  });
+
+  it('should cap limit at 20', async () => {
+    const call: ToolCall = {
+      id: 'recall-6',
+      tool: 'memory_recall',
+      sessionId: 'test-session',
+      parameters: {
+        topic: 'test',
+        limit: 100,
+      },
+    };
+
+    const mockStateLayer = {
+      queryMemory: vi.fn().mockResolvedValue({ entries: [], facts: [] }),
+      queryMemoryFacts: vi.fn().mockResolvedValue([]),
+      sessionsStore: undefined,
+    } as unknown as StateLayer;
+
+    await executeMemoryRecall(call, mockStateLayer, context);
+
+    // The queryMemory call should have limit capped at 20
+    expect(mockStateLayer.queryMemory).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 20 }),
+      expect.anything(),
+    );
+  });
+
+  it('should handle errors from memory stores gracefully', async () => {
+    const call: ToolCall = {
+      id: 'recall-7',
+      tool: 'memory_recall',
+      sessionId: 'test-session',
+      parameters: { topic: 'test' },
+    };
+
+    const mockStateLayer = {
+      queryMemory: vi.fn().mockRejectedValue(new Error('DB down')),
+      queryMemoryFacts: vi.fn().mockRejectedValue(new Error('DB down')),
+      sessionsStore: undefined,
+    } as unknown as StateLayer;
+
+    const result = await executeMemoryRecall(call, mockStateLayer, context);
+
+    // Should still succeed with error messages in sections
+    expect(result.success).toBe(true);
+    const text = result.content[0]?.text ?? '';
+    expect(text).toContain('search failed');
   });
 });

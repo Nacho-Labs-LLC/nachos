@@ -32,10 +32,12 @@ import {
   MemoryGetToolSchema,
   MemoryWriteToolSchema,
   MemoryDeleteToolSchema,
+  MemoryRecallToolSchema,
   executeMemorySearch,
   executeMemoryGet,
   executeMemoryWrite,
   executeMemoryDelete,
+  executeMemoryRecall,
   ConversationSearchToolSchema,
   executeConversationSearch,
 } from './memory-tools.js';
@@ -266,6 +268,12 @@ export class ToolExecutor {
         description:
           'Delete a memory entry by ID. Use to remove outdated, incorrect, or no longer relevant memories. Get the memory ID from memory_search results.',
         parameters: this.sanitizeToolSchema(MemoryDeleteToolSchema),
+      });
+      tools.push({
+        name: 'memory_recall',
+        description:
+          'Recall detailed memories about a topic, person, or past conversation. Searches across memory entries, structured facts, and conversation history. Use when you need specifics beyond what is shown in the memory manifest.',
+        parameters: this.sanitizeToolSchema(MemoryRecallToolSchema),
       });
       // Only expose conversation search if semantic search is available
       if (this.deps.state.sessionsStore?.searchMessages) {
@@ -1025,6 +1033,29 @@ export class ToolExecutor {
         internalTool: true,
       };
       return executeMemoryDelete(call, this.deps.state.stateLayer, context);
+    }
+
+    if (call.tool === 'memory_recall') {
+      if (!this.deps.state.stateLayer) {
+        return this.formatToolError('STATE_LAYER_DISABLED', 'Memory is not configured');
+      }
+      if (!session) {
+        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found for memory recall');
+      }
+
+      const rateLimitResult = this.checkMemoryToolRateLimit(session.id);
+      if (!rateLimitResult.allowed) {
+        return this.formatToolError(
+          'RATE_LIMIT_EXCEEDED',
+          `Memory tool rate limit exceeded. Try again in ${rateLimitResult.retryAfterSeconds} seconds.`
+        );
+      }
+
+      const context = {
+        ...buildStateContext(session, this.deps.core.securityMode),
+        internalTool: true,
+      };
+      return executeMemoryRecall(call, this.deps.state.stateLayer, context);
     }
 
     if (call.tool === 'snapshot_list') {

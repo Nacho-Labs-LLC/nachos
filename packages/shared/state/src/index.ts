@@ -32,6 +32,12 @@ export {
 } from './memory-pipeline.js';
 export { createDefaultBootstrapBlocks } from './bootstrap/bootstrap-templates.js';
 export { PromptAssembler, type PromptAssemblyParams } from './prompt/prompt-assembler.js';
+export {
+  buildMemoryManifest,
+  formatManifestForPrompt,
+  type MemoryManifest,
+  type MemoryManifestConfig,
+} from './prompt/memory-manifest.js';
 
 // Sessions (conversation history) stores
 export type {

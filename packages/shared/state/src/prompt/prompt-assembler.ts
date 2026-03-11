@@ -24,6 +24,7 @@ export interface PromptAssemblyParams {
   userProfile?: UserProfile | null;
   memoryEntries?: MemoryEntry[];
   memoryFacts?: MemoryFact[];
+  memoryManifest?: string | null; // Compact memory manifest (~200-400 tokens)
   sessionState?: SessionStateRecord | null;
   skills?: string | null; // Formatted skills documentation
   includeMemoryInstructions?: boolean; // Whether to include memory tool usage instructions
@@ -91,6 +92,15 @@ export class PromptAssembler {
         name: 'user_profile',
         content: this.formatUserProfile(params.userProfile),
         source: params.userProfile.source ?? 'user-profile-store',
+      });
+    }
+
+    // Memory manifest (lightweight summary for LLM-driven recall)
+    if (params.memoryManifest) {
+      sections.push({
+        name: 'memory_manifest',
+        content: params.memoryManifest,
+        source: 'memory-manifest',
       });
     }
 

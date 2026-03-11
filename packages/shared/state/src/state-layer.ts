@@ -50,6 +50,11 @@ import { SqliteWorkspaceDocumentStore } from './workspace/sqlite-workspace-docum
 import { PostgresWorkspaceDocumentStore } from './workspace/postgres-workspace-document-store.js';
 import { PromptAssembler } from './prompt/prompt-assembler.js';
 import type { PromptAssemblyParams } from './prompt/prompt-assembler.js';
+import {
+  buildMemoryManifest as buildManifest,
+  formatManifestForPrompt,
+  type MemoryManifestConfig,
+} from './prompt/memory-manifest.js';
 
 export interface StateOperationContext {
   sessionId: string;
@@ -381,6 +386,38 @@ export class StateLayer {
     await this.ensureAllowed('state.session.delete', context, sessionId);
     await this.sessionStateStore.delete(sessionId);
     await this.auditAllowed('state.session.delete', context, sessionId);
+  }
+
+  /**
+   * Build a lightweight memory manifest for prompt injection.
+   * Returns formatted text (~200-400 tokens) or null if no data.
+   */
+  async buildMemoryManifest(
+    agentId: string,
+    context: StateOperationContext,
+    config?: Partial<MemoryManifestConfig>,
+  ): Promise<string | null> {
+    try {
+      await this.ensureAllowed('state.memory.query', context, agentId);
+      const manifest = await buildManifest(
+        agentId,
+        this.memoryStore,
+        this._sessionsStore,
+        config,
+      );
+      // If there is nothing to show, skip injection
+      if (
+        manifest.totalFacts === 0 &&
+        manifest.preferences.length === 0 &&
+        manifest.recentTopics.length === 0
+      ) {
+        return null;
+      }
+      return formatManifestForPrompt(manifest, config);
+    } catch (error) {
+      logger.warn({ err: error }, 'Failed to build memory manifest');
+      return null;
+    }
   }
 
   assemblePrompt(params: PromptAssemblyParams): PromptAssemblyResult {
