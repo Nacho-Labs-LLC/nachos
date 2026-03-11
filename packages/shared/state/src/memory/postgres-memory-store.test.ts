@@ -48,14 +48,15 @@ describe('PostgresMemoryStore (unit)', () => {
     await store.appendFacts(facts);
 
     const insertQuery = queries.at(-1);
+    // 13 columns per fact row: id, agent_id, subject, predicate, object, type, confidence, properties, source_entry_id, source_context, created_at, updated_at, expires_at
     expect(insertQuery?.text).toMatch(
-      /\(\$1,\s*\$2,\s*\$3,\s*\$4,\s*\$5,\s*\$6,\s*\$7,\s*\$8\)\s*,\s*\(\$9,\s*\$10,\s*\$11,\s*\$12,\s*\$13,\s*\$14,\s*\$15,\s*\$16\)/
+      /\(\$1,\s*\$2,\s*\$3,\s*\$4,\s*\$5,\s*\$6,\s*\$7,\s*\$8,\s*\$9,\s*\$10,\s*\$11,\s*\$12,\s*\$13\)\s*,\s*\(\$14,\s*\$15,\s*\$16,\s*\$17,\s*\$18,\s*\$19,\s*\$20,\s*\$21,\s*\$22,\s*\$23,\s*\$24,\s*\$25,\s*\$26\)/
     );
 
-    expect(insertQuery?.values).toHaveLength(16);
+    expect(insertQuery?.values).toHaveLength(26);
     expect(insertQuery?.values?.[0]).toBe('fact-1');
-    expect(insertQuery?.values?.[8]).toBe('fact-2');
-    expect(insertQuery?.values?.[15]).toBe('2026-02-07T00:01:00.000Z');
+    expect(insertQuery?.values?.[13]).toBe('fact-2');
+    expect(insertQuery?.values?.[23]).toBe('2026-02-07T00:01:00.000Z');
   });
 });
 

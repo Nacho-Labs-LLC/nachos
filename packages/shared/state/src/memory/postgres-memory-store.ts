@@ -30,9 +30,14 @@ type MemoryFactRow = {
   subject: string;
   predicate: string;
   object: string;
+  type: string | null;
   confidence: number | null;
+  properties: Record<string, unknown> | null;
   source_entry_id: string | null;
+  source_context: string | null;
   created_at: string;
+  updated_at: string | null;
+  expires_at: string | null;
 };
 
 export class PostgresMemoryStore implements MemoryStore {
@@ -74,26 +79,33 @@ export class PostgresMemoryStore implements MemoryStore {
     if (facts.length === 0) return facts;
 
     const values: Array<unknown> = [];
+    const cols = 13;
     const rows = facts
       .map((fact, index) => {
-        const base = index * 8;
+        const base = index * cols;
         values.push(
           fact.id,
           fact.agentId,
           fact.subject,
           fact.predicate,
           fact.object,
+          fact.type ?? 'general',
           fact.confidence ?? null,
+          fact.properties ? JSON.stringify(fact.properties) : null,
           fact.sourceEntryId ?? null,
-          fact.createdAt
+          fact.sourceContext ?? null,
+          fact.createdAt,
+          fact.updatedAt ?? null,
+          fact.expiresAt ?? null
         );
-        return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8})`;
+        const placeholders = Array.from({ length: cols }, (_, i) => `$${base + i + 1}`);
+        return `(${placeholders.join(', ')})`;
       })
       .join(', ');
 
     await this.pool.query(
       `INSERT INTO ${this.qualified('memory_facts')} (
-        id, agent_id, subject, predicate, object, confidence, source_entry_id, created_at
+        id, agent_id, subject, predicate, object, type, confidence, properties, source_entry_id, source_context, created_at, updated_at, expires_at
       ) VALUES ${rows}`,
       values
     );
@@ -162,7 +174,7 @@ export class PostgresMemoryStore implements MemoryStore {
 
       const factsLimit = query.limit ?? 200;
       const factsResult = await this.pool.query(
-        `SELECT id, agent_id, subject, predicate, object, confidence, source_entry_id, created_at
+        `SELECT id, agent_id, subject, predicate, object, type, confidence, properties, source_entry_id, source_context, created_at, updated_at, expires_at
          FROM ${this.qualified('memory_facts')}
          WHERE ${factsWhere.join(' AND ')}
          ORDER BY created_at DESC
@@ -176,9 +188,14 @@ export class PostgresMemoryStore implements MemoryStore {
         subject: row.subject,
         predicate: row.predicate,
         object: row.object,
+        type: row.type ?? undefined,
         confidence: row.confidence ?? undefined,
+        properties: row.properties ?? undefined,
         sourceEntryId: row.source_entry_id ?? undefined,
+        sourceContext: row.source_context ?? undefined,
         createdAt: row.created_at,
+        updatedAt: row.updated_at ?? undefined,
+        expiresAt: row.expires_at ?? undefined,
       }));
     }
 
@@ -242,14 +259,27 @@ export class PostgresMemoryStore implements MemoryStore {
         subject TEXT NOT NULL,
         predicate TEXT NOT NULL,
         object TEXT NOT NULL,
+        type TEXT DEFAULT 'general',
         confidence DOUBLE PRECISION,
+        properties JSONB,
         source_entry_id TEXT,
-        created_at TEXT NOT NULL
+        source_context TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT,
+        expires_at TEXT
       )`
     );
 
     await this.pool.query(
       `CREATE INDEX IF NOT EXISTS memory_facts_agent_idx ON ${this.qualified('memory_facts')}(agent_id)`
+    );
+
+    await this.pool.query(
+      `CREATE INDEX IF NOT EXISTS memory_facts_agent_type_idx ON ${this.qualified('memory_facts')}(agent_id, type)`
+    );
+
+    await this.pool.query(
+      `CREATE INDEX IF NOT EXISTS memory_facts_subject_idx ON ${this.qualified('memory_facts')}(agent_id, subject)`
     );
   }
 

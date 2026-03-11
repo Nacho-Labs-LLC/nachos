@@ -15,7 +15,7 @@ export interface StateStorePostgresConfig {
   maxConnections?: number;
 }
 
-export type StateStoreProvider = 'filesystem' | 'postgres';
+export type StateStoreProvider = 'filesystem' | 'postgres' | 'sqlite';
 
 export interface StateStoreSemanticConfig {
   enabled?: boolean;
@@ -23,10 +23,15 @@ export interface StateStoreSemanticConfig {
   cacheDir?: string;
 }
 
+export interface StateStoreSqliteConfig {
+  dbPath: string;
+}
+
 export interface StateStoreConfig {
   provider: StateStoreProvider;
   filesystem?: StateStoreFilesystemConfig;
   postgres?: StateStorePostgresConfig;
+  sqlite?: StateStoreSqliteConfig;
   semantic?: StateStoreSemanticConfig;
 }
 
@@ -61,6 +66,12 @@ export interface SessionsStoreConfig {
   postgres?: SessionsStorePostgresConfig;
 }
 
+export interface WorkspaceDocumentStoreConfig {
+  provider: 'sqlite' | 'postgres';
+  sqlite?: StateStoreSqliteConfig;
+  postgres?: StateStorePostgresConfig;
+}
+
 export interface StateLayerConfig {
   identity: StateStoreConfig;
   memory: StateStoreConfig;
@@ -68,6 +79,7 @@ export interface StateLayerConfig {
   bootstrap: StateStoreConfig;
   session: SessionStateConfig;
   sessions?: SessionsStoreConfig;
+  workspace?: WorkspaceDocumentStoreConfig;
   prompt?: PromptAssemblyConfig;
 }
 
