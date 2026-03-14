@@ -47,6 +47,9 @@ RUN go install github.com/steipete/goplaces/cmd/goplaces@v0.3.0 && \
 # Install Node-based skill CLI tools
 RUN npm install -g @steipete/summarize@0.11.1
 
+# Install Claude Code CLI for agent_exec capability
+RUN npm install -g @anthropic-ai/claude-code
+
 # Create non-root user BEFORE any file copies
 RUN addgroup -g 1001 -S nachos && \
     adduser -S nachos -u 1001 -G nachos

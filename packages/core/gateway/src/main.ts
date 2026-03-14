@@ -186,8 +186,18 @@ async function start(): Promise<void> {
     process.exit(0);
   };
 
-  process.on('SIGINT', () => void shutdown('SIGINT'));
-  process.on('SIGTERM', () => void shutdown('SIGTERM'));
+  process.on('SIGINT', () => {
+    shutdown('SIGINT').catch((err) => {
+      logger.error({ err }, 'Error during SIGINT shutdown');
+      process.exit(1);
+    });
+  });
+  process.on('SIGTERM', () => {
+    shutdown('SIGTERM').catch((err) => {
+      logger.error({ err }, 'Error during SIGTERM shutdown');
+      process.exit(1);
+    });
+  });
   process.on('unhandledRejection', (reason) => {
     logger.fatal({ err: reason }, 'Unhandled promise rejection');
     process.exit(1);

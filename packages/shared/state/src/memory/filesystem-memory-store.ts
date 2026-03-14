@@ -113,6 +113,9 @@ export class FilesystemMemoryStore implements MemoryStore {
     return facts;
   }
 
+  /** Default query limit to prevent loading unbounded entries into memory. */
+  private static readonly DEFAULT_QUERY_LIMIT = 100;
+
   async query(query: MemoryQuery): Promise<MemoryQueryResult> {
     // Use semantic search if enabled and requested
     if (
@@ -144,7 +147,7 @@ export class FilesystemMemoryStore implements MemoryStore {
     }
 
     const offset = query.offset ?? 0;
-    const limit = query.limit ?? filtered.length;
+    const limit = query.limit ?? FilesystemMemoryStore.DEFAULT_QUERY_LIMIT;
     const entriesPage = filtered.slice(offset, offset + limit);
 
     const includeFacts = !query.kinds || query.kinds.includes('fact');

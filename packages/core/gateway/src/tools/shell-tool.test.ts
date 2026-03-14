@@ -119,11 +119,13 @@ describe('ShellTool', () => {
       expect(shellTool.isCommandAllowed('/bin/sh')).toBe(false);
     });
 
-    it('should block package management', () => {
-      expect(shellTool.isCommandAllowed('npm install package')).toBe(false);
+    it('should block system package managers but allow build tools', () => {
+      // npm, pip are allowlisted as build tools
+      expect(shellTool.isCommandAllowed('npm install package')).toBe(true);
+      expect(shellTool.isCommandAllowed('pip install package')).toBe(true);
+      // System package managers remain blocked
       expect(shellTool.isCommandAllowed('apt-get install package')).toBe(false);
       expect(shellTool.isCommandAllowed('yum install package')).toBe(false);
-      expect(shellTool.isCommandAllowed('pip install package')).toBe(false);
     });
 
     it('should allow git binary but block write operations during execution', () => {

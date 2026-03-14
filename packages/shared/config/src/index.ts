@@ -39,6 +39,7 @@ export type {
   GitHubToolConfig,
   BitbucketToolConfig,
   ComposioToolConfig,
+  AgentExecToolConfig,
   SecurityConfig,
   DLPConfig,
   ApprovalConfig,
@@ -74,6 +75,7 @@ export type {
   SubagentToolProfileConfig,
   SubagentToolPolicyConfig,
   RuntimeToolSandboxConfig,
+  SelfManagementConfig,
   AssistantConfig,
   SkillsConfig,
   SkillEntryConfig,
@@ -133,6 +135,9 @@ export type {
   PluginConfigPropertyType,
   PluginConfigValidationResult,
 } from './plugin-config.js';
+
+// Model context window lookup
+export { getModelContextWindow, DEFAULT_CONTEXT_WINDOW } from './model-context-windows.js';
 
 // Main convenience function that loads, overlays, and validates config
 export { loadAndValidateConfig } from './main.js';

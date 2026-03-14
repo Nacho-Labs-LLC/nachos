@@ -21,7 +21,8 @@ networks:
 volumes:
   nats-data:
   redis-data:
-  # postgres-data:  # Uncomment if using Postgres
+  postgres-data:
+  nachos-logs:
 
 # ==================== Common Config ====================
 
@@ -114,8 +115,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      # postgres:
-      #   condition: service_healthy
+      postgres:
+        condition: service_healthy
     networks:
       - nachos-egress
       - nachos-internal
@@ -140,6 +141,12 @@ services:
       - ./state:/app/state
       - ./nachos.toml:/app/nachos.toml:ro
       - ./packages/core/gateway/src:/app/packages/core/gateway/src:ro
+      # Docker socket for container management in permissive mode
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Nachos source for self-modification
+      - /c/DEV/NACHOS/nachos-core:/nachos-src:rw
+      # Log volume for debugging
+      - nachos-logs:/var/log/nachos:rw
     develop:
       watch:
         - action: sync
@@ -191,25 +198,25 @@ services:
   # - Shared identity/memory across instances
   # Default: SQLite (faster for single instance)
   #
-  # postgres:
-  #   container_name: nachos-postgres
-  #   image: postgres:16-alpine
-  #   restart: unless-stopped
-  #   networks:
-  #     - nachos-internal
-  #   environment:
-  #     POSTGRES_DB: ${POSTGRES_DB:-nachos}
-  #     POSTGRES_USER: ${POSTGRES_USER:-nachos}
-  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nachos}
-  #   volumes:
-  #     - postgres-data:/var/lib/postgresql/data
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
-  #     interval: 10s
-  #     timeout: 3s
-  #     retries: 5
-  #     start_period: 5s
-  #   logging: *default-logging
+  postgres:
+    container_name: nachos-postgres
+    image: postgres:16-alpine
+    restart: unless-stopped
+    networks:
+      - nachos-internal
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-nachos}
+      POSTGRES_USER: ${POSTGRES_USER:-nachos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nachos}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    logging: *default-logging
 
   # -------------------- LLM Proxy --------------------
   llm-proxy:
@@ -288,11 +295,13 @@ services:
       NATS_TOKEN: ${NATS_TOKEN:?Required}
       NACHOS_CONFIG_PATH: /app/nachos.toml
       NACHOS_STATE_DIR: /app/state
+      GATEWAY_STATE_DIR: /app/gateway-state
       GATEWAY_HEALTH_URL: http://gateway:3000/health
       NACHOS_ADMIN_TOKEN: ${NACHOS_ADMIN_TOKEN:-}
       REDIS_URL: redis://:${REDIS_PASSWORD:?Required}@redis:6379
     volumes:
-      - ./data/gateway:/app/state:ro
+      - ./data/admin:/app/state
+      - ./data/gateway:/app/gateway-state:ro
       # SECURITY WARNING: Docker socket mount grants full Docker API access to
       # this container. This is used for container management in the admin UI.
       # In production, consider using a Docker socket proxy (e.g., tecnativa/docker-socket-proxy)
@@ -439,7 +448,7 @@ services:
       TOOL_MODE: read
       ALLOWED_PATHS: /workspace
     volumes:
-      - ./workspace:/workspace:ro
+      - /c/DEV:/workspace:ro
     tmpfs:
       - /tmp:noexec,nosuid,size=10m
     develop:
@@ -470,7 +479,7 @@ services:
       ALLOWED_PATHS: /workspace
       MAX_FILE_SIZE: 10MB
     volumes:
-      - ./workspace:/workspace:rw
+      - /c/DEV:/workspace:rw
     tmpfs:
       - /tmp:noexec,nosuid,size=100m
     develop:
@@ -502,12 +511,14 @@ services:
     environment:
       <<: *common-env
       LANGUAGE: python
-      EXECUTION_TIMEOUT: ${CODE_EXECUTION_TIMEOUT:-30}
+      EXECUTION_TIMEOUT: ${CODE_EXECUTION_TIMEOUT:-120}
+    volumes:
+      - /c/DEV:/workspace:rw
     tmpfs:
       - /tmp:noexec,nosuid,size=100m
-    mem_limit: 256m
-    cpus: 0.5
-    pids_limit: 50
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 100
     develop:
       watch:
         - action: rebuild
@@ -539,12 +550,14 @@ services:
     environment:
       <<: *common-env
       LANGUAGE: javascript
-      EXECUTION_TIMEOUT: ${CODE_EXECUTION_TIMEOUT:-30}
+      EXECUTION_TIMEOUT: ${CODE_EXECUTION_TIMEOUT:-120}
+    volumes:
+      - /c/DEV:/workspace:rw
     tmpfs:
       - /tmp:noexec,nosuid,size=100m
-    mem_limit: 256m
-    cpus: 0.5
-    pids_limit: 50
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 100
     develop:
       watch:
         - action: rebuild

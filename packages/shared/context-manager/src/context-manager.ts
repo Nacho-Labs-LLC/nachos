@@ -144,8 +144,9 @@ export class ContextManager {
     config?: ContextManagementConfig;
     channel?: string; // C1: Cross-channel isolation
     userId?: string; // C1: Cross-channel isolation
+    contextWindow?: number; // Model context window for budget recalculation
   }): Promise<EnhancedCompactionResult> {
-    const { sessionId, messages, action, channel, userId } = params;
+    const { sessionId, messages, action, channel, userId, contextWindow = 200_000 } = params;
     const config = params.config || this.config;
 
     try {
@@ -271,7 +272,7 @@ export class ContextManager {
       const budgetAfter = this.budgetCalculator.calculate({
         messages: slidingResult.messagesKept,
         systemPromptTokens: 0, // Not relevant for post-compaction budget
-        contextWindow: 200000,
+        contextWindow,
         reserveTokens: 0,
       });
 

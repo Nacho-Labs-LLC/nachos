@@ -365,8 +365,8 @@ describe('PythonExecutor', () => {
       // Wait for the event listeners to be attached in runSandboxed
       await new Promise((r) => setTimeout(r, 10));
 
-      // Send data that exceeds 2 * MAX_OUTPUT_SIZE (2 * 10240 = 20480)
-      const bigChunk = 'x'.repeat(25000);
+      // Send data that exceeds 2 * MAX_OUTPUT_SIZE (2 * 102400 = 204800)
+      const bigChunk = 'x'.repeat(210000);
       stdoutEmitter.emit('data', Buffer.from(bigChunk));
 
       // The process should be killed

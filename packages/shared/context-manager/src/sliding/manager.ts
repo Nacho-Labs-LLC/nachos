@@ -450,15 +450,61 @@ export class SlidingWindowManager implements ISlidingWindowManager {
 
     // Score messages by importance
     const scoredMessages = messages
-      .map((msg) => ({
+      .map((msg, index) => ({
         message: msg,
+        index,
         score: this.getMessageImportance(msg),
       }))
       .filter((item) => item.score > 0) // Only consider messages with importance
       .sort((a, b) => b.score - a.score); // Highest score first
 
-    // Take top N most important
-    return scoredMessages.slice(0, maxToPreserve).map((item) => item.message);
+    // Take top N most important, but preserve tool_use/tool_result pairs.
+    // When a tool message is preserved, also include the preceding assistant
+    // message that contains the matching tool_use blocks. Without the pair,
+    // the Anthropic API rejects the request with a 400 error.
+    const preservedIndices = new Set<number>();
+    let preservedCount = 0;
+
+    for (const item of scoredMessages) {
+      if (preservedCount >= maxToPreserve) break;
+      if (preservedIndices.has(item.index)) continue;
+
+      preservedIndices.add(item.index);
+      preservedCount++;
+
+      // If this is a tool result message, find and include the preceding
+      // assistant message with the matching tool_use blocks
+      if (item.message.role === 'tool') {
+        for (let j = item.index - 1; j >= 0; j--) {
+          const candidate = messages[j];
+          if (!candidate) continue;
+          if (
+            candidate.role === 'assistant' &&
+            candidate.toolCalls &&
+            candidate.toolCalls.length > 0
+          ) {
+            if (!preservedIndices.has(j)) {
+              preservedIndices.add(j);
+              // Don't count the paired assistant message against the limit —
+              // it's required for structural validity, not importance
+            }
+            break;
+          }
+          // Also include consecutive tool messages between the assistant and this one
+          if (candidate.role === 'tool') {
+            if (!preservedIndices.has(j)) {
+              preservedIndices.add(j);
+            }
+          } else {
+            break; // Hit a non-tool, non-assistant message — stop looking
+          }
+        }
+      }
+    }
+
+    // Return in original order to maintain conversation flow
+    const sortedIndices = Array.from(preservedIndices).sort((a, b) => a - b);
+    return sortedIndices.map((i) => messages[i]!);
   }
 
   /**

@@ -2,7 +2,7 @@
  * Output Formatter
  *
  * Formats code execution output with:
- * - Size limits (max 10KB)
+ * - Size limits (max 100KB)
  * - Middle truncation (preserve start and end)
  * - Exit code formatting
  */
@@ -22,14 +22,14 @@ export interface FormattedOutput {
 }
 
 /**
- * Maximum output size in bytes (10KB)
+ * Maximum output size in bytes (100KB)
  */
-const MAX_OUTPUT_SIZE = 10 * 1024;
+const MAX_OUTPUT_SIZE = 100 * 1024;
 
 /**
  * Number of bytes to keep from start and end when truncating
  */
-const TRUNCATE_KEEP_BYTES = 4 * 1024;
+const TRUNCATE_KEEP_BYTES = 40 * 1024;
 
 /**
  * Output formatter for code execution results

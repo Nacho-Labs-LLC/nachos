@@ -672,22 +672,22 @@ describe('ToolCoordinator', () => {
   // ---------------------------------------------------------------------------
 
   describe('security tier resolution', () => {
-    it('[TC-33] should resolve code_runner to RESTRICTED tier', async () => {
+    it('[TC-33] should resolve code_runner to STANDARD tier (sandboxed containers)', async () => {
       const { coordinator } = createCoordinator();
       const call = createToolCall({ tool: 'code_runner' });
 
       await coordinator.executeSingle(call);
 
-      expect(call.securityTier).toBe(SecurityTier.RESTRICTED);
+      expect(call.securityTier).toBe(SecurityTier.STANDARD);
     });
 
-    it('[TC-34] should resolve code-runner (hyphenated) to RESTRICTED tier', async () => {
+    it('[TC-34] should resolve code-runner (hyphenated) to STANDARD tier (sandboxed containers)', async () => {
       const { coordinator } = createCoordinator();
       const call = createToolCall({ tool: 'code-runner' });
 
       await coordinator.executeSingle(call);
 
-      expect(call.securityTier).toBe(SecurityTier.RESTRICTED);
+      expect(call.securityTier).toBe(SecurityTier.STANDARD);
     });
 
     it('[TC-35] should resolve copilot to RESTRICTED tier', async () => {

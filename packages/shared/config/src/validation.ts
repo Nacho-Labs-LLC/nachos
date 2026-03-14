@@ -192,6 +192,13 @@ const CONFIG_SHAPE: SchemaNode = {
       enabled: true,
       max_prompt_length: true,
     },
+    agent_exec: {
+      enabled: true,
+      max_concurrent: true,
+      default_timeout: true,
+      max_timeout: true,
+      max_output_buffer: true,
+    },
     groups: true,
   },
   security: {
@@ -409,6 +416,11 @@ const CONFIG_SHAPE: SchemaNode = {
       env: true,
       setup_command: true,
       network: true,
+    },
+    self_management: {
+      enabled: true,
+      source_dir: true,
+      require_confirmation_for_restart: true,
     },
   },
   assistant: { name: true, system_prompt: true },

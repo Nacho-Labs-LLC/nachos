@@ -441,6 +441,7 @@ export class Router {
       sessionId,
       messages: contextMessages,
       action: check.action,
+      contextWindow,
     });
 
     // Convert compacted messages back to NACHOS format
@@ -580,7 +581,11 @@ export class Router {
       });
     }
 
-    const envelope = createEnvelope(this.componentName, 'llm.request', payload);
+    // Strip gateway-only metadata before sending to llm-proxy.
+    // The llm-proxy validates against LLMRequestSchema which rejects unknown fields.
+    const { contextWindow, systemPromptTokens, promptReport, ...llmPayload } = payloadObj;
+
+    const envelope = createEnvelope(this.componentName, 'llm.request', llmPayload);
     return this.bus.request(TOPICS.llm.request, envelope, 60000);
   }
 
@@ -628,7 +633,7 @@ export class Router {
           limit: result.total,
           source: result.source,
         })
-      );
+      ).catch((err) => logger.warn({ err }, 'Failed to publish rate limit audit event'));
     }
     return result;
   }

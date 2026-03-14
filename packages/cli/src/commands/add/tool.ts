@@ -185,15 +185,50 @@ export async function addToolCommand(name: string, options: AddToolOptions): Pro
   const configPath = findConfigFileOrThrow();
 
   try {
-    // Validate tool name
-    if (!isValidTool(name)) {
+    // -----------------------------------------------------------------------
+    // Input validation (#152): sanitize and validate tool name
+    // -----------------------------------------------------------------------
+    const sanitizedName = (name ?? '').trim();
+
+    if (sanitizedName.length === 0) {
       throw new CLIError(
-        `Unknown tool: ${name}`,
+        'Tool name must not be empty',
+        'INVALID_TOOL_NAME',
+        1,
+        `Valid tools: ${VALID_TOOLS.join(', ')}`
+      );
+    }
+
+    if (sanitizedName.length > 64) {
+      throw new CLIError(
+        'Tool name is too long (max 64 characters)',
+        'INVALID_TOOL_NAME',
+        1
+      );
+    }
+
+    // Only allow alphanumeric characters, hyphens, and underscores — no path traversal
+    if (!/^[a-zA-Z0-9_-]+$/.test(sanitizedName)) {
+      throw new CLIError(
+        `Invalid tool name: "${sanitizedName}". Only alphanumeric characters, hyphens, and underscores are allowed.`,
+        'INVALID_TOOL_NAME',
+        1,
+        `Valid tools: ${VALID_TOOLS.join(', ')}`
+      );
+    }
+
+    // Validate tool name against known tools
+    if (!isValidTool(sanitizedName)) {
+      throw new CLIError(
+        `Unknown tool: ${sanitizedName}`,
         'UNKNOWN_TOOL',
         1,
         `Valid tools: ${VALID_TOOLS.join(', ')}`
       );
     }
+
+    // Reassign to validated name for the rest of the function
+    const validatedName: ToolName = sanitizedName as ToolName;
 
     const configContent = readFileSync(configPath, 'utf-8');
     const config = TOML.parse(configContent) as TomlConfig;
@@ -204,28 +239,28 @@ export async function addToolCommand(name: string, options: AddToolOptions): Pro
       Object.assign(tools, config.tools as TOML.JsonMap);
     }
 
-    const isUpdate = !!tools[name];
+    const isUpdate = !!tools[validatedName];
 
     // Build tool config: interactive or flag-based
     let toolConfig: TOML.JsonMap;
 
     if (isInteractive() && !options.json) {
       if (!options.json) {
-        prettyOutput.brandedHeader(`${isUpdate ? 'Update' : 'Add'} ${name} tool`);
+        prettyOutput.brandedHeader(`${isUpdate ? 'Update' : 'Add'} ${validatedName} tool`);
         prettyOutput.blank();
       }
 
-      toolConfig = await promptToolConfig(name as ToolName);
+      toolConfig = await promptToolConfig(validatedName);
     } else {
-      toolConfig = buildConfigFromFlags(name as ToolName, options);
+      toolConfig = buildConfigFromFlags(validatedName, options);
     }
 
     // Idempotent merge: if tool exists, merge new values over existing
     if (isUpdate) {
-      const existing = tools[name] as TOML.JsonMap;
-      tools[name] = { ...existing, ...toolConfig };
+      const existing = tools[validatedName] as TOML.JsonMap;
+      tools[validatedName] = { ...existing, ...toolConfig };
     } else {
-      tools[name] = toolConfig;
+      tools[validatedName] = toolConfig;
     }
 
     config.tools = tools as TOML.JsonMap;
@@ -237,14 +272,14 @@ export async function addToolCommand(name: string, options: AddToolOptions): Pro
     // Display results
     if (options.json) {
       output.success({
-        tool: name,
+        tool: validatedName,
         action: isUpdate ? 'updated' : 'added',
         config_path: configPath,
         config: toolConfig,
       });
     } else {
       prettyOutput.blank();
-      prettyOutput.success(`${isUpdate ? 'Updated' : 'Added'} ${name} tool configuration`);
+      prettyOutput.success(`${isUpdate ? 'Updated' : 'Added'} ${validatedName} tool configuration`);
       prettyOutput.blank();
       prettyOutput.header('Next steps:');
       prettyOutput.indent('1. Review settings in nachos.toml');

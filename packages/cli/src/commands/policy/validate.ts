@@ -4,7 +4,7 @@
  */
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { parse } from 'yaml';
 import { getProjectRoot } from '../../core/config-discovery.js';
 import { OutputFormatter, prettyOutput } from '../../core/output.js';
@@ -23,12 +23,38 @@ export async function validateCommand(options: ValidateOptions): Promise<void> {
     const projectRoot = getProjectRoot();
     const policiesDir = join(projectRoot, 'policies');
 
+    // -----------------------------------------------------------------------
+    // Input validation (#152): ensure policies dir is within project root
+    // -----------------------------------------------------------------------
+    const resolvedPoliciesDir = resolve(policiesDir);
+    const resolvedProjectRoot = resolve(projectRoot);
+    if (!resolvedPoliciesDir.startsWith(resolvedProjectRoot)) {
+      throw new CLIError(
+        'Policies directory is outside the project root',
+        'PATH_TRAVERSAL',
+        1,
+        `Policies must reside within ${resolvedProjectRoot}`
+      );
+    }
+
     // Find all YAML files
     const policyFiles: string[] = [];
     try {
       const files = readdirSync(policiesDir);
       for (const file of files) {
+        // Reject filenames with path traversal characters
+        if (file.includes('..') || file.includes('/') || file.includes('\\')) {
+          continue;
+        }
+
         const filePath = join(policiesDir, file);
+
+        // Verify the resolved path stays within the policies directory
+        const realFilePath = resolve(filePath);
+        if (!realFilePath.startsWith(resolvedPoliciesDir)) {
+          continue;
+        }
+
         if (statSync(filePath).isFile() && (file.endsWith('.yaml') || file.endsWith('.yml'))) {
           policyFiles.push(filePath);
         }

@@ -250,11 +250,12 @@ export class PythonExecutor extends ToolService {
       // Spawn Python process with restricted environment
       const proc = spawn(command, args, {
         timeout: timeoutMs,
-        cwd: workdir,
+        cwd: workdir === '/tmp' ? '/workspace' : workdir,
         env: {
           PATH: '/usr/local/bin:/usr/bin:/bin',
           PYTHONDONTWRITEBYTECODE: '1', // Don't create .pyc files
           PYTHONUNBUFFERED: '1', // Disable output buffering
+          WORKSPACE: '/workspace',
         },
       });
 

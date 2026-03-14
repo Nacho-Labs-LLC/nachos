@@ -366,6 +366,29 @@ rules:
     effect: "allow"
 
   # ============================================================================
+  # Shell Tool - Read-only operations only (build tools + inspection)
+  # Write operations (git write, file manipulation, docker compose) require
+  # permissive mode and are not available in standard mode.
+  # ============================================================================
+  - id: "standard-tool-shell"
+    description: "Allow shell tool execution (read-only commands and build tools only)"
+    priority: 660
+    match:
+      resource: "tool"
+      resourceId: "shell"
+      action: "execute"
+    effect: "allow"
+
+  # Agent Exec - Elevated tier (approval required via SecurityTier in standard mode)
+  - id: "standard-tool-agent-exec"
+    description: "Allow agent_exec tool (SecurityTier: ELEVATED, requires approval)"
+    priority: 655
+    match:
+      resource: "tool"
+      resourceId: "agent_exec"
+    effect: "allow"
+
+  # ============================================================================
   # Network Access - Limited egress
   # ============================================================================
 

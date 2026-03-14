@@ -64,6 +64,11 @@ app.use(
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   })
 );
+// Health endpoint before auth — used by Docker healthcheck
+app.get('/api/health', (c) =>
+  c.json({ status: 'ok', service: 'nachos-admin', timestamp: new Date().toISOString() })
+);
+
 app.use('/api/*', authMiddleware());
 
 app.route('/api/config', configRouter);
@@ -76,10 +81,6 @@ app.route('/api/logs', logsRouter);
 app.route('/api/chat', chatRouter);
 app.route('/api/webchat', webchatRouter);
 app.route('/api/scheduler', schedulerRouter);
-
-app.get('/api/health', (c) =>
-  c.json({ status: 'ok', service: 'nachos-admin', timestamp: new Date().toISOString() })
-);
 
 // Serve built Vue SPA static assets
 app.use('/*', serveStatic({ root: publicDir }));

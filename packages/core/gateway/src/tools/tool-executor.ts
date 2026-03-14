@@ -75,6 +75,11 @@ import {
 } from './cron-tools.js';
 import { getExternalToolDefinitions } from './external-tool-definitions.js';
 import {
+  createAgentExecToolDefinition,
+  handleAgentExecTool,
+} from './agent-exec-tool.js';
+import { AgentProcessRegistry } from './agent-process-registry.js';
+import {
   listSubagentWorkspaceEntries,
   readSubagentWorkspaceFile,
 } from '../subagents/workspace-utils.js';
@@ -98,6 +103,26 @@ import { randomUUID } from 'node:crypto';
 import type { HookRegistry } from '../hooks/index.js';
 
 const logger = createLogger('tool-executor');
+
+/** Default timeout for local tool execution (30 seconds). */
+const DEFAULT_LOCAL_TOOL_TIMEOUT_MS = 30_000;
+
+/** Default timeout for coordinated (remote) tool execution (60 seconds). */
+const DEFAULT_REMOTE_TOOL_TIMEOUT_MS = 60_000;
+
+/**
+ * Wraps a promise with a timeout. Rejects with a descriptive error if the
+ * promise does not settle within `ms` milliseconds.
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timerId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timerId = setTimeout(() => reject(new Error(`Tool execution timed out after ${ms}ms: ${label}`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timerId !== undefined) clearTimeout(timerId);
+  });
+}
 
 // ---------------------------------------------------------------------------
 // ToolExecutorDeps — grouped sub-interfaces
@@ -185,9 +210,26 @@ export class ToolExecutor {
   private deps: ToolExecutorDeps;
   /** H2: Memory tool rate limiting (10 calls per minute per session) */
   private memoryToolCalls: Map<string, number[]> = new Map();
+  /** Agent process registry (Claude Code CLI subprocess launcher) */
+  private agentProcessRegistry: AgentProcessRegistry | null = null;
 
   constructor(deps: ToolExecutorDeps) {
     this.deps = deps;
+
+    // Initialize agent process registry if enabled
+    const agentExecConfig = deps.core.toolsConfig?.agent_exec;
+    if (agentExecConfig?.enabled) {
+      this.agentProcessRegistry = new AgentProcessRegistry({
+        maxConcurrent: agentExecConfig.max_concurrent,
+        defaultTimeoutMs: agentExecConfig.default_timeout
+          ? agentExecConfig.default_timeout * 1000
+          : undefined,
+        maxTimeoutMs: agentExecConfig.max_timeout
+          ? agentExecConfig.max_timeout * 1000
+          : undefined,
+        maxOutputBuffer: agentExecConfig.max_output_buffer,
+      });
+    }
   }
 
   /**
@@ -406,6 +448,17 @@ export class ToolExecutor {
       });
     }
 
+    // Agent exec tool (Claude Code CLI subprocess launcher)
+    // Only available in permissive security mode
+    if (
+      this.agentProcessRegistry &&
+      this.deps.core.toolsConfig?.agent_exec?.enabled &&
+      this.deps.core.securityMode === 'permissive' &&
+      !bootstrapLocked
+    ) {
+      tools.push(createAgentExecToolDefinition());
+    }
+
     // Browser automation tools
     if (this.deps.core.toolsConfig?.browser?.enabled && !bootstrapLocked) {
       // Dynamically import to avoid circular dep at module level
@@ -471,6 +524,36 @@ export class ToolExecutor {
     for (let i = 0; i < calls.length; i += 1) {
       const call = calls[i];
       if (!call) continue;
+
+      // -----------------------------------------------------------------------
+      // Basic tool call validation (#148)
+      // -----------------------------------------------------------------------
+      if (typeof call.tool !== 'string' || call.tool.trim().length === 0) {
+        blockedResults.push({
+          index: i,
+          result: this.formatToolError(
+            'INVALID_TOOL_NAME',
+            'Tool name must be a non-empty string'
+          ),
+        });
+        continue;
+      }
+
+      if (
+        call.parameters === null ||
+        call.parameters === undefined ||
+        Array.isArray(call.parameters) ||
+        typeof call.parameters !== 'object'
+      ) {
+        blockedResults.push({
+          index: i,
+          result: this.formatToolError(
+            'INVALID_PARAMETERS',
+            'Tool parameters must be a plain object (not null, array, or primitive)'
+          ),
+        });
+        continue;
+      }
 
       // Subagent policy check
       if (isSubagentSession(session)) {
@@ -578,8 +661,21 @@ export class ToolExecutor {
         }
       }
 
-      // Try local execution first
-      const localResult = await this.executeLocalToolCall(call, session);
+      // Try local execution first (with timeout guard)
+      let localResult: ToolResult | null;
+      try {
+        localResult = await withTimeout(
+          this.executeLocalToolCall(call, session),
+          DEFAULT_LOCAL_TOOL_TIMEOUT_MS,
+          call.tool
+        );
+      } catch (timeoutErr) {
+        logger.warn({ tool: call.tool, err: timeoutErr }, 'Local tool execution timed out');
+        localResult = this.formatToolError(
+          'TOOL_TIMEOUT',
+          `Tool '${call.tool}' execution timed out after ${DEFAULT_LOCAL_TOOL_TIMEOUT_MS}ms`
+        );
+      }
       if (localResult) {
         if (statusMeta) {
           void this.deps.audit.publishStatusEvent(
@@ -624,9 +720,24 @@ export class ToolExecutor {
       results[local.index] = local.result;
     }
 
-    const executedResults = allowedCalls.length
-      ? await this.deps.core.toolCoordinator.executeTools(allowedCalls.map((item) => item.call))
-      : [];
+    let executedResults: ToolResult[] = [];
+    if (allowedCalls.length) {
+      try {
+        executedResults = await withTimeout(
+          this.deps.core.toolCoordinator.executeTools(allowedCalls.map((item) => item.call)),
+          DEFAULT_REMOTE_TOOL_TIMEOUT_MS,
+          `coordinator[${allowedCalls.map((c) => c.call.tool).join(',')}]`
+        );
+      } catch (timeoutErr) {
+        logger.warn({ err: timeoutErr }, 'Remote tool execution timed out');
+        executedResults = allowedCalls.map((c) =>
+          this.formatToolError(
+            'TOOL_TIMEOUT',
+            `Tool '${c.call.tool}' execution timed out after ${DEFAULT_REMOTE_TOOL_TIMEOUT_MS}ms`
+          )
+        );
+      }
+    }
 
     for (let i = 0; i < allowedCalls.length; i += 1) {
       const allowed = allowedCalls[i];
@@ -1281,6 +1392,19 @@ export class ToolExecutor {
       };
 
       return executeWebFetchNative(call, webFetchConfig, session.userId);
+    }
+
+    if (call.tool === 'agent_exec') {
+      if (!this.agentProcessRegistry) {
+        return this.formatToolError('AGENT_EXEC_DISABLED', 'Agent exec tool is not enabled');
+      }
+      if (this.deps.core.securityMode !== 'permissive') {
+        return this.formatToolError(
+          'SECURITY_MODE_DENIED',
+          'Agent exec tool is only available in permissive security mode'
+        );
+      }
+      return handleAgentExecTool(call, this.agentProcessRegistry);
     }
 
     return null;

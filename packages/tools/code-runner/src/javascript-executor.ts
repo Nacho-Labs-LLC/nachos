@@ -250,11 +250,12 @@ export class JavaScriptExecutor extends ToolService {
       // Spawn Node.js process with restricted environment
       const proc = spawn(command, args, {
         timeout: timeoutMs,
-        cwd: workdir,
+        cwd: workdir === '/tmp' ? '/workspace' : workdir,
         env: {
           PATH: '/usr/local/bin:/usr/bin:/bin',
           NODE_ENV: 'production',
           NODE_OPTIONS: this.buildNodeOptions(), // Suppress warnings + memory cap
+          WORKSPACE: '/workspace',
         },
       });
 

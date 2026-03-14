@@ -326,7 +326,7 @@ describe('JavaScriptExecutor', () => {
       );
     });
 
-    it('uses /tmp as default workdir', async () => {
+    it('uses /workspace as default cwd', async () => {
       mockSpawn.mockReturnValue(createMockProcess({ stdout: 'ok', exitCode: 0 }));
 
       await executor.execute({
@@ -338,7 +338,7 @@ describe('JavaScriptExecutor', () => {
         'node',
         expect.any(Array),
         expect.objectContaining({
-          cwd: '/tmp',
+          cwd: '/workspace',
         })
       );
     });
