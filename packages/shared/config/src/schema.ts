@@ -49,6 +49,8 @@ export interface LLMConfig {
   temperature?: number;
   base_url?: string; // For Ollama and custom providers
   region?: string; // AWS region for Bedrock provider
+  /** Override the model's context window size (tokens). Auto-detected from model ID if omitted. */
+  context_window?: number;
 }
 
 /**
@@ -325,6 +327,17 @@ export interface GitHubToolConfig {
 }
 
 /**
+ * Agent exec tool configuration (Claude Code CLI subprocess launcher)
+ */
+export interface AgentExecToolConfig {
+  enabled?: boolean;
+  max_concurrent?: number;
+  default_timeout?: number;
+  max_timeout?: number;
+  max_output_buffer?: number;
+}
+
+/**
  * All tool configurations
  */
 export interface ToolsConfig {
@@ -340,6 +353,7 @@ export interface ToolsConfig {
   bitbucket?: BitbucketToolConfig;
   composio?: ComposioToolConfig;
   github?: GitHubToolConfig;
+  agent_exec?: AgentExecToolConfig;
   groups?: Record<string, ToolGroupConfig>;
 }
 
@@ -702,6 +716,15 @@ export interface RuntimeToolSandboxConfig {
 }
 
 /**
+ * Self-management configuration for DevOps capability
+ */
+export interface SelfManagementConfig {
+  enabled?: boolean;
+  source_dir?: string;
+  require_confirmation_for_restart?: boolean;
+}
+
+/**
  * Runtime configuration
  */
 export interface RuntimeConfig {
@@ -720,6 +743,7 @@ export interface RuntimeConfig {
   state?: StateLayerConfig;
   subagents?: SubagentConfig;
   sandbox?: RuntimeToolSandboxConfig;
+  self_management?: SelfManagementConfig;
 }
 
 /**

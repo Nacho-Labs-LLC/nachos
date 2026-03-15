@@ -28,6 +28,7 @@ export interface PromptAssemblyParams {
   sessionState?: SessionStateRecord | null;
   skills?: string | null; // Formatted skills documentation
   includeMemoryInstructions?: boolean; // Whether to include memory tool usage instructions
+  includeDelegationInstructions?: boolean; // Whether to include subagent/agent_exec guidance
 }
 
 export class PromptAssembler {
@@ -61,6 +62,15 @@ export class PromptAssembler {
       sections.push({
         name: 'memory_instructions',
         content: this.formatMemoryInstructions(),
+        source: 'prompt-assembler',
+      });
+    }
+
+    // Add delegation instructions (subagents vs agent_exec)
+    if (params.includeDelegationInstructions) {
+      sections.push({
+        name: 'delegation_instructions',
+        content: this.formatDelegationInstructions(),
         source: 'prompt-assembler',
       });
     }
@@ -264,6 +274,18 @@ Only delete memories when the user requests it or when you discover a memory is 
 - Maximum 1-2 memory searches per response
 - Only search when genuinely needed (don't search "just in case")
 - If no relevant memories found, acknowledge that clearly`;
+  }
+
+  private formatDelegationInstructions(): string {
+    return `## Task Delegation
+
+**Subagents** (\`sessions_orchestrate\` / subagent tools):
+Use for focused tasks that need auditing and policy checks — research, file reading, web searches, simple Q&A subtasks. Each subagent runs through the Nachos pipeline with full governance and its tool access is limited by profile (research, frontend, qa, etc.).
+
+**Agent Exec** (\`agent_exec\` tool):
+Use for autonomous coding tasks requiring full file and terminal access — debugging, writing tests, refactoring, building features. Launches Claude Code CLI as a subprocess. Only available in permissive security mode. Max 2 concurrent agents, 5min default timeout (30min max). Use \`spawn\` to start, \`status\`/\`output\` to monitor, \`cancel\` to stop.
+
+**Rule of thumb:** prefer subagents for read-heavy or scoped work; use agent_exec when the task needs unrestricted write access to the codebase.`;
   }
 
   private formatSessionState(record: SessionStateRecord): string {

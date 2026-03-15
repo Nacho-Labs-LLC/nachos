@@ -90,23 +90,76 @@ export class RedisSessionStateStore implements SessionStateStore {
   }
 }
 
+/** Default TTL for in-memory session entries (30 minutes). */
+const DEFAULT_INMEMORY_TTL_MS = 30 * 60 * 1000;
+
+/** Interval between TTL cleanup sweeps (5 minutes). */
+const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+
+interface InMemoryEntry {
+  record: SessionStateRecord;
+  expiresAt: number;
+}
+
 export class InMemorySessionStateStore implements SessionStateStore {
-  private records = new Map<string, SessionStateRecord>();
+  private entries = new Map<string, InMemoryEntry>();
+  private ttlMs: number;
+  private cleanupTimer?: ReturnType<typeof setInterval>;
+
+  constructor(ttlSeconds?: number) {
+    this.ttlMs = (ttlSeconds ?? DEFAULT_INMEMORY_TTL_MS / 1000) * 1000;
+    this.cleanupTimer = setInterval(() => this.cleanup(), CLEANUP_INTERVAL_MS);
+    // Allow the process to exit even if the timer is still running.
+    if (this.cleanupTimer.unref) {
+      this.cleanupTimer.unref();
+    }
+  }
 
   async get(sessionId: string): Promise<SessionStateRecord | null> {
-    return this.records.get(sessionId) ?? null;
+    const entry = this.entries.get(sessionId);
+    if (!entry) return null;
+    if (Date.now() > entry.expiresAt) {
+      this.entries.delete(sessionId);
+      return null;
+    }
+    return entry.record;
   }
 
   async set(record: SessionStateRecord): Promise<SessionStateRecord> {
-    this.records.set(record.sessionId, record);
+    this.entries.set(record.sessionId, {
+      record,
+      expiresAt: Date.now() + this.ttlMs,
+    });
     return record;
   }
 
-  async touch(_sessionId: string, _ttlSeconds?: number): Promise<void> {
-    // No-op for in-memory store.
+  async touch(sessionId: string, ttlSeconds?: number): Promise<void> {
+    const entry = this.entries.get(sessionId);
+    if (entry) {
+      const extensionMs = ttlSeconds ? ttlSeconds * 1000 : this.ttlMs;
+      entry.expiresAt = Date.now() + extensionMs;
+    }
   }
 
   async delete(sessionId: string): Promise<void> {
-    this.records.delete(sessionId);
+    this.entries.delete(sessionId);
+  }
+
+  /** Stop the periodic cleanup timer (for graceful shutdown or tests). */
+  close(): void {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = undefined;
+    }
+  }
+
+  /** Remove expired entries. Called periodically by the cleanup timer. */
+  private cleanup(): void {
+    const now = Date.now();
+    for (const [key, entry] of this.entries) {
+      if (now > entry.expiresAt) {
+        this.entries.delete(key);
+      }
+    }
   }
 }

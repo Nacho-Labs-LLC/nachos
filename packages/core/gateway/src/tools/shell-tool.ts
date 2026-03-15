@@ -111,11 +111,18 @@ interface CommandSegment {
 }
 
 /**
+ * Security mode type
+ */
+export type SecurityMode = 'strict' | 'standard' | 'permissive';
+
+/**
  * Shell tool configuration
  */
 export interface ShellToolConfig {
   /** Logger instance */
   logger: Logger;
+  /** Security mode — controls which tools are available (default: 'standard') */
+  securityMode?: SecurityMode;
   /** Maximum output size in bytes (default: 100KB) */
   maxOutputSize?: number;
   /** Default timeout in ms (default: 30s) */
@@ -266,6 +273,64 @@ const DEFAULT_SKILL_TOOLS: SkillToolConfig[] = [
   { bin: 'unzip', group: 'archive', readonly: true },
   { bin: 'gunzip', group: 'archive', readonly: true },
   { bin: 'bunzip2', group: 'archive', readonly: true },
+
+  // Build/dev tools (available in all modes)
+  { bin: 'npm', group: 'build', defaultTimeout: 300000 },
+  { bin: 'npx', group: 'build', defaultTimeout: 300000 },
+  { bin: 'pnpm', group: 'build', defaultTimeout: 300000 },
+  { bin: 'yarn', group: 'build', defaultTimeout: 300000 },
+  { bin: 'node', group: 'build', defaultTimeout: 300000 },
+  { bin: 'python3', group: 'build', defaultTimeout: 300000 },
+  { bin: 'pip', group: 'build', defaultTimeout: 300000 },
+  { bin: 'pip3', group: 'build', defaultTimeout: 300000 },
+  { bin: 'make', group: 'build', defaultTimeout: 300000 },
+  { bin: 'tsc', group: 'build', defaultTimeout: 120000 },
+  { bin: 'vitest', group: 'build', defaultTimeout: 300000 },
+  { bin: 'eslint', group: 'build', defaultTimeout: 120000 },
+  { bin: 'prettier', group: 'build', defaultTimeout: 120000 },
+];
+
+/**
+ * Permissive-only skill tools — write-capable commands gated by security mode.
+ * These are ONLY available when securityMode is 'permissive'.
+ */
+const PERMISSIVE_SKILL_TOOLS: SkillToolConfig[] = [
+  // Git write operations (permissive only)
+  {
+    bin: 'git',
+    group: 'git',
+    allowedSubcommands: [
+      // Read operations (also in DEFAULT)
+      'status', 'log', 'diff', 'show', 'branch', 'remote', 'config', 'rev-parse', 'describe',
+      // Write operations (permissive only)
+      'add', 'commit', 'checkout', 'stash', 'cherry-pick', 'rebase', 'merge',
+      'pull', 'fetch', 'clone', 'push', 'tag',
+    ],
+    defaultTimeout: 300000,
+  },
+
+  // File manipulation tools (permissive only)
+  { bin: 'mkdir', group: 'file-manipulation', defaultTimeout: 30000 },
+  { bin: 'cp', group: 'file-manipulation', defaultTimeout: 60000 },
+  { bin: 'mv', group: 'file-manipulation', defaultTimeout: 60000 },
+  { bin: 'rm', group: 'file-manipulation', defaultTimeout: 30000 },
+  { bin: 'touch', group: 'file-manipulation', defaultTimeout: 30000 },
+  { bin: 'chmod', group: 'file-manipulation', defaultTimeout: 30000 },
+  { bin: 'ln', group: 'file-manipulation', defaultTimeout: 30000 },
+  { bin: 'tee', group: 'file-manipulation', defaultTimeout: 30000 },
+
+  // Docker compose operations (permissive only)
+  {
+    bin: 'docker',
+    group: 'docker',
+    allowedSubcommands: [
+      // Read operations (also in DEFAULT)
+      'ps', 'logs', 'inspect', 'images', 'stats', 'version', 'info',
+      // Write operations (permissive only)
+      'build', 'run', 'exec', 'stop', 'restart', 'compose',
+    ],
+    defaultTimeout: 300000,
+  },
 ];
 
 /**
@@ -287,6 +352,7 @@ const WRITE_FLAGS: Record<string, string[]> = {
  */
 export class ShellTool {
   private logger: Logger;
+  private securityMode: SecurityMode;
   private maxOutputSize: number;
   private defaultTimeout: number;
   private maxTimeout: number;
@@ -296,15 +362,36 @@ export class ShellTool {
 
   constructor(config: ShellToolConfig) {
     this.logger = config.logger;
+    this.securityMode = config.securityMode ?? 'standard';
     this.maxOutputSize = config.maxOutputSize ?? 100 * 1024; // 100KB
     this.defaultTimeout = config.defaultTimeout ?? 30000; // 30s
     this.maxTimeout = config.maxTimeout ?? 300000; // 5min
     this.auditLogPath = config.auditLogPath ?? '/var/log/nachos/shell-audit.log';
     this.enableAuditLog = config.enableAuditLog ?? true;
 
-    // Build allowed tools map
-    const tools = config.allowedTools ?? DEFAULT_SKILL_TOOLS;
+    // Build allowed tools map — merge permissive tools when in permissive mode
+    const tools = config.allowedTools ?? this.buildToolList();
     this.allowedTools = new Map(tools.map((t) => [t.bin, t]));
+  }
+
+  /**
+   * Build the final tool list based on security mode.
+   * In permissive mode, PERMISSIVE_SKILL_TOOLS override DEFAULT entries
+   * for the same binary (e.g., git gets write subcommands).
+   */
+  private buildToolList(): SkillToolConfig[] {
+    if (this.securityMode === 'permissive') {
+      // Permissive entries override default entries with the same bin name
+      const merged = new Map<string, SkillToolConfig>();
+      for (const tool of DEFAULT_SKILL_TOOLS) {
+        merged.set(tool.bin, tool);
+      }
+      for (const tool of PERMISSIVE_SKILL_TOOLS) {
+        merged.set(tool.bin, tool);
+      }
+      return Array.from(merged.values());
+    }
+    return [...DEFAULT_SKILL_TOOLS];
   }
 
   /**

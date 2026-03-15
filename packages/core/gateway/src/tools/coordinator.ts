@@ -486,8 +486,17 @@ export class ToolCoordinator {
 
     const tool = call.tool.toLowerCase();
 
-    if (tool.includes('code_runner') || tool.includes('code-runner') || tool === 'copilot') {
+    if (tool === 'copilot') {
       return SecurityTier.RESTRICTED;
+    }
+
+    // Code runners are sandboxed in isolated containers — STANDARD tier is sufficient
+    if (tool.includes('code_runner') || tool.includes('code-runner')) {
+      return SecurityTier.STANDARD;
+    }
+
+    if (tool === 'agent_exec') {
+      return SecurityTier.ELEVATED;
     }
 
     if (

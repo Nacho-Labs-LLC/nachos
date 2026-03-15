@@ -526,6 +526,27 @@ rules:
     effect: "allow"
 
   # ============================================================================
+  # Shell Tool - Full access (read-only + write operations)
+  # ============================================================================
+  - id: "permissive-tool-shell"
+    description: "Allow shell tool execution with full capabilities (build, git write, file manipulation, docker)"
+    priority: 660
+    match:
+      resource: "tool"
+      resourceId: "shell"
+      action: "execute"
+    effect: "allow"
+
+  # Agent Exec - Elevated tier (Claude Code CLI subprocess launcher)
+  - id: "permissive-tool-agent-exec"
+    description: "Allow agent_exec tool (SecurityTier: ELEVATED) — launches Claude Code CLI subprocesses"
+    priority: 655
+    match:
+      resource: "tool"
+      resourceId: "agent_exec"
+    effect: "allow"
+
+  # ============================================================================
   # Network Access - Broader access
   # ============================================================================
 

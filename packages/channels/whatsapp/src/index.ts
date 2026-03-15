@@ -159,6 +159,13 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
     }
 
     if (!this.appSecret) {
+      if (this.securityMode === 'strict') {
+        throw createConfigError(
+          'WhatsApp appSecret (WHATSAPP_APP_SECRET) is required in strict security mode. ' +
+            'Webhook signature verification cannot be disabled when running in strict mode.',
+          { component: 'whatsapp-channel' }
+        );
+      }
       logger.warn(
         'appSecret is not configured. Webhook signature verification is disabled. Set WHATSAPP_APP_SECRET to enable signature verification.'
       );

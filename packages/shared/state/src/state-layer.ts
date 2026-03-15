@@ -807,10 +807,22 @@ function createWorkspaceDocumentStore(
   });
 }
 
+/** Default maximum connections per pool. Prevents unbounded PG connection growth. */
+const DEFAULT_MAX_CONNECTIONS = 20;
+/** Hard cap on maxConnections to guard against misconfiguration. */
+const MAX_CONNECTIONS_LIMIT = 50;
+
 function createPgPool(settings: StateStorePostgresConfig): Pool {
+  const maxConnections = settings.maxConnections ?? DEFAULT_MAX_CONNECTIONS;
+  if (maxConnections > MAX_CONNECTIONS_LIMIT) {
+    logger.warn(
+      { configured: maxConnections, limit: MAX_CONNECTIONS_LIMIT },
+      `maxConnections (${maxConnections}) exceeds limit of ${MAX_CONNECTIONS_LIMIT} — clamping to ${MAX_CONNECTIONS_LIMIT}`
+    );
+  }
   return new pg.Pool({
     connectionString: settings.connectionString,
     ssl: settings.ssl,
-    max: settings.maxConnections,
+    max: Math.min(maxConnections, MAX_CONNECTIONS_LIMIT),
   });
 }

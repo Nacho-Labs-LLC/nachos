@@ -38,7 +38,7 @@ import type {
   ToolsConfig,
   NachosConfig,
 } from '@nachos/config';
-import { loadAndValidateConfig, validateConfigOrThrow } from '@nachos/config';
+import { loadAndValidateConfig, validateConfigOrThrow, getModelContextWindow } from '@nachos/config';
 import { randomUUID } from 'node:crypto';
 import Database from 'better-sqlite3';
 import type { SessionsStore } from '@nachos/state';
@@ -260,6 +260,7 @@ export class Gateway {
   private isConnected: boolean = false;
   private shutdownHandlers: (() => void)[] = [];
   private stateLayer?: StateLayer;
+  private _stateLayerInitPromise?: Promise<void>;
   private memoryPipeline?: MemoryPipeline;
   private memoryPipelineInterval?: NodeJS.Timeout;
   private sessionSweeperInterval?: NodeJS.Timeout;
@@ -350,9 +351,8 @@ export class Gateway {
         this.buildStateLayerDependencies()
       );
       // Initialize state layer (e.g., semantic search if enabled)
-      this.stateLayer.init().catch((error) => {
-        logger.error({ err: error }, 'Failed to initialize state layer');
-      });
+      // Note: init() is awaited in start() — fail-fast if state layer cannot initialize
+      this._stateLayerInitPromise = this.stateLayer.init();
     }
 
     // Initialize sessions store: use stateLayer's store if available, else create standalone SQLite store
@@ -722,7 +722,7 @@ export class Gateway {
             createdAt: session.createdAt ?? new Date().toISOString(),
           },
           timestamp: new Date().toISOString(),
-        });
+        }).catch((err) => logger.warn({ err }, 'session:created hook emission failed'));
       } catch (hookError) {
         logger.warn({ err: hookError }, 'session:created hook failed');
       }
@@ -849,7 +849,7 @@ export class Gateway {
         text: messageText,
         sessionId: session.id,
         timestamp: new Date().toISOString(),
-      });
+      }).catch((err) => logger.warn({ err }, 'message:received hook emission failed'));
     } catch (hookError) {
       logger.warn({ err: hookError }, 'message:received hook failed');
     }
@@ -891,7 +891,7 @@ export class Gateway {
         'thinking',
         message.conversation.id,
         message.channelMessageId ?? undefined
-      );
+      ).catch((err) => logger.warn({ err }, 'Failed to publish thinking status event'));
 
       const response = await this.requestLLMResponse(
         session.id,
@@ -909,7 +909,7 @@ export class Gateway {
         'error',
         message.conversation.id,
         message.channelMessageId ?? undefined
-      );
+      ).catch((err) => logger.warn({ err }, 'Failed to publish error status event'));
 
       // Send error feedback to the user instead of silent failure
       const errorOutbound: ChannelOutboundMessage = {
@@ -1232,7 +1232,7 @@ export class Gateway {
           sessionId: previous.id,
           reason: 'user_command',
           timestamp: new Date().toISOString(),
-        });
+        }).catch((err) => logger.warn({ err }, 'session:destroyed hook emission failed'));
       } catch (hookError) {
         logger.warn({ err: hookError }, 'session:destroyed hook failed');
       }
@@ -1272,7 +1272,7 @@ export class Gateway {
     sessionId: string,
     extraMessages: LLMRequestType['messages'] = [],
     stream: boolean = false
-  ): Promise<LLMRequestType & { systemPromptTokens?: number; promptReport?: PromptReport }> {
+  ): Promise<LLMRequestType & { contextWindow?: number; systemPromptTokens?: number; promptReport?: PromptReport }> {
     const session = await this.sessionsStore.getSessionWithMessages(sessionId);
     if (!session) {
       throw createSessionNotFoundError('Session not found', { component: 'gateway' });
@@ -1345,6 +1345,7 @@ export class Gateway {
           sessionState,
           skills: this.skillsManager.getSkillsPrompt(),
           includeMemoryInstructions: true, // Add memory recall instructions
+          includeDelegationInstructions: true, // Add subagent vs agent_exec guidance
         });
 
         prompt = assembled.prompt;
@@ -1411,11 +1412,20 @@ export class Gateway {
       messages.push(...extraMessages);
     }
 
-    // Safety net: ensure every assistant tool_use block has a matching tool_result.
-    // Orphaned tool_use blocks cause Anthropic API 400 errors.
+    // Safety net: ensure every assistant tool_use block has a matching tool_result
+    // AND every tool_result block has a matching tool_use in a preceding assistant message.
+    // Orphaned blocks in either direction cause Anthropic API 400 errors.
     this.patchOrphanedToolUseBlocks(messages);
+    this.removeOrphanedToolResultBlocks(messages);
 
     const tools = this.toolExecutor.buildToolDefinitions(session, { bootstrapLocked });
+
+    // Resolve context window from model ID, with explicit config override
+    const effectiveModel = session.config?.model ?? this.nachosConfig?.llm?.model;
+    const contextWindow = getModelContextWindow(
+      effectiveModel,
+      this.nachosConfig?.llm?.context_window
+    );
 
     return {
       sessionId,
@@ -1426,6 +1436,7 @@ export class Gateway {
         maxTokens: session.config?.maxTokens,
         stream,
       },
+      contextWindow,
       systemPromptTokens,
       promptReport,
     };
@@ -1496,6 +1507,57 @@ export class Gateway {
     }
   }
 
+  /**
+   * Remove tool_result blocks whose tool_use_id has no matching tool_use
+   * in any preceding assistant message. This is the reverse complement of
+   * patchOrphanedToolUseBlocks — it handles cases where compaction preserved
+   * a tool result but dropped the assistant message that issued the tool call.
+   * Mutates the messages array in place.
+   */
+  private removeOrphanedToolResultBlocks(messages: LLMRequestType['messages']): void {
+    // First pass: collect all tool_use IDs from assistant messages
+    const allToolUseIds = new Set<string>();
+    for (const msg of messages) {
+      if (msg?.role === 'assistant' && Array.isArray(msg.content)) {
+        for (const block of msg.content as Array<{ type?: string; id?: string }>) {
+          if (block?.type === 'tool_use' && block.id) {
+            allToolUseIds.add(block.id);
+          }
+        }
+      }
+    }
+
+    // Second pass: remove tool messages with orphaned tool_result blocks
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (!msg || msg.role !== 'tool' || !Array.isArray(msg.content)) continue;
+
+      const blocks = msg.content as Array<{ type?: string; tool_use_id?: string }>;
+      const validBlocks = blocks.filter(
+        (block) =>
+          !block || block.type !== 'tool_result' || !block.tool_use_id || allToolUseIds.has(block.tool_use_id)
+      );
+
+      if (validBlocks.length === blocks.length) continue; // No orphans
+
+      const orphanedIds = blocks
+        .filter((b) => b?.type === 'tool_result' && b.tool_use_id && !allToolUseIds.has(b.tool_use_id))
+        .map((b) => b.tool_use_id);
+
+      logger.warn(
+        { orphanedIds, messageIndex: i },
+        'Removing orphaned tool_result blocks with no matching tool_use'
+      );
+
+      if (validBlocks.length === 0) {
+        // All blocks were orphaned — remove the entire message
+        messages.splice(i, 1);
+      } else {
+        msg.content = validBlocks as unknown as string;
+      }
+    }
+  }
+
   private async requestLLMResponse(
     sessionId: string,
     extraMessages: LLMRequestType['messages'] = [],
@@ -1515,7 +1577,7 @@ export class Gateway {
         stream: Boolean(request.options?.stream),
         options: request.options as Readonly<Record<string, unknown>> | undefined,
         timestamp: new Date().toISOString(),
-      });
+      }).catch((err) => logger.warn({ err }, 'llm:before-request hook emission failed'));
     } catch (hookError) {
       logger.warn({ err: hookError }, 'llm:before-request observe hook failed');
     }
@@ -1604,7 +1666,7 @@ export class Gateway {
           : undefined,
         toolIteration: 0,
         timestamp: new Date().toISOString(),
-      });
+      }).catch((err) => logger.warn({ err }, 'llm:after-response hook emission failed'));
     } catch (hookError) {
       logger.warn({ err: hookError }, 'llm:after-response hook failed');
     }
@@ -2042,7 +2104,7 @@ export class Gateway {
             'error',
             inbound.conversation.id,
             inbound.channelMessageId ?? undefined
-          );
+          ).catch((err) => logger.warn({ err }, 'Failed to publish tool error status event'));
         }
         // On success we returned above; on error fall through to send responseText
       }
@@ -2171,7 +2233,7 @@ export class Gateway {
         format: 'markdown',
         replyToMessageId: this.getReplyToMessageId(inbound),
         timestamp: new Date().toISOString(),
-      });
+      }).catch((err) => logger.warn({ err }, 'response:before-send hook emission failed'));
     } catch (hookError) {
       logger.warn({ err: hookError }, 'response:before-send observe hook failed');
     }
@@ -2201,7 +2263,7 @@ export class Gateway {
       'done',
       inbound.conversation.id,
       inbound.channelMessageId ?? undefined
-    );
+    ).catch((err) => logger.warn({ err }, 'Failed to publish done status event'));
   }
 
   private coerceLLMContentText(content: unknown) {
@@ -2354,6 +2416,16 @@ export class Gateway {
    * Start the gateway
    */
   async start(): Promise<void> {
+    // Fail startup if state layer initialization fails (Issue #147)
+    if (this._stateLayerInitPromise) {
+      try {
+        await this._stateLayerInitPromise;
+      } catch (error) {
+        logger.fatal({ err: error }, 'State layer initialization failed — aborting startup');
+        throw error;
+      }
+    }
+
     if (this.options.auditConfig?.enabled) {
       const provider = await loadAuditProvider(this.options.auditConfig);
       this.auditLogger = new AuditLogger(provider);
@@ -2375,10 +2447,12 @@ export class Gateway {
     // Initialize local tool handler for gateway-integrated tools (exec/shell)
     const { LocalToolHandler } = await import('./tools/local-tool-handler.js');
     const localToolsLogger = createLogger('local-tools');
+    const securityMode = this.options.policyConfig?.securityMode ?? 'standard';
     const localToolHandler = new LocalToolHandler({
       logger: localToolsLogger,
       shellConfig: {
         allowedTools: skillToolConfigs,
+        securityMode,
       },
     });
     this.localToolHandler = localToolHandler;
@@ -2489,7 +2563,7 @@ export class Gateway {
         securityMode: this.securityMode,
         streamingEnabled: this.options.streamingPassthrough ?? false,
         timestamp: new Date().toISOString(),
-      });
+      }).catch((err) => logger.warn({ err }, 'gateway:startup hook emission failed'));
     } catch (hookError) {
       logger.warn({ err: hookError }, 'gateway:startup hook failed');
     }
@@ -2634,7 +2708,7 @@ export class Gateway {
         instanceId: this.instanceId,
         reason: 'api',
         timestamp: new Date().toISOString(),
-      });
+      }).catch((err) => logger.warn({ err }, 'gateway:shutdown hook emission failed'));
     } catch (hookError) {
       logger.warn({ err: hookError }, 'gateway:shutdown hook failed');
     }
@@ -2774,7 +2848,11 @@ export class Gateway {
     if (!this.auditLogger) {
       return;
     }
-    await this.auditLogger.log(event);
+    try {
+      await this.auditLogger.log(event);
+    } catch (err) {
+      logger.warn({ err, eventType: event.eventType }, 'Failed to log audit event');
+    }
   }
 
   /**
