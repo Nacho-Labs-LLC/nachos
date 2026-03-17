@@ -62,7 +62,6 @@ export class ContextManager {
   private messageAdapter: MessageAdapter;
   private snapshotService?: IContextSnapshotService;
   private summarizationService?: ISummarizationService;
-  private memorySearch?: MemorySearchFunction; // H2: Semantic search
 
   constructor(config: ContextManagementConfig, dependencies?: ContextManagerDependencies) {
     this.config = config;
@@ -72,7 +71,8 @@ export class ContextManager {
     this.messageAdapter = new MessageAdapter();
     this.snapshotService = dependencies?.snapshotService;
     this.summarizationService = dependencies?.summarizationService;
-    this.memorySearch = dependencies?.memorySearch; // H2
+    // memorySearch is accepted for backward compat but no longer stored
+    void dependencies?.memorySearch;
   }
 
   /**
@@ -98,15 +98,13 @@ export class ContextManager {
       systemPromptTokens,
       contextWindow,
       reserveTokens,
-      injectMemory = true,
+      // injectMemory is accepted for backward compat but is a no-op
+      // (memory injection moved to manifest + memory_recall tool)
+      injectMemory: _injectMemory = true,
     } = params;
 
     // C1: channel and userId are used in compact() method, validated there
-
-    // H2: Auto-inject semantic search results before calculating budget
-    if (injectMemory && this.memorySearch && messages.length > 0) {
-      await this.injectSemanticMemory(messages);
-    }
+    void _injectMemory;
 
     // Calculate current budget
     const budget = this.budgetCalculator.calculate({
@@ -390,82 +388,6 @@ export class ContextManager {
     return this.messageAdapter;
   }
 
-  /**
-   * H2: Extract topic/query from the most recent user message
-   *
-   * Analyzes the user's latest message to identify key topics for semantic search
-   */
-  private extractTopicFromMessage(message: ContextMessage): string | null {
-    if (message.role !== 'user') {
-      return null;
-    }
-
-    const content =
-      typeof message.content === 'string'
-        ? message.content
-        : message.content
-            .filter((block) => block.type === 'text')
-            .map((block) => block.text || block.content || '')
-            .join(' ');
-
-    // Skip very short messages (likely not enough context)
-    if (content.length < 10) {
-      return null;
-    }
-
-    // Simple topic extraction: take the full message (could be enhanced with NLP)
-    // For now, we'll use the full content and let semantic search handle similarity
-    return content.trim();
-  }
-
-  /**
-   * H2: Auto-inject semantic search results into context
-   *
-   * @deprecated Memory injection is now handled via the memory manifest in
-   * the system prompt (see memory-manifest.ts) and the `memory_recall` LLM
-   * tool. This method is intentionally a no-op to preserve backward
-   * compatibility — callers that pass `injectMemory: true` will not break.
-   */
-  private async injectSemanticMemory(_messages: ContextMessage[]): Promise<void> {
-    // No-op: manifest-based approach replaces per-turn shotgun injection.
-    // The lightweight manifest is assembled in prompt-assembler.ts and the
-    // LLM uses the `memory_recall` tool for detailed retrieval on demand.
-    return;
-  }
-
-  /**
-   * H2: Format memory search results for injection
-   */
-  private formatMemoryResults(
-    entries: Array<{
-      kind: string;
-      content: string;
-      confidence?: number;
-      tags?: string[];
-    }>
-  ): string {
-    const lines: string[] = [
-      '=== Relevant Context from Memory ===',
-      'The following memories may be relevant to the current conversation:',
-      '',
-    ];
-
-    for (let i = 0; i < entries.length; i++) {
-      const entry = entries[i];
-      if (!entry) continue;
-
-      const confidence = entry.confidence
-        ? ` (${(entry.confidence * 100).toFixed(0)}% relevant)`
-        : '';
-      const tags = entry.tags && entry.tags.length > 0 ? ` [${entry.tags.join(', ')}]` : '';
-
-      lines.push(`${i + 1}. [${entry.kind}]${tags}${confidence}`);
-      lines.push(`   ${entry.content}`);
-      lines.push('');
-    }
-
-    return lines.join('\n');
-  }
 }
 
 /**
