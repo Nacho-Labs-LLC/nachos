@@ -2221,7 +2221,7 @@ function getBrowserToolDefinitions(): Array<{
     {
       name: 'browser_snapshot',
       description:
-        'Capture an accessibility snapshot of the current page. Returns a structured ARIA tree with element references (ref) that can be used to target elements in subsequent actions like click, type, and fill.',
+        'Capture an accessibility snapshot of the current page. Returns a structured ARIA tree with element references (ref) that can be used to target elements in subsequent actions like click, type, and fill. Always call this first before interacting with page elements.',
       parameters: { type: 'object', properties: {} },
     },
     {
@@ -2231,122 +2231,179 @@ function getBrowserToolDefinitions(): Array<{
       parameters: {
         type: 'object',
         properties: {
-          element: { type: 'string', description: 'Element ref from accessibility snapshot' },
+          element: { type: 'string', description: 'Human-readable element description for logging' },
           ref: { type: 'string', description: 'Element ref from accessibility snapshot' },
         },
-        required: ['element'],
+        required: ['element', 'ref'],
       },
     },
     {
       name: 'browser_type',
       description:
-        'Type text using keyboard. Each character generates keydown, keypress/input, and keyup events.',
+        'Type text using keyboard into a focused element. Each character generates keydown, keypress/input, and keyup events.',
       parameters: {
         type: 'object',
         properties: {
           text: { type: 'string', description: 'Text to type' },
-          submit: { type: 'boolean', description: 'Press Enter after typing' },
+          submit: { type: 'boolean', description: 'Press Enter after typing (default: false)' },
         },
         required: ['text'],
       },
     },
     {
       name: 'browser_fill',
-      description: 'Clear and fill an input element.',
+      description: 'Clear and fill an input element with text. Use ref from browser_snapshot.',
       parameters: {
         type: 'object',
         properties: {
-          element: { type: 'string', description: 'Element ref' },
-          ref: { type: 'string', description: 'Element ref' },
+          element: { type: 'string', description: 'Human-readable element description for logging' },
+          ref: { type: 'string', description: 'Element ref from accessibility snapshot' },
           value: { type: 'string', description: 'Value to fill' },
         },
-        required: ['element', 'value'],
+        required: ['element', 'ref', 'value'],
       },
     },
     {
       name: 'browser_select_option',
-      description: 'Select an option in a dropdown.',
+      description: 'Select an option in a dropdown element. Use ref from browser_snapshot.',
       parameters: {
         type: 'object',
         properties: {
-          element: { type: 'string', description: 'Element ref' },
-          ref: { type: 'string', description: 'Element ref' },
+          element: { type: 'string', description: 'Human-readable element description for logging' },
+          ref: { type: 'string', description: 'Element ref from accessibility snapshot' },
           values: {
             type: 'array',
             items: { type: 'string' },
             description: 'Values to select',
           },
         },
-        required: ['element', 'values'],
+        required: ['element', 'ref', 'values'],
       },
     },
     {
       name: 'browser_hover',
-      description: 'Hover over an element.',
+      description: 'Hover over an element. Use ref from browser_snapshot.',
       parameters: {
         type: 'object',
         properties: {
-          element: { type: 'string', description: 'Element ref' },
-          ref: { type: 'string', description: 'Element ref' },
+          element: { type: 'string', description: 'Human-readable element description for logging' },
+          ref: { type: 'string', description: 'Element ref from accessibility snapshot' },
         },
-        required: ['element'],
+        required: ['element', 'ref'],
+      },
+    },
+    {
+      name: 'browser_drag',
+      description: 'Drag an element to a target element. Use refs from browser_snapshot.',
+      parameters: {
+        type: 'object',
+        properties: {
+          startElement: { type: 'string', description: 'Human-readable source element description' },
+          startRef: { type: 'string', description: 'Source element ref from accessibility snapshot' },
+          endElement: { type: 'string', description: 'Human-readable target element description' },
+          endRef: { type: 'string', description: 'Target element ref from accessibility snapshot' },
+        },
+        required: ['startElement', 'startRef', 'endElement', 'endRef'],
       },
     },
     {
       name: 'browser_press_key',
-      description: 'Press a keyboard key.',
+      description: 'Press a keyboard key (e.g. Enter, Tab, Escape, ArrowDown, a, etc.).',
       parameters: {
         type: 'object',
-        properties: { key: { type: 'string', description: 'Key name' } },
+        properties: { key: { type: 'string', description: 'Key name (e.g. Enter, Tab, Escape)' } },
         required: ['key'],
       },
     },
     {
       name: 'browser_screenshot',
-      description: 'Take a screenshot of the current page.',
+      description: 'Take a screenshot of the current page. Use when you need to visually inspect the page.',
       parameters: { type: 'object', properties: {} },
     },
     {
       name: 'browser_evaluate',
-      description: 'Run JavaScript in the browser console.',
+      description: 'Run JavaScript in the browser console and return the result.',
       parameters: {
         type: 'object',
         properties: {
-          expression: { type: 'string', description: 'JavaScript expression' },
+          expression: { type: 'string', description: 'JavaScript expression to evaluate' },
         },
         required: ['expression'],
       },
     },
     {
-      name: 'browser_wait',
-      description: 'Wait for a specified time.',
+      name: 'browser_upload_file',
+      description: 'Upload one or more files to a file input element. Use ref from browser_snapshot to target the file input.',
       parameters: {
         type: 'object',
-        properties: { time: { type: 'number', description: 'Wait time in seconds' } },
-        required: ['time'],
+        properties: {
+          element: { type: 'string', description: 'Human-readable element description for logging' },
+          ref: { type: 'string', description: 'Element ref for the file input' },
+          paths: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Absolute file paths to upload',
+          },
+        },
+        required: ['element', 'ref', 'paths'],
+      },
+    },
+    {
+      name: 'browser_handle_dialog',
+      description: 'Handle a browser dialog (alert, confirm, prompt). Call before triggering the dialog action.',
+      parameters: {
+        type: 'object',
+        properties: {
+          accept: { type: 'boolean', description: 'Whether to accept or dismiss the dialog' },
+          promptText: { type: 'string', description: 'Text to enter in a prompt dialog' },
+        },
+        required: ['accept'],
+      },
+    },
+    {
+      name: 'browser_wait',
+      description: 'Wait for text to appear on the page, or for a specified time.',
+      parameters: {
+        type: 'object',
+        properties: {
+          text: { type: 'string', description: 'Text to wait for on the page' },
+          time: { type: 'number', description: 'Wait time in seconds (max 10)' },
+        },
       },
     },
     {
       name: 'browser_close',
-      description: 'Close the browser.',
+      description: 'Close the browser and end the session.',
       parameters: { type: 'object', properties: {} },
     },
     {
+      name: 'browser_resize',
+      description: 'Resize the browser viewport.',
+      parameters: {
+        type: 'object',
+        properties: {
+          width: { type: 'number', description: 'Viewport width in pixels' },
+          height: { type: 'number', description: 'Viewport height in pixels' },
+        },
+        required: ['width', 'height'],
+      },
+    },
+    {
       name: 'browser_go_back',
-      description: 'Navigate back in history.',
+      description: 'Navigate back in browser history.',
       parameters: { type: 'object', properties: {} },
     },
     {
       name: 'browser_go_forward',
-      description: 'Navigate forward in history.',
+      description: 'Navigate forward in browser history.',
       parameters: { type: 'object', properties: {} },
     },
     {
       name: 'browser_tab_new',
-      description: 'Open a new browser tab.',
+      description: 'Open a new browser tab, optionally navigating to a URL.',
       parameters: {
         type: 'object',
-        properties: { url: { type: 'string', description: 'Optional URL to open' } },
+        properties: { url: { type: 'string', description: 'URL to open in the new tab' } },
       },
     },
     {
@@ -2356,12 +2413,33 @@ function getBrowserToolDefinitions(): Array<{
     },
     {
       name: 'browser_tab_list',
-      description: 'List all open browser tabs.',
+      description: 'List all open browser tabs with their titles and URLs.',
+      parameters: { type: 'object', properties: {} },
+    },
+    {
+      name: 'browser_tab_select',
+      description: 'Switch to a specific browser tab by index.',
+      parameters: {
+        type: 'object',
+        properties: {
+          index: { type: 'number', description: 'Zero-based tab index to switch to' },
+        },
+        required: ['index'],
+      },
+    },
+    {
+      name: 'browser_console_messages',
+      description: 'Read recent browser console messages (log, warn, error).',
+      parameters: { type: 'object', properties: {} },
+    },
+    {
+      name: 'browser_network_requests',
+      description: 'List recent network requests made by the page.',
       parameters: { type: 'object', properties: {} },
     },
     {
       name: 'browser_pdf_save',
-      description: 'Save current page as PDF.',
+      description: 'Save the current page as a PDF file.',
       parameters: { type: 'object', properties: {} },
     },
   ];
