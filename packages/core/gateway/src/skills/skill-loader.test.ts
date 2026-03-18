@@ -105,7 +105,7 @@ Just a simple markdown file without frontmatter.
       expect(skills).toEqual([]);
     });
 
-    it('should handle malformed frontmatter gracefully', () => {
+    it('should skip skills with malformed metadata JSON and log a warning', () => {
       const skillDir = path.join(tempDir, 'malformed');
       fs.mkdirSync(skillDir);
 
@@ -120,9 +120,8 @@ metadata: {invalid json here
 
       const skills = loadSkills({ skillsDir: tempDir });
 
-      expect(skills).toHaveLength(1);
-      expect(skills[0].name).toBe('malformed');
-      expect(skills[0].metadata.nachos).toBeUndefined();
+      // Skills with invalid metadata JSON are disabled rather than loaded with missing deps
+      expect(skills).toHaveLength(0);
     });
   });
 

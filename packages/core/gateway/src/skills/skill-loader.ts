@@ -29,6 +29,8 @@ export interface SkillMetadata {
     primaryEnv?: string;
     os?: string[];
   };
+  /** Set when the `metadata:` JSON field fails to parse — skill is skipped */
+  _metadataParseError?: string;
 }
 
 /**
@@ -109,8 +111,8 @@ function parseFrontmatter(content: string): {
         if (metaObj.nachos) {
           metadata.nachos = metaObj.nachos;
         }
-      } catch {
-        // Ignore parse errors
+      } catch (err) {
+        metadata._metadataParseError = (err instanceof Error ? err.message : String(err));
       }
     }
   }
@@ -186,6 +188,14 @@ export function loadSkills(config: SkillLoaderConfig): Skill[] {
 
         if (!metadata.name) {
           logger.warn({ skillFile }, 'Skill missing name in frontmatter');
+          continue;
+        }
+
+        if (metadata._metadataParseError) {
+          logger.warn(
+            { skillFile, error: metadata._metadataParseError },
+            'Skill metadata JSON failed to parse — skill disabled. Fix the `metadata:` field in frontmatter.'
+          );
           continue;
         }
 
