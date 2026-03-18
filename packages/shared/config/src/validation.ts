@@ -630,6 +630,13 @@ function validateSecurityConfig(config: NachosConfig, errors: string[], _warning
     errors.push('security.mode = "permissive" requires security.i_understand_the_risks = true');
   }
 
+  // Strict mode: audit logging should be enabled — warn if it is not
+  if (config.security.mode === 'strict' && !config.security.audit?.enabled) {
+    _warnings.push(
+      'security.mode = "strict" but security.audit.enabled is not set — audit logging is recommended in strict mode'
+    );
+  }
+
   // Shell tool requires permissive mode
   if (config.tools?.shell?.enabled && config.security.mode !== 'permissive') {
     errors.push('tools.shell.enabled = true requires security.mode = "permissive"');
