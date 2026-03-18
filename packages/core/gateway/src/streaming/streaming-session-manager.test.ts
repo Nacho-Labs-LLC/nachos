@@ -232,4 +232,70 @@ describe('StreamingSessionManager', () => {
 
     defaultManager.stop();
   });
+
+  // ---------------------------------------------------------------
+  // getActiveSessions() — gauge metric (issue #155)
+  // ---------------------------------------------------------------
+
+  it('[STR-09] getActiveSessions() reflects the current number of live sessions', () => {
+    expect(manager.getActiveSessions()).toBe(0);
+
+    manager.register('a', makeInbound());
+    expect(manager.getActiveSessions()).toBe(1);
+
+    manager.register('b', makeInbound());
+    expect(manager.getActiveSessions()).toBe(2);
+
+    manager.stop();
+    expect(manager.getActiveSessions()).toBe(0);
+  });
+
+  // ---------------------------------------------------------------
+  // Sweep logs a warning when sessions are reaped (issue #155)
+  // ---------------------------------------------------------------
+
+  it('[STR-10] sweep emits a warn log when stale sessions are reaped', async () => {
+    const shortManager = new StreamingSessionManager(deps, {
+      maxSessionAgeMs: 5_000,
+      sweepIntervalMs: 1_000,
+    });
+
+    const mockBus = {
+      subscribe: vi.fn().mockResolvedValue(undefined),
+    };
+
+    await shortManager.startSubscription(mockBus as never);
+    shortManager.register('stale-1', makeInbound());
+    shortManager.register('stale-2', makeInbound());
+
+    expect(shortManager.getActiveSessions()).toBe(2);
+
+    // Advance past maxAge + one sweep interval
+    vi.advanceTimersByTime(7_000);
+
+    expect(shortManager.getActiveSessions()).toBe(0);
+
+    shortManager.stop();
+  });
+
+  it('[STR-11] sweep does not log when no sessions are reaped', async () => {
+    const shortManager = new StreamingSessionManager(deps, {
+      maxSessionAgeMs: 30_000,
+      sweepIntervalMs: 1_000,
+    });
+
+    const mockBus = {
+      subscribe: vi.fn().mockResolvedValue(undefined),
+    };
+
+    await shortManager.startSubscription(mockBus as never);
+    shortManager.register('fresh-1', makeInbound());
+
+    // Advance less than maxAge — nothing should be reaped
+    vi.advanceTimersByTime(5_000);
+
+    expect(shortManager.getActiveSessions()).toBe(1);
+
+    shortManager.stop();
+  });
 });

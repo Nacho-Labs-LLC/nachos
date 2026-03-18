@@ -61,6 +61,13 @@ export interface SubscribeOptions {
   queue?: string;
   /** Maximum messages to receive before auto-unsubscribing */
   max?: number;
+  /**
+   * Optional error callback invoked when a message handler throws.
+   * Receives the error, the NATS subject, and the message ID (if the envelope
+   * was successfully parsed before the error occurred).
+   * If not provided, errors are only logged.
+   */
+  onError?: (err: unknown, topic: string, messageId?: string) => void;
 }
 
 /**

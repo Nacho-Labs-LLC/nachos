@@ -188,7 +188,7 @@ export class NachosBusClient implements INachosBusClient {
     const subscription = this.connection.subscribe(topic, subOpts);
 
     // Start processing messages asynchronously
-    this.processSubscription(subscription, handler);
+    this.processSubscription(subscription, handler, options?.onError);
 
     return {
       unsubscribe: () => subscription.unsubscribe(),
@@ -198,16 +198,23 @@ export class NachosBusClient implements INachosBusClient {
   }
 
   /**
-   * Process incoming messages for a subscription
+   * Process incoming messages for a subscription.
+   *
+   * Errors thrown by `handler` are logged and, if provided, forwarded to `onError`.
+   * This allows callers to implement dead-letter queuing, circuit breaking, or
+   * alerting without losing the default log-and-continue behaviour.
    */
   private async processSubscription<T>(
     subscription: Subscription,
-    handler: MessageHandler<T>
+    handler: MessageHandler<T>,
+    onError?: (err: unknown, topic: string, messageId?: string) => void
   ): Promise<void> {
     for await (const msg of subscription) {
+      let messageId: string | undefined;
       try {
         const data = sc.decode(msg.data);
         const envelope = JSON.parse(data) as MessageEnvelope<T>;
+        messageId = envelope.id;
 
         await handler(envelope, {
           subject: msg.subject,
@@ -226,7 +233,11 @@ export class NachosBusClient implements INachosBusClient {
           },
         });
       } catch (error) {
-        logger.error({ err: error, topic: msg.subject }, 'Error processing message');
+        logger.error(
+          { err: error, topic: msg.subject, messageId },
+          'Error processing message'
+        );
+        onError?.(error, msg.subject, messageId);
       }
     }
   }

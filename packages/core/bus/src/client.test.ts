@@ -248,6 +248,114 @@ describe('NachosBusClient', () => {
     });
   });
 
+  // ---------------------------------------------------------------
+  // onError callback (bus dead-letter hook — issue #155)
+  // ---------------------------------------------------------------
+  describe('subscribe onError callback', () => {
+    /**
+     * Build a fake NATS subscription whose async iterator yields one message
+     * then completes. The message payload is a valid MessageEnvelope JSON.
+     */
+    function makeDeliverySubscription(encodedPayload: Uint8Array) {
+      const encoder = new TextEncoder();
+      return {
+        unsubscribe: vi.fn(),
+        drain: vi.fn().mockResolvedValue(undefined),
+        [Symbol.asyncIterator]: () => {
+          let done = false;
+          return {
+            next: async () => {
+              if (done) return { done: true as const, value: undefined };
+              done = true;
+              return {
+                done: false as const,
+                value: {
+                  subject: 'nachos.test.topic',
+                  reply: undefined,
+                  respond: vi.fn(),
+                  data: encodedPayload,
+                },
+              };
+            },
+          };
+        },
+      };
+    }
+
+    it('[BUS-ERR-01] onError is invoked when handler throws, with topic and messageId', async () => {
+      const envelope: MessageEnvelope = {
+        id: 'msg-err-1',
+        timestamp: new Date().toISOString(),
+        source: 'test',
+        type: 'event',
+        payload: { value: 1 },
+      };
+      const encoded = new TextEncoder().encode(JSON.stringify(envelope));
+      const deliverySub = makeDeliverySubscription(encoded);
+
+      getMockConnection().subscribe.mockReturnValueOnce(deliverySub);
+      await client.connect();
+
+      const handlerError = new Error('downstream failure');
+      const failingHandler = vi.fn().mockRejectedValue(handlerError);
+      const onError = vi.fn();
+
+      await client.subscribe('nachos.test.topic', failingHandler, { onError });
+
+      // Allow the async iterator to drain
+      await new Promise((r) => setTimeout(r, 20));
+
+      expect(onError).toHaveBeenCalledTimes(1);
+      const [err, topic, messageId] = onError.mock.calls[0] as [unknown, string, string];
+      expect(err).toBe(handlerError);
+      expect(topic).toBe('nachos.test.topic');
+      expect(messageId).toBe('msg-err-1');
+    });
+
+    it('[BUS-ERR-02] subscribe without onError does not throw when handler errors', async () => {
+      const envelope: MessageEnvelope = {
+        id: 'msg-err-2',
+        timestamp: new Date().toISOString(),
+        source: 'test',
+        type: 'event',
+        payload: {},
+      };
+      const encoded = new TextEncoder().encode(JSON.stringify(envelope));
+      const deliverySub = makeDeliverySubscription(encoded);
+
+      getMockConnection().subscribe.mockReturnValueOnce(deliverySub);
+      await client.connect();
+
+      const failingHandler = vi.fn().mockRejectedValue(new Error('oops'));
+      // No onError — existing callers: log-and-continue behaviour must hold
+      await expect(
+        client.subscribe('nachos.test.topic', failingHandler)
+      ).resolves.toBeDefined();
+
+      await new Promise((r) => setTimeout(r, 20));
+      // If we reach here without an unhandled rejection, behaviour is correct
+    });
+
+    it('[BUS-ERR-03] onError receives undefined messageId when JSON parse fails', async () => {
+      // Deliver a message with invalid JSON — envelope never parsed
+      const badData = new TextEncoder().encode('NOT_VALID_JSON');
+      const deliverySub = makeDeliverySubscription(badData);
+
+      getMockConnection().subscribe.mockReturnValueOnce(deliverySub);
+      await client.connect();
+
+      const onError = vi.fn();
+      await client.subscribe('nachos.test.topic', vi.fn(), { onError });
+
+      await new Promise((r) => setTimeout(r, 20));
+
+      expect(onError).toHaveBeenCalledTimes(1);
+      const [_err, topic, messageId] = onError.mock.calls[0] as [unknown, string, string | undefined];
+      expect(topic).toBe('nachos.test.topic');
+      expect(messageId).toBeUndefined();
+    });
+  });
+
   describe('request', () => {
     it('should throw when not connected', async () => {
       await expect(client.request('topic', { data: 'test' })).rejects.toThrow(
