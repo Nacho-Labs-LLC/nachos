@@ -3,6 +3,9 @@ FROM node:22-alpine
 
 WORKDIR /app
 
+# Install CA certificates for HTTPS support
+RUN apk add --no-cache ca-certificates
+
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@10.28.2 --activate
 
@@ -35,6 +38,7 @@ RUN addgroup -g 1001 nachos && \
 USER nachos
 
 ENV NODE_ENV=production
+ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD node -e "process.exit(0)"
