@@ -1335,7 +1335,7 @@ export class Gateway {
         const memory = isSubagent
           ? { entries: [], facts: [] }
           : await this.stateLayer.queryMemory(
-              { agentId, limit: 20, kinds: ['preference', 'task'] },
+              { agentId, limit: 20, kinds: ['preference', 'task', 'fact', 'note', 'lesson'] },
               context,
             );
         const sessionState = isSubagent
