@@ -3,7 +3,10 @@
  * Extracted from Gateway to reduce the monolithic class.
  */
 import type { ChannelInboundMessage, ChannelOutboundMessage, MessageEnvelope } from '@nachos/types';
+import { createLogger } from '@nachos/types';
 import type { NatsBusAdapter } from '../router.js';
+
+const logger = createLogger('streaming-session-manager');
 
 export interface StreamingState {
   inbound: ChannelInboundMessage;
@@ -66,6 +69,14 @@ export class StreamingSessionManager {
   }
 
   /**
+   * Return the count of currently active streaming sessions.
+   * Useful for metrics / health endpoints.
+   */
+  getActiveSessions(): number {
+    return this.sessions.size;
+  }
+
+  /**
    * Subscribe to LLM stream events on the bus and start the sweep interval.
    */
   async startSubscription(bus: NatsBusAdapter): Promise<void> {
@@ -112,10 +123,20 @@ export class StreamingSessionManager {
     // Sweep stale streaming sessions periodically to prevent leaks
     this.sweepInterval = setInterval(() => {
       const now = Date.now();
+      const reaped: string[] = [];
+
       for (const [id, state] of this.sessions) {
         if (now - state.createdAt > this.config.maxSessionAgeMs) {
           this.sessions.delete(id);
+          reaped.push(id);
         }
+      }
+
+      if (reaped.length > 0) {
+        logger.warn(
+          { reaped, count: reaped.length, activeSessions: this.sessions.size },
+          'Reaped stale streaming sessions'
+        );
       }
     }, this.config.sweepIntervalMs);
   }
