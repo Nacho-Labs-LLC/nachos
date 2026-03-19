@@ -390,7 +390,10 @@ export class Gateway {
 
     if (options.subagentConfig) {
       this.subagentManager = new SubagentManager(options.subagentConfig, async (request) => {
-        return (await this.router.sendLLMRequest(request)) as LLMResponseType;
+        const envelope = await this.router.sendLLMRequest(request);
+        // sendLLMRequest returns a MessageEnvelope — unwrap to get the LLMResponseType
+        const wrapped = envelope as { payload?: LLMResponseType };
+        return (wrapped.payload ?? envelope) as LLMResponseType;
       });
       this.subagentOrchestrator = new SubagentOrchestrator({
         subagentManager: this.subagentManager,
@@ -571,7 +574,9 @@ export class Gateway {
     }
 
     const message = validated.data as ChannelInboundMessage;
-    let messageText = message.content.text ?? '';
+    // Strip leading bot mention(s) so commands work even when mention gating is enabled
+    // e.g. "<@123456> /new" → "/new"
+    let messageText = (message.content.text ?? '').replace(/^(<@!?\d+>\s*)+/, '').trim();
     const securityMode = this.options.policyConfig?.securityMode ?? 'standard';
 
     // --- Early intercept: approval commands work from ANY channel/session ---
@@ -1075,12 +1080,8 @@ export class Gateway {
       };
     }
 
-    if (config.adminAllowlist.size > 0 && !config.adminAllowlist.has(message.sender.id ?? '')) {
-      return {
-        handled: true,
-        replyText: 'You are not allowed to run session commands here.',
-      };
-    }
+    // Admin-only commands (identity reset) are checked inside their handlers.
+    // User-level commands (reset, context, help) are open to all allowed users.
 
     if (parsed.type === 'reset') {
       const newSession = await this.resetSessionForCommand(session, message, securityMode);
