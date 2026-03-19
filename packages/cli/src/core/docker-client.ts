@@ -11,7 +11,46 @@ import {
   DockerCommandError,
 } from './errors.js';
 
+/**
+ * Patterns that indicate a transient Docker daemon failure worth retrying.
+ * These are errors that may resolve on their own (daemon busy, socket hiccup).
+ */
+const TRANSIENT_ERROR_PATTERNS = [
+  /connection reset by peer/i,
+  /connection refused/i,
+  /EOF/,
+  /context deadline exceeded/i,
+  /i\/o timeout/i,
+  /dial unix.*docker\.sock.*connect: no such file/i, // daemon momentarily gone
+  /socket: too many open files/i,
+];
+
+/**
+ * Default retry configuration for transient Docker failures.
+ */
+export interface DockerRetryOptions {
+  /** Maximum number of attempts (including the first). Default: 3. */
+  maxAttempts?: number;
+  /** Initial delay in ms between retries. Doubles each attempt. Default: 500. */
+  initialDelayMs?: number;
+}
+
+function isTransient(stderr: string): boolean {
+  return TRANSIENT_ERROR_PATTERNS.some((p) => p.test(stderr));
+}
+
+async function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export class DockerClient {
+  private maxAttempts: number;
+  private initialDelayMs: number;
+
+  constructor(retry: DockerRetryOptions = {}) {
+    this.maxAttempts = retry.maxAttempts ?? 3;
+    this.initialDelayMs = retry.initialDelayMs ?? 500;
+  }
   /**
    * Check if Docker is available
    */
@@ -200,20 +239,78 @@ export class DockerClient {
   }
 
   /**
-   * Execute a Docker command with inherited stdio (interactive)
+   * Execute a Docker command with inherited stdio (interactive).
+   * Retries up to `maxAttempts` times on transient daemon errors.
    */
   private async exec(command: string, args: string[]): Promise<void> {
+    let lastError: DockerCommandError | undefined;
+    let delayMs = this.initialDelayMs;
+
+    for (let attempt = 1; attempt <= this.maxAttempts; attempt++) {
+      try {
+        await this.execOnce(command, args);
+        return; // success
+      } catch (err) {
+        if (!(err instanceof DockerCommandError)) throw err;
+        lastError = err;
+
+        // Only retry on known transient failures.
+        // The DockerCommandError message contains the stderr text or the spawn
+        // error message, both of which are good signals for transient detection.
+        const errorText = err.message + ' ' + (err.suggestion ?? '');
+        if (!isTransient(errorText) || attempt === this.maxAttempts) {
+          throw err;
+        }
+
+        await delay(delayMs);
+        delayMs *= 2; // exponential backoff
+      }
+    }
+
+    // Should not be reachable, but keeps TypeScript happy
+    throw lastError;
+  }
+
+  /**
+   * Single attempt to run a Docker command.
+   *
+   * Uses `pipe` for stderr so we can capture error text for:
+   *   1. Enriched suggestions (DockerCommandError.buildSuggestion)
+   *   2. Transient-failure detection for retry
+   *
+   * Captured stderr is also forwarded to process.stderr so the user still
+   * sees Docker's raw output (matching previous `stdio: 'inherit'` behaviour
+   * for the error stream).
+   *
+   * stdout remains inherited so streaming output (e.g. `docker compose up`
+   * build logs) goes directly to the terminal.
+   */
+  private execOnce(command: string, args: string[]): Promise<void> {
     return new Promise((resolve, reject) => {
       const child = spawn(command, args, {
-        stdio: 'inherit',
+        stdio: ['inherit', 'inherit', 'pipe'],
         shell: false,
+      });
+
+      let stderrBuf = '';
+
+      child.stderr?.on('data', (chunk: Buffer) => {
+        const text = chunk.toString('utf-8');
+        stderrBuf += text;
+        // Mirror to terminal so the user sees Docker errors in real time
+        process.stderr.write(text);
       });
 
       child.on('close', (code) => {
         if (code === 0) {
           resolve();
         } else {
-          reject(new DockerCommandError(`${command} ${args.join(' ')}`, `Exit code: ${code}`));
+          reject(
+            new DockerCommandError(
+              `${command} ${args.join(' ')}`,
+              stderrBuf.trim() || `Exit code: ${code}`
+            )
+          );
         }
       });
 
