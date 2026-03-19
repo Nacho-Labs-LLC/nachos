@@ -34,7 +34,6 @@ type FetchConfig = {
 
 const DEFAULT_USER_AGENT =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
-const MIN_CONTENT_CHARS = 200;
 
 export class WebFetchTool extends ToolService {
   readonly toolId = 'web_fetch';
