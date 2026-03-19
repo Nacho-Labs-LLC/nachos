@@ -390,7 +390,10 @@ export class Gateway {
 
     if (options.subagentConfig) {
       this.subagentManager = new SubagentManager(options.subagentConfig, async (request) => {
-        return (await this.router.sendLLMRequest(request)) as LLMResponseType;
+        const envelope = await this.router.sendLLMRequest(request);
+        // sendLLMRequest returns a MessageEnvelope — unwrap to get the LLMResponseType
+        const wrapped = envelope as { payload?: LLMResponseType };
+        return (wrapped.payload ?? envelope) as LLMResponseType;
       });
       this.subagentOrchestrator = new SubagentOrchestrator({
         subagentManager: this.subagentManager,
