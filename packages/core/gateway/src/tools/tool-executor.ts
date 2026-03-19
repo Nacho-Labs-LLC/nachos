@@ -48,11 +48,7 @@ import {
   executeSnapshotRestore,
 } from './snapshot-tools.js';
 import { WebSearchToolSchema, executeWebSearch, type WebSearchConfig } from './web-search-tools.js';
-import {
-  WebFetchNativeToolSchema,
-  executeWebFetchNative,
-  type WebFetchConfig,
-} from './web-fetch-tools.js';
+
 import { BitbucketToolSchema, executeBitbucket, type BitbucketConfig } from './bitbucket-tools.js';
 import { ComposioToolSchema, executeComposio } from './composio-tools.js';
 import {
@@ -438,15 +434,7 @@ export class ToolExecutor {
       });
     }
 
-    // Web fetch native tool
-    if (this.deps.core.toolsConfig?.web_fetch?.enabled && !bootstrapLocked) {
-      tools.push({
-        name: 'web_fetch_native',
-        description:
-          'Fetch and extract readable content from a URL. Converts HTML to markdown or plain text. Lighter alternative to the Docker-based web_fetch tool.',
-        parameters: this.sanitizeToolSchema(WebFetchNativeToolSchema),
-      });
-    }
+    // web_fetch_native removed — use the containerized web_fetch tool instead
 
     // Agent exec tool (Claude Code CLI subprocess launcher)
     // Only available in permissive security mode
@@ -1377,22 +1365,7 @@ export class ToolExecutor {
       return executeWebSearch(call, webSearchConfig, session.userId);
     }
 
-    if (call.tool === 'web_fetch_native') {
-      if (!this.deps.core.toolsConfig?.web_fetch?.enabled) {
-        return this.formatToolError('WEB_FETCH_DISABLED', 'Web fetch tool is not enabled');
-      }
-      if (!session) {
-        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found');
-      }
 
-      const webFetchConfig: WebFetchConfig = {
-        timeout_ms: this.deps.core.toolsConfig.web_fetch.timeout_ms,
-        max_chars: this.deps.core.toolsConfig.web_fetch.max_chars,
-        domain_allowlist: this.deps.core.toolsConfig.web_fetch.domain_allowlist,
-      };
-
-      return executeWebFetchNative(call, webFetchConfig, session.userId);
-    }
 
     if (call.tool === 'agent_exec') {
       if (!this.agentProcessRegistry) {

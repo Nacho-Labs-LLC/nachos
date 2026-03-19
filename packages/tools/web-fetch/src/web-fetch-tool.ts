@@ -2,7 +2,6 @@
  * Web Fetch Tool
  *
  * Fetches a URL and extracts readable content as text or markdown.
- * Optional Firecrawl fallback for hard-to-extract pages.
  *
  * SecurityTier: STANDARD (1) - Read-only network operations
  */
@@ -25,31 +24,12 @@ import { SSRFProtection } from './ssrf-protection.js';
 
 type ExtractMode = 'text' | 'markdown';
 
-type FirecrawlConfig = {
-  enabled?: boolean;
-  api_key?: string;
-  base_url?: string;
-  only_main_content?: boolean;
-  max_age_ms?: number;
-  timeout_seconds?: number;
-};
-
-type FirecrawlResult = {
-  url: string;
-  mode: ExtractMode;
-  source: 'firecrawl';
-  content: string;
-  length: number;
-  truncated: boolean;
-};
-
 type FetchConfig = {
   allowed_domains: string[];
   max_chars: number;
   timeout_seconds: number;
   max_redirects: number;
   user_agent?: string;
-  firecrawl?: FirecrawlConfig;
 };
 
 const DEFAULT_USER_AGENT =
@@ -100,7 +80,6 @@ export class WebFetchTool extends ToolService {
       timeout_seconds: (config.config.timeout_seconds as number) ?? 30,
       max_redirects: (config.config.max_redirects as number) ?? 3,
       user_agent: (config.config.user_agent as string) ?? DEFAULT_USER_AGENT,
-      firecrawl: (config.config.firecrawl as FirecrawlConfig) ?? {},
     };
 
     this.ssrfProtection = new SSRFProtection({
@@ -161,19 +140,10 @@ export class WebFetchTool extends ToolService {
     try {
       const response = await this.fetchWithRedirects(url);
       const extracted = await this.extractContent(response.finalUrl, response.body, extractMode);
-
-      if (extracted.content.length < MIN_CONTENT_CHARS && this.isFirecrawlEnabled()) {
-        const fallback = await this.fetchWithFirecrawl(url, extractMode, maxChars);
-        if (fallback) {
-          return this.formatTextResponse(JSON.stringify(fallback, null, 2));
-        }
-      }
-
       const normalized = this.clampContent(extracted.content, maxChars);
       const result = {
         url: response.finalUrl,
         mode: extractMode,
-        source: 'http',
         title: extracted.title,
         content: normalized.text,
         length: normalized.text.length,
@@ -182,13 +152,6 @@ export class WebFetchTool extends ToolService {
 
       return this.formatTextResponse(JSON.stringify(result, null, 2));
     } catch (error) {
-      if (this.isFirecrawlEnabled()) {
-        const fallback = await this.fetchWithFirecrawl(url, extractMode, maxChars);
-        if (fallback) {
-          return this.formatTextResponse(JSON.stringify(fallback, null, 2));
-        }
-      }
-
       return this.formatErrorResponse(
         'FETCH_FAILED',
         error instanceof Error ? error.message : 'Failed to fetch URL'
@@ -307,80 +270,5 @@ export class WebFetchTool extends ToolService {
       return { text: content, truncated: false };
     }
     return { text: content.slice(0, maxChars), truncated: true };
-  }
-
-  private isFirecrawlEnabled(): boolean {
-    return Boolean(this.fetchConfig.firecrawl?.enabled && this.fetchConfig.firecrawl?.api_key);
-  }
-
-  private async fetchWithFirecrawl(
-    url: string,
-    mode: ExtractMode,
-    maxChars: number
-  ): Promise<FirecrawlResult | null> {
-    const firecrawl = this.fetchConfig.firecrawl ?? {};
-    if (!firecrawl.api_key) {
-      return null;
-    }
-
-    const baseUrl = firecrawl.base_url ?? 'https://api.firecrawl.dev';
-    const timeoutSeconds = firecrawl.timeout_seconds ?? 60;
-    const onlyMainContent = firecrawl.only_main_content ?? true;
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutSeconds * 1000);
-
-    try {
-      const response = await fetch(`${baseUrl.replace(/\/$/, '')}/v1/scrape`, {
-        method: 'POST',
-        signal: controller.signal,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${firecrawl.api_key}`,
-        },
-        body: JSON.stringify({
-          url,
-          formats: mode === 'markdown' ? ['markdown'] : ['text'],
-          onlyMainContent,
-          maxAge: firecrawl.max_age_ms ? Math.floor(firecrawl.max_age_ms / 1000) : undefined,
-        }),
-      });
-
-      if (!response.ok) {
-        return null;
-      }
-
-      const payload = (await response.json()) as {
-        success?: boolean;
-        data?: { markdown?: string; text?: string };
-      };
-
-      if (!payload.success || !payload.data) {
-        return null;
-      }
-
-      const content = mode === 'markdown' ? payload.data.markdown : payload.data.text;
-      if (!content) {
-        return null;
-      }
-
-      const normalized = this.clampContent(content, maxChars);
-      return {
-        url,
-        mode,
-        source: 'firecrawl',
-        content: normalized.text,
-        length: normalized.text.length,
-        truncated: normalized.truncated,
-      };
-    } catch (error) {
-      this.logger.warn(
-        'Firecrawl fallback failed:',
-        error instanceof Error ? error.message : error
-      );
-      return null;
-    } finally {
-      clearTimeout(timeout);
-    }
   }
 }

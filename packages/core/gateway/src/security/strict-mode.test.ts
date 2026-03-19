@@ -161,8 +161,8 @@ describe('Security — strict mode (NACA-53)', () => {
     });
   });
 
-  describe('TC2: web_fetch disabled by default in strict mode', () => {
-    it('[NACA-53 TC2] web_fetch_native is NOT in tool definitions when toolsConfig is absent', () => {
+  describe('TC2: web_fetch_native removed — containerized web_fetch is the only web fetch tool', () => {
+    it('[NACA-53 TC2] web_fetch_native is never in tool definitions (removed)', () => {
       const deps = createMockDeps({ securityMode: 'strict', toolsConfig: {} });
       const executor = new ToolExecutor(deps);
       const session = createMockSession();
@@ -173,10 +173,10 @@ describe('Security — strict mode (NACA-53)', () => {
       expect(toolNames).not.toContain('web_fetch_native');
     });
 
-    it('[NACA-53 TC2] web_fetch_native is NOT in tool definitions when web_fetch.enabled is false', () => {
+    it('[NACA-53 TC2] web_fetch_native is not in tool definitions even when web_fetch is enabled', () => {
       const deps = createMockDeps({
         securityMode: 'strict',
-        toolsConfig: { web_fetch: { enabled: false } },
+        toolsConfig: { web_fetch: { enabled: true } },
       });
       const executor = new ToolExecutor(deps);
       const session = createMockSession();
@@ -186,34 +186,13 @@ describe('Security — strict mode (NACA-53)', () => {
 
       expect(toolNames).not.toContain('web_fetch_native');
     });
-
-    it('[NACA-53 TC2] calling web_fetch_native returns WEB_FETCH_DISABLED when not enabled', async () => {
-      const mockCoordinator = {
-        executeTools: vi.fn().mockResolvedValue([]),
-      };
-
-      const deps = createMockDeps({
-        securityMode: 'strict',
-        toolsConfig: {},
-        toolCoordinator: mockCoordinator as unknown as ToolExecutorDeps['core']['toolCoordinator'],
-      });
-      const executor = new ToolExecutor(deps);
-
-      const toolCalls = [
-        { id: 'call-strict-1', name: 'web_fetch_native', arguments: '{"url":"https://example.com"}' },
-      ];
-
-      const messages = await executor.executeToolCalls('session-strict-1', toolCalls);
-
-      expect(messages).toHaveLength(1);
-      const result = messages[0] as { content: Array<{ tool_result: { code?: string } }> };
-      const toolResult = result.content[0]?.tool_result;
-      expect(toolResult?.code).toBe('WEB_FETCH_DISABLED');
-    });
   });
 
-  describe('TC3: web_fetch works when explicitly enabled', () => {
-    it('[NACA-53 TC3] web_fetch_native is included in tool definitions when explicitly enabled', () => {
+  describe('TC3: web_fetch (containerized) works when explicitly enabled', () => {
+    it('[NACA-53 TC3] web_fetch is available via the containerized NATS tool when enabled', () => {
+      // web_fetch is now exclusively handled by the containerized tool service via NATS.
+      // The LLM tool definition is registered by getExternalToolDefinitions() when enabled.
+      // This test verifies web_fetch_native is absent (it was the old gateway-local tool).
       const deps = createMockDeps({
         securityMode: 'strict',
         toolsConfig: { web_fetch: { enabled: true } },
@@ -224,28 +203,7 @@ describe('Security — strict mode (NACA-53)', () => {
       const tools = executor.buildToolDefinitions(session) as Array<{ name: string }> | undefined;
       const toolNames = (tools ?? []).map((t) => t.name);
 
-      expect(toolNames).toContain('web_fetch_native');
-    });
-
-    it('[NACA-53 TC3] calling web_fetch_native succeeds when explicitly enabled', async () => {
-      const deps = createMockDeps({
-        securityMode: 'strict',
-        toolsConfig: { web_fetch: { enabled: true } },
-      });
-      const executor = new ToolExecutor(deps);
-
-      const toolCalls = [
-        { id: 'call-strict-2', name: 'web_fetch_native', arguments: '{"url":"https://example.com"}' },
-      ];
-
-      const messages = await executor.executeToolCalls('session-strict-1', toolCalls);
-
-      expect(messages).toHaveLength(1);
-      const result = messages[0] as { content: Array<{ tool_result: { code?: string; content?: unknown[] } }> };
-      const toolResult = result.content[0]?.tool_result;
-
-      // Should NOT return WEB_FETCH_DISABLED — the mock returns success
-      expect(toolResult?.code).not.toBe('WEB_FETCH_DISABLED');
+      expect(toolNames).not.toContain('web_fetch_native');
     });
   });
 });

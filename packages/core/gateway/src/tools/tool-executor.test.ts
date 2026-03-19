@@ -1180,7 +1180,7 @@ describe('ToolExecutor', () => {
       expect(toolNames).toContain('web_search');
     });
 
-    it('[TE-35] should include web_fetch_native when web_fetch config is enabled', () => {
+    it('[TE-35] should not include web_fetch_native (removed — use containerized web_fetch instead)', () => {
       const session = createMockSession();
 
       const depsWebFetch = createMockDeps({
@@ -1191,7 +1191,7 @@ describe('ToolExecutor', () => {
       const tools = executorWF.buildToolDefinitions(session) as Array<{ name: string }> | undefined;
 
       const toolNames = (tools ?? []).map((t) => t.name);
-      expect(toolNames).toContain('web_fetch_native');
+      expect(toolNames).not.toContain('web_fetch_native');
     });
 
     it('[TE-36] should include github tool when github config is enabled', () => {

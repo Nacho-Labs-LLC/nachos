@@ -232,18 +232,6 @@ export interface WebSearchToolConfig {
 }
 
 /**
- * Firecrawl fallback configuration for web fetch
- */
-export interface FirecrawlConfig {
-  enabled?: boolean;
-  api_key?: string;
-  base_url?: string;
-  only_main_content?: boolean;
-  max_age_ms?: number;
-  timeout_seconds?: number;
-}
-
-/**
  * Web fetch tool configuration
  */
 export interface WebFetchToolConfig {
@@ -255,7 +243,6 @@ export interface WebFetchToolConfig {
   timeout_seconds?: number;
   max_redirects?: number;
   user_agent?: string;
-  firecrawl?: FirecrawlConfig;
 }
 
 /**
