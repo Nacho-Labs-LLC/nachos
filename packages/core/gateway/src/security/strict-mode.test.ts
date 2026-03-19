@@ -115,7 +115,7 @@ function createMockDeps(overrides: {
 
 describe('Security — strict mode (NACA-53)', () => {
   describe('TC1: LLM still responds in strict mode (not blocked)', () => {
-    it('[NACA-53 TC1] buildToolDefinitions returns tool schemas (LLM can still receive tools)', () => {
+    it('buildToolDefinitions returns tool schemas (LLM can still receive tools)', () => {
       const deps = createMockDeps({ securityMode: 'strict' });
       const executor = new ToolExecutor(deps);
       const session = createMockSession();
@@ -128,14 +128,14 @@ describe('Security — strict mode (NACA-53)', () => {
       expect(Array.isArray(tools)).toBe(true);
     });
 
-    it('[NACA-53 TC1] strict mode does not change securityMode on the executor', () => {
+    it('strict mode does not change securityMode on the executor', () => {
       const deps = createMockDeps({ securityMode: 'strict' });
       // If the executor stores securityMode, it should remain 'strict' (not forced to 'off')
       // This verifies LLM processing isn't globally disabled.
       expect(deps.core.securityMode).toBe('strict');
     });
 
-    it('[NACA-53 TC1] bootstrap tool is available in strict mode when stateLayer is present', () => {
+    it('bootstrap tool is available in strict mode when stateLayer is present', () => {
       const mockStateLayer = {
         getIdentity: vi.fn(),
         getBootstrap: vi.fn(),
@@ -162,7 +162,7 @@ describe('Security — strict mode (NACA-53)', () => {
   });
 
   describe('TC2: web_fetch_native removed — containerized web_fetch is the only web fetch tool', () => {
-    it('[NACA-53 TC2] web_fetch_native is never in tool definitions (removed)', () => {
+    it('web_fetch_native is never in tool definitions (removed)', () => {
       const deps = createMockDeps({ securityMode: 'strict', toolsConfig: {} });
       const executor = new ToolExecutor(deps);
       const session = createMockSession();
@@ -173,7 +173,7 @@ describe('Security — strict mode (NACA-53)', () => {
       expect(toolNames).not.toContain('web_fetch_native');
     });
 
-    it('[NACA-53 TC2] web_fetch_native is not in tool definitions even when web_fetch is enabled', () => {
+    it('web_fetch_native is not in tool definitions even when web_fetch is enabled', () => {
       const deps = createMockDeps({
         securityMode: 'strict',
         toolsConfig: { web_fetch: { enabled: true } },
@@ -189,7 +189,7 @@ describe('Security — strict mode (NACA-53)', () => {
   });
 
   describe('TC3: web_fetch (containerized) works when explicitly enabled', () => {
-    it('[NACA-53 TC3] web_fetch is available via the containerized NATS tool when enabled', () => {
+    it('web_fetch is available via the containerized NATS tool when enabled', () => {
       // web_fetch is now exclusively handled by the containerized tool service via NATS.
       // The LLM tool definition is registered by getExternalToolDefinitions() when enabled.
       // This test verifies web_fetch_native is absent (it was the old gateway-local tool).

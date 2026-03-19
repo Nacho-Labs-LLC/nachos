@@ -711,7 +711,7 @@ describe('DiscordChannelAdapter', () => {
   });
 
   describe('Bot Filtering', () => {
-    it('[BF-01] should drop bot messages by default', async () => {
+    it('should drop bot messages by default', async () => {
       const adapter = new DiscordChannelAdapter();
       const publish = vi.fn();
 
@@ -742,7 +742,7 @@ describe('DiscordChannelAdapter', () => {
       expect(publish).not.toHaveBeenCalled();
     });
 
-    it('[BF-04] should always drop own messages to prevent self-reply loops', async () => {
+    it('should always drop own messages to prevent self-reply loops', async () => {
       const adapter = new DiscordChannelAdapter();
       const publish = vi.fn();
 
@@ -777,7 +777,7 @@ describe('DiscordChannelAdapter', () => {
       expect(publish).not.toHaveBeenCalled();
     });
 
-    it('[BF-02] should allow bot messages when allow_bots is true', async () => {
+    it('should allow bot messages when allow_bots is true', async () => {
       const adapter = new DiscordChannelAdapter();
       const publish = vi.fn();
 
@@ -816,7 +816,7 @@ describe('DiscordChannelAdapter', () => {
       );
     });
 
-    it('[BF-03] should filter bots by bot_allowlist when allow_bots is true', async () => {
+    it('should filter bots by bot_allowlist when allow_bots is true', async () => {
       const adapter = new DiscordChannelAdapter();
       const publish = vi.fn();
 
@@ -868,7 +868,7 @@ describe('DiscordChannelAdapter', () => {
       );
     });
 
-    it('[BF-07] should always pass non-bot messages through bot filtering', async () => {
+    it('should always pass non-bot messages through bot filtering', async () => {
       const adapter = new DiscordChannelAdapter();
       const publish = vi.fn();
 

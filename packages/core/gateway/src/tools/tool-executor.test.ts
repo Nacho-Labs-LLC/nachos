@@ -117,7 +117,7 @@ describe('ToolExecutor', () => {
   });
 
   describe('buildToolDefinitions', () => {
-    it('[TE-01] should return array of tool schemas', () => {
+    it('should return array of tool schemas', () => {
       const session = createMockSession();
 
       // With stateLayer present, should include memory tools + user_profile + bootstrap
@@ -147,7 +147,7 @@ describe('ToolExecutor', () => {
       }
     });
 
-    it('[TE-02] should filter tools by security mode (subagent returns only subagent_progress)', () => {
+    it('should filter tools by security mode (subagent returns only subagent_progress)', () => {
       const subagentSession = createMockSession({
         metadata: { subagent: { runId: 'run-1' } },
       });
@@ -179,7 +179,7 @@ describe('ToolExecutor', () => {
       expect(toolNames).not.toContain('bootstrap');
     });
 
-    it('[TE-03] should include state tools (memory_search, memory_get, user_profile) when stateLayer is present', () => {
+    it('should include state tools (memory_search, memory_get, user_profile) when stateLayer is present', () => {
       const session = createMockSession();
 
       const depsWithState = createMockDeps({
@@ -208,7 +208,7 @@ describe('ToolExecutor', () => {
   });
 
   describe('executeToolCalls', () => {
-    it('[TE-04] should process tool calls and return results', async () => {
+    it('should process tool calls and return results', async () => {
       const mockCoordinator = {
         executeTools: vi.fn().mockResolvedValue([
           {
@@ -237,7 +237,7 @@ describe('ToolExecutor', () => {
       expect(mockCoordinator.executeTools).toHaveBeenCalled();
     });
 
-    it('[TE-05] should respect policy deny and return POLICY_DENIED error for subagent', async () => {
+    it('should respect policy deny and return POLICY_DENIED error for subagent', async () => {
       const mockCoordinator = {
         executeTools: vi.fn().mockResolvedValue([]),
       };
@@ -264,7 +264,7 @@ describe('ToolExecutor', () => {
       expect(toolResult?.code).toBe('POLICY_DENIED');
     });
 
-    it('[TE-06] should return tool_use_id for LLM matching', async () => {
+    it('should return tool_use_id for LLM matching', async () => {
       const mockCoordinator = {
         executeTools: vi.fn().mockResolvedValue([
           {
@@ -291,7 +291,7 @@ describe('ToolExecutor', () => {
       expect(content[0]?.tool_use_id).toBe('call-abc-123');
     });
 
-    it('[TE-07] should handle DLP scan on tool input that blocks sensitive data', async () => {
+    it('should handle DLP scan on tool input that blocks sensitive data', async () => {
       const mockCoordinator = {
         executeTools: vi.fn().mockResolvedValue([]),
       };
@@ -330,7 +330,7 @@ describe('ToolExecutor', () => {
       expect(mockCoordinator.executeTools).not.toHaveBeenCalled();
     });
 
-    it('[TE-08] should handle DLP scan on tool output that blocks sensitive data', async () => {
+    it('should handle DLP scan on tool output that blocks sensitive data', async () => {
       const sensitiveOutput: ToolResult = {
         success: true,
         content: [{ type: 'text', text: 'Secret key: AKIAIOSFODNN7EXAMPLE' }],
@@ -377,7 +377,7 @@ describe('ToolExecutor', () => {
       expect(toolResult?.code).toBe('DLP_BLOCKED');
     });
 
-    it('[TE-09] should return error for unknown tool handled by coordinator', async () => {
+    it('should return error for unknown tool handled by coordinator', async () => {
       // The coordinator would handle unknown tools - it returns an error result
       const mockCoordinator = {
         executeTools: vi.fn().mockResolvedValue([
@@ -404,7 +404,7 @@ describe('ToolExecutor', () => {
       expect(toolResult?.code).toBe('UNKNOWN_TOOL');
     });
 
-    it('[TE-10] should throw when tool coordinator is not initialized', async () => {
+    it('should throw when tool coordinator is not initialized', async () => {
       // deps has toolCoordinator: null by default
       const toolCalls = [{ id: 'call-no-coord', name: 'web_fetch', arguments: '{}' }];
 
@@ -413,7 +413,7 @@ describe('ToolExecutor', () => {
       );
     });
 
-    it('[TE-11] should handle invalid JSON in tool arguments gracefully', async () => {
+    it('should handle invalid JSON in tool arguments gracefully', async () => {
       const mockCoordinator = {
         executeTools: vi.fn().mockResolvedValue([
           {
@@ -441,7 +441,7 @@ describe('ToolExecutor', () => {
   });
 
   describe('updateDeps', () => {
-    it('[TE-12] should update coordinator, dlp, and scheduler dependencies', () => {
+    it('should update coordinator, dlp, and scheduler dependencies', () => {
       const mockCoordinator = {
         executeTools: vi.fn(),
       };
@@ -479,7 +479,7 @@ describe('ToolExecutor', () => {
   // ---------------------------------------------------------------------------
 
   describe('local tool dispatch', () => {
-    it('[TE-13] should dispatch memory_search to local handler when stateLayer exists', async () => {
+    it('should dispatch memory_search to local handler when stateLayer exists', async () => {
       const mockStateLayer = {
         queryMemory: vi.fn().mockResolvedValue({ entries: [] }),
         getIdentity: vi.fn(),
@@ -511,7 +511,7 @@ describe('ToolExecutor', () => {
       expect(mockCoordinator.executeTools).not.toHaveBeenCalled();
     });
 
-    it('[TE-14] should dispatch memory_get to local handler when stateLayer exists', async () => {
+    it('should dispatch memory_get to local handler when stateLayer exists', async () => {
       const mockStateLayer = {
         getMemoryFile: vi.fn().mockResolvedValue({ content: 'memory content' }),
         getIdentity: vi.fn(),
@@ -541,7 +541,7 @@ describe('ToolExecutor', () => {
       expect(mockCoordinator.executeTools).not.toHaveBeenCalled();
     });
 
-    it('[TE-15] should return STATE_LAYER_DISABLED when memory tool called without stateLayer', async () => {
+    it('should return STATE_LAYER_DISABLED when memory tool called without stateLayer', async () => {
       const mockCoordinator = {
         executeTools: vi.fn().mockResolvedValue([]),
       };
@@ -564,7 +564,7 @@ describe('ToolExecutor', () => {
       expect(toolResult?.code).toBe('STATE_LAYER_DISABLED');
     });
 
-    it('[TE-16] should return SESSION_NOT_FOUND when memory tool called with null session', async () => {
+    it('should return SESSION_NOT_FOUND when memory tool called with null session', async () => {
       const mockStateLayer = {
         queryMemory: vi.fn(),
         getIdentity: vi.fn(),
@@ -602,7 +602,7 @@ describe('ToolExecutor', () => {
   // ---------------------------------------------------------------------------
 
   describe('bootstrap tool dispatch', () => {
-    it('[TE-17] should dispatch bootstrap get action locally', async () => {
+    it('should dispatch bootstrap get action locally', async () => {
       const mockStateLayer = {
         getBootstrap: vi.fn().mockResolvedValue({
           agentId: 'agent-1',
@@ -637,7 +637,7 @@ describe('ToolExecutor', () => {
       expect(mockStateLayer.getBootstrap).toHaveBeenCalled();
     });
 
-    it('[TE-18] should block bootstrap set action when identity is completed', async () => {
+    it('should block bootstrap set action when identity is completed', async () => {
       const mockStateLayer = {
         getBootstrap: vi.fn().mockResolvedValue({ agentId: 'agent-1', version: 1 }),
         getIdentity: vi.fn(),
@@ -677,7 +677,7 @@ describe('ToolExecutor', () => {
       expect(toolResult?.message).toContain('locked');
     });
 
-    it('[TE-19] should return error when bootstrap is disabled', async () => {
+    it('should return error when bootstrap is disabled', async () => {
       const mockStateLayer = {
         getBootstrap: vi.fn(),
         getIdentity: vi.fn(),
@@ -716,7 +716,7 @@ describe('ToolExecutor', () => {
   // ---------------------------------------------------------------------------
 
   describe('DLP scan edge cases', () => {
-    it('[TE-20] should handle DLP alert action (allowed but logged)', async () => {
+    it('should handle DLP alert action (allowed but logged)', async () => {
       const mockCoordinator = {
         executeTools: vi.fn().mockResolvedValue([
           {
@@ -757,7 +757,7 @@ describe('ToolExecutor', () => {
       expect(depsAlert.audit.logAuditEvent).toHaveBeenCalled();
     });
 
-    it('[TE-21] should handle DLP redact action on tool output', async () => {
+    it('should handle DLP redact action on tool output', async () => {
       const mockCoordinator = {
         executeTools: vi.fn().mockResolvedValue([
           {
@@ -804,7 +804,7 @@ describe('ToolExecutor', () => {
       expect(toolResult).toContain('[REDACTED]');
     });
 
-    it('[TE-22] should skip DLP scan when tool call has no stringifiable parameters', async () => {
+    it('should skip DLP scan when tool call has no stringifiable parameters', async () => {
       const mockCoordinator = {
         executeTools: vi.fn().mockResolvedValue([
           {
@@ -838,7 +838,7 @@ describe('ToolExecutor', () => {
   // ---------------------------------------------------------------------------
 
   describe('memory tool rate limiting', () => {
-    it('[TE-23] should enforce rate limit of 10 memory calls per minute per session', async () => {
+    it('should enforce rate limit of 10 memory calls per minute per session', async () => {
       const mockStateLayer = {
         queryMemory: vi.fn().mockResolvedValue({ entries: [] }),
         getIdentity: vi.fn(),
@@ -882,7 +882,7 @@ describe('ToolExecutor', () => {
   // ---------------------------------------------------------------------------
 
   describe('multiple tool calls in single batch', () => {
-    it('[TE-24] should handle mix of local and remote tool calls in correct order', async () => {
+    it('should handle mix of local and remote tool calls in correct order', async () => {
       const mockStateLayer = {
         queryMemory: vi.fn().mockResolvedValue({ entries: [{ id: 'e1', content: 'test' }] }),
         getIdentity: vi.fn(),
@@ -927,7 +927,7 @@ describe('ToolExecutor', () => {
       expect(msg1.tool_call_id).toBe('call-remote');
     });
 
-    it('[TE-25] should handle empty tool calls array when coordinator exists', async () => {
+    it('should handle empty tool calls array when coordinator exists', async () => {
       const mockCoordinator = {
         executeTools: vi.fn().mockResolvedValue([]),
       };
@@ -948,7 +948,7 @@ describe('ToolExecutor', () => {
   // ---------------------------------------------------------------------------
 
   describe('sandbox resolution', () => {
-    it('[TE-26] should add sandbox config to remote tool calls when sandbox is enabled', async () => {
+    it('should add sandbox config to remote tool calls when sandbox is enabled', async () => {
       const mockCoordinator = {
         executeTools: vi
           .fn()
@@ -988,7 +988,7 @@ describe('ToolExecutor', () => {
       });
     });
 
-    it('[TE-27] should not add sandbox config when sandbox is disabled', async () => {
+    it('should not add sandbox config when sandbox is disabled', async () => {
       const mockCoordinator = {
         executeTools: vi
           .fn()
@@ -1024,7 +1024,7 @@ describe('ToolExecutor', () => {
   // ---------------------------------------------------------------------------
 
   describe('subagent tool policy', () => {
-    it('[TE-28] should block default denied tools for subagent sessions', async () => {
+    it('should block default denied tools for subagent sessions', async () => {
       const mockCoordinator = {
         executeTools: vi.fn().mockResolvedValue([]),
       };
@@ -1049,7 +1049,7 @@ describe('ToolExecutor', () => {
       expect(toolResult?.code).toBe('POLICY_DENIED');
     });
 
-    it('[TE-29] should allow non-denied tools for subagent sessions', async () => {
+    it('should allow non-denied tools for subagent sessions', async () => {
       const mockCoordinator = {
         executeTools: vi
           .fn()
@@ -1076,7 +1076,7 @@ describe('ToolExecutor', () => {
       expect(toolResult?.code).not.toBe('POLICY_DENIED');
     });
 
-    it('[TE-30] should enforce allow list for subagent when configured', async () => {
+    it('should enforce allow list for subagent when configured', async () => {
       const mockCoordinator = {
         executeTools: vi.fn().mockResolvedValue([]),
       };
@@ -1110,7 +1110,7 @@ describe('ToolExecutor', () => {
   // ---------------------------------------------------------------------------
 
   describe('buildToolDefinitions edge cases', () => {
-    it('[TE-31] should return undefined when no tools are available (toolsConfig undefined)', () => {
+    it('should return undefined when no tools are available (toolsConfig undefined)', () => {
       const session = createMockSession();
       // With toolsConfig undefined, getExternalToolDefinitions returns [] and no local tools are added
       const depsNoTools = createMockDeps({ toolsConfig: undefined });
@@ -1119,7 +1119,7 @@ describe('ToolExecutor', () => {
       expect(tools).toBeUndefined();
     });
 
-    it('[TE-32] should exclude memory tools during bootstrap lock', () => {
+    it('should exclude memory tools during bootstrap lock', () => {
       const session = createMockSession();
 
       const depsWithState = createMockDeps({
@@ -1148,7 +1148,7 @@ describe('ToolExecutor', () => {
       expect(toolNames).toContain('user_profile');
     });
 
-    it('[TE-33] should include sessions_spawn and sessions_orchestrate when subagentManager is present', () => {
+    it('should include sessions_spawn and sessions_orchestrate when subagentManager is present', () => {
       const session = createMockSession();
 
       const depsWithSubagent = createMockDeps({
@@ -1166,7 +1166,7 @@ describe('ToolExecutor', () => {
       expect(toolNames).toContain('subagents');
     });
 
-    it('[TE-34] should include web_search when web_search config is enabled', () => {
+    it('should include web_search when web_search config is enabled', () => {
       const session = createMockSession();
 
       const depsWebSearch = createMockDeps({
@@ -1180,7 +1180,7 @@ describe('ToolExecutor', () => {
       expect(toolNames).toContain('web_search');
     });
 
-    it('[TE-35] should not include web_fetch_native (removed — use containerized web_fetch instead)', () => {
+    it('should not include web_fetch_native (removed — use containerized web_fetch instead)', () => {
       const session = createMockSession();
 
       const depsWebFetch = createMockDeps({
@@ -1194,7 +1194,7 @@ describe('ToolExecutor', () => {
       expect(toolNames).not.toContain('web_fetch_native');
     });
 
-    it('[TE-36] should include github tool when github config is enabled', () => {
+    it('should include github tool when github config is enabled', () => {
       const session = createMockSession();
 
       const depsGitHub = createMockDeps({
@@ -1208,7 +1208,7 @@ describe('ToolExecutor', () => {
       expect(toolNames).toContain('github');
     });
 
-    it('[TE-37] should strip $id from tool schemas (sanitizeToolSchema)', () => {
+    it('should strip $id from tool schemas (sanitizeToolSchema)', () => {
       const session = createMockSession();
 
       const depsWithState = createMockDeps({
@@ -1240,7 +1240,7 @@ describe('ToolExecutor', () => {
   // ---------------------------------------------------------------------------
 
   describe('formatToolError', () => {
-    it('[TE-38] should format error with code and message', () => {
+    it('should format error with code and message', () => {
       const result = executor.formatToolError('TEST_ERROR', 'Something went wrong');
 
       expect(result.success).toBe(false);
@@ -1249,7 +1249,7 @@ describe('ToolExecutor', () => {
       expect(result.error?.message).toBe('Something went wrong');
     });
 
-    it('[TE-39] should include details when provided', () => {
+    it('should include details when provided', () => {
       const details = { field: 'url', issue: 'invalid' };
       const result = executor.formatToolError('VALIDATION_ERROR', 'Invalid input', details);
 
