@@ -1,4 +1,7 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
 import { ShellTool } from './shell-tool.js';
 
 describe('ShellTool', () => {
@@ -499,6 +502,117 @@ describe('ShellTool', () => {
 
       const binaries = customTool.getAllowedBinaries();
       expect(binaries).toContain('test-cmd');
+    });
+  });
+
+  describe('rate limiting', () => {
+    it('should allow executions within limit', async () => {
+      const tool = new ShellTool({
+        logger: mockLogger,
+        rateLimit: { maxPerWindow: 5, windowMs: 60_000 },
+      });
+
+      // First few calls should succeed
+      const result1 = await tool.execute({ command: 'whoami', userId: 'user1' });
+      const result2 = await tool.execute({ command: 'whoami', userId: 'user1' });
+      expect(result1.exitCode).toBe(0);
+      expect(result2.exitCode).toBe(0);
+    });
+
+    it('should throw when rate limit is exceeded', async () => {
+      const tool = new ShellTool({
+        logger: mockLogger,
+        rateLimit: { maxPerWindow: 2, windowMs: 60_000 },
+      });
+
+      await tool.execute({ command: 'whoami', userId: 'user1' });
+      await tool.execute({ command: 'whoami', userId: 'user1' });
+
+      // Third call should be rate limited
+      await expect(tool.execute({ command: 'whoami', userId: 'user1' })).rejects.toThrow(
+        /Rate limit exceeded/
+      );
+    });
+
+    it('should track limits separately per user', async () => {
+      const tool = new ShellTool({
+        logger: mockLogger,
+        rateLimit: { maxPerWindow: 1, windowMs: 60_000 },
+      });
+
+      await tool.execute({ command: 'whoami', userId: 'user1' });
+
+      // user2 has not been rate limited — should succeed
+      const result = await tool.execute({ command: 'whoami', userId: 'user2' });
+      expect(result.exitCode).toBe(0);
+
+      // user1 is now over the limit
+      await expect(tool.execute({ command: 'whoami', userId: 'user1' })).rejects.toThrow(
+        /Rate limit exceeded/
+      );
+    });
+
+    it('should use "anonymous" as default userId when none provided', async () => {
+      const tool = new ShellTool({
+        logger: mockLogger,
+        rateLimit: { maxPerWindow: 1, windowMs: 60_000 },
+      });
+
+      await tool.execute({ command: 'whoami' }); // no userId
+      await expect(tool.execute({ command: 'whoami' })).rejects.toThrow(/Rate limit exceeded/);
+    });
+
+    it('should not rate limit when no config provided', async () => {
+      const tool = new ShellTool({ logger: mockLogger });
+
+      // Many calls with no rateLimit config — should all succeed
+      for (let i = 0; i < 10; i++) {
+        const result = await tool.execute({ command: 'whoami', userId: 'user1' });
+        expect(result.exitCode).toBe(0);
+      }
+    });
+  });
+
+  describe('audit log failure mode', () => {
+    let tempDir: string;
+
+    beforeEach(() => {
+      tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nachos-audit-test-'));
+    });
+
+    afterEach(() => {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    });
+
+    function unwritableAuditPath(): string {
+      // Create a *file* (not a dir) at the location where mkdir would try to
+      // create the log directory — appendFile will fail because you can't
+      // create a file inside a file.
+      const blockingFile = path.join(tempDir, 'blocked-dir');
+      fs.writeFileSync(blockingFile, '');
+      return path.join(blockingFile, 'shell-audit.log');
+    }
+
+    it('should warn (default) and continue when audit log write fails', async () => {
+      const tool = new ShellTool({
+        logger: mockLogger,
+        auditLogPath: unwritableAuditPath(),
+        // auditLogFailureMode defaults to 'warn'
+      });
+
+      // Should NOT throw even though audit log will fail to write
+      const result = await tool.execute({ command: 'whoami' });
+      expect(result.exitCode).toBe(0);
+    });
+
+    it('should throw when auditLogFailureMode is "fail" and audit log write fails', async () => {
+      const tool = new ShellTool({
+        logger: mockLogger,
+        auditLogPath: unwritableAuditPath(),
+        auditLogFailureMode: 'fail',
+      });
+
+      await expect(tool.execute({ command: 'whoami' })).rejects.toThrow(/Audit log write failed/);
     });
   });
 });

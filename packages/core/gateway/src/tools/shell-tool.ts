@@ -80,6 +80,12 @@ export interface ExecOptions {
   timeout?: number;
   /** Maximum output size in bytes */
   maxOutputSize?: number;
+  /**
+   * User identifier for rate limiting.
+   * When a rate limit is configured, each unique userId+tool combination
+   * is tracked separately. Falls back to 'anonymous' if omitted.
+   */
+  userId?: string;
 }
 
 /**
@@ -116,6 +122,16 @@ interface CommandSegment {
 export type SecurityMode = 'strict' | 'standard' | 'permissive';
 
 /**
+ * Rate limit configuration for shell execution
+ */
+export interface RateLimitConfig {
+  /** Maximum executions per window per user per tool (default: unlimited) */
+  maxPerWindow: number;
+  /** Window size in milliseconds (default: 60_000 = 1 minute) */
+  windowMs?: number;
+}
+
+/**
  * Shell tool configuration
  */
 export interface ShellToolConfig {
@@ -135,6 +151,14 @@ export interface ShellToolConfig {
   auditLogPath?: string;
   /** Enable audit logging (default: true) */
   enableAuditLog?: boolean;
+  /**
+   * Audit log failure behavior.
+   * - 'warn' (default): log a warning but allow the command to proceed
+   * - 'fail': throw an error and abort command execution
+   */
+  auditLogFailureMode?: 'warn' | 'fail';
+  /** Optional rate limiting for exec calls */
+  rateLimit?: RateLimitConfig;
 }
 
 /**
@@ -347,6 +371,12 @@ const WRITE_FLAGS: Record<string, string[]> = {
   tar: ['-c', '--create', '-x', '--extract', '-u', '--update', '--delete'],
 };
 
+/** Rate limit bucket tracking per user+tool key */
+interface RateLimitBucket {
+  count: number;
+  windowStart: number;
+}
+
 /**
  * Shell tool for executing CLI commands
  */
@@ -359,6 +389,9 @@ export class ShellTool {
   private allowedTools: Map<string, SkillToolConfig>;
   private auditLogPath: string;
   private enableAuditLog: boolean;
+  private auditLogFailureMode: 'warn' | 'fail';
+  private rateLimit: RateLimitConfig | undefined;
+  private rateLimitBuckets: Map<string, RateLimitBucket> = new Map();
 
   constructor(config: ShellToolConfig) {
     this.logger = config.logger;
@@ -368,10 +401,46 @@ export class ShellTool {
     this.maxTimeout = config.maxTimeout ?? 300000; // 5min
     this.auditLogPath = config.auditLogPath ?? '/var/log/nachos/shell-audit.log';
     this.enableAuditLog = config.enableAuditLog ?? true;
+    this.auditLogFailureMode = config.auditLogFailureMode ?? 'warn';
+    this.rateLimit = config.rateLimit;
 
     // Build allowed tools map — merge permissive tools when in permissive mode
     const tools = config.allowedTools ?? this.buildToolList();
     this.allowedTools = new Map(tools.map((t) => [t.bin, t]));
+  }
+
+  /**
+   * Check rate limit for a given user + primary tool combination.
+   * Expired buckets are pruned opportunistically on each call.
+   */
+  private checkRateLimit(userId: string, toolName: string): void {
+    if (!this.rateLimit?.maxPerWindow) return;
+
+    const { maxPerWindow, windowMs = 60_000 } = this.rateLimit;
+    const now = Date.now();
+    const key = `${userId}:${toolName}`;
+
+    // Opportunistic sweep: remove expired buckets to prevent unbounded growth
+    for (const [k, bucket] of this.rateLimitBuckets) {
+      if (now - bucket.windowStart > windowMs) {
+        this.rateLimitBuckets.delete(k);
+      }
+    }
+
+    const bucket = this.rateLimitBuckets.get(key);
+    if (!bucket || now - bucket.windowStart > windowMs) {
+      this.rateLimitBuckets.set(key, { count: 1, windowStart: now });
+      return;
+    }
+
+    if (bucket.count >= maxPerWindow) {
+      throw createPermissionDeniedError(
+        `Rate limit exceeded: max ${maxPerWindow} executions per ${windowMs / 1000}s for tool '${toolName}'`,
+        { component: 'gateway' }
+      );
+    }
+
+    bucket.count++;
   }
 
   /**
@@ -395,7 +464,11 @@ export class ShellTool {
   }
 
   /**
-   * Write audit log entry
+   * Write audit log entry.
+   *
+   * Failure behavior is controlled by `auditLogFailureMode`:
+   * - 'warn' (default): logs a warning but does NOT abort execution
+   * - 'fail': throws so the caller can surface the audit gap to the user
    */
   private async auditLog(entry: {
     timestamp: number;
@@ -422,12 +495,16 @@ export class ShellTool {
       // Append JSON line to audit log
       await appendFile(this.auditLogPath, JSON.stringify(entry) + '\n', 'utf8');
     } catch (error) {
-      // Don't fail command execution if audit log fails
+      const errMsg = error instanceof Error ? error.message : String(error);
+      if (this.auditLogFailureMode === 'fail') {
+        this.logger.error(
+          { error: errMsg, auditLogPath: this.auditLogPath },
+          'Audit log write failed — aborting command (auditLogFailureMode=fail)'
+        );
+        throw new Error(`Audit log write failed: ${errMsg}`);
+      }
       this.logger.warn(
-        {
-          error: error instanceof Error ? error.message : String(error),
-          auditLogPath: this.auditLogPath,
-        },
+        { error: errMsg, auditLogPath: this.auditLogPath },
         'Failed to write audit log'
       );
     }
@@ -452,6 +529,11 @@ export class ShellTool {
     }
 
     const binaries = this.extractCommandBins(options.command);
+
+    // Rate limit check — keyed on userId + primary tool binary
+    const primaryTool = binaries[0] ?? 'unknown';
+    const userId = options.userId ?? 'anonymous';
+    this.checkRateLimit(userId, primaryTool);
 
     // Validate required environment variables for each binary
     const mergedEnv = { ...process.env, ...options.env };
@@ -491,7 +573,7 @@ export class ShellTool {
       });
 
       // Audit log: successful execution
-      this.auditLog({
+      await this.auditLog({
         timestamp: Date.now(),
         command: options.command,
         binaries,
@@ -506,8 +588,8 @@ export class ShellTool {
 
       return result;
     } catch (error) {
-      // Audit log: failed execution
-      this.auditLog({
+      // Audit log: failed execution (best-effort; failure here does not re-throw)
+      await this.auditLog({
         timestamp: Date.now(),
         command: options.command,
         binaries,
