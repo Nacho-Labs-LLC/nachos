@@ -171,7 +171,7 @@ describe('Configuration Validation', () => {
     });
 
     // NACA-53 TC4: strict mode should warn when audit logging is not enabled
-    it('[NACA-53 TC4] should warn when strict mode is used without audit logging enabled', () => {
+    it('should warn when strict mode is used without audit logging enabled', () => {
       const config: NachosConfig = {
         nachos: { name: 'test', version: '1.0' },
         llm: { provider: 'anthropic', model: 'claude' },
@@ -184,7 +184,7 @@ describe('Configuration Validation', () => {
       expect(result.warnings.some((w) => w.includes('audit logging is recommended in strict mode'))).toBe(true);
     });
 
-    it('[NACA-53 TC4] should not warn when strict mode has audit logging enabled', () => {
+    it('should not warn when strict mode has audit logging enabled', () => {
       const config: NachosConfig = {
         nachos: { name: 'test', version: '1.0' },
         llm: { provider: 'anthropic', model: 'claude' },
@@ -197,7 +197,7 @@ describe('Configuration Validation', () => {
       expect(result.warnings.some((w) => w.includes('audit logging is recommended in strict mode'))).toBe(false);
     });
 
-    it('[NACA-53 TC4] should not warn about audit for standard or permissive modes', () => {
+    it('should not warn about audit for standard or permissive modes', () => {
       const standardConfig: NachosConfig = {
         nachos: { name: 'test', version: '1.0' },
         llm: { provider: 'anthropic', model: 'claude' },

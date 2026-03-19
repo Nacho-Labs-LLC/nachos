@@ -259,16 +259,11 @@ export class WhatsappChannelAdapter implements ChannelAdapter {
 
   /**
    * Send a presence/typing update to WhatsApp.
-   * The Cloud API does not expose a true "typing" action like Telegram does.
-   * We log the typing state for observability and will integrate when the
-   * WhatsApp API adds typing indicator support.
+   * The WhatsApp Cloud API does not expose a typing indicator action,
+   * so this is a no-op. The read receipt serves as the user-visible
+   * signal that the bot is processing.
    */
   private async sendPresenceUpdate(conversationId: string): Promise<void> {
-    // The WhatsApp Cloud API currently does not support a "typing" action.
-    // This method is a structured placeholder that will integrate when
-    // the API provides typing indicator support. For now, typing state
-    // is tracked internally and the read receipt serves as the user-visible
-    // signal that the bot is processing.
     logger.debug({ conversationId }, 'Typing indicator active');
   }
 

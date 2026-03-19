@@ -31,20 +31,6 @@ async function main() {
       timeout_seconds: parseInt(process.env.WEB_FETCH_TIMEOUT_SECONDS ?? '30', 10),
       max_redirects: parseInt(process.env.WEB_FETCH_MAX_REDIRECTS ?? '3', 10),
       user_agent: process.env.WEB_FETCH_USER_AGENT,
-      firecrawl: {
-        enabled: process.env.WEB_FETCH_FIRECRAWL_ENABLED === 'true',
-        api_key: process.env.FIRECRAWL_API_KEY,
-        base_url: process.env.FIRECRAWL_BASE_URL,
-        only_main_content: process.env.FIRECRAWL_ONLY_MAIN_CONTENT
-          ? process.env.FIRECRAWL_ONLY_MAIN_CONTENT === 'true'
-          : undefined,
-        max_age_ms: process.env.FIRECRAWL_MAX_AGE_MS
-          ? parseInt(process.env.FIRECRAWL_MAX_AGE_MS, 10)
-          : undefined,
-        timeout_seconds: process.env.FIRECRAWL_TIMEOUT_SECONDS
-          ? parseInt(process.env.FIRECRAWL_TIMEOUT_SECONDS, 10)
-          : undefined,
-      },
     },
     secrets: {},
     securityMode: (process.env.SECURITY_MODE as 'strict' | 'standard' | 'permissive') ?? 'standard',

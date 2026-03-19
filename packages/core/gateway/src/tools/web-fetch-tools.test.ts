@@ -46,27 +46,27 @@ const defaultConfig: WebFetchConfig = {
 // ---------------------------------------------------------------------------
 
 describe('WebFetchNativeToolSchema', () => {
-  it('[WF-01] should have correct $id', () => {
+  it('should have correct $id', () => {
     expect(WebFetchNativeToolSchema.$id).toBe('web_fetch_native');
   });
 
-  it('[WF-02] should define url as required property', () => {
+  it('should define url as required property', () => {
     expect(WebFetchNativeToolSchema.required).toContain('url');
   });
 
-  it('[WF-03] should define url property as string type', () => {
+  it('should define url property as string type', () => {
     expect(WebFetchNativeToolSchema.properties.url.type).toBe('string');
   });
 
-  it('[WF-04] should define extract_mode as enum with markdown and text', () => {
+  it('should define extract_mode as enum with markdown and text', () => {
     expect(WebFetchNativeToolSchema.properties.extract_mode.enum).toEqual(['markdown', 'text']);
   });
 
-  it('[WF-05] should define max_chars as number type', () => {
+  it('should define max_chars as number type', () => {
     expect(WebFetchNativeToolSchema.properties.max_chars.type).toBe('number');
   });
 
-  it('[WF-06] should have type object', () => {
+  it('should have type object', () => {
     expect(WebFetchNativeToolSchema.type).toBe('object');
   });
 });
@@ -93,7 +93,7 @@ describe('executeWebFetchNative', () => {
   // ---------------------------------------------------------------------------
 
   describe('parameter validation', () => {
-    it('[WF-07] should return error when url parameter is missing', async () => {
+    it('should return error when url parameter is missing', async () => {
       const call = createToolCall({ parameters: {} });
       const result = await executeWebFetchNative(call, defaultConfig, testUserId);
 
@@ -102,7 +102,7 @@ describe('executeWebFetchNative', () => {
       expect(result.error?.message).toContain('url parameter is required');
     });
 
-    it('[WF-08] should return error when url parameter is not a string', async () => {
+    it('should return error when url parameter is not a string', async () => {
       const call = createToolCall({ parameters: { url: 12345 } });
       const result = await executeWebFetchNative(call, defaultConfig, testUserId);
 
@@ -110,7 +110,7 @@ describe('executeWebFetchNative', () => {
       expect(result.error?.code).toBe('INVALID_PARAMETERS');
     });
 
-    it('[WF-09] should return error for invalid URL format', async () => {
+    it('should return error for invalid URL format', async () => {
       const call = createToolCall({ parameters: { url: 'not a url' } });
       const result = await executeWebFetchNative(call, defaultConfig, testUserId);
 
@@ -125,7 +125,7 @@ describe('executeWebFetchNative', () => {
   // ---------------------------------------------------------------------------
 
   describe('URL validation', () => {
-    it('[WF-10] should reject ftp:// URLs', async () => {
+    it('should reject ftp:// URLs', async () => {
       const call = createToolCall({ parameters: { url: 'ftp://example.com/file' } });
       const result = await executeWebFetchNative(call, defaultConfig, testUserId);
 
@@ -134,7 +134,7 @@ describe('executeWebFetchNative', () => {
       expect(result.error?.message).toContain('Only http and https');
     });
 
-    it('[WF-11] should reject localhost URLs', async () => {
+    it('should reject localhost URLs', async () => {
       const call = createToolCall({ parameters: { url: 'http://localhost:8080' } });
       const result = await executeWebFetchNative(call, defaultConfig, testUserId);
 
@@ -143,7 +143,7 @@ describe('executeWebFetchNative', () => {
       expect(result.error?.message).toContain('private/local');
     });
 
-    it('[WF-12] should reject 127.0.0.1', async () => {
+    it('should reject 127.0.0.1', async () => {
       const call = createToolCall({ parameters: { url: 'http://127.0.0.1' } });
       const result = await executeWebFetchNative(call, defaultConfig, testUserId);
 
@@ -151,7 +151,7 @@ describe('executeWebFetchNative', () => {
       expect(result.error?.code).toBe('INVALID_URL');
     });
 
-    it('[WF-13] should reject 10.x.x.x private range', async () => {
+    it('should reject 10.x.x.x private range', async () => {
       const call = createToolCall({ parameters: { url: 'http://10.0.0.5' } });
       const result = await executeWebFetchNative(call, defaultConfig, testUserId);
 
@@ -159,7 +159,7 @@ describe('executeWebFetchNative', () => {
       expect(result.error?.code).toBe('INVALID_URL');
     });
 
-    it('[WF-14] should reject 192.168.x.x private range', async () => {
+    it('should reject 192.168.x.x private range', async () => {
       const call = createToolCall({ parameters: { url: 'http://192.168.1.1' } });
       const result = await executeWebFetchNative(call, defaultConfig, testUserId);
 
@@ -167,7 +167,7 @@ describe('executeWebFetchNative', () => {
       expect(result.error?.code).toBe('INVALID_URL');
     });
 
-    it('[WF-15] should reject 172.16-31.x.x private range', async () => {
+    it('should reject 172.16-31.x.x private range', async () => {
       const call = createToolCall({ parameters: { url: 'http://172.16.0.1' } });
       const result = await executeWebFetchNative(call, defaultConfig, testUserId);
 
@@ -175,7 +175,7 @@ describe('executeWebFetchNative', () => {
       expect(result.error?.code).toBe('INVALID_URL');
     });
 
-    it('[WF-16] should reject 169.254.x.x (link-local)', async () => {
+    it('should reject 169.254.x.x (link-local)', async () => {
       const call = createToolCall({ parameters: { url: 'http://169.254.169.254' } });
       const result = await executeWebFetchNative(call, defaultConfig, testUserId);
 
@@ -183,7 +183,7 @@ describe('executeWebFetchNative', () => {
       expect(result.error?.code).toBe('INVALID_URL');
     });
 
-    it('[WF-17] should reject ::1 (IPv6 loopback)', async () => {
+    it('should reject ::1 (IPv6 loopback)', async () => {
       const call = createToolCall({ parameters: { url: 'http://[::1]' } });
       const result = await executeWebFetchNative(call, defaultConfig, testUserId);
 
@@ -193,7 +193,7 @@ describe('executeWebFetchNative', () => {
       expect(['INVALID_URL', 'SSRF_BLOCKED', 'WEB_FETCH_FAILED']).toContain(result.error?.code);
     });
 
-    it('[WF-18] should reject fe80:: (IPv6 link-local)', async () => {
+    it('should reject fe80:: (IPv6 link-local)', async () => {
       const call = createToolCall({ parameters: { url: 'http://[fe80::1]' } });
       const result = await executeWebFetchNative(call, defaultConfig, testUserId);
 
@@ -201,7 +201,7 @@ describe('executeWebFetchNative', () => {
       expect(['INVALID_URL', 'SSRF_BLOCKED', 'WEB_FETCH_FAILED']).toContain(result.error?.code);
     });
 
-    it('[WF-19] should reject fc00:: (IPv6 unique local)', async () => {
+    it('should reject fc00:: (IPv6 unique local)', async () => {
       const call = createToolCall({ parameters: { url: 'http://[fc00::1]' } });
       const result = await executeWebFetchNative(call, defaultConfig, testUserId);
 
@@ -215,7 +215,7 @@ describe('executeWebFetchNative', () => {
   // ---------------------------------------------------------------------------
 
   describe('domain allowlist', () => {
-    it('[WF-20] should reject domain not in allowlist', async () => {
+    it('should reject domain not in allowlist', async () => {
       const config: WebFetchConfig = {
         ...defaultConfig,
         domain_allowlist: ['example.com'],
@@ -228,7 +228,7 @@ describe('executeWebFetchNative', () => {
       expect(result.error?.message).toContain('not in the allowlist');
     });
 
-    it('[WF-21] should allow domain in allowlist', async () => {
+    it('should allow domain in allowlist', async () => {
       fetchSpy.mockResolvedValue(
         new Response('<html><body>Hello</body></html>', {
           status: 200,
@@ -246,7 +246,7 @@ describe('executeWebFetchNative', () => {
       expect(result.success).toBe(true);
     });
 
-    it('[WF-22] should allow subdomain of allowed domain', async () => {
+    it('should allow subdomain of allowed domain', async () => {
       fetchSpy.mockResolvedValue(
         new Response('<html><body>Hello</body></html>', {
           status: 200,
@@ -270,7 +270,7 @@ describe('executeWebFetchNative', () => {
   // ---------------------------------------------------------------------------
 
   describe('rate limiting', () => {
-    it('[WF-23] should enforce rate limit of 10 calls per minute', async () => {
+    it('should enforce rate limit of 10 calls per minute', async () => {
       // Must return a NEW Response per call — Response.body can only be read once
       fetchSpy.mockImplementation(() =>
         Promise.resolve(
@@ -300,7 +300,7 @@ describe('executeWebFetchNative', () => {
       expect(result.error?.message).toContain('10 calls per minute');
     });
 
-    it('[WF-24] should reset rate limit after window expires', async () => {
+    it('should reset rate limit after window expires', async () => {
       vi.useFakeTimers();
       try {
         // Must return a NEW Response per call — Response.body can only be read once
@@ -334,7 +334,7 @@ describe('executeWebFetchNative', () => {
       }
     });
 
-    it('[WF-25] should track rate limits per user', async () => {
+    it('should track rate limits per user', async () => {
       // Must return a NEW Response per call — Response.body can only be read once
       fetchSpy.mockImplementation(() =>
         Promise.resolve(
@@ -367,7 +367,7 @@ describe('executeWebFetchNative', () => {
   // ---------------------------------------------------------------------------
 
   describe('fetch execution', () => {
-    it('[WF-26] should fetch and return HTML content as markdown', async () => {
+    it('should fetch and return HTML content as markdown', async () => {
       fetchSpy.mockResolvedValue(
         new Response(
           '<html><body><h1>Title</h1><p>Some <strong>bold</strong> text</p></body></html>',
@@ -388,7 +388,7 @@ describe('executeWebFetchNative', () => {
       expect(text).toContain('**bold**');
     });
 
-    it('[WF-27] should fetch and return HTML content as plain text', async () => {
+    it('should fetch and return HTML content as plain text', async () => {
       fetchSpy.mockResolvedValue(
         new Response('<html><body><h1>Title</h1><p>Paragraph text</p></body></html>', {
           status: 200,
@@ -409,7 +409,7 @@ describe('executeWebFetchNative', () => {
       expect(text).toContain('Paragraph text');
     });
 
-    it('[WF-28] should default to markdown extraction mode', async () => {
+    it('should default to markdown extraction mode', async () => {
       fetchSpy.mockResolvedValue(
         new Response('<html><body><h2>Heading</h2></body></html>', {
           status: 200,
@@ -427,7 +427,7 @@ describe('executeWebFetchNative', () => {
       expect(text).toContain('## Heading');
     });
 
-    it('[WF-29] should truncate content exceeding max_chars', async () => {
+    it('should truncate content exceeding max_chars', async () => {
       const longContent = '<html><body>' + 'A'.repeat(60000) + '</body></html>';
       fetchSpy.mockResolvedValue(
         new Response(longContent, {
@@ -445,7 +445,7 @@ describe('executeWebFetchNative', () => {
       expect(text).toContain('[Content truncated due to length limit]');
     });
 
-    it('[WF-30] should use max_chars from tool parameters over config', async () => {
+    it('should use max_chars from tool parameters over config', async () => {
       const longContent = '<html><body>' + 'B'.repeat(500) + '</body></html>';
       fetchSpy.mockResolvedValue(
         new Response(longContent, {
@@ -464,7 +464,7 @@ describe('executeWebFetchNative', () => {
       expect(text).toContain('[Content truncated due to length limit]');
     });
 
-    it('[WF-31] should include source URL in result text', async () => {
+    it('should include source URL in result text', async () => {
       fetchSpy.mockResolvedValue(
         new Response('<html><body>Content</body></html>', {
           status: 200,
@@ -489,7 +489,7 @@ describe('executeWebFetchNative', () => {
   // ---------------------------------------------------------------------------
 
   describe('error handling', () => {
-    it('[WF-32] should return HTTP_ERROR for non-OK responses', async () => {
+    it('should return HTTP_ERROR for non-OK responses', async () => {
       fetchSpy.mockResolvedValue(
         new Response('Not Found', {
           status: 404,
@@ -506,7 +506,7 @@ describe('executeWebFetchNative', () => {
       expect(result.error?.message).toContain('404');
     });
 
-    it('[WF-33] should return UNSUPPORTED_CONTENT_TYPE for non-text content', async () => {
+    it('should return UNSUPPORTED_CONTENT_TYPE for non-text content', async () => {
       fetchSpy.mockResolvedValue(
         new Response('binary data', {
           status: 200,
@@ -522,7 +522,7 @@ describe('executeWebFetchNative', () => {
       expect(result.error?.message).toContain('application/pdf');
     });
 
-    it('[WF-34] should accept text/plain content type', async () => {
+    it('should accept text/plain content type', async () => {
       fetchSpy.mockResolvedValue(
         new Response('Plain text content', {
           status: 200,
@@ -536,7 +536,7 @@ describe('executeWebFetchNative', () => {
       expect(result.success).toBe(true);
     });
 
-    it('[WF-35] should accept application/xhtml content type', async () => {
+    it('should accept application/xhtml content type', async () => {
       fetchSpy.mockResolvedValue(
         new Response('<html><body>XHTML</body></html>', {
           status: 200,
@@ -550,7 +550,7 @@ describe('executeWebFetchNative', () => {
       expect(result.success).toBe(true);
     });
 
-    it('[WF-36] should handle fetch exceptions gracefully', async () => {
+    it('should handle fetch exceptions gracefully', async () => {
       fetchSpy.mockRejectedValue(new Error('Network error'));
 
       const call = createToolCall({ parameters: { url: 'https://unreachable.example.com' } });
@@ -561,7 +561,7 @@ describe('executeWebFetchNative', () => {
       expect(result.error?.message).toContain('Network error');
     });
 
-    it('[WF-37] should return TOO_MANY_REDIRECTS when redirect limit exceeded', async () => {
+    it('should return TOO_MANY_REDIRECTS when redirect limit exceeded', async () => {
       // Simulate a redirect loop
       fetchSpy.mockResolvedValue(
         new Response('', {
@@ -577,7 +577,7 @@ describe('executeWebFetchNative', () => {
       expect(result.error?.code).toBe('TOO_MANY_REDIRECTS');
     });
 
-    it('[WF-38] should follow redirects and SSRF-validate each hop', async () => {
+    it('should follow redirects and SSRF-validate each hop', async () => {
       let hopCount = 0;
       fetchSpy.mockImplementation(() => {
         hopCount++;
@@ -604,7 +604,7 @@ describe('executeWebFetchNative', () => {
       expect(fetchSpy).toHaveBeenCalledTimes(2);
     });
 
-    it('[WF-39] should block redirect to private IP', async () => {
+    it('should block redirect to private IP', async () => {
       fetchSpy.mockResolvedValue(
         new Response('', {
           status: 302,
@@ -625,7 +625,7 @@ describe('executeWebFetchNative', () => {
   // ---------------------------------------------------------------------------
 
   describe('HTML to markdown conversion', () => {
-    it('[WF-40] should convert links to markdown format', async () => {
+    it('should convert links to markdown format', async () => {
       fetchSpy.mockResolvedValue(
         new Response('<html><body><a href="https://example.com">Link</a></body></html>', {
           status: 200,
@@ -642,7 +642,7 @@ describe('executeWebFetchNative', () => {
       expect(text).toContain('[Link](https://example.com)');
     });
 
-    it('[WF-41] should convert bold and italic tags', async () => {
+    it('should convert bold and italic tags', async () => {
       fetchSpy.mockResolvedValue(
         new Response('<html><body><strong>Bold</strong> and <em>italic</em></body></html>', {
           status: 200,
@@ -660,7 +660,7 @@ describe('executeWebFetchNative', () => {
       expect(text).toContain('*italic*');
     });
 
-    it('[WF-42] should convert code blocks', async () => {
+    it('should convert code blocks', async () => {
       fetchSpy.mockResolvedValue(
         new Response('<html><body><code>inline code</code></body></html>', {
           status: 200,
@@ -677,7 +677,7 @@ describe('executeWebFetchNative', () => {
       expect(text).toContain('`inline code`');
     });
 
-    it('[WF-43] should convert list items', async () => {
+    it('should convert list items', async () => {
       fetchSpy.mockResolvedValue(
         new Response('<html><body><ul><li>Item 1</li><li>Item 2</li></ul></body></html>', {
           status: 200,
@@ -695,7 +695,7 @@ describe('executeWebFetchNative', () => {
       expect(text).toContain('- Item 2');
     });
 
-    it('[WF-44] should strip script and style tags', async () => {
+    it('should strip script and style tags', async () => {
       fetchSpy.mockResolvedValue(
         new Response(
           '<html><head><style>body{color:red}</style></head><body><script>alert("xss")</script><p>Safe content</p></body></html>',
@@ -714,7 +714,7 @@ describe('executeWebFetchNative', () => {
       expect(text).toContain('Safe content');
     });
 
-    it('[WF-45] should decode HTML entities', async () => {
+    it('should decode HTML entities', async () => {
       fetchSpy.mockResolvedValue(
         new Response('<html><body>&amp; &lt; &gt; &quot; &#39; &apos; &nbsp;</body></html>', {
           status: 200,
@@ -735,7 +735,7 @@ describe('executeWebFetchNative', () => {
       expect(text).toContain("'");
     });
 
-    it('[WF-46] should convert all heading levels (h1-h6)', async () => {
+    it('should convert all heading levels (h1-h6)', async () => {
       fetchSpy.mockResolvedValue(
         new Response(
           '<html><body><h1>H1</h1><h2>H2</h2><h3>H3</h3><h4>H4</h4><h5>H5</h5><h6>H6</h6></body></html>',
@@ -763,7 +763,7 @@ describe('executeWebFetchNative', () => {
   // ---------------------------------------------------------------------------
 
   describe('HTML to text conversion', () => {
-    it('[WF-47] should strip all HTML tags in text mode', async () => {
+    it('should strip all HTML tags in text mode', async () => {
       fetchSpy.mockResolvedValue(
         new Response(
           '<html><body><div class="container"><p>Plain <a href="#">link</a> text</p></div></body></html>',
@@ -784,7 +784,7 @@ describe('executeWebFetchNative', () => {
       expect(text).toContain('text');
     });
 
-    it('[WF-48] should strip script and style in text mode', async () => {
+    it('should strip script and style in text mode', async () => {
       fetchSpy.mockResolvedValue(
         new Response(
           '<html><head><style>.x{}</style></head><body><script>var x=1;</script>Visible</body></html>',

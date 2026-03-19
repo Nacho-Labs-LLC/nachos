@@ -88,56 +88,5 @@ describe('WebFetchTool', () => {
     expect(payload.source).toBe('http');
   });
 
-  it('uses Firecrawl when fetch fails and enabled', async () => {
-    const toolWithFirecrawl = new WebFetchTool();
-    (toolWithFirecrawl as { logger: typeof noopLogger }).logger = noopLogger;
 
-    await toolWithFirecrawl.initialize({
-      config: {
-        allowed_domains: ['example.com'],
-        max_chars: 1000,
-        timeout_seconds: 5,
-        max_redirects: 1,
-        firecrawl: {
-          enabled: true,
-          api_key: 'test-key',
-          base_url: 'https://api.firecrawl.dev',
-        },
-      },
-      secrets: {},
-      securityMode: 'standard',
-    });
-
-    (
-      toolWithFirecrawl as { ssrfProtection: { validateURL: () => Promise<{ valid: boolean }> } }
-    ).ssrfProtection = {
-      validateURL: async () => ({ valid: true }),
-    };
-
-    vi.stubGlobal(
-      'fetch',
-      vi
-        .fn()
-        .mockRejectedValueOnce(new Error('network'))
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            success: true,
-            data: { markdown: '# Title\n\nFrom Firecrawl' },
-          }),
-        })
-    );
-
-    const result = await toolWithFirecrawl.execute({
-      sessionId: 'session',
-      callId: 'call',
-      url: 'https://example.com',
-      extract_mode: 'markdown',
-    });
-
-    expect(result.success).toBe(true);
-    const payload = JSON.parse(result.content[0].text);
-    expect(payload.source).toBe('firecrawl');
-    expect(payload.content).toContain('From Firecrawl');
-  });
 });

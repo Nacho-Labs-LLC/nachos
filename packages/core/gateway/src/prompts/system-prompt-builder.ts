@@ -7,10 +7,6 @@
 
 import { tokenEstimator } from '@nachos/context-manager';
 
-// Logger for future use
-// import { createLogger } from '@nachos/types';
-// const logger = createLogger('prompt-builder');
-
 export interface RuntimeInfo {
   agentId?: string;
   host?: string;

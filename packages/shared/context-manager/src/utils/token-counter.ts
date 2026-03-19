@@ -213,7 +213,7 @@ export class TokenEstimator {
   }
 
   /**
-   * Record actual token count for calibration (M1: Token budget calibration)
+   * Record actual token count for calibration
    *
    * After LLM responds, compare estimated tokens vs actual (from LLM response metadata).
    * Log the ratio and use it to calibrate future estimates.

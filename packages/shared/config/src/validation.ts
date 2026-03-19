@@ -150,14 +150,6 @@ const CONFIG_SHAPE: SchemaNode = {
       timeout_seconds: true,
       max_redirects: true,
       user_agent: true,
-      firecrawl: {
-        enabled: true,
-        api_key: true,
-        base_url: true,
-        only_main_content: true,
-        max_age_ms: true,
-        timeout_seconds: true,
-      },
     },
     bootstrap: { enabled: true },
     github: {

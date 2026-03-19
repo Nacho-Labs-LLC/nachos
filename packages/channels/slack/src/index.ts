@@ -169,12 +169,9 @@ export class SlackChannelAdapter implements ChannelAdapter {
   }
 
   private async handleStatusEvent(event: StatusEvent): Promise<void> {
-    // Slack bots cannot show typing indicators in regular channels due to API limitations.
-    // For assistant threads, the @slack/bolt library supports assistant.threads.setStatus,
-    // but that requires the assistant API which is not yet implemented.
-    // This handler is a placeholder for future implementation.
-
-    // Log status events for debugging (can be removed in production)
+    // Slack bots cannot show typing indicators in regular channels.
+    // The assistant.threads.setStatus API requires the assistant thread flow
+    // which is not used in this adapter.
     if (event.status === 'thinking') {
       logger.debug({ channelId: event.channelId }, 'Status event: thinking');
     }

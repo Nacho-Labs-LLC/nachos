@@ -31,7 +31,7 @@ export type {
   ShellToolConfig,
   WebSearchToolConfig,
   WebFetchToolConfig,
-  FirecrawlConfig,
+
   BootstrapToolConfig,
   ToolGroupConfig,
   CopilotToolConfig,
