@@ -8,7 +8,8 @@ RUN apk add --no-cache python3
 
 # Create non-root user early
 RUN adduser -D -u 1001 coderunner && \
-    mkdir -p /tmp && \
+    mkdir -p /tmp /workspace && \
+    chown coderunner:coderunner /workspace && \
     chown coderunner:coderunner /tmp
 
 WORKDIR /app
