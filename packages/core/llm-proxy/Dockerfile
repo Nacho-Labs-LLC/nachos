@@ -10,7 +10,8 @@ COPY packages/shared/types ./packages/shared/types
 COPY packages/shared/utils ./packages/shared/utils
 
 RUN pnpm install --frozen-lockfile
-RUN pnpm --filter @nachos/config build
+RUN pnpm --filter @nachos/types build && \
+    pnpm --filter @nachos/config build
 
 FROM node:22-alpine AS development
 
@@ -31,8 +32,15 @@ COPY --chown=nachos:nachos packages/core/llm-proxy ./packages/core/llm-proxy
 
 RUN pnpm install --frozen-lockfile
 
-COPY --chown=nachos:nachos . .
+# Inject pre-built config dist before building dependents
 COPY --from=config --chown=nachos:nachos /app/packages/shared/config/dist ./packages/shared/config/dist
+
+# Build shared deps in dependency order
+RUN pnpm --filter @nachos/types build && \
+    pnpm --filter @nachos/utils build && \
+    pnpm --filter @nachos/bus build
+
+COPY --chown=nachos:nachos . .
 
 EXPOSE 3001
 

@@ -11,7 +11,7 @@ version = "1.0"
 
 [llm]
 provider = "anthropic"
-model = "claude-sonnet-4-20250514"
+model = "claude-sonnet-4-6"
 
 [security]
 mode = "standard"
@@ -22,7 +22,7 @@ mode = "standard"
       expect(config.nachos.name).toBe('test-assistant');
       expect(config.nachos.version).toBe('1.0');
       expect(config.llm.provider).toBe('anthropic');
-      expect(config.llm.model).toBe('claude-sonnet-4-20250514');
+      expect(config.llm.model).toBe('claude-sonnet-4-6');
       expect(config.security.mode).toBe('standard');
     });
 
