@@ -17,8 +17,9 @@ COPY packages/shared/utils ./packages/shared/utils
 # Install dependencies
 RUN pnpm install --frozen-lockfile
 
-# Build config package
-RUN pnpm --filter @nachos/config build
+# Build shared packages in dependency order
+RUN pnpm --filter @nachos/types build && \
+    pnpm --filter @nachos/config build
 
 FROM node:22-alpine AS development
 

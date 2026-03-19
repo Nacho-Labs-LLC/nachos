@@ -414,7 +414,7 @@ version = "1.0.0"
 
 [llm]
 provider = "anthropic"
-model = "claude-sonnet-4-20250514"
+model = "claude-sonnet-4-6"
 
 [security]
 mode = "standard"
@@ -446,7 +446,7 @@ version = "1.0.0"
 
 [llm]
 provider = "anthropic"
-model = "claude-sonnet-4-20250514"
+model = "claude-sonnet-4-6"
 
 [security]
 mode = "standard"
@@ -467,7 +467,7 @@ version = "1.0.0"
 
 [llm]
 provider = "anthropic"
-model = "claude-sonnet-4-20250514"
+model = "claude-sonnet-4-6"
 
 [security]
 mode = "standard"
@@ -493,7 +493,7 @@ version = "1.0.0"
 
 [llm]
 provider = "anthropic"
-model = "claude-sonnet-4-20250514"
+model = "claude-sonnet-4-6"
 
 [security]
 mode = "standard"
@@ -532,7 +532,7 @@ version = "1.0.0"
 
 [llm]
 provider = "anthropic"
-model = "claude-sonnet-4-20250514"
+model = "claude-sonnet-4-6"
 
 [security]
 mode = "standard"
