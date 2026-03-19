@@ -307,6 +307,112 @@ describe('DiscordChannelAdapter', () => {
     );
   });
 
+  it('drops messages from channels not in channel allowlist', async () => {
+    const adapter = new DiscordChannelAdapter();
+    const publish = vi.fn();
+
+    await adapter.initialize({
+      config: {
+        servers: [
+          {
+            id: 'guild-1',
+            channel_ids: ['chan-tinkering'],
+            user_allowlist: ['user-1'],
+            mention_gating: false,
+          },
+        ],
+      },
+      secrets: {},
+      bus: {
+        publish,
+        subscribe: async () => {},
+      },
+      securityMode: 'standard',
+    } as ChannelAdapterConfig);
+
+    // Message from an allowed user but from a non-allowlisted channel
+    await callHandleMessage(adapter, {
+      id: 'msg-wrong-chan',
+      channelId: 'chan-general',
+      content: 'Hello from wrong channel',
+      guildId: 'guild-1',
+      author: { id: 'user-1', bot: false },
+    });
+
+    expect(publish).not.toHaveBeenCalled();
+  });
+
+  it('drops messages from non-allowlisted users in guild channels', async () => {
+    const adapter = new DiscordChannelAdapter();
+    const publish = vi.fn();
+
+    await adapter.initialize({
+      config: {
+        servers: [
+          {
+            id: 'guild-1',
+            channel_ids: ['chan-1'],
+            user_allowlist: ['user-allowed'],
+            mention_gating: false,
+          },
+        ],
+      },
+      secrets: {},
+      bus: {
+        publish,
+        subscribe: async () => {},
+      },
+      securityMode: 'standard',
+    } as ChannelAdapterConfig);
+
+    await callHandleMessage(adapter, {
+      id: 'msg-unallowlisted',
+      channelId: 'chan-1',
+      content: 'I am not allowlisted',
+      guildId: 'guild-1',
+      author: { id: 'user-not-in-list', bot: false },
+    });
+
+    expect(publish).not.toHaveBeenCalled();
+  });
+
+  it('drops guild messages when mention-only mode is on and no mention present', async () => {
+    const adapter = new DiscordChannelAdapter();
+    const publish = vi.fn();
+
+    await adapter.initialize({
+      config: {
+        servers: [
+          {
+            id: 'guild-1',
+            channel_ids: ['chan-1'],
+            user_allowlist: ['user-1'],
+            mention_gating: true,
+          },
+        ],
+      },
+      secrets: {},
+      bus: {
+        publish,
+        subscribe: async () => {},
+      },
+      securityMode: 'standard',
+    } as ChannelAdapterConfig);
+
+    (adapter as unknown as { botUserId?: string }).botUserId = 'bot-1';
+
+    // Message without a mention — should be dropped
+    await callHandleMessage(adapter, {
+      id: 'msg-no-mention',
+      channelId: 'chan-1',
+      content: 'just chatting, no mention here',
+      guildId: 'guild-1',
+      author: { id: 'user-1', bot: false },
+    });
+
+    expect(publish).not.toHaveBeenCalled();
+  });
+
   it('sends outbound attachments to Discord channel', async () => {
     const adapter = new DiscordChannelAdapter();
     const send = vi.fn().mockResolvedValue({ id: 'msg-3' });
