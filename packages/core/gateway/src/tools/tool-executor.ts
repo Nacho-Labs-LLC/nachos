@@ -778,7 +778,7 @@ export class ToolExecutor {
             error: result?.error
               ? { code: result.error.code, message: result.error.message }
               : undefined,
-            durationMs: 0, // Duration not tracked at this level; placeholder
+            durationMs: 0,
             timestamp: new Date().toISOString(),
           });
         } catch (hookError) {

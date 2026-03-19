@@ -155,8 +155,6 @@ export class StateLayer {
     context: StateOperationContext
   ): Promise<IdentityProfile> {
     await this.ensureAllowed('state.identity.write', context, profile.agentId);
-
-    // M1: Validate identity fields when identityCompleted is true
     if (profile.identityCompleted) {
       const soul = profile.soul?.trim();
       const identity = profile.identity?.trim();

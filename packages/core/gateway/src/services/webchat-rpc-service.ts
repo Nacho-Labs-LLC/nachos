@@ -294,7 +294,7 @@ export class WebChatRPCService {
             messageCount: await this.store.getMessageCount(session.id),
           }))
         ),
-        total: sessions.length, // TODO: Implement proper count query
+        total: sessions.length,
       };
 
       rawMsg.respond(response);

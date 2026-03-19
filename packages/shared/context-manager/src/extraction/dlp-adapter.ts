@@ -19,7 +19,7 @@ const __dirname = path.dirname(__filename);
 export class DLPExtractionAdapter {
   private scanner: Scanner;
   private patternFile: string;
-  private minConfidence: number; // M2: Configurable confidence threshold
+  private minConfidence: number; // Configurable confidence threshold
 
   constructor(config?: ProactiveHistoryConfig) {
     // Default to bundled extraction patterns
@@ -27,7 +27,7 @@ export class DLPExtractionAdapter {
       config?.customPatternFiles?.[0] ||
       path.join(__dirname, '../../patterns/extraction-patterns.yaml');
 
-    // M2: Use higher confidence threshold (0.6) for quality control
+    // Use higher confidence threshold (0.6) for quality control
     this.minConfidence = 0.6;
 
     // Initialize scanner with extraction patterns
@@ -65,7 +65,7 @@ export class DLPExtractionAdapter {
 
       // Categorize findings
       for (const finding of findings) {
-        // M2: Filter by confidence threshold
+        // Filter by confidence threshold
         if (finding.confidence && finding.confidence < this.minConfidence) {
           continue; // Skip low-confidence extractions
         }
@@ -87,7 +87,7 @@ export class DLPExtractionAdapter {
       }
     }
 
-    // M2: Deduplicate items in each category with semantic similarity
+    // Deduplicate items in each category with semantic similarity
     return {
       decisions: this.deduplicateItemsSemantic(results.decisions),
       facts: this.deduplicateItemsSemantic(results.facts),
@@ -193,7 +193,7 @@ export class DLPExtractionAdapter {
   }
 
   /**
-   * M2: Deduplicate extracted items using semantic similarity
+   * Deduplicate extracted items using semantic similarity
    *
    * Uses a simple character-based similarity metric (Jaccard similarity on words).
    * Items with >80% similarity are considered duplicates.
@@ -237,7 +237,7 @@ export class DLPExtractionAdapter {
   }
 
   /**
-   * M2: Calculate semantic similarity between two text strings
+   * Calculate semantic similarity between two text strings
    *
    * Uses Jaccard similarity on word sets (simple but effective)
    * Returns a score from 0.0 (completely different) to 1.0 (identical)

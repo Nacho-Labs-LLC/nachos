@@ -405,7 +405,6 @@ export async function executeMemoryGet(
     const path = await import('path');
 
     // Construct full path (workspace root + requested path)
-    // TODO: Get actual workspace dir from config/context
     const workspaceDir = process.env.NACHOS_WORKSPACE_DIR || process.cwd();
     const fullPath = path.join(workspaceDir, normalizedPath);
 
