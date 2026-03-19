@@ -246,11 +246,13 @@ mode = "standard"                         # "strict" | "standard" | "permissive"
 [security.dlp]
 enabled = true
 action = "warn"                           # "block" | "warn" | "audit" | "allow" | "redact"
+# Use DLP category names or specific pattern IDs from @nacho-labs/nachos-dlp
+# Categories: pii, api-keys, secrets, aws, private-keys, all
+# Pattern IDs: credit-card, ssn-us, credit-card-formatted, etc.
 patterns = [
-    "credit_card",
-    "ssn", 
-    "api_key",
-    "password"
+    "pii",
+    "api-keys",
+    "secrets"
 ]
 
 [security.approval]

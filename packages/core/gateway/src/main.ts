@@ -17,6 +17,7 @@ import { NatsBusAdapter } from './router.js';
 import type { StateLayerConfig } from '@nachos/state';
 import type { ContextManagementCommandsConfig, RuntimeConfig } from '@nachos/config';
 import path from 'node:path';
+import { patternCategories, patterns as dlpPatterns } from '@nacho-labs/nachos-dlp';
 
 async function buildDlpConfig(configPath?: string): Promise<DLPConfig | undefined> {
   const nachosConfig = loadAndValidateConfig({ configPath });
@@ -35,6 +36,19 @@ async function buildDlpConfig(configPath?: string): Promise<DLPConfig | undefine
         : action === 'allow'
           ? 'allow'
           : 'alert';
+
+  // Validate DLP pattern names — warn if any don't match a known category or pattern ID
+  if (dlp.patterns && dlp.patterns.length > 0) {
+    const knownCategories = new Set(Object.keys(patternCategories));
+    const knownIds = new Set(dlpPatterns.map((p) => p.id));
+    const unknown = dlp.patterns.filter((p) => !knownCategories.has(p) && !knownIds.has(p));
+    if (unknown.length > 0) {
+      console.warn(
+        `[nachos] DLP: Unrecognized pattern names in config (will load 0 patterns): ${unknown.join(', ')}. ` +
+          `Use category names (${[...knownCategories].join(', ')}) or specific pattern IDs.`
+      );
+    }
+  }
 
   return {
     ...base,
