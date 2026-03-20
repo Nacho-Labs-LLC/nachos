@@ -9,6 +9,7 @@ import type { Skill } from './skill-loader.js';
 import type { SkillWatcher } from './skill-watcher.js';
 import type { SkillToolConfig } from '../tools/shell-tool.js';
 import type { NatsBusAdapter } from '../router.js';
+import { createEnvelope } from '../router.js';
 
 const logger = createLogger('skills-manager');
 
@@ -174,14 +175,17 @@ export class SkillsManager {
     try {
       const bus = this.deps.getBus();
       if (bus) {
-        await bus.publish(TOPICS.skills.reloaded, {
-          event: 'skills.reloaded',
-          added,
-          removed,
-          modified,
-          total: current.length,
-          timestamp: Date.now(),
-        });
+        await bus.publish(
+          TOPICS.skills.reloaded,
+          createEnvelope('gateway', 'skills.reloaded', {
+            event: 'skills.reloaded',
+            added,
+            removed,
+            modified,
+            total: current.length,
+            timestamp: Date.now(),
+          })
+        );
       }
     } catch (error) {
       logger.error({ err: error }, 'Failed to publish skills.reloaded event');
