@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { loadSkills, formatSkillsForPrompt, filterSkillsForPrompt } from './skill-loader.js';
+import { loadSkills, formatSkillsForPrompt, filterSkillsForPrompt, type Skill } from './skill-loader.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
@@ -292,6 +292,119 @@ metadata: {invalid json here
       });
 
       expect(filtered).toHaveLength(0);
+    });
+
+    describe('anyBins requirement (OR logic)', () => {
+      function makeAnyBinsSkill(anyBins: string[]): Skill {
+        return {
+          name: 'any-bins-skill',
+          metadata: {
+            name: 'any-bins-skill',
+            description: 'Needs any one of several binaries',
+            nachos: { requires: { anyBins } },
+          },
+          content: '# Any bins skill',
+          filePath: '/test/any-bins-skill/SKILL.md',
+        };
+      }
+
+      it('should include skill when at least one anyBins binary is present', () => {
+        const skill = makeAnyBinsSkill(['curl', 'wget', 'httpie']);
+        const filtered = filterSkillsForPrompt([skill], {
+          hasBinary: (bin) => bin === 'wget', // only wget present
+        });
+        expect(filtered).toHaveLength(1);
+        expect(filtered[0]?.name).toBe('any-bins-skill');
+      });
+
+      it('should include skill when all anyBins binaries are present', () => {
+        const skill = makeAnyBinsSkill(['curl', 'wget']);
+        const filtered = filterSkillsForPrompt([skill], {
+          hasBinary: () => true, // all binaries present
+        });
+        expect(filtered).toHaveLength(1);
+      });
+
+      it('should exclude skill when no anyBins binary is present', () => {
+        const skill = makeAnyBinsSkill(['curl', 'wget', 'httpie']);
+        const filtered = filterSkillsForPrompt([skill], {
+          hasBinary: () => false, // nothing available
+        });
+        expect(filtered).toHaveLength(0);
+      });
+
+      it('should include skill when anyBins is empty (no OR requirement)', () => {
+        const skill = makeAnyBinsSkill([]);
+        const filtered = filterSkillsForPrompt([skill], {
+          hasBinary: () => false,
+        });
+        // Empty anyBins means no OR constraint — skill should pass
+        expect(filtered).toHaveLength(1);
+      });
+
+      it('should apply anyBins independently from bins (AND) requirements', () => {
+        const skill: Skill = {
+          name: 'combined',
+          metadata: {
+            name: 'combined',
+            description: 'Needs bin1 AND (curl OR wget)',
+            nachos: { requires: { bins: ['bin1'], anyBins: ['curl', 'wget'] } },
+          },
+          content: '# Combined',
+          filePath: '/test/combined/SKILL.md',
+        };
+
+        // bin1 present, curl present → include
+        const included = filterSkillsForPrompt([skill], {
+          hasBinary: (bin) => bin === 'bin1' || bin === 'curl',
+        });
+        expect(included).toHaveLength(1);
+
+        // bin1 present, neither curl nor wget → exclude (anyBins not satisfied)
+        const excluded = filterSkillsForPrompt([skill], {
+          hasBinary: (bin) => bin === 'bin1',
+        });
+        expect(excluded).toHaveLength(0);
+
+        // curl present, bin1 missing → exclude (bins not satisfied)
+        const excludedNoBin1 = filterSkillsForPrompt([skill], {
+          hasBinary: (bin) => bin === 'curl',
+        });
+        expect(excludedNoBin1).toHaveLength(0);
+      });
+
+      it('should handle anyBins parsed from SKILL.md frontmatter metadata', () => {
+        const skillDir = path.join(tempDir, 'anybins-parsed');
+        fs.mkdirSync(skillDir);
+
+        const skillContent = `---
+name: anybins-parsed
+description: Uses anyBins from frontmatter
+metadata: {"nachos":{"requires":{"anyBins":["jq","yq"]}}}
+---
+
+# anybins-parsed
+
+Requires jq or yq.
+`;
+        fs.writeFileSync(path.join(skillDir, 'SKILL.md'), skillContent);
+
+        const skills = loadSkills({ skillsDir: tempDir });
+        expect(skills).toHaveLength(1);
+        expect(skills[0]?.metadata.nachos?.requires?.anyBins).toEqual(['jq', 'yq']);
+
+        // Only jq present → skill should load via filterSkillsForPrompt
+        const filtered = filterSkillsForPrompt(skills, {
+          hasBinary: (bin) => bin === 'jq',
+        });
+        expect(filtered).toHaveLength(1);
+
+        // Neither present → excluded
+        const excluded = filterSkillsForPrompt(skills, {
+          hasBinary: () => false,
+        });
+        expect(excluded).toHaveLength(0);
+      });
     });
   });
 });
