@@ -5,6 +5,7 @@
 import { createClient, type RedisClientType } from 'redis';
 import { createLogger } from '@nachos/types';
 import type { SessionStateRecord, SessionStateStore } from '@nachos/types';
+import { MAX_SESSION_STATE_SIZE_BYTES } from '@nachos/types';
 
 const logger = createLogger('session-store');
 
@@ -44,17 +45,42 @@ export class RedisSessionStateStore implements SessionStateStore {
     return record;
   }
 
-  async touch(sessionId: string, ttlSeconds?: number): Promise<void> {
+  async touch(sessionId: string, ttlSeconds?: number): Promise<{ touched: boolean }> {
     await this.ensureConnected();
     const ttl = ttlSeconds ?? this.ttlSeconds;
     if (ttl) {
-      await this.client.expire(this.key(sessionId), ttl);
+      // expire() returns true if the TTL was set, false if the key does not exist
+      const result = await this.client.expire(this.key(sessionId), ttl);
+      return { touched: result };
     }
+    // No TTL configured — check if key exists (exists() returns count of found keys)
+    const exists = await this.client.exists(this.key(sessionId));
+    return { touched: exists > 0 };
   }
 
   async delete(sessionId: string): Promise<void> {
     await this.ensureConnected();
     await this.client.del(this.key(sessionId));
+  }
+
+  /**
+   * Attempt to acquire a distributed lock via SET NX EX.
+   * Returns true if the lock was acquired, false if already held.
+   * @param key   Lock key (without prefix)
+   * @param ttlSeconds Lock TTL in seconds
+   */
+  async tryAcquireLock(key: string, ttlSeconds: number): Promise<boolean> {
+    await this.ensureConnected();
+    const result = await this.client.set(`lock:${key}`, '1', { NX: true, EX: ttlSeconds });
+    return result === 'OK';
+  }
+
+  /**
+   * Release a distributed lock.
+   */
+  async releaseLock(key: string): Promise<void> {
+    await this.ensureConnected();
+    await this.client.del(`lock:${key}`);
   }
 
   async close(): Promise<void> {
@@ -126,6 +152,13 @@ export class InMemorySessionStateStore implements SessionStateStore {
   }
 
   async set(record: SessionStateRecord): Promise<SessionStateRecord> {
+    const serialized = JSON.stringify(record.state);
+    const byteSize = Buffer.byteLength(serialized, 'utf8');
+    if (byteSize > MAX_SESSION_STATE_SIZE_BYTES) {
+      throw new Error(
+        `Session state for session "${record.sessionId}" exceeds maximum size of ${MAX_SESSION_STATE_SIZE_BYTES} bytes (actual: ${byteSize} bytes). Reduce the state payload.`
+      );
+    }
     this.entries.set(record.sessionId, {
       record,
       expiresAt: Date.now() + this.ttlMs,
@@ -133,12 +166,15 @@ export class InMemorySessionStateStore implements SessionStateStore {
     return record;
   }
 
-  async touch(sessionId: string, ttlSeconds?: number): Promise<void> {
+  async touch(sessionId: string, ttlSeconds?: number): Promise<{ touched: boolean }> {
     const entry = this.entries.get(sessionId);
-    if (entry) {
-      const extensionMs = ttlSeconds ? ttlSeconds * 1000 : this.ttlMs;
-      entry.expiresAt = Date.now() + extensionMs;
+    if (!entry || Date.now() > entry.expiresAt) {
+      if (entry) this.entries.delete(sessionId);
+      return { touched: false };
     }
+    const extensionMs = ttlSeconds ? ttlSeconds * 1000 : this.ttlMs;
+    entry.expiresAt = Date.now() + extensionMs;
+    return { touched: true };
   }
 
   async delete(sessionId: string): Promise<void> {

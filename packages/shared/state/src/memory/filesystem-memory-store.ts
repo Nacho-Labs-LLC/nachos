@@ -29,6 +29,10 @@ export class FilesystemMemoryStore implements MemoryStore {
   private semanticEnabled: boolean;
   private semanticConfig?: { model?: string; cacheDir?: string };
   private initPromise?: Promise<void>;
+  /** Per-agent background indexing promises — set on first query for that agent */
+  private agentIndexingPromises = new Map<string, Promise<void>>();
+  /** Set of agents whose indexing has completed */
+  private agentIndexingDone = new Set<string>();
 
   constructor(config: string | FilesystemMemoryStoreConfig) {
     if (typeof config === 'string') {
@@ -69,20 +73,7 @@ export class FilesystemMemoryStore implements MemoryStore {
           this.semanticEnabled = false;
           return;
         }
-
-        // Index existing entries
-        // Note: This could be slow for large datasets, consider lazy indexing
-        const agentDirs = await this.listAgentDirs();
-        for (const agentId of agentDirs) {
-          const entries = await this.readEntries(agentId);
-          for (const entry of entries) {
-            await this.semanticSearch!.addDocument({
-              id: entry.id,
-              text: entry.content,
-              metadata: entry,
-            });
-          }
-        }
+        // Indexing of existing entries is now done lazily on first query per agent
       })();
     }
     return this.initPromise;
@@ -116,6 +107,43 @@ export class FilesystemMemoryStore implements MemoryStore {
   /** Default query limit to prevent loading unbounded entries into memory. */
   private static readonly DEFAULT_QUERY_LIMIT = 100;
 
+  /**
+   * Kick off background indexing for an agent's entries on first semantic query.
+   * Returns immediately; queries will return empty results until indexing is done.
+   */
+  private startBackgroundIndexing(agentId: string): void {
+    if (this.agentIndexingDone.has(agentId) || this.agentIndexingPromises.has(agentId)) {
+      return;
+    }
+    const promise = (async () => {
+      try {
+        const entries = await this.readEntries(agentId);
+        const total = entries.length;
+        let indexed = 0;
+        for (const entry of entries) {
+          await this.semanticSearch!.addDocument({
+            id: entry.id,
+            text: entry.content,
+            metadata: entry,
+          });
+          indexed++;
+          if (indexed % 500 === 0) {
+            logger.info({ agentId, indexed, total }, `Semantic indexing: indexed ${indexed}/${total} entries`);
+          }
+        }
+        if (total > 0) {
+          logger.info({ agentId, indexed: total, total }, `Semantic indexing complete: indexed ${total}/${total} entries`);
+        }
+        this.agentIndexingDone.add(agentId);
+      } catch (err) {
+        logger.warn({ err: (err as Error).message, agentId }, 'Background semantic indexing failed');
+      } finally {
+        this.agentIndexingPromises.delete(agentId);
+      }
+    })();
+    this.agentIndexingPromises.set(agentId, promise);
+  }
+
   async query(query: MemoryQuery): Promise<MemoryQueryResult> {
     // Use semantic search if enabled and requested
     if (
@@ -124,6 +152,14 @@ export class FilesystemMemoryStore implements MemoryStore {
       this.semanticEnabled &&
       this.semanticSearch?.isInitialized()
     ) {
+      // Trigger background indexing for this agent on first semantic query
+      if (!this.agentIndexingDone.has(query.agentId)) {
+        this.startBackgroundIndexing(query.agentId);
+        // Return empty results while indexing is in progress
+        if (!this.agentIndexingDone.has(query.agentId)) {
+          return { entries: [], facts: [] };
+        }
+      }
       return this.querySemantic(query);
     }
 
@@ -233,18 +269,6 @@ export class FilesystemMemoryStore implements MemoryStore {
 
   private async ensureDir(agentId: string): Promise<void> {
     await fs.mkdir(path.join(this.baseDir, agentId), { recursive: true });
-  }
-
-  private async listAgentDirs(): Promise<string[]> {
-    try {
-      const entries = await fs.readdir(this.baseDir, { withFileTypes: true });
-      return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        return [];
-      }
-      throw error;
-    }
   }
 
   private entriesPath(agentId: string): string {

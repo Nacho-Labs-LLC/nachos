@@ -168,6 +168,9 @@ export interface WorkspaceDocumentStore {
   close(): Promise<void>;
 }
 
+/** Maximum allowed size for a serialized SessionStateRecord.state value (100 KB). */
+export const MAX_SESSION_STATE_SIZE_BYTES = 102400;
+
 export interface SessionStateRecord {
   sessionId: string;
   agentId: string;
@@ -179,7 +182,12 @@ export interface SessionStateRecord {
 export interface SessionStateStore {
   get(sessionId: string): Promise<SessionStateRecord | null>;
   set(record: SessionStateRecord): Promise<SessionStateRecord>;
-  touch(sessionId: string, ttlSeconds?: number): Promise<void>;
+  /**
+   * Extend the TTL of a session state record.
+   * Returns `{ touched: true }` if the key existed and was refreshed.
+   * Returns `{ touched: false }` if the key was missing or already expired.
+   */
+  touch(sessionId: string, ttlSeconds?: number): Promise<{ touched: boolean }>;
   delete(sessionId: string): Promise<void>;
 }
 

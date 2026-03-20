@@ -237,18 +237,53 @@ export class StateLayer {
     agentId: string,
     context: StateOperationContext
   ): Promise<BootstrapProfile | null> {
-    const profile: BootstrapProfile = {
-      agentId,
-      content: createDefaultBootstrapBlocks(),
-      updatedAt: new Date().toISOString(),
-      version: 1,
-      source: 'default',
-    };
+    // Distributed lock: use Redis SET NX EX if a Redis session store is available.
+    // This prevents two concurrent gateways from both inserting a default profile simultaneously.
+    // If Redis is unavailable we rely on the bootstrap store's ON CONFLICT upsert semantics.
+    const redisStore =
+      this.sessionStateStore instanceof RedisSessionStateStore ? this.sessionStateStore : null;
 
-    await this.ensureAllowed('state.bootstrap.write', context, agentId);
-    const stored = await this.bootstrapStore.put(profile);
-    await this.auditAllowed('state.bootstrap.write', context, agentId);
-    return stored;
+    const lockKey = `bootstrap:seed:${agentId}`;
+    const lockTtlSeconds = 30;
+    let lockAcquired = false;
+
+    if (redisStore) {
+      lockAcquired = await redisStore.tryAcquireLock(lockKey, lockTtlSeconds);
+      if (!lockAcquired) {
+        // Another gateway holds the lock — wait briefly then return whatever was seeded
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        const seeded = await this.bootstrapStore.get(agentId);
+        if (seeded) return seeded;
+        // Still not seeded; fall through to let the DB upsert handle it
+      }
+    }
+
+    try {
+      // Re-check: another gateway may have seeded by the time we reach here.
+      const existing = await this.bootstrapStore.get(agentId);
+      if (existing) {
+        return existing;
+      }
+
+      const profile: BootstrapProfile = {
+        agentId,
+        content: createDefaultBootstrapBlocks(),
+        updatedAt: new Date().toISOString(),
+        version: 1,
+        source: 'default',
+      };
+
+      await this.ensureAllowed('state.bootstrap.write', context, agentId);
+      // The bootstrap store's put() uses ON CONFLICT DO UPDATE (postgres) or equivalent
+      // upsert semantics, so concurrent writes safely converge on the same record.
+      const stored = await this.bootstrapStore.put(profile);
+      await this.auditAllowed('state.bootstrap.write', context, agentId);
+      return stored;
+    } finally {
+      if (redisStore && lockAcquired) {
+        await redisStore.releaseLock(lockKey);
+      }
+    }
   }
 
   async appendMemoryEntry(
@@ -374,10 +409,14 @@ export class StateLayer {
     sessionId: string,
     context: StateOperationContext,
     ttlSeconds?: number
-  ): Promise<void> {
+  ): Promise<{ touched: boolean }> {
     await this.ensureAllowed('state.session.touch', context, sessionId);
-    await this.sessionStateStore.touch(sessionId, ttlSeconds);
+    const result = await this.sessionStateStore.touch(sessionId, ttlSeconds);
+    if (!result.touched) {
+      logger.warn({ sessionId }, 'Session state touch() had no effect — key missing or expired');
+    }
     await this.auditAllowed('state.session.touch', context, sessionId);
+    return result;
   }
 
   async deleteSessionState(sessionId: string, context: StateOperationContext): Promise<void> {
