@@ -29,6 +29,7 @@ export type {
   BrowserToolConfig,
   CodeRunnerToolConfig,
   ShellToolConfig,
+  ShellRateLimitConfig,
   WebSearchToolConfig,
   WebFetchToolConfig,
 

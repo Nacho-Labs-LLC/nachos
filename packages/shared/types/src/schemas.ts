@@ -612,6 +612,12 @@ export const SessionsSpawnToolSchema = Type.Object(
         description: 'Whether to delete or keep the subagent session after completion',
       })
     ),
+    sandboxMode: Type.Optional(
+      Type.Union([Type.Literal('host'), Type.Literal('full')], {
+        description:
+          'Sandbox isolation mode. "host" runs in the main container (default). "full" runs in an isolated Docker container (requires docker config).',
+      })
+    ),
   },
   { $id: 'SessionsSpawnTool', description: 'Subagent spawn tool parameters' }
 );

@@ -855,6 +855,9 @@ export class ToolExecutor {
         typeof call.parameters.stream === 'boolean' ? call.parameters.stream : undefined;
       const cleanup = readCleanup(call.parameters.cleanup);
       const timeoutMs = readTimeoutMs(call.parameters.runTimeoutSeconds);
+      const sandboxModeRaw = readOptionalString(call.parameters.sandboxMode);
+      const sandboxMode =
+        sandboxModeRaw === 'host' || sandboxModeRaw === 'full' ? sandboxModeRaw : undefined;
 
       const runRequest: SubagentRunRequest = {
         task,
@@ -866,6 +869,7 @@ export class ToolExecutor {
         stream,
         cleanup,
         timeoutMs,
+        sandboxMode,
         sessionConfig: session.config,
         requester: {
           sessionId: session.id,

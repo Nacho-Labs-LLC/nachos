@@ -216,8 +216,17 @@ export interface CodeRunnerToolConfig {
 /**
  * Shell tool configuration
  */
+export interface ShellRateLimitConfig {
+  /** Maximum exec calls per window per user+tool combination */
+  max_per_window: number;
+  /** Window duration in milliseconds (default: 60000) */
+  window_ms?: number;
+}
+
 export interface ShellToolConfig {
   enabled: boolean;
+  /** Per-user rate limiting for exec/shell calls */
+  rate_limit?: ShellRateLimitConfig;
 }
 
 /**

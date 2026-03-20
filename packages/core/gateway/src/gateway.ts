@@ -2462,6 +2462,14 @@ export class Gateway {
       shellConfig: {
         allowedTools: skillToolConfigs,
         securityMode,
+        ...(this.toolsConfig?.shell?.rate_limit
+          ? {
+              rateLimit: {
+                maxPerWindow: this.toolsConfig.shell.rate_limit.max_per_window,
+                windowMs: this.toolsConfig.shell.rate_limit.window_ms ?? 60_000,
+              },
+            }
+          : {}),
       },
     });
     this.localToolHandler = localToolHandler;
