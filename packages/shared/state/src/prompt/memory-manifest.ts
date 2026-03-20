@@ -196,7 +196,7 @@ export function formatManifestForPrompt(
 function extractPreferenceKey(content: string): string {
   // Use first clause before a colon, period, or dash
   const match = content.match(/^([^:.–—\n]{3,50})/);
-  return match ? match[1].trim() : truncate(content, 40);
+  return match ? (match[1] ?? '').trim() : truncate(content, 40);
 }
 
 /** Truncate a string to maxLen chars, adding '...' if needed. */

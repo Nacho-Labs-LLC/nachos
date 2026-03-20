@@ -67,6 +67,7 @@ export {
   type PromptSectionReport,
   type PromptReport,
   type PromptAssemblyResult,
+  MAX_SESSION_STATE_SIZE_BYTES,
 } from './state-types.js';
 
 /**

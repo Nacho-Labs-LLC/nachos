@@ -125,7 +125,20 @@ export class PostgresSessionsStore implements SessionsStore {
        ON ${this.qualified('sessions')}(channel, conversation_id)`
     );
 
-    // Create index for active sessions query (optimized for listActive)
+    // Compound index for listActive(): filters by is_archived=false, orders by last_activity DESC
+    await this.pool.query(
+      `CREATE INDEX IF NOT EXISTS sessions_list_active_idx
+       ON ${this.qualified('sessions')}(is_archived, last_activity DESC)
+       WHERE is_archived = false`
+    );
+
+    // Index on channel column for channel-scoped queries
+    await this.pool.query(
+      `CREATE INDEX IF NOT EXISTS sessions_channel_idx
+       ON ${this.qualified('sessions')}(channel)`
+    );
+
+    // Create index for active sessions query (optimized for listActive with channel filter)
     await this.pool.query(
       `CREATE INDEX IF NOT EXISTS sessions_active_idx
        ON ${this.qualified('sessions')}(channel, is_archived, last_activity)

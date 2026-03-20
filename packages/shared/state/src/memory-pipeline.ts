@@ -11,6 +11,9 @@ import {
 } from '@nachos/context-manager';
 import type { Message, Session, SessionStateRecord } from '@nachos/types';
 import type { MemoryEntry, MemoryFact } from '@nachos/types';
+import { createLogger } from '@nachos/types';
+
+const logger = createLogger('memory-pipeline');
 import type { StateLayer, StateOperationContext } from './state-layer.js';
 
 export interface MemoryPipelineConfig {
@@ -47,7 +50,24 @@ export class MemoryPipeline {
     facts: MemoryFact[];
   }> {
     const contextMessages = params.messages.map((msg) => messageAdapter.toContextMessage(msg));
-    const extracted = await this.extractor.extract(contextMessages);
+
+    // Run DLP extraction in background with a 5s timeout; skip gracefully on timeout/failure
+    let extracted: Record<string, ExtractedItem[]> = {};
+    try {
+      const extractionTimeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('DLP extraction timed out after 5s')), 5000)
+      );
+      extracted = await Promise.race([this.extractor.extract(contextMessages), extractionTimeout]);
+    } catch (err) {
+      // Log and continue — DLP extraction is best-effort
+      const msg = (err as Error).message ?? String(err);
+      if (msg.includes('timed out')) {
+        logger.warn({ sessionId: params.session.id }, 'DLP extraction skipped: timed out after 5s');
+      } else {
+        logger.warn({ err: msg, sessionId: params.session.id }, 'DLP extraction failed; skipping');
+      }
+      return { extracted: {}, entries: [], facts: [] };
+    }
 
     const agentId = this.config.agentIdResolver(params.session);
     const { entries, facts } = this.mapExtractedToMemory(extracted, agentId, params.session.id);
