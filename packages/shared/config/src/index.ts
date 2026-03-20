@@ -74,7 +74,6 @@ export type {
   SubagentToolProfileConfig,
   SubagentToolPolicyConfig,
   RuntimeToolSandboxConfig,
-  SelfManagementConfig,
   AssistantConfig,
   SkillsConfig,
   SkillEntryConfig,

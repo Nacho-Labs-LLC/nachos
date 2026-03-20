@@ -52,13 +52,13 @@ configRouter.put('/', async (c) => {
       );
     }
 
-    const dlp = parsed['dlp'] as Record<string, unknown> | undefined;
-    if (dlp && dlp['default_action'] === 'allow') {
+    const dlp = security?.['dlp'] as Record<string, unknown> | undefined;
+    if (dlp && dlp['action'] === 'allow') {
       return c.json(
         {
           error: 'Security policy violation',
           details:
-            'Cannot set DLP default_action to "allow" via the API. Edit nachos.toml directly.',
+            'Cannot set [security.dlp] action to "allow" via the API. Edit nachos.toml directly.',
         },
         403
       );
@@ -103,11 +103,11 @@ configRouter.patch('/', async (c) => {
       403
     );
   }
-  if (body.path === 'dlp.default_action' && body.value === 'allow') {
+  if (body.path === 'security.dlp.action' && body.value === 'allow') {
     return c.json(
       {
         error: 'Security policy violation',
-        details: 'Cannot set DLP default_action to "allow" via the API. Edit nachos.toml directly.',
+        details: 'Cannot set [security.dlp] action to "allow" via the API. Edit nachos.toml directly.',
       },
       403
     );

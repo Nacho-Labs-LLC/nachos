@@ -36,6 +36,7 @@ const CONFIG_SHAPE: SchemaNode = {
     temperature: true,
     base_url: true,
     region: true, // AWS region for Bedrock provider
+    context_window: true,
   },
   channels: {
     webchat: { enabled: true, port: true },
@@ -304,6 +305,7 @@ const CONFIG_SHAPE: SchemaNode = {
         reset_triggers: true,
         context_triggers: true,
         identity_triggers: true,
+        help_triggers: true,
       },
     },
     state: {
@@ -404,11 +406,6 @@ const CONFIG_SHAPE: SchemaNode = {
       env: true,
       setup_command: true,
       network: true,
-    },
-    self_management: {
-      enabled: true,
-      source_dir: true,
-      require_confirmation_for_restart: true,
     },
   },
   assistant: { name: true, system_prompt: true },

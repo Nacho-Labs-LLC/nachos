@@ -95,6 +95,7 @@ LLM provider configuration. Credentials come from `.env`.
 | `temperature` | number | no | — | 0–2 |
 | `base_url` | string | no | — | Required for `ollama`/`custom` providers |
 | `region` | string | no | — | Required for `bedrock` provider |
+| `context_window` | number | no | — | Override the model's context window size in tokens |
 
 #### `[[llm.profiles]]` — Auth Profiles
 
@@ -106,16 +107,6 @@ Tried in `profile_order` sequence until one succeeds.
 | `provider` | string | yes | Provider name |
 | `api_key_env` | string | yes | Environment variable containing the API key |
 | `base_url` | string | no | Override base URL for this profile |
-
-#### `[[llm.providers]]` — Provider Definitions
-
-| Key | Type | Required | Description |
-|-----|------|----------|-------------|
-| `name` | string | yes | Provider identifier |
-| `type` | string | yes | Provider type |
-| `base_url` | string | no | API base URL |
-| `models` | string[] | no | Available models |
-| `profiles` | string[] | no | Associated auth profiles |
 
 #### `[llm.retry]`
 
@@ -218,7 +209,7 @@ mode = "standard"
 
 [security.dlp]
 enabled = true
-action = "block"  # default action — also supports "allow", "block", "redact", "alert"
+action = "block"  # default action — also supports "allow", "block", "redact", "warn", "audit"
 patterns = ["credit_card", "ssn", "api_key", "password"]
 
 [security.rate_limits]
@@ -682,7 +673,6 @@ Tier names: `archival`, `compressed`, `condensed`.
 |-----|------|-------------|
 | `name` | string | Assistant display name |
 | `system_prompt` | string | System prompt (supports multi-line `"""..."""`) |
-| `context_files` | string[] | Additional context file paths |
 
 ---
 
@@ -718,6 +708,36 @@ Skill-backed CLI tool configuration.
 | `check_interval_seconds` | number | How often to check for due tasks |
 | `max_concurrent_jobs` | number | Max concurrent jobs |
 | `run_missed_on_startup` | boolean | Run missed jobs on startup |
+
+#### `[[scheduler.jobs]]` — Scheduled Job Definitions
+
+Array of declarative job definitions synced to the SQLite job registry on startup.
+
+| Key | Type | Required | Description |
+|-----|------|----------|-------------|
+| `name` | string | yes | Unique job identifier |
+| `description` | string | no | Human-readable description |
+| `schedule_type` | string | yes | `at` (one-shot ISO timestamp), `every` (interval ms), `cron` (5-field cron) |
+| `schedule_value` | string | yes | ISO timestamp, milliseconds, or cron expression |
+| `timezone` | string | no | IANA timezone for cron schedules |
+| `action_type` | string | yes | `systemEvent` or `agentTurn` |
+| `action_text` | string | no | Text to inject (for `systemEvent`) |
+| `action_prompt` | string | no | Prompt for the LLM (for `agentTurn`) |
+| `delivery_channel` | string | no | Target channel to deliver job output |
+| `enabled` | boolean | no | Whether this job is active |
+
+---
+
+### `[sessions]` — Optional
+
+Session lifecycle configuration.
+
+#### `[sessions]`
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `inactivity_timeout` | number | Close inactive sessions after this many seconds |
+| `archive_ttl` | number | Delete archived sessions after this many seconds |
 
 ---
 

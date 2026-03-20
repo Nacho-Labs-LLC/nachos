@@ -694,15 +694,6 @@ export interface RuntimeToolSandboxConfig {
 }
 
 /**
- * Self-management configuration for DevOps capability
- */
-export interface SelfManagementConfig {
-  enabled?: boolean;
-  source_dir?: string;
-  require_confirmation_for_restart?: boolean;
-}
-
-/**
  * Runtime configuration
  */
 export interface RuntimeConfig {
@@ -721,7 +712,6 @@ export interface RuntimeConfig {
   state?: StateLayerConfig;
   subagents?: SubagentConfig;
   sandbox?: RuntimeToolSandboxConfig;
-  self_management?: SelfManagementConfig;
 }
 
 /**

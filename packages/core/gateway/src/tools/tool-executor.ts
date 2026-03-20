@@ -508,10 +508,12 @@ export class ToolExecutor {
     const blockedResults: Array<{ index: number; result: ToolResult }> = [];
     const allowedCalls: Array<{ index: number; call: ToolCall }> = [];
     const localResults: Array<{ index: number; result: ToolResult }> = [];
+    const callStartTimes = new Map<string, number>();
 
     for (let i = 0; i < calls.length; i += 1) {
       const call = calls[i];
       if (!call) continue;
+      callStartTimes.set(call.id, Date.now());
 
       // -----------------------------------------------------------------------
       // Basic tool call validation (#148)
@@ -778,7 +780,7 @@ export class ToolExecutor {
             error: result?.error
               ? { code: result.error.code, message: result.error.message }
               : undefined,
-            durationMs: 0,
+            durationMs: Date.now() - (callStartTimes.get(call.id) ?? Date.now()),
             timestamp: new Date().toISOString(),
           });
         } catch (hookError) {

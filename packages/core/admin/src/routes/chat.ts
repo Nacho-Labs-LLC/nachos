@@ -176,6 +176,10 @@ chatRouter.get('/stream', async (c) => {
       await new Promise<void>((resolve) => {
         stream.onAbort(() => {
           clearInterval(keepAlive);
+          // Unsubscribe from NATS to prevent subscription leak
+          bus.unsubscribe(outboundTopic).catch((err) => {
+            logger.error({ err }, 'Failed to unsubscribe outbound topic on disconnect');
+          });
           resolve();
         });
       });
