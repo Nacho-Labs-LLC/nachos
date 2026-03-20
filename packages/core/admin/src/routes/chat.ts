@@ -82,7 +82,9 @@ chatRouter.post('/send', async (c) => {
       content: {
         text: message,
       },
-      metadata: {},
+      // Admin webchat users are authenticated via admin token — mark as paired
+      // so standard mode DM policy (which requires pairing) allows responses.
+      metadata: { is_paired: true },
     };
 
     const topic = TOPICS.channel.inbound(CHANNEL_ID);
