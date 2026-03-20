@@ -269,7 +269,6 @@ export class Gateway {
   private stateLayer?: StateLayer;
   private _stateLayerInitPromise?: Promise<void>;
   private memoryPipeline?: MemoryPipeline;
-  private memoryPipelineInterval?: NodeJS.Timeout;
   private sessionSweeperInterval?: NodeJS.Timeout;
   private sessionsLifecycleConfig?: SessionsLifecycleConfig;
   private securityMode: 'strict' | 'standard' | 'permissive';
@@ -1772,8 +1771,8 @@ export class Gateway {
         if (job.actionType === 'agentTurn') {
           const actionData = job.actionData as import('./scheduler/types.js').AgentTurnAction;
 
-          // Create an isolated agent turn (similar to how subagents work)
-          // For now, inject as a system event - can be enhanced later for true isolated turns
+          // agentTurn is currently implemented as a channel inbound injection.
+          // model/temperature from actionData are not yet honored — tracked for future improvement.
           if (job.deliveryChannel) {
             const message: ChannelInboundMessage = {
               channel: job.deliveryChannel,
@@ -2517,7 +2516,6 @@ export class Gateway {
 
     await this.registerManagementHandlers();
 
-    this.startMemoryPipelineScheduler();
     this.startSessionSweeper();
     await this.router.getBus().subscribe(TOPICS.config.update, async (data) => {
       await this.handleConfigUpdate(data);
@@ -2752,11 +2750,6 @@ export class Gateway {
       await this.rateLimiter.shutdown();
     }
 
-    if (this.memoryPipelineInterval) {
-      clearInterval(this.memoryPipelineInterval);
-      this.memoryPipelineInterval = undefined;
-    }
-
     if (this.sessionSweeperInterval) {
       clearInterval(this.sessionSweeperInterval);
       this.sessionSweeperInterval = undefined;
@@ -2870,17 +2863,6 @@ export class Gateway {
     } catch (err) {
       logger.warn({ err, eventType: event.eventType }, 'Failed to log audit event');
     }
-  }
-
-  /**
-   * @deprecated Periodic DLP extraction replaced by session-end LLM extraction (startSessionSweeper).
-   * Kept as no-op for backward compatibility — will be removed in a future release.
-   */
-  private startMemoryPipelineScheduler(): void {
-    // No-op: periodic extraction is now handled by session-end LLM extraction.
-    // The session sweeper (startSessionSweeper) closes inactive sessions and triggers
-    // knowledge extraction via onSessionClosed().
-    // Compaction-based extraction in router.ts still uses MemoryPipeline.storeExtracted() directly.
   }
 
   /**
@@ -3060,14 +3042,6 @@ export class Gateway {
       if (!response?.success || !response.message) return '';
       return coerceLLMContentText(response.message.content) ?? '';
     };
-  }
-
-  /**
-   * Get the sessions store
-   * @deprecated Use getSessionsStore() instead
-   */
-  getStorage(): SessionsStore {
-    return this.sessionsStore;
   }
 
   /**

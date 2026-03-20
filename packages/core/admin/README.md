@@ -58,7 +58,7 @@ Backend: `http://localhost:8082`
 | `NACHOS_CONFIG_PATH` | `/app/nachos.toml` | Path to config file |
 | `NACHOS_STATE_DIR` | `/app/state` | Directory containing `nachos.db` and `audit.db` |
 | `NACHOS_SKILLS_DIR` | `/app/skills` | Directory scanned for `SKILL.md` files |
-| `NACHOS_ADMIN_TOKEN` | *(unset)* | Auth token. If unset, API is open (warning printed at startup) |
+| `NACHOS_ADMIN_TOKEN` | *(unset)* | Auth token. Always required — if unset, a random session token is generated at startup and printed to logs |
 | `GATEWAY_HEALTH_URL` | `http://gateway:3000/health` | Gateway health endpoint |
 
 ## API Reference
