@@ -15,6 +15,47 @@ interface ValidateOptions {
   json?: boolean;
 }
 
+function validatePolicyStructure(policy: unknown): string[] {
+  const errors: string[] = [];
+
+  if (!policy || typeof policy !== 'object') {
+    return ['Policy must be a YAML object'];
+  }
+
+  const doc = policy as { version?: unknown; rules?: unknown[] };
+  if (!doc.version) {
+    errors.push('Missing required field: version');
+  }
+  if (!Array.isArray(doc.rules)) {
+    errors.push('Missing or invalid rules array');
+    return errors;
+  }
+
+  for (let i = 0; i < doc.rules.length; i++) {
+    const rule = doc.rules[i];
+    if (!rule || typeof rule !== 'object') {
+      errors.push(`Rule ${i} must be an object`);
+      continue;
+    }
+
+    const ruleObj = rule as { id?: unknown; priority?: unknown; match?: unknown; effect?: unknown };
+    if (typeof ruleObj.id !== 'string' || !ruleObj.id.trim()) {
+      errors.push(`Rule ${i} must have a string id`);
+    }
+    if (typeof ruleObj.priority !== 'number') {
+      errors.push(`Rule ${i} must have a numeric priority`);
+    }
+    if (!ruleObj.match || typeof ruleObj.match !== 'object') {
+      errors.push(`Rule ${i} must have a match object`);
+    }
+    if (ruleObj.effect !== 'allow' && ruleObj.effect !== 'deny') {
+      errors.push(`Rule ${i} must have effect "allow" or "deny"`);
+    }
+  }
+
+  return errors;
+}
+
 export async function validateCommand(options: ValidateOptions): Promise<void> {
   const output = new OutputFormatter(options.json ?? false, 'policy validate', getVersion());
 
@@ -83,12 +124,10 @@ export async function validateCommand(options: ValidateOptions): Promise<void> {
     for (const filePath of policyFiles) {
       try {
         const content = readFileSync(filePath, 'utf-8');
-        parse(content); // Will throw if invalid YAML
-
-        // Basic structure validation
-        const policy = parse(content);
-        if (!policy || typeof policy !== 'object') {
-          throw new Error('Policy must be a YAML object');
+        const policy = parse(content); // Will throw if invalid YAML
+        const validationErrors = validatePolicyStructure(policy);
+        if (validationErrors.length > 0) {
+          throw new Error(validationErrors.join('; '));
         }
 
         results.push({ file: filePath, valid: true });

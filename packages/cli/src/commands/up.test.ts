@@ -199,4 +199,22 @@ describe('upCommand', () => {
 
     expect(output.data.urls.webchat).toBeUndefined();
   });
+
+  it('rejects invalid --timeout when --wait is enabled (JSON mode)', async () => {
+    mockIsDockerAvailable.mockResolvedValue(true);
+    mockIsComposeAvailable.mockResolvedValue(true);
+    mockFindConfigFileOrThrow.mockReturnValue('/project/nachos.toml');
+    mockGetProjectRoot.mockReturnValue('/project');
+    mockLoadAndValidateConfig.mockResolvedValue({});
+    mockGenerateAndWriteComposeFile.mockReturnValue('/project/docker-compose.generated.yml');
+    mockUp.mockResolvedValue(undefined);
+    mockPs.mockResolvedValue([{ Service: 'gateway', State: 'running', Health: 'healthy' }]);
+
+    const capture = captureJsonOutput();
+    await upCommand({ json: true, wait: true, timeout: '0' });
+    const output = capture.parse();
+
+    expect(output.ok).toBe(false);
+    expect(output.error.message).toContain('between 1 and 600');
+  });
 });

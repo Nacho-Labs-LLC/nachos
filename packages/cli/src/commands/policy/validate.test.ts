@@ -51,7 +51,7 @@ describe('policy validate command', () => {
     mkdirSync(policiesDir, { recursive: true });
     writeFileSync(
       join(policiesDir, 'standard.yaml'),
-      'version: 1\nname: standard\ndescription: Test policy\n',
+      'version: "1.0"\nrules:\n  - id: allow-read\n    priority: 100\n    match:\n      resource: tool\n      action: read\n    effect: allow\n',
       'utf-8'
     );
 
@@ -71,8 +71,16 @@ describe('policy validate command', () => {
 
     const policiesDir = join(tempDir, 'policies');
     mkdirSync(policiesDir, { recursive: true });
-    writeFileSync(join(policiesDir, 'standard.yaml'), 'version: 1\nname: standard\n', 'utf-8');
-    writeFileSync(join(policiesDir, 'strict.yml'), 'version: 1\nname: strict\n', 'utf-8');
+    writeFileSync(
+      join(policiesDir, 'standard.yaml'),
+      'version: "1.0"\nrules:\n  - id: rule-a\n    priority: 100\n    match:\n      resource: tool\n      action: read\n    effect: allow\n',
+      'utf-8'
+    );
+    writeFileSync(
+      join(policiesDir, 'strict.yml'),
+      'version: "1.0"\nrules:\n  - id: rule-b\n    priority: 90\n    match:\n      resource: tool\n      action: write\n    effect: deny\n',
+      'utf-8'
+    );
 
     const capture = captureJsonOutput();
     await validateCommand({ json: true });
@@ -133,5 +141,27 @@ describe('policy validate command', () => {
     expect(output.ok).toBe(false);
     expect(output.error.code).toBe('POLICY_VALIDATION_FAILED');
     expect(mockExit).toHaveBeenCalled();
+  });
+
+  it('reports invalid policy rule structure (JSON mode)', async () => {
+    const configPath = join(tempDir, 'nachos.toml');
+    writeFileSync(configPath, '[nachos]\nname = "test"\nversion = "0.0.1"\n', 'utf-8');
+    process.env.NACHOS_CONFIG_PATH = configPath;
+
+    const policiesDir = join(tempDir, 'policies');
+    mkdirSync(policiesDir, { recursive: true });
+    writeFileSync(
+      join(policiesDir, 'invalid-structure.yaml'),
+      'version: "1.0"\nrules:\n  - priority: high\n    effect: maybe\n',
+      'utf-8'
+    );
+
+    const capture = captureJsonOutput();
+    await validateCommand({ json: true });
+    const output = capture.parse();
+
+    expect(output.ok).toBe(false);
+    expect(output.error.code).toBe('POLICY_VALIDATION_FAILED');
+    expect(output.error.message).toContain('failed validation');
   });
 });

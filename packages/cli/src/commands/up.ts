@@ -10,7 +10,7 @@ import { OutputFormatter, prettyOutput } from '../core/output.js';
 import { DockerClient } from '../core/docker-client.js';
 import { generateAndWriteComposeFile } from '../core/compose-generator.js';
 import { getVersion } from '../cli.js';
-import { DockerNotAvailableError, DockerComposeNotAvailableError } from '../core/errors.js';
+import { CLIError, DockerNotAvailableError, DockerComposeNotAvailableError } from '../core/errors.js';
 
 interface UpOptions {
   json?: boolean;
@@ -18,6 +18,19 @@ interface UpOptions {
   wait?: boolean;
   only?: string;
   timeout?: string;
+}
+
+function parseAndValidateTimeout(timeoutRaw: string): number {
+  const timeout = Number.parseInt(timeoutRaw, 10);
+  if (Number.isNaN(timeout) || timeout < 1 || timeout > 600) {
+    throw new CLIError(
+      'Timeout must be an integer between 1 and 600 seconds',
+      'INVALID_TIMEOUT',
+      1,
+      'Use --timeout <seconds> where seconds is between 1 and 600.'
+    );
+  }
+  return timeout;
 }
 
 export async function upCommand(options: UpOptions): Promise<void> {
@@ -71,9 +84,9 @@ export async function upCommand(options: UpOptions): Promise<void> {
 
     // Wait for health checks if requested
     if (options.wait) {
-      const timeout = options.timeout ? parseInt(options.timeout, 10) : 60;
+      const timeout = options.timeout ? parseAndValidateTimeout(options.timeout) : 60;
       spinner?.start('Waiting for services to be healthy...');
-      await waitForHealthy(docker, composePath, isNaN(timeout) ? 60 : timeout);
+      await waitForHealthy(docker, composePath, timeout);
       spinner?.succeed('All services healthy');
     }
 
