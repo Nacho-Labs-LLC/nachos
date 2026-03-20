@@ -132,24 +132,35 @@ function writeEnvVar(envPath: string, key: string, value: string): void {
     return;
   }
 
-  const lines = readFileSync(envPath, 'utf-8').split(/\r?\n/);
+  const content = readFileSync(envPath, 'utf-8');
+  const lineEnding = content.includes('\r\n') ? '\r\n' : '\n';
+  const lines = content.split(/\r?\n/);
+  if (lines[lines.length - 1] === '') {
+    lines.pop();
+  }
+
   let replaced = false;
-  const nextLines = lines.map((line) => {
+  const nextLines: string[] = [];
+  for (const line of lines) {
     if (!line || line.trim().startsWith('#')) {
-      return line;
+      nextLines.push(line);
+      continue;
     }
     if (line.startsWith(`${key}=`)) {
-      replaced = true;
-      return nextLine;
+      if (!replaced) {
+        nextLines.push(nextLine);
+        replaced = true;
+      }
+      continue;
     }
-    return line;
-  });
+    nextLines.push(line);
+  }
 
   if (!replaced) {
     nextLines.push(nextLine);
   }
 
-  writeFileSync(envPath, nextLines.join('\n').replace(/\n+$/, '\n'), 'utf-8');
+  writeFileSync(envPath, nextLines.join(lineEnding).replace(/\r?\n*$/, lineEnding), 'utf-8');
 }
 
 export async function setupTokenCommand(options: SetupTokenOptions): Promise<void> {

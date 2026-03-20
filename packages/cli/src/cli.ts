@@ -48,6 +48,22 @@ Examples:
   nachos completion powershell | Out-String | Invoke-Expression
 `;
 
+export function parseTimeoutOption(timeout: string | undefined): number | undefined {
+  if (!timeout) {
+    return undefined;
+  }
+  const parsed = Number.parseInt(timeout, 10);
+  if (Number.isNaN(parsed) || parsed < 1 || parsed > 600) {
+    throw new CLIError(
+      'Timeout must be an integer between 1 and 600 seconds',
+      'INVALID_TIMEOUT',
+      1,
+      'Use --timeout <seconds> where seconds is between 1 and 600.'
+    );
+  }
+  return parsed;
+}
+
 export function createProgram(): Command {
   const program = new Command();
 
@@ -319,11 +335,10 @@ Examples:
     .option('--cleanup <mode>', 'Cleanup mode: delete or keep')
     .action(async (task: string, options) => {
       const { subagentsSpawnCommand } = await import('./commands/subagents.js');
-      const parsed = options.timeout ? Number.parseInt(options.timeout, 10) : undefined;
       await subagentsSpawnCommand(task, {
         ...program.opts(),
         ...options,
-        timeout: Number.isNaN(parsed) ? undefined : parsed,
+        timeout: parseTimeoutOption(options.timeout),
       });
     });
 

@@ -20,6 +20,14 @@ interface UpOptions {
   timeout?: string;
 }
 
+function parseAndValidateTimeout(timeoutRaw: string): number {
+  const timeout = Number.parseInt(timeoutRaw, 10);
+  if (Number.isNaN(timeout) || timeout < 1 || timeout > 600) {
+    throw new Error('Timeout must be an integer between 1 and 600 seconds');
+  }
+  return timeout;
+}
+
 export async function upCommand(options: UpOptions): Promise<void> {
   const docker = new DockerClient();
   const output = new OutputFormatter(options.json ?? false, 'up', getVersion());
@@ -71,9 +79,9 @@ export async function upCommand(options: UpOptions): Promise<void> {
 
     // Wait for health checks if requested
     if (options.wait) {
-      const timeout = options.timeout ? parseInt(options.timeout, 10) : 60;
+      const timeout = options.timeout ? parseAndValidateTimeout(options.timeout) : 60;
       spinner?.start('Waiting for services to be healthy...');
-      await waitForHealthy(docker, composePath, isNaN(timeout) ? 60 : timeout);
+      await waitForHealthy(docker, composePath, timeout);
       spinner?.succeed('All services healthy');
     }
 

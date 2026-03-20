@@ -40,6 +40,19 @@ type TomlConfig = TOML.JsonMap & {
   tools?: TOML.JsonMap;
 };
 
+function parseAndValidateTimeout(timeoutRaw: string): number {
+  const timeout = Number.parseInt(timeoutRaw, 10);
+  if (Number.isNaN(timeout) || timeout < 1 || timeout > 600) {
+    throw new CLIError(
+      'Timeout must be an integer between 1 and 600 seconds',
+      'INVALID_TIMEOUT',
+      1,
+      'Use --timeout <seconds> where seconds is between 1 and 600.'
+    );
+  }
+  return timeout;
+}
+
 /**
  * Build tool config from interactive prompts
  */
@@ -153,14 +166,14 @@ function buildConfigFromFlags(name: ToolName, options: AddToolOptions): TOML.Jso
         ? options.domains.split(',').map((d) => d.trim())
         : [];
       config.headless = true;
-      config.timeout = options.timeout ? parseInt(options.timeout, 10) : 30;
+      config.timeout = options.timeout ? parseAndValidateTimeout(options.timeout) : 30;
       break;
     case 'code_runner':
       config.languages = options.languages
         ? options.languages.split(',').map((l) => l.trim())
         : ['python', 'javascript'];
       config.runtime = 'sandboxed';
-      config.timeout = options.timeout ? parseInt(options.timeout, 10) : 30;
+      config.timeout = options.timeout ? parseAndValidateTimeout(options.timeout) : 30;
       config.max_memory = options.memory ?? '512MB';
       break;
     default:

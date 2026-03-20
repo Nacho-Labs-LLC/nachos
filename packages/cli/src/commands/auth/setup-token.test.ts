@@ -194,6 +194,52 @@ api_key_env = "OLD_VAR"
     expect(envContent).toContain(`ANTHROPIC_SETUP_TOKEN=${VALID_TOKEN}`);
   });
 
+  it('deduplicates .env keys on repeated writes', async () => {
+    process.env.NACHOS_CONFIG_PATH = writeConfig(tempDir, `[llm]\n`);
+    const envPath = join(tempDir, '.env');
+    writeFileSync(
+      envPath,
+      `ANTHROPIC_SETUP_TOKEN=old-1\nOTHER_KEY=value\nANTHROPIC_SETUP_TOKEN=old-2\n`,
+      'utf-8'
+    );
+
+    const out = captureJsonOutput();
+    await setupTokenCommand({
+      json: true,
+      token: VALID_TOKEN,
+      writeEnv: true,
+      append: true,
+    });
+    out.parse();
+
+    const envContent = readFileSync(envPath, 'utf-8');
+    const tokenLines = envContent
+      .split('\n')
+      .filter((line) => line.startsWith('ANTHROPIC_SETUP_TOKEN='));
+    expect(tokenLines).toHaveLength(1);
+    expect(tokenLines[0]).toBe(`ANTHROPIC_SETUP_TOKEN=${VALID_TOKEN}`);
+    expect(envContent).toContain('OTHER_KEY=value');
+  });
+
+  it('preserves CRLF line endings in existing .env files', async () => {
+    process.env.NACHOS_CONFIG_PATH = writeConfig(tempDir, `[llm]\n`);
+    const envPath = join(tempDir, '.env');
+    writeFileSync(envPath, `OTHER_KEY=value\r\nANTHROPIC_SETUP_TOKEN=old\r\n`, 'utf-8');
+
+    const out = captureJsonOutput();
+    await setupTokenCommand({
+      json: true,
+      token: VALID_TOKEN,
+      writeEnv: true,
+      append: true,
+    });
+    out.parse();
+
+    const envContent = readFileSync(envPath, 'utf-8');
+    expect(envContent.includes('\r\n')).toBe(true);
+    expect(envContent.includes('\n') && !envContent.includes('\r\n')).toBe(false);
+  });
+
   it('rejects unsupported provider', async () => {
     process.env.NACHOS_CONFIG_PATH = writeConfig(tempDir, `[llm]\n`);
 
