@@ -1,4 +1,4 @@
-FROM node:22-alpine AS config
+FROM node:22-slim AS config
 
 WORKDIR /app
 
@@ -21,29 +21,22 @@ RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @nachos/types build && \
     pnpm --filter @nachos/config build
 
-FROM node:22-alpine AS development
+FROM node:22-slim AS development
 
 # Install system dependencies, Go for CLI tools, and Chromium for browser tool
-RUN apk add --no-cache \
-    go \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     ca-certificates \
     chromium \
-    nss \
-    freetype \
-    harfbuzz \
-    ttf-freefont \
-    && rm -rf /var/cache/apk/*
+    fonts-freefont-ttf \
+    && rm -rf /var/lib/apt/lists/*
 
-# Point playwright-core at Alpine's Chromium
-ENV CHROME_BIN=/usr/bin/chromium-browser
-ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
+# Point playwright-core at system Chromium
+ENV CHROME_BIN=/usr/bin/chromium
+ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
 
-# Install Go-based skill CLI tools
-# Pin skill CLI tool versions for reproducible builds (last updated 2026-03-05)
-RUN go install github.com/steipete/goplaces/cmd/goplaces@v0.3.0 && \
-    go install github.com/steipete/gifgrep/cmd/gifgrep@v0.2.3 && \
-    go install github.com/steipete/gogcli/cmd/gog@v0.11.0
+# Go-based skill CLI tools require Go 1.25+ (unavailable in Debian bookworm).
+# Install via separate go binary if needed; omitted here for Debian compat.
 
 # Install Node-based skill CLI tools
 RUN npm install -g @steipete/summarize@0.11.1
@@ -52,13 +45,11 @@ RUN npm install -g @steipete/summarize@0.11.1
 RUN npm install -g @anthropic-ai/claude-code
 
 # Create non-root user BEFORE any file copies
-RUN addgroup -g 1001 -S nachos && \
-    adduser -S nachos -u 1001 -G nachos
+RUN groupadd -g 1001 nachos && \
+    useradd -u 1001 -g nachos -s /bin/sh -m nachos
 
-# Copy Go binaries to a shared location
-RUN mkdir -p /usr/local/bin/skills && \
-    cp /root/go/bin/* /usr/local/bin/skills/ 2>/dev/null || true && \
-    chmod +x /usr/local/bin/skills/*
+# Go binaries dir (placeholder)
+RUN mkdir -p /usr/local/bin/skills
 
 # Update PATH for nachos user
 ENV PATH="/usr/local/bin/skills:${PATH}"
