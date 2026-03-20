@@ -10,7 +10,7 @@ import { OutputFormatter, prettyOutput } from '../core/output.js';
 import { DockerClient } from '../core/docker-client.js';
 import { generateAndWriteComposeFile } from '../core/compose-generator.js';
 import { getVersion } from '../cli.js';
-import { DockerNotAvailableError, DockerComposeNotAvailableError } from '../core/errors.js';
+import { CLIError, DockerNotAvailableError, DockerComposeNotAvailableError } from '../core/errors.js';
 
 interface UpOptions {
   json?: boolean;
@@ -23,7 +23,12 @@ interface UpOptions {
 function parseAndValidateTimeout(timeoutRaw: string): number {
   const timeout = Number.parseInt(timeoutRaw, 10);
   if (Number.isNaN(timeout) || timeout < 1 || timeout > 600) {
-    throw new Error('Timeout must be an integer between 1 and 600 seconds');
+    throw new CLIError(
+      'Timeout must be an integer between 1 and 600 seconds',
+      'INVALID_TIMEOUT',
+      1,
+      'Use --timeout <seconds> where seconds is between 1 and 600.'
+    );
   }
   return timeout;
 }

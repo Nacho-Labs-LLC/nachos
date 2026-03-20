@@ -160,7 +160,7 @@ function writeEnvVar(envPath: string, key: string, value: string): void {
     nextLines.push(nextLine);
   }
 
-  writeFileSync(envPath, nextLines.join(lineEnding).replace(/\r?\n*$/, lineEnding), 'utf-8');
+  writeFileSync(envPath, nextLines.join(lineEnding).replace(/(\r?\n)*$/, lineEnding), 'utf-8');
 }
 
 export async function setupTokenCommand(options: SetupTokenOptions): Promise<void> {
