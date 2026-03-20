@@ -40,6 +40,13 @@ import { spawn, type ChildProcess } from 'child_process';
 import { appendFile, mkdir } from 'fs/promises';
 import { dirname } from 'path';
 import { createValidationError, createPermissionDeniedError } from '@nachos/types';
+import {
+  containsCommandSubstitution,
+  extractCommandBins,
+  splitCommandSegments,
+  tokenizeSegment,
+  type CommandSegment,
+} from './shell-command-parser.js';
 
 /**
  * Logger interface (minimal subset needed)
@@ -106,14 +113,6 @@ export interface SkillToolConfig {
   allowedSubcommands?: string[];
   /** Blocked subcommands (explicitly forbidden) */
   blockedSubcommands?: string[];
-}
-
-/**
- * A parsed command segment with its trailing operator
- */
-interface CommandSegment {
-  command: string;
-  operator: '|' | ';' | '&&' | '||' | null;
 }
 
 /**
@@ -528,7 +527,7 @@ export class ShellTool {
       });
     }
 
-    const binaries = this.extractCommandBins(options.command);
+    const binaries = extractCommandBins(options.command);
 
     // Rate limit check — keyed on userId + primary tool binary
     const primaryTool = binaries[0] ?? 'unknown';
@@ -607,7 +606,7 @@ export class ShellTool {
    * Get tool group for a command
    */
   getToolGroup(command: string): string | undefined {
-    const binaries = this.extractCommandBins(command);
+    const binaries = extractCommandBins(command);
     if (binaries.length === 0) return undefined;
     const groups = new Set(
       binaries
@@ -630,10 +629,10 @@ export class ShellTool {
     if (!command.trim()) {
       return false;
     }
-    if (this.containsCommandSubstitution(command)) {
+    if (containsCommandSubstitution(command)) {
       return false;
     }
-    const binaries = this.extractCommandBins(command);
+    const binaries = extractCommandBins(command);
     if (binaries.length === 0) {
       return false;
     }
@@ -654,7 +653,7 @@ export class ShellTool {
    * without delegating to a shell process.
    */
   private async spawnProcess(options: ExecOptions): Promise<ExecResult> {
-    const segments = this.splitCommandSegments(options.command);
+    const segments = splitCommandSegments(options.command);
 
     // Simple command - no operators
     if (segments.length === 1 && segments[0]!.operator === null) {
@@ -754,7 +753,7 @@ export class ShellTool {
     segment: string,
     options: { cwd?: string; env?: Record<string, string>; timeout?: number }
   ): Promise<ExecResult> {
-    const tokens = this.tokenizeSegment(segment);
+    const tokens = tokenizeSegment(segment);
     if (tokens.length === 0) {
       return Promise.resolve({
         exitCode: 1,
@@ -954,7 +953,7 @@ export class ShellTool {
 
       // Spawn all processes in the pipe chain
       for (let i = 0; i < commands.length; i++) {
-        const tokens = this.tokenizeSegment(commands[i]!);
+        const tokens = tokenizeSegment(commands[i]!);
         if (tokens.length === 0) continue;
 
         const child = spawn(tokens[0]!, tokens.slice(1), {
@@ -1073,180 +1072,4 @@ export class ShellTool {
     });
   }
 
-  private containsCommandSubstitution(command: string): boolean {
-    return /`|\$\(|\$\{|<\(|>\(|<</.test(command);
-  }
-
-  private extractCommandBins(command: string): string[] {
-    const segments = this.splitCommandSegments(command);
-    const bins: string[] = [];
-    for (const segment of segments) {
-      const bin = this.extractBinaryFromSegment(segment.command);
-      if (!bin) {
-        continue;
-      }
-      bins.push(bin);
-    }
-    return bins;
-  }
-
-  private splitCommandSegments(command: string): CommandSegment[] {
-    const segments: CommandSegment[] = [];
-    let current = '';
-    let inSingleQuote = false;
-    let inDoubleQuote = false;
-    let escaped = false;
-
-    for (let i = 0; i < command.length; i += 1) {
-      const ch = command[i] ?? '';
-      const next = command[i + 1] ?? '';
-      const prev = command[i - 1] ?? '';
-
-      if (escaped) {
-        current += ch;
-        escaped = false;
-        continue;
-      }
-
-      if (ch === '\\') {
-        current += ch;
-        escaped = true;
-        continue;
-      }
-
-      if (!inDoubleQuote && ch === "'") {
-        inSingleQuote = !inSingleQuote;
-        current += ch;
-        continue;
-      }
-
-      if (!inSingleQuote && ch === '"') {
-        inDoubleQuote = !inDoubleQuote;
-        current += ch;
-        continue;
-      }
-
-      if (inSingleQuote || inDoubleQuote) {
-        current += ch;
-        continue;
-      }
-
-      const isPipe = ch === '|';
-      const isSemicolon = ch === ';';
-      const isAnd = ch === '&';
-      const isAndAnd = isAnd && next === '&';
-      const isOrOr = isPipe && next === '|';
-
-      if (isSemicolon || isPipe || isAndAnd || isOrOr) {
-        const trimmed = current.trim();
-        let operator: CommandSegment['operator'];
-        if (isOrOr) {
-          operator = '||';
-        } else if (isAndAnd) {
-          operator = '&&';
-        } else if (isSemicolon) {
-          operator = ';';
-        } else {
-          operator = '|';
-        }
-        if (trimmed) {
-          segments.push({ command: trimmed, operator });
-        }
-        current = '';
-        if (isAndAnd || isOrOr) {
-          i += 1;
-        }
-        continue;
-      }
-
-      if (isAnd && !isAndAnd && /\s/.test(prev) && /\s/.test(next)) {
-        const trimmed = current.trim();
-        if (trimmed) {
-          segments.push({ command: trimmed, operator: ';' });
-        }
-        current = '';
-        continue;
-      }
-
-      current += ch;
-    }
-
-    const tail = current.trim();
-    if (tail) {
-      segments.push({ command: tail, operator: null });
-    }
-
-    return segments;
-  }
-
-  private extractBinaryFromSegment(segment: string): string | undefined {
-    const tokens = this.tokenizeSegment(segment);
-    for (const token of tokens) {
-      if (this.isAssignmentToken(token)) {
-        continue;
-      }
-      if (this.isRedirectionToken(token)) {
-        continue;
-      }
-      return token;
-    }
-    return undefined;
-  }
-
-  private tokenizeSegment(segment: string): string[] {
-    const tokens: string[] = [];
-    let current = '';
-    let inSingleQuote = false;
-    let inDoubleQuote = false;
-    let escaped = false;
-
-    for (let i = 0; i < segment.length; i += 1) {
-      const ch = segment[i] ?? '';
-
-      if (escaped) {
-        current += ch;
-        escaped = false;
-        continue;
-      }
-
-      if (ch === '\\') {
-        escaped = true;
-        continue;
-      }
-
-      if (!inDoubleQuote && ch === "'") {
-        inSingleQuote = !inSingleQuote;
-        continue;
-      }
-
-      if (!inSingleQuote && ch === '"') {
-        inDoubleQuote = !inDoubleQuote;
-        continue;
-      }
-
-      if (!inSingleQuote && !inDoubleQuote && /\s/.test(ch)) {
-        if (current) {
-          tokens.push(current);
-          current = '';
-        }
-        continue;
-      }
-
-      current += ch;
-    }
-
-    if (current) {
-      tokens.push(current);
-    }
-
-    return tokens;
-  }
-
-  private isAssignmentToken(token: string): boolean {
-    return /^[A-Za-z_][A-Za-z0-9_]*=/.test(token);
-  }
-
-  private isRedirectionToken(token: string): boolean {
-    return /^\d*>/.test(token) || token.startsWith('>') || token.startsWith('<');
-  }
 }

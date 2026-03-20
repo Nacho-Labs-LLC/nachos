@@ -9,7 +9,6 @@ import type {
   Message,
   MessageEnvelope,
   Session,
-  SessionWithMessages,
   PromptReport,
   BootstrapProfile,
 } from '@nachos/types';
@@ -107,6 +106,12 @@ import {
   type LLMCallFn,
 } from '@nachos/state';
 import type { SessionsLifecycleConfig } from '@nachos/config';
+import {
+  resolveContextCommandConfig,
+  parseContextCommand,
+  getContextManagementOverride,
+  isContextManagementEnabledForSession,
+} from './context-commands.js';
 
 const DEFAULT_TOOL_GROUPS: Record<string, string[]> = {
   lookup: ['web_fetch', 'goplaces'],
@@ -148,17 +153,6 @@ const DEFAULT_TOOL_GROUPS: Record<string, string[]> = {
     'browser_network_requests',
     'browser_pdf_save',
   ],
-};
-
-type ResolvedContextCommandConfig = {
-  enabled: boolean;
-  allowInDms: boolean;
-  allowInChannels: boolean;
-  adminAllowlist: Set<string>;
-  resetTriggers: string[];
-  contextTriggers: string[];
-  identityTriggers: string[];
-  helpTriggers: string[];
 };
 
 type ContextCommandOutcome = {
@@ -960,83 +954,6 @@ export class Gateway {
     }
   }
 
-  private resolveContextCommandConfig(): ResolvedContextCommandConfig {
-    const config = this.contextCommandConfig ?? {};
-    return {
-      enabled: config.enabled ?? true,
-      allowInDms: config.allow_in_dms ?? true,
-      allowInChannels: config.allow_in_channels ?? false,
-      adminAllowlist: new Set(config.admin_allowlist ?? []),
-      resetTriggers: (config.reset_triggers ?? ['/new', '/reset']).filter(Boolean),
-      contextTriggers: (config.context_triggers ?? ['/context']).filter(Boolean),
-      identityTriggers: (config.identity_triggers ?? ['/identity']).filter(Boolean),
-      helpTriggers: (config.help_triggers ?? ['/help', '!help']).filter(Boolean),
-    };
-  }
-
-  private parseContextCommand(
-    text: string,
-    config: ResolvedContextCommandConfig
-  ): {
-    type: 'reset' | 'context' | 'identity' | 'help';
-    trigger: string;
-    remainder: string;
-  } | null {
-    const trimmed = text.trim();
-    if (!trimmed) return null;
-
-    const matchTrigger = (triggers: string[]) => {
-      const normalizedText = trimmed.toLowerCase();
-      for (const trigger of triggers) {
-        const normalizedTrigger = trigger.trim().toLowerCase();
-        if (!normalizedTrigger) continue;
-        if (normalizedText === normalizedTrigger) {
-          return { trigger: normalizedTrigger, remainder: '' };
-        }
-        if (normalizedText.startsWith(`${normalizedTrigger} `)) {
-          const remainder = trimmed.slice(normalizedTrigger.length).trim();
-          return { trigger: normalizedTrigger, remainder };
-        }
-      }
-      return null;
-    };
-
-    const reset = matchTrigger(config.resetTriggers);
-    if (reset) {
-      return { type: 'reset', trigger: reset.trigger, remainder: reset.remainder };
-    }
-
-    const identity = matchTrigger(config.identityTriggers);
-    if (identity) {
-      return { type: 'identity', trigger: identity.trigger, remainder: identity.remainder };
-    }
-
-    const context = matchTrigger(config.contextTriggers);
-    if (context) {
-      return { type: 'context', trigger: context.trigger, remainder: context.remainder };
-    }
-
-    const help = matchTrigger(config.helpTriggers);
-    if (help) {
-      return { type: 'help', trigger: help.trigger, remainder: help.remainder };
-    }
-
-    return null;
-  }
-
-  private getContextManagementOverride(session: Session | SessionWithMessages): boolean | null {
-    const metadata = session.metadata as { contextManagement?: { enabled?: boolean } } | null;
-    if (!metadata?.contextManagement) return null;
-    const enabled = metadata.contextManagement.enabled;
-    return typeof enabled === 'boolean' ? enabled : null;
-  }
-
-  private isContextManagementEnabledForSession(session: Session | SessionWithMessages): boolean {
-    const override = this.getContextManagementOverride(session);
-    if (override === false) return false;
-    return true;
-  }
-
   private async handleContextCommand(params: {
     message: ChannelInboundMessage;
     session: Session;
@@ -1046,10 +963,10 @@ export class Gateway {
     const { message, session, securityMode, messageText } = params;
     if (!messageText) return null;
 
-    const config = this.resolveContextCommandConfig();
+    const config = resolveContextCommandConfig(this.contextCommandConfig);
     if (!config.enabled) return null;
 
-    const parsed = this.parseContextCommand(messageText, config);
+    const parsed = parseContextCommand(messageText, config);
     if (!parsed) return null;
 
     const isDm = message.conversation.type === 'dm';
@@ -1149,8 +1066,8 @@ export class Gateway {
     const metadata = (session.metadata ?? {}) as Record<string, unknown>;
     const contextManagement =
       (metadata.contextManagement as Record<string, unknown> | undefined) ?? {};
-    const currentOverride = this.getContextManagementOverride(session);
-    const currentEnabled = this.isContextManagementEnabledForSession(session);
+    const currentOverride = getContextManagementOverride(session);
+    const currentEnabled = isContextManagementEnabledForSession(session);
 
     if (!action || action === 'status') {
       const modeLabel = currentOverride === null ? 'default' : 'override';
