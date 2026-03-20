@@ -255,7 +255,7 @@ export class ToolExecutor {
     options?: { bootstrapLocked?: boolean }
   ): LLMRequestType['tools'] {
     if (isSubagentSession(session)) {
-      return this.buildSubagentToolDefinitions();
+      return this.buildSubagentToolDefinitions(session);
     }
 
     const tools: NonNullable<LLMRequestType['tools']> = [];
@@ -1944,14 +1944,46 @@ export class ToolExecutor {
     return runs.filter((run) => this.canAccessSubagentRun(session, run));
   }
 
-  private buildSubagentToolDefinitions(): LLMRequestType['tools'] {
+  private buildSubagentToolDefinitions(session?: Session | null): LLMRequestType['tools'] {
     const tools: NonNullable<LLMRequestType['tools']> = [];
+
+    // Always include subagent_progress
     tools.push({
       name: 'subagent_progress',
       description:
         'Report progress on the current task. Use this to keep the requester informed of your progress. The runId is automatically determined from your session context.',
       parameters: this.sanitizeToolSchema(SubagentProgressToolSchema),
     });
+
+    // Resolve profile-based tool allow list
+    const profileName = this.resolveSubagentProfile(session ?? null);
+    const profilePolicy = this.resolveSubagentProfilePolicy(profileName);
+    const allowList = profilePolicy?.allow && profilePolicy.allow.length > 0
+      ? new Set(profilePolicy.allow.map((t) => normalizeToolName(t)))
+      : null;
+
+    // No allow list = no extra tools for the subagent (default restrictive behavior)
+    if (!allowList) return tools;
+
+    // Get all enabled external tool definitions from global config
+    // (browser/exec tools are local-only and not offered to subagents via profiles)
+    const allAvailable = getExternalToolDefinitions(this.deps.core.toolsConfig);
+
+    for (const extTool of allAvailable) {
+      const normalized = normalizeToolName(extTool.name);
+      if (!allowList.has(normalized)) continue;
+
+      // Skip tools that are in the profile deny list or global subagent deny list
+      const policyCheck = this.evaluateSubagentToolPolicy(extTool.name, session);
+      if (!policyCheck.allowed) continue;
+
+      tools.push({
+        name: extTool.name,
+        description: extTool.description,
+        parameters: this.sanitizeToolSchema(extTool.parameters),
+      });
+    }
+
     return tools;
   }
 

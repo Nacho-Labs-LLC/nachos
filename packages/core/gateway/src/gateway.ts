@@ -1362,6 +1362,7 @@ export class Gateway {
 
         await this.sessionsStore.updateSession(sessionId, {
           metadata: {
+            ...(session.metadata as Record<string, unknown> | undefined ?? {}),
             promptReport: assembled.report,
             promptReportUpdatedAt: assembled.report.generatedAt,
           },

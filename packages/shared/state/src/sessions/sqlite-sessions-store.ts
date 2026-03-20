@@ -367,8 +367,14 @@ export class SqliteSessionsStore implements SessionsStore {
       values.push(JSON.stringify(data.config));
     }
     if (data.metadata !== undefined) {
+      // Merge with existing metadata to avoid clobbering keys set by other subsystems
+      // (e.g. subagent.profile set at session creation must survive promptReport updates)
+      const existing = this.db
+        .prepare('SELECT metadata FROM sessions WHERE id = ?')
+        .get(id) as { metadata: string | null } | undefined;
+      const existingMeta = existing?.metadata ? JSON.parse(existing.metadata) : {};
       updates.push('metadata = ?');
-      values.push(JSON.stringify(data.metadata));
+      values.push(JSON.stringify({ ...existingMeta, ...data.metadata }));
     }
 
     values.push(id);
