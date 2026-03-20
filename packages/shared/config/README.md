@@ -306,22 +306,6 @@ The validator checks:
 - `tools.shell.enabled = true` requires `security.mode = "permissive"`
 - `tools.code_runner.runtime = "native"` requires `security.mode = "permissive"`
 
-## Tool Reference
-
-### Claude Code MCP
-
-```toml
-[tools.claude_code_mcp]
-enabled = true
-max_prompt_length = 4000
-```
-
-Environment override:
-
-```bash
-export TOOL_CLAUDE_CODE_MCP_ENABLED="true"
-```
-
 ## Error Handling
 
 All errors extend the base `Error` class:

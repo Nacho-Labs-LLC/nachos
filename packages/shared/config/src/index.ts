@@ -35,7 +35,6 @@ export type {
   BootstrapToolConfig,
   ToolGroupConfig,
   CopilotToolConfig,
-  ClaudeCodeMcpToolConfig,
   GitHubToolConfig,
   BitbucketToolConfig,
   ComposioToolConfig,

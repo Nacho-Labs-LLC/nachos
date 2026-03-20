@@ -14,7 +14,6 @@ const KNOWN_TOOLS = [
   'web_fetch',
   'web_search',
   'bootstrap',
-  'claude_code_mcp',
 ] as const;
 
 export const statusRouter = new Hono();

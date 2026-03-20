@@ -79,7 +79,6 @@ const BUILTIN_TOOLS = [
   'web_search',
   'web_fetch',
   'bootstrap',
-  'claude_code_mcp',
   'github',
   'bitbucket',
   'composio',

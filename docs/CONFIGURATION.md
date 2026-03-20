@@ -393,17 +393,6 @@ Tool configurations. Each tool is independently enabled/disabled.
 | `max_redirects` | number | Max redirect follows |
 | `user_agent` | string | Custom user agent |
 
-##### `[tools.web_fetch.firecrawl]`
-
-| Key | Type | Description |
-|-----|------|-------------|
-| `enabled` | boolean | Enable Firecrawl fallback |
-| `api_key` | string | Firecrawl API key |
-| `base_url` | string | Firecrawl base URL |
-| `only_main_content` | boolean | Extract main content only |
-| `max_age_ms` | number | Cache max age |
-| `timeout_seconds` | number | Request timeout |
-
 #### `[tools.bootstrap]`
 
 | Key | Type | Description |
@@ -449,13 +438,6 @@ Tool configurations. Each tool is independently enabled/disabled.
 | `max_output_size` | number | Max output size |
 | `default_timeout` | number | Default timeout |
 | `max_timeout` | number | Maximum timeout |
-
-#### `[tools.claude_code_mcp]`
-
-| Key | Type | Description |
-|-----|------|-------------|
-| `enabled` | boolean | Enable Claude Code MCP |
-| `max_prompt_length` | number | Max prompt length |
 
 #### `[tools.groups.<name>]` — Tool Groups
 

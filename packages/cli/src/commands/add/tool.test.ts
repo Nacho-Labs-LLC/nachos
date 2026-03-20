@@ -27,17 +27,4 @@ describe('addToolCommand', () => {
     rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it('adds claude_code_mcp tool stub', async () => {
-    await addToolCommand('claude_code_mcp', {});
-
-    const content = readFileSync(configPath, 'utf-8');
-    const config = TOML.parse(content) as { tools?: Record<string, unknown> };
-
-    expect(config.tools).toBeDefined();
-    const tools = config.tools as Record<string, unknown>;
-    expect(tools.claude_code_mcp).toEqual({
-      enabled: true,
-      max_prompt_length: 4000,
-    });
-  });
 });
