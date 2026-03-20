@@ -8,7 +8,6 @@ import type { LLMRequestType, Session, ToolCall, ToolResult } from '@nachos/type
 import type {
   ToolsConfig,
   SubagentToolPolicyConfig,
-  SubagentToolProfileConfig,
 } from '@nachos/config';
 import type { StateLayer, StateOperationContext, SessionsStore } from '@nachos/state';
 import type { IContextSnapshotService } from '@nachos/context-manager';
@@ -23,7 +22,6 @@ import {
   SessionsSpawnToolSchema,
   SessionsOrchestrateToolSchema,
   SubagentsToolSchema,
-  SubagentProgressToolSchema,
   BootstrapToolSchema,
   UserProfileToolSchema,
 } from '@nachos/types';
@@ -93,8 +91,8 @@ import {
   resolveAgentId,
   buildStateContext,
   isSubagentSession,
-  normalizeToolName,
 } from '../utils/session-utils.js';
+import { SubagentTools } from './subagent-tools.js';
 import { randomUUID } from 'node:crypto';
 import type { HookRegistry } from '../hooks/index.js';
 
@@ -208,9 +206,11 @@ export class ToolExecutor {
   private memoryToolCalls: Map<string, number[]> = new Map();
   /** Agent process registry (Claude Code CLI subprocess launcher) */
   private agentProcessRegistry: AgentProcessRegistry | null = null;
+  private subagentTools: SubagentTools;
 
   constructor(deps: ToolExecutorDeps) {
     this.deps = deps;
+    this.subagentTools = this.createSubagentTools();
 
     // Initialize agent process registry if enabled
     const agentExecConfig = deps.core.toolsConfig?.agent_exec;
@@ -244,6 +244,19 @@ export class ToolExecutor {
     if (partial.audit) Object.assign(this.deps.audit, partial.audit);
     if (partial.state) Object.assign(this.deps.state, partial.state);
     if (partial.security) Object.assign(this.deps.security, partial.security);
+    if (partial.core?.toolsConfig || partial.policy?.subagentToolPolicy) {
+      this.subagentTools.updateDeps({
+        toolsConfig: this.deps.core.toolsConfig,
+        subagentToolPolicy: this.deps.policy.subagentToolPolicy,
+      });
+    }
+  }
+
+  private createSubagentTools(): SubagentTools {
+    return new SubagentTools({
+      toolsConfig: this.deps.core.toolsConfig,
+      subagentToolPolicy: this.deps.policy.subagentToolPolicy,
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -255,7 +268,7 @@ export class ToolExecutor {
     options?: { bootstrapLocked?: boolean }
   ): LLMRequestType['tools'] {
     if (isSubagentSession(session)) {
-      return this.buildSubagentToolDefinitions(session);
+      return this.subagentTools.buildSubagentToolDefinitions(session);
     }
 
     const tools: NonNullable<LLMRequestType['tools']> = [];
@@ -547,7 +560,7 @@ export class ToolExecutor {
 
       // Subagent policy check
       if (isSubagentSession(session)) {
-        const policy = this.evaluateSubagentToolPolicy(call.tool, session);
+        const policy = this.subagentTools.evaluateSubagentToolPolicy(call.tool, session);
         if (!policy.allowed) {
           void this.deps.audit.logAuditEvent({
             id: `subagent-tool-policy-${call.id}`,
@@ -1739,7 +1752,10 @@ export class ToolExecutor {
     }
 
     if (action === 'list') {
-      const runs = this.filterSubagentRunsForSession(session, this.deps.state.listSubagents());
+      const runs = this.subagentTools.filterSubagentRunsForSession(
+        session,
+        this.deps.state.listSubagents()
+      );
       return {
         success: true,
         content: [{ type: 'text', text: JSON.stringify({ runs }, null, 2) }],
@@ -1752,7 +1768,7 @@ export class ToolExecutor {
     }
 
     const run = this.deps.state.getSubagentInfo(runId);
-    if (!run || !this.canAccessSubagentRun(session, run)) {
+    if (!run || !this.subagentTools.canAccessSubagentRun(session, run)) {
       return this.formatToolError('NOT_FOUND', 'Subagent run not found');
     }
 
@@ -1936,127 +1952,6 @@ export class ToolExecutor {
     return cloned;
   }
 
-  private canAccessSubagentRun(session: Session, run: SubagentRunRecord): boolean {
-    if (session.id === run.requester.sessionId) return true;
-    if (session.userId && run.requester.userId && session.userId === run.requester.userId)
-      return true;
-    return false;
-  }
-
-  private filterSubagentRunsForSession(
-    session: Session,
-    runs: SubagentRunRecord[]
-  ): SubagentRunRecord[] {
-    return runs.filter((run) => this.canAccessSubagentRun(session, run));
-  }
-
-  private buildSubagentToolDefinitions(session?: Session | null): LLMRequestType['tools'] {
-    const tools: NonNullable<LLMRequestType['tools']> = [];
-
-    // Always include subagent_progress
-    tools.push({
-      name: 'subagent_progress',
-      description:
-        'Report progress on the current task. Use this to keep the requester informed of your progress. The runId is automatically determined from your session context.',
-      parameters: this.sanitizeToolSchema(SubagentProgressToolSchema),
-    });
-
-    // Resolve profile-based tool allow list
-    const profileName = this.resolveSubagentProfile(session ?? null);
-    const profilePolicy = this.resolveSubagentProfilePolicy(profileName);
-    const allowList = profilePolicy?.allow && profilePolicy.allow.length > 0
-      ? new Set(profilePolicy.allow.map((t) => normalizeToolName(t)))
-      : null;
-
-    // No allow list = no extra tools for the subagent (default restrictive behavior)
-    if (!allowList) return tools;
-
-    // Get all enabled external tool definitions from global config
-    // (browser/exec tools are local-only and not offered to subagents via profiles)
-    const allAvailable = getExternalToolDefinitions(this.deps.core.toolsConfig);
-
-    for (const extTool of allAvailable) {
-      const normalized = normalizeToolName(extTool.name);
-      if (!allowList.has(normalized)) continue;
-
-      // Skip tools that are in the profile deny list or global subagent deny list
-      const policyCheck = this.evaluateSubagentToolPolicy(extTool.name, session);
-      if (!policyCheck.allowed) continue;
-
-      tools.push({
-        name: extTool.name,
-        description: extTool.description,
-        parameters: this.sanitizeToolSchema(extTool.parameters),
-      });
-    }
-
-    return tools;
-  }
-
-  private evaluateSubagentToolPolicy(
-    tool: string,
-    session?: Session | null
-  ): { allowed: boolean; reason?: string } {
-    const DEFAULT_SUBAGENT_DENY_TOOLS = new Set([
-      'sessions_list',
-      'sessions_history',
-      'sessions_send',
-      'sessions_spawn',
-    ]);
-
-    const normalized = normalizeToolName(tool);
-    const policy = this.deps.policy.subagentToolPolicy;
-    const profileName = this.resolveSubagentProfile(session ?? null);
-    const profilePolicy = this.resolveSubagentProfilePolicy(profileName);
-    const denyList = new Set(
-      [
-        ...DEFAULT_SUBAGENT_DENY_TOOLS,
-        ...(policy?.deny ?? []).map((entry) => normalizeToolName(entry)),
-        ...(profilePolicy?.deny ?? []).map((entry) => normalizeToolName(entry)),
-      ].filter((entry) => entry.length > 0)
-    );
-
-    if (denyList.has(normalized)) {
-      return { allowed: false, reason: `Tool blocked for subagents: ${tool}` };
-    }
-
-    const allowListSource =
-      profilePolicy?.allow && profilePolicy.allow.length > 0
-        ? profilePolicy.allow
-        : (policy?.allow ?? []);
-    const allow = allowListSource.map((entry) => normalizeToolName(entry));
-    if (allow.length > 0 && !allow.includes(normalized)) {
-      const profileSuffix = profileName ? ` (profile: ${profileName})` : '';
-      return {
-        allowed: false,
-        reason: `Tool not allowlisted for subagents${profileSuffix}: ${tool}`,
-      };
-    }
-
-    return { allowed: true };
-  }
-
-  private resolveSubagentProfile(session: Session | null): string | undefined {
-    const defaultProfile = readOptionalString(this.deps.policy.subagentToolPolicy?.default_profile);
-    if (!session?.metadata || typeof session.metadata !== 'object') {
-      return defaultProfile;
-    }
-    const metadata = session.metadata as { subagent?: { profile?: string } };
-    const profile = readOptionalString(metadata.subagent?.profile);
-    return profile ?? defaultProfile;
-  }
-
-  private resolveSubagentProfilePolicy(profile?: string): SubagentToolProfileConfig | undefined {
-    const profiles = this.deps.policy.subagentToolPolicy?.profiles;
-    if (!profile || !profiles) return undefined;
-
-    if (profiles[profile]) return profiles[profile];
-
-    const normalized = normalizeToolName(profile);
-    const match = Object.entries(profiles).find(([name]) => normalizeToolName(name) === normalized);
-    return match?.[1];
-  }
-
   private checkMemoryToolRateLimit(sessionId: string): {
     allowed: boolean;
     retryAfterSeconds?: number;
@@ -2077,6 +1972,17 @@ export class ToolExecutor {
     recentCalls.push(now);
     this.memoryToolCalls.set(sessionId, recentCalls);
     return { allowed: true };
+  }
+
+  /**
+   * Compatibility method used by existing tests and callers to evaluate whether
+   * a tool is allowed for subagent sessions under current policy.
+   */
+  evaluateSubagentToolPolicy(
+    tool: string,
+    session?: Session | null
+  ): { allowed: boolean; reason?: string } {
+    return this.subagentTools.evaluateSubagentToolPolicy(tool, session);
   }
 
   private scanToolResult(
