@@ -255,7 +255,6 @@ Examples:
           { title: 'Shell', value: 'shell' },
           { title: 'Web Search', value: 'web_search' },
           { title: 'Bootstrap', value: 'bootstrap' },
-          { title: 'Claude Code MCP', value: 'claude_code_mcp' },
         ],
       });
 

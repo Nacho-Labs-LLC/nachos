@@ -29,7 +29,6 @@ const VALID_TOOLS = [
   'shell',
   'web_search',
   'bootstrap',
-  'claude_code_mcp',
 ] as const;
 
 type ToolName = (typeof VALID_TOOLS)[number];
@@ -126,11 +125,6 @@ async function promptToolConfig(name: ToolName): Promise<TOML.JsonMap> {
       break;
     }
 
-    case 'claude_code_mcp': {
-      config.max_prompt_length = 4000;
-      break;
-    }
-
     // Shell, web_search: minimal config
     default:
       break;
@@ -168,9 +162,6 @@ function buildConfigFromFlags(name: ToolName, options: AddToolOptions): TOML.Jso
       config.runtime = 'sandboxed';
       config.timeout = options.timeout ? parseInt(options.timeout, 10) : 30;
       config.max_memory = options.memory ?? '512MB';
-      break;
-    case 'claude_code_mcp':
-      config.max_prompt_length = 4000;
       break;
     default:
       break;

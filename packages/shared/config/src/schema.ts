@@ -273,14 +273,6 @@ export interface CopilotToolConfig {
 }
 
 /**
- * Claude Code MCP tool configuration
- */
-export interface ClaudeCodeMcpToolConfig {
-  enabled: boolean;
-  max_prompt_length?: number;
-}
-
-/**
  * Bitbucket tool configuration
  */
 export interface BitbucketToolConfig {
@@ -336,7 +328,6 @@ export interface ToolsConfig {
   web_fetch?: WebFetchToolConfig;
   bootstrap?: BootstrapToolConfig;
   copilot?: CopilotToolConfig;
-  claude_code_mcp?: ClaudeCodeMcpToolConfig;
   bitbucket?: BitbucketToolConfig;
   composio?: ComposioToolConfig;
   github?: GitHubToolConfig;

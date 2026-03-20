@@ -180,10 +180,6 @@ const CONFIG_SHAPE: SchemaNode = {
       default_timeout: true,
       max_timeout: true,
     },
-    claude_code_mcp: {
-      enabled: true,
-      max_prompt_length: true,
-    },
     agent_exec: {
       enabled: true,
       max_concurrent: true,

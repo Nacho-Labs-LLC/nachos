@@ -1,0 +1,41 @@
+# KRKN3 deployment override
+# Overrides bind mount paths to use absolute Unraid host paths (/mnt/cache/data/...)
+# Docker daemon on Unraid cannot resolve ZFS-mounted paths like /home/node/clawd or /paperclip-storage
+# directly — they must be specified as /mnt/cache/data/... paths.
+#
+# Usage: docker compose -f docker-compose.quickstart.yml -f docker-compose.krkn3.yml --env-file .env up -d
+
+x-nachos-src: &nachos-src /mnt/cache/data/claw/workspace/projects/nachos-workspace/nachos
+
+services:
+  gateway:
+    volumes:
+      - /mnt/cache/data/claw/workspace/projects/nachos-workspace/nachos/data/gateway:/app/data
+      - /mnt/cache/data/claw/workspace/projects/nachos-workspace/nachos/state:/app/state
+      - /mnt/cache/data/claw/workspace/projects/nachos-workspace/nachos/workspace:/app/workspace
+      - /mnt/cache/data/claw/workspace/projects/nachos-workspace/nachos/nachos.toml:/app/nachos.toml:ro
+      - nachos-logs:/var/log/nachos:rw
+
+  llm-proxy:
+    volumes:
+      - /mnt/cache/data/claw/workspace/projects/nachos-workspace/nachos/nachos.toml:/app/nachos.toml:ro
+
+  discord:
+    volumes:
+      - /mnt/cache/data/claw/workspace/projects/nachos-workspace/nachos/data/channels:/app/state
+      - /mnt/cache/data/claw/workspace/projects/nachos-workspace/nachos/nachos.toml:/app/nachos.toml:ro
+
+  admin:
+    volumes:
+      - /mnt/cache/data/claw/workspace/projects/nachos-workspace/nachos/data/admin:/app/state
+      - /mnt/cache/data/claw/workspace/projects/nachos-workspace/nachos/data/gateway:/app/gateway-state:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /mnt/cache/data/claw/workspace/projects/nachos-workspace/nachos/nachos.toml:/app/nachos.toml:ro
+
+  filesystem-read:
+    volumes:
+      - /mnt/cache/data/claw/workspace/projects/nachos-workspace/nachos/workspace:/workspace:ro
+
+  filesystem-readwrite:
+    volumes:
+      - /mnt/cache/data/claw/workspace/projects/nachos-workspace/nachos/workspace:/workspace:rw
