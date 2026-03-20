@@ -10,6 +10,10 @@ describe('shell-command-parser', () => {
   it('detects command substitution patterns', () => {
     expect(containsCommandSubstitution('ls $(pwd)')).toBe(true);
     expect(containsCommandSubstitution('ls `pwd`')).toBe(true);
+    expect(containsCommandSubstitution('echo ${HOME}')).toBe(true);
+    expect(containsCommandSubstitution('cat <(echo hi)')).toBe(true);
+    expect(containsCommandSubstitution('cat >(tee out.txt)')).toBe(true);
+    expect(containsCommandSubstitution('cat <<EOF')).toBe(true);
     expect(containsCommandSubstitution('ls -la')).toBe(false);
   });
 

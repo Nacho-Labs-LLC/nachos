@@ -210,10 +210,7 @@ export class ToolExecutor {
 
   constructor(deps: ToolExecutorDeps) {
     this.deps = deps;
-    this.subagentTools = new SubagentTools({
-      toolsConfig: deps.core.toolsConfig,
-      subagentToolPolicy: deps.policy.subagentToolPolicy,
-    });
+    this.subagentTools = this.createSubagentTools();
 
     // Initialize agent process registry if enabled
     const agentExecConfig = deps.core.toolsConfig?.agent_exec;
@@ -248,11 +245,18 @@ export class ToolExecutor {
     if (partial.state) Object.assign(this.deps.state, partial.state);
     if (partial.security) Object.assign(this.deps.security, partial.security);
     if (partial.core?.toolsConfig || partial.policy?.subagentToolPolicy) {
-      this.subagentTools = new SubagentTools({
+      this.subagentTools.updateDeps({
         toolsConfig: this.deps.core.toolsConfig,
         subagentToolPolicy: this.deps.policy.subagentToolPolicy,
       });
     }
+  }
+
+  private createSubagentTools(): SubagentTools {
+    return new SubagentTools({
+      toolsConfig: this.deps.core.toolsConfig,
+      subagentToolPolicy: this.deps.policy.subagentToolPolicy,
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -1970,6 +1974,10 @@ export class ToolExecutor {
     return { allowed: true };
   }
 
+  /**
+   * Compatibility method used by existing tests and callers to evaluate whether
+   * a tool is allowed for subagent sessions under current policy.
+   */
   evaluateSubagentToolPolicy(
     tool: string,
     session?: Session | null

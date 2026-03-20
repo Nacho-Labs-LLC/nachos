@@ -38,4 +38,24 @@ describe('SubagentTools', () => {
 
     expect(defs?.some((tool) => tool.name === 'subagent_progress')).toBe(true);
   });
+
+  it('allows userId match to access run', () => {
+    const tools = new SubagentTools({});
+    const session = createSession({ id: 'different-session', userId: 'same-user' });
+    const run = {
+      requester: { sessionId: 'requester-session', userId: 'same-user' },
+    } as unknown as SubagentRunRecord;
+
+    expect(tools.canAccessSubagentRun(session, run)).toBe(true);
+  });
+
+  it('denies access when sessionId and userId do not match', () => {
+    const tools = new SubagentTools({});
+    const session = createSession({ id: 'session-a', userId: 'user-a' });
+    const run = {
+      requester: { sessionId: 'session-b', userId: 'user-b' },
+    } as unknown as SubagentRunRecord;
+
+    expect(tools.canAccessSubagentRun(session, run)).toBe(false);
+  });
 });

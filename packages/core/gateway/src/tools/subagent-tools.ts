@@ -12,10 +12,17 @@ export interface SubagentToolsDeps {
 }
 
 export class SubagentTools {
-  private readonly deps: SubagentToolsDeps;
+  private deps: SubagentToolsDeps;
 
   constructor(deps: SubagentToolsDeps) {
     this.deps = deps;
+  }
+
+  updateDeps(partial: SubagentToolsDeps): void {
+    this.deps = {
+      ...this.deps,
+      ...partial,
+    };
   }
 
   private sanitizeToolSchema(schema: Record<string, unknown>): Record<string, unknown> {
