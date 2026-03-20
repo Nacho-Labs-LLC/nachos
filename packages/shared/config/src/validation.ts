@@ -133,7 +133,10 @@ const CONFIG_SHAPE: SchemaNode = {
     filesystem: { enabled: true, paths: true, write: true, max_file_size: true },
     browser: { enabled: true, allowed_domains: true, headless: true, timeout: true },
     code_runner: { enabled: true, runtime: true, languages: true, timeout: true, max_memory: true },
-    shell: { enabled: true },
+    shell: {
+      enabled: true,
+      rate_limit: { max_per_window: true, window_ms: true },
+    },
     web_search: {
       enabled: true,
       api_key_env: true,

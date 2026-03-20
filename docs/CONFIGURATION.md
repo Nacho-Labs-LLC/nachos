@@ -369,6 +369,18 @@ Tool configurations. Each tool is independently enabled/disabled.
 | Key | Type | Description |
 |-----|------|-------------|
 | `enabled` | boolean | Enable shell access (**requires permissive mode**) |
+| `rate_limit.max_per_window` | number | Max exec calls per user per window (e.g. `10`) |
+| `rate_limit.window_ms` | number | Rate limit window in ms (default: `60000`) |
+
+Example:
+```toml
+[tools.shell]
+enabled = true
+
+[tools.shell.rate_limit]
+max_per_window = 10
+window_ms = 60000
+```
 
 #### `[tools.web_search]`
 
@@ -649,7 +661,9 @@ Tier names: `archival`, `compressed`, `condensed`.
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `mode` | string | `host`, `tool`, `full` |
+| `mode` | string | `host` (default — runs in main container), `full` (isolated Docker container) |
+
+> **Per-spawn override:** Pass `sandboxMode: "host"` or `sandboxMode: "full"` in the `sessions_spawn` tool call to override the global sandbox mode for a specific subagent.
 
 **`[runtime.subagents.sandbox.docker]`** (required when `mode = "full"`)
 
