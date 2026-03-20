@@ -127,6 +127,13 @@ function validatePolicyRule(
       message: 'Rule must have a numeric priority',
       field: 'priority',
     });
+  } else if (!Number.isFinite(ruleObject.priority) || ruleObject.priority < 0) {
+    errors.push({
+      file: filename,
+      ruleId,
+      message: `Rule priority must be a finite non-negative number, got: ${ruleObject.priority}`,
+      field: 'priority',
+    });
   }
 
   if (!ruleObject.match || typeof ruleObject.match !== 'object') {

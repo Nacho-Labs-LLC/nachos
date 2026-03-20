@@ -350,7 +350,8 @@ export async function executeMemoryDelete(
 export async function executeMemoryGet(
   call: ToolCall,
   _stateLayer: StateLayer,
-  _context: StateOperationContext
+  _context: StateOperationContext,
+  config?: { workspaceDir?: string }
 ): Promise<ToolResult> {
   try {
     const params = call.parameters as {
@@ -405,7 +406,8 @@ export async function executeMemoryGet(
     const path = await import('path');
 
     // Construct full path (workspace root + requested path)
-    const workspaceDir = process.env.NACHOS_WORKSPACE_DIR || process.cwd();
+    // Prefer injected config, then env var fallback, then cwd (last resort)
+    const workspaceDir = config?.workspaceDir ?? process.env.NACHOS_WORKSPACE_DIR ?? process.cwd();
     const fullPath = path.join(workspaceDir, normalizedPath);
 
     try {

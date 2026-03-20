@@ -3,10 +3,18 @@
  * Extracted from Gateway to reduce the monolithic class.
  */
 import type { ChannelInboundMessage, ChannelOutboundMessage, MessageEnvelope } from '@nachos/types';
-import { createLogger } from '@nachos/types';
+import { createLogger, validateMessageEnvelope } from '@nachos/types';
 import type { NatsBusAdapter } from '../router.js';
 
 const logger = createLogger('streaming-session-manager');
+
+/**
+ * Runtime type guard for the inner payload of LLM stream bus messages.
+ * Checks that the payload is an object and has at least a sessionId string field.
+ */
+function isStreamChunk(value: unknown): value is { sessionId?: string; type?: string; delta?: string } {
+  return typeof value === 'object' && value !== null;
+}
 
 export interface StreamingState {
   inbound: ChannelInboundMessage;
@@ -81,8 +89,20 @@ export class StreamingSessionManager {
    */
   async startSubscription(bus: NatsBusAdapter): Promise<void> {
     await bus.subscribe('nachos.llm.stream.*', async (data) => {
-      const envelope = data as MessageEnvelope;
-      const chunk = envelope.payload as { sessionId?: string; type?: string; delta?: string };
+      // Validate that data is a well-formed MessageEnvelope before processing
+      const envelopeResult = validateMessageEnvelope(data);
+      if (!envelopeResult.success || !envelopeResult.data) {
+        logger.warn({ errors: envelopeResult.errors }, 'Discarding invalid streaming bus payload: not a MessageEnvelope');
+        return;
+      }
+      const envelope: MessageEnvelope = envelopeResult.data;
+
+      // Validate inner payload shape — must have at least sessionId
+      if (!isStreamChunk(envelope.payload)) {
+        logger.warn({ payload: typeof envelope.payload }, 'Discarding streaming payload: missing expected chunk fields');
+        return;
+      }
+      const chunk = envelope.payload;
       if (!chunk.sessionId) return;
       const state = this.sessions.get(chunk.sessionId);
       if (!state) return;

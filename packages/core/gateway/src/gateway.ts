@@ -471,6 +471,7 @@ export class Gateway {
         subagentManager: this.subagentManager,
         subagentOrchestrator: this.subagentOrchestrator,
         hooks: this.hooks,
+        workspaceDir: options.workspaceDir,
       },
       policy: {
         resolveToolGroup: (tool) => this.resolveToolGroup(tool),
