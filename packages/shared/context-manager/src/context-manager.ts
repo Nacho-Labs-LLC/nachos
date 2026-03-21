@@ -387,7 +387,6 @@ export class ContextManager {
   getMessageAdapter(): MessageAdapter {
     return this.messageAdapter;
   }
-
 }
 
 /**

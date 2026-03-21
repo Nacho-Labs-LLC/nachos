@@ -136,23 +136,26 @@ chatRouter.get('/stream', async (c) => {
 
       // Subscribe to outbound messages for this channel
       const outboundTopic = TOPICS.channel.outbound(CHANNEL_ID);
-      const outboundSub = await bus.subscribe<ChannelOutboundMessage>(outboundTopic, async (envelope) => {
-        try {
-          const outbound = envelope.payload;
-          if (outbound?.conversationId === session.conversationId) {
-            await stream.writeSSE({
-              data: JSON.stringify({
-                type: 'message',
-                text: outbound.content.text,
-                timestamp: new Date().toISOString(),
-              }),
-              event: 'message',
-            });
+      const outboundSub = await bus.subscribe<ChannelOutboundMessage>(
+        outboundTopic,
+        async (envelope) => {
+          try {
+            const outbound = envelope.payload;
+            if (outbound?.conversationId === session.conversationId) {
+              await stream.writeSSE({
+                data: JSON.stringify({
+                  type: 'message',
+                  text: outbound.content.text,
+                  timestamp: new Date().toISOString(),
+                }),
+                event: 'message',
+              });
+            }
+          } catch (err) {
+            logger.error({ err }, 'Error processing outbound message');
           }
-        } catch (err) {
-          logger.error({ err }, 'Error processing outbound message');
         }
-      });
+      );
 
       // Send initial connection event
       await stream.writeSSE({
@@ -177,7 +180,11 @@ chatRouter.get('/stream', async (c) => {
         stream.onAbort(() => {
           clearInterval(keepAlive);
           // Unsubscribe from NATS to prevent subscription leak
-          try { outboundSub.unsubscribe(); } catch { /* ignore */ }
+          try {
+            outboundSub.unsubscribe();
+          } catch {
+            /* ignore */
+          }
           resolve();
         });
       });

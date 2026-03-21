@@ -98,7 +98,8 @@ configRouter.patch('/', async (c) => {
     return c.json(
       {
         error: 'Security policy violation',
-        details: 'Cannot set security.mode to "permissive" via the API. Edit nachos.toml ([security].mode) directly.',
+        details:
+          'Cannot set security.mode to "permissive" via the API. Edit nachos.toml ([security].mode) directly.',
       },
       403
     );
@@ -107,7 +108,8 @@ configRouter.patch('/', async (c) => {
     return c.json(
       {
         error: 'Security policy violation',
-        details: 'Cannot set [security.dlp] action to "allow" via the API. Edit nachos.toml directly.',
+        details:
+          'Cannot set [security.dlp] action to "allow" via the API. Edit nachos.toml directly.',
       },
       403
     );

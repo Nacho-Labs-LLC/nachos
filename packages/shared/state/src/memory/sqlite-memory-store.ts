@@ -267,9 +267,7 @@ export class SqliteMemoryStore implements MemoryStore {
       const factValues: unknown[] = [query.agentId];
 
       if (query.text) {
-        factConditions.push(
-          `(subject LIKE ? OR predicate LIKE ? OR object LIKE ?)`
-        );
+        factConditions.push(`(subject LIKE ? OR predicate LIKE ? OR object LIKE ?)`);
         const pattern = `%${query.text}%`;
         factValues.push(pattern, pattern, pattern);
       }
@@ -291,9 +289,7 @@ export class SqliteMemoryStore implements MemoryStore {
   }
 
   async deleteEntry(id: string, agentId: string): Promise<void> {
-    this.db
-      .prepare('DELETE FROM memory_entries WHERE id = ? AND agent_id = ?')
-      .run(id, agentId);
+    this.db.prepare('DELETE FROM memory_entries WHERE id = ? AND agent_id = ?').run(id, agentId);
   }
 
   async queryFacts(agentId: string, subject?: string): Promise<MemoryFact[]> {

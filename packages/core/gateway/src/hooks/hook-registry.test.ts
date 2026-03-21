@@ -612,9 +612,13 @@ describe('HookRegistry', () => {
     });
 
     it('should increment failureCount and record lastFailure on error', async () => {
-      hooks.register('message:received', async () => {
-        throw new Error('handler-error');
-      }, { label: 'bad-handler' });
+      hooks.register(
+        'message:received',
+        async () => {
+          throw new Error('handler-error');
+        },
+        { label: 'bad-handler' }
+      );
 
       await hooks.emit('message:received', makeMessagePayload());
 
@@ -628,9 +632,13 @@ describe('HookRegistry', () => {
 
     it('should increment timeoutCount for timeout errors', async () => {
       const shortHooks = new HookRegistry({ handlerTimeoutMs: 10 });
-      shortHooks.register('gateway:startup', async () => {
-        await new Promise((resolve) => setTimeout(resolve, 200));
-      }, { label: 'slow' });
+      shortHooks.register(
+        'gateway:startup',
+        async () => {
+          await new Promise((resolve) => setTimeout(resolve, 200));
+        },
+        { label: 'slow' }
+      );
 
       await shortHooks.emit('gateway:startup', {
         instanceId: 'gw-1',
@@ -653,7 +661,14 @@ describe('HookRegistry', () => {
 
       await hooks.emit('message:received', makeMessagePayload());
       await hooks.emit('session:created', {
-        session: { id: 's1', channel: 'slack', conversationId: 'c1', userId: 'u1', status: 'active', createdAt: new Date().toISOString() },
+        session: {
+          id: 's1',
+          channel: 'slack',
+          conversationId: 'c1',
+          userId: 'u1',
+          status: 'active',
+          createdAt: new Date().toISOString(),
+        },
         timestamp: new Date().toISOString(),
       });
 
@@ -679,19 +694,33 @@ describe('HookRegistry', () => {
     });
 
     it('should log at warn level for critical hook failures', async () => {
-      hooks.register('session:created', async () => {
-        throw new Error('critical-fail');
-      }, { label: 'my-handler' });
+      hooks.register(
+        'session:created',
+        async () => {
+          throw new Error('critical-fail');
+        },
+        { label: 'my-handler' }
+      );
 
       await hooks.emit('session:created', {
-        session: { id: 's1', channel: 'slack', conversationId: 'c1', userId: 'u1', status: 'active', createdAt: new Date().toISOString() },
+        session: {
+          id: 's1',
+          channel: 'slack',
+          conversationId: 'c1',
+          userId: 'u1',
+          status: 'active',
+          createdAt: new Date().toISOString(),
+        },
         timestamp: new Date().toISOString(),
       });
 
       // Should have been called with critical: true
       const warnCalls = mockLogger.warn.mock.calls;
       const criticalCall = warnCalls.find(
-        (call: unknown[]) => call[0] && typeof call[0] === 'object' && (call[0] as Record<string, unknown>).critical === true
+        (call: unknown[]) =>
+          call[0] &&
+          typeof call[0] === 'object' &&
+          (call[0] as Record<string, unknown>).critical === true
       );
       expect(criticalCall).toBeDefined();
       expect(criticalCall![0].event).toBe('session:created');
@@ -709,16 +738,23 @@ describe('HookRegistry', () => {
       }
 
       const alertCalls = mockLogger.warn.mock.calls.filter(
-        (call: unknown[]) => call[0] && typeof call[0] === 'object' && (call[0] as Record<string, unknown>).hookAlert === true
+        (call: unknown[]) =>
+          call[0] &&
+          typeof call[0] === 'object' &&
+          (call[0] as Record<string, unknown>).hookAlert === true
       );
       expect(alertCalls.length).toBeGreaterThanOrEqual(1);
       expect(alertCalls[0][0].failureCount).toBe(3);
     });
 
     it('should track stats for mutable hooks too', async () => {
-      hooks.registerMutable('response:before-send', async () => {
-        throw new Error('mutable-fail');
-      }, { label: 'mutable-bad' });
+      hooks.registerMutable(
+        'response:before-send',
+        async () => {
+          throw new Error('mutable-fail');
+        },
+        { label: 'mutable-bad' }
+      );
 
       await hooks.emitMutable('response:before-send', {
         sessionId: 'sess-1',

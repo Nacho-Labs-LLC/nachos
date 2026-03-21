@@ -87,6 +87,4 @@ describe('WebFetchTool', () => {
     expect(payload.content).toContain('Hello');
     expect(payload.source).toBe('http');
   });
-
-
 });

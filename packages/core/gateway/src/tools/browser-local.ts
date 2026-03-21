@@ -58,10 +58,7 @@ interface MCPContentBlock {
  * MCP Client interface (subset of @modelcontextprotocol/sdk Client)
  */
 interface MCPClient {
-  callTool(params: {
-    name: string;
-    arguments?: Record<string, unknown>;
-  }): Promise<{
+  callTool(params: { name: string; arguments?: Record<string, unknown> }): Promise<{
     content: MCPContentBlock[];
     isError?: boolean;
   }>;
@@ -293,10 +290,7 @@ export class BrowserLocalTool {
     await server.connect(serverTransport);
 
     // 4. Create an MCP Client and connect it to the other end
-    const client = new Client(
-      { name: 'nachos-gateway', version: '1.0.0' },
-      { capabilities: {} },
-    );
+    const client = new Client({ name: 'nachos-gateway', version: '1.0.0' }, { capabilities: {} });
     await client.connect(clientTransport);
 
     this.mcpServer = server as unknown as MCPServer;

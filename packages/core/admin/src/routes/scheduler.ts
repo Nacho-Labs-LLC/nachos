@@ -167,16 +167,18 @@ schedulerRouter.get('/jobs', (c) => {
     const offset = (page - 1) * pageSize;
 
     const countRow = db
-      .prepare<(string | number)[], { count: number }>(
-        `SELECT COUNT(*) as count FROM cron_jobs ${where}`
-      )
+      .prepare<
+        (string | number)[],
+        { count: number }
+      >(`SELECT COUNT(*) as count FROM cron_jobs ${where}`)
       .get(...params);
     const total = countRow?.count ?? 0;
 
     const rows = db
-      .prepare<(string | number)[], SchedulerJobRow>(
-        `SELECT * FROM cron_jobs ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`
-      )
+      .prepare<
+        (string | number)[],
+        SchedulerJobRow
+      >(`SELECT * FROM cron_jobs ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`)
       .all(...params, pageSize, offset);
 
     const response: SchedulerJobsResponse = {
@@ -245,12 +247,15 @@ schedulerRouter.post('/jobs', async (c) => {
   if (!body.actionData) return c.json({ error: 'actionData is required' }, 400);
 
   // Validate schedule type
-  if (!VALID_SCHEDULE_TYPES.includes(body.scheduleType as typeof VALID_SCHEDULE_TYPES[number])) {
-    return c.json({ error: `scheduleType must be one of: ${VALID_SCHEDULE_TYPES.join(', ')}` }, 400);
+  if (!VALID_SCHEDULE_TYPES.includes(body.scheduleType as (typeof VALID_SCHEDULE_TYPES)[number])) {
+    return c.json(
+      { error: `scheduleType must be one of: ${VALID_SCHEDULE_TYPES.join(', ')}` },
+      400
+    );
   }
 
   // Validate action type
-  if (!VALID_ACTION_TYPES.includes(body.actionType as typeof VALID_ACTION_TYPES[number])) {
+  if (!VALID_ACTION_TYPES.includes(body.actionType as (typeof VALID_ACTION_TYPES)[number])) {
     return c.json({ error: `actionType must be one of: ${VALID_ACTION_TYPES.join(', ')}` }, 400);
   }
 
@@ -278,14 +283,16 @@ schedulerRouter.post('/jobs', async (c) => {
     const now = new Date().toISOString();
     const id = randomUUID();
 
-    db.prepare(`
+    db.prepare(
+      `
       INSERT INTO cron_jobs (
         id, name, description, schedule_type, schedule_value, timezone,
         action_type, action_data, delivery_channel, delivery_announce,
         enabled, session_id, user_id, metadata, created_at, updated_at
       )
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
+    `
+    ).run(
       id,
       body.name.trim(),
       body.description ?? null,
@@ -487,9 +494,11 @@ schedulerRouter.post('/jobs/:id/trigger', (c) => {
     // Don't create a run record — the scheduler creates its own when it executes.
     const now = new Date().toISOString();
 
-    db.prepare(`
+    db.prepare(
+      `
       UPDATE cron_jobs SET next_run_at = ?, updated_at = ? WHERE id = ?
-    `).run(now, now, id);
+    `
+    ).run(now, now, id);
 
     return c.json({ ok: true, message: 'Job scheduled to run on next scheduler tick' });
   } catch (err) {
@@ -531,16 +540,18 @@ schedulerRouter.get('/runs', (c) => {
     const offset = (page - 1) * pageSize;
 
     const countRow = db
-      .prepare<(string | number)[], { count: number }>(
-        `SELECT COUNT(*) as count FROM cron_runs ${where}`
-      )
+      .prepare<
+        (string | number)[],
+        { count: number }
+      >(`SELECT COUNT(*) as count FROM cron_runs ${where}`)
       .get(...params);
     const total = countRow?.count ?? 0;
 
     const rows = db
-      .prepare<(string | number)[], SchedulerRunRow>(
-        `SELECT * FROM cron_runs ${where} ORDER BY started_at DESC LIMIT ? OFFSET ?`
-      )
+      .prepare<
+        (string | number)[],
+        SchedulerRunRow
+      >(`SELECT * FROM cron_runs ${where} ORDER BY started_at DESC LIMIT ? OFFSET ?`)
       .all(...params, pageSize, offset);
 
     const response: SchedulerRunsResponse = {

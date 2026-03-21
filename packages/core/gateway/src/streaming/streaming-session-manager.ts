@@ -12,7 +12,9 @@ const logger = createLogger('streaming-session-manager');
  * Runtime type guard for the inner payload of LLM stream bus messages.
  * Checks that the payload is an object and has at least a sessionId string field.
  */
-function isStreamChunk(value: unknown): value is { sessionId?: string; type?: string; delta?: string } {
+function isStreamChunk(
+  value: unknown
+): value is { sessionId?: string; type?: string; delta?: string } {
   return typeof value === 'object' && value !== null;
 }
 
@@ -92,14 +94,20 @@ export class StreamingSessionManager {
       // Validate that data is a well-formed MessageEnvelope before processing
       const envelopeResult = validateMessageEnvelope(data);
       if (!envelopeResult.success || !envelopeResult.data) {
-        logger.warn({ errors: envelopeResult.errors }, 'Discarding invalid streaming bus payload: not a MessageEnvelope');
+        logger.warn(
+          { errors: envelopeResult.errors },
+          'Discarding invalid streaming bus payload: not a MessageEnvelope'
+        );
         return;
       }
       const envelope: MessageEnvelope = envelopeResult.data;
 
       // Validate inner payload shape — must have at least sessionId
       if (!isStreamChunk(envelope.payload)) {
-        logger.warn({ payload: typeof envelope.payload }, 'Discarding streaming payload: missing expected chunk fields');
+        logger.warn(
+          { payload: typeof envelope.payload },
+          'Discarding streaming payload: missing expected chunk fields'
+        );
         return;
       }
       const chunk = envelope.payload;

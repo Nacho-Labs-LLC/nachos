@@ -128,15 +128,24 @@ export class FilesystemMemoryStore implements MemoryStore {
           });
           indexed++;
           if (indexed % 500 === 0) {
-            logger.info({ agentId, indexed, total }, `Semantic indexing: indexed ${indexed}/${total} entries`);
+            logger.info(
+              { agentId, indexed, total },
+              `Semantic indexing: indexed ${indexed}/${total} entries`
+            );
           }
         }
         if (total > 0) {
-          logger.info({ agentId, indexed: total, total }, `Semantic indexing complete: indexed ${total}/${total} entries`);
+          logger.info(
+            { agentId, indexed: total, total },
+            `Semantic indexing complete: indexed ${total}/${total} entries`
+          );
         }
         this.agentIndexingDone.add(agentId);
       } catch (err) {
-        logger.warn({ err: (err as Error).message, agentId }, 'Background semantic indexing failed');
+        logger.warn(
+          { err: (err as Error).message, agentId },
+          'Background semantic indexing failed'
+        );
       } finally {
         this.agentIndexingPromises.delete(agentId);
       }

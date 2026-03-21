@@ -112,7 +112,7 @@ function parseFrontmatter(content: string): {
           metadata.nachos = metaObj.nachos;
         }
       } catch (err) {
-        metadata._metadataParseError = (err instanceof Error ? err.message : String(err));
+        metadata._metadataParseError = err instanceof Error ? err.message : String(err);
       }
     }
   }

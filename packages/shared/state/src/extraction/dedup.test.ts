@@ -107,9 +107,9 @@ describe('mergeFact', () => {
     const merged = mergeFact(existing, incoming);
 
     expect(merged.properties).toEqual({
-      color: 'red',     // incoming wins
-      size: 'large',    // existing preserved
-      weight: 'heavy',  // new from incoming
+      color: 'red', // incoming wins
+      size: 'large', // existing preserved
+      weight: 'heavy', // new from incoming
     });
   });
 
@@ -150,9 +150,7 @@ describe('mergeFact', () => {
 
 describe('deduplicateFacts', () => {
   it('inserts new facts that have no match', () => {
-    const incoming = [
-      makeFact({ subject: 'user', predicate: 'likes', object: 'cats' }),
-    ];
+    const incoming = [makeFact({ subject: 'user', predicate: 'likes', object: 'cats' })];
     const existing: MemoryFact[] = [];
 
     const { toInsert, toUpdate } = deduplicateFacts(incoming, existing);
@@ -163,10 +161,22 @@ describe('deduplicateFacts', () => {
 
   it('merges exact duplicates into toUpdate', () => {
     const incoming = [
-      makeFact({ id: 'new-1', subject: 'user', predicate: 'prefers', object: 'TypeScript', confidence: 0.9 }),
+      makeFact({
+        id: 'new-1',
+        subject: 'user',
+        predicate: 'prefers',
+        object: 'TypeScript',
+        confidence: 0.9,
+      }),
     ];
     const existing = [
-      makeFact({ id: 'old-1', subject: 'user', predicate: 'prefers', object: 'TypeScript', confidence: 0.7 }),
+      makeFact({
+        id: 'old-1',
+        subject: 'user',
+        predicate: 'prefers',
+        object: 'TypeScript',
+        confidence: 0.7,
+      }),
     ];
 
     const { toInsert, toUpdate } = deduplicateFacts(incoming, existing);
@@ -205,12 +215,8 @@ describe('deduplicateFacts', () => {
   });
 
   it('case-insensitive matching via normalization', () => {
-    const incoming = [
-      makeFact({ subject: 'USER', predicate: 'PREFERS', object: 'TYPESCRIPT' }),
-    ];
-    const existing = [
-      makeFact({ subject: 'user', predicate: 'prefers', object: 'TypeScript' }),
-    ];
+    const incoming = [makeFact({ subject: 'USER', predicate: 'PREFERS', object: 'TYPESCRIPT' })];
+    const existing = [makeFact({ subject: 'user', predicate: 'prefers', object: 'TypeScript' })];
 
     const { toInsert, toUpdate } = deduplicateFacts(incoming, existing);
 

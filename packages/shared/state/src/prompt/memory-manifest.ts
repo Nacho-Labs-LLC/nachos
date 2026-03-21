@@ -52,7 +52,7 @@ export async function buildMemoryManifest(
   agentId: string,
   memoryStore: MemoryStore,
   _sessionsStore?: _SessionsStore,
-  config?: Partial<MemoryManifestConfig>,
+  config?: Partial<MemoryManifestConfig>
 ): Promise<MemoryManifest> {
   const cfg = { ...DEFAULT_CONFIG, ...config };
 
@@ -133,14 +133,14 @@ export async function buildMemoryManifest(
  */
 export function formatManifestForPrompt(
   manifest: MemoryManifest,
-  config?: Partial<MemoryManifestConfig>,
+  config?: Partial<MemoryManifestConfig>
 ): string {
   const cfg = { ...DEFAULT_CONFIG, ...config };
   const lines: string[] = [];
 
   lines.push('## Memory Manifest');
   lines.push(
-    `You have ${manifest.totalFacts} stored facts and ${manifest.totalEntries} memory entries.`,
+    `You have ${manifest.totalFacts} stored facts and ${manifest.totalEntries} memory entries.`
   );
 
   // Preferences
@@ -175,7 +175,7 @@ export function formatManifestForPrompt(
   // Hint to use memory_recall
   lines.push('');
   lines.push(
-    'Use `memory_recall` to retrieve full details about any topic, preference, or past conversation listed above.',
+    'Use `memory_recall` to retrieve full details about any topic, preference, or past conversation listed above.'
   );
 
   // Respect token budget — rough estimate: 1 token ≈ 4 chars

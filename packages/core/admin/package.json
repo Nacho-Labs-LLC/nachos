@@ -11,7 +11,7 @@
     "build:backend": "tsc --build",
     "build": "pnpm build:frontend && pnpm build:backend",
     "start": "node dist/server.js",
-    "typecheck": "tsc --noEmit && vue-tsc --noEmit --project frontend/tsconfig.json",
+    "typecheck": "tsc --build && vue-tsc --noEmit --project frontend/tsconfig.json",
     "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {

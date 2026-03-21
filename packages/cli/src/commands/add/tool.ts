@@ -204,11 +204,7 @@ export async function addToolCommand(name: string, options: AddToolOptions): Pro
     }
 
     if (sanitizedName.length > 64) {
-      throw new CLIError(
-        'Tool name is too long (max 64 characters)',
-        'INVALID_TOOL_NAME',
-        1
-      );
+      throw new CLIError('Tool name is too long (max 64 characters)', 'INVALID_TOOL_NAME', 1);
     }
 
     // Only allow alphanumeric characters, hyphens, and underscores — no path traversal

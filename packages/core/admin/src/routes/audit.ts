@@ -5,7 +5,8 @@ import Database from 'better-sqlite3';
 import type { AuditRow, AuditResponse } from '../types.js';
 
 // GATEWAY_STATE_DIR overrides for audit.db path (gateway writes audit to its own state dir)
-const STATE_DIR = process.env['GATEWAY_STATE_DIR'] ?? process.env['NACHOS_STATE_DIR'] ?? '/app/state';
+const STATE_DIR =
+  process.env['GATEWAY_STATE_DIR'] ?? process.env['NACHOS_STATE_DIR'] ?? '/app/state';
 
 export const auditRouter = new Hono();
 

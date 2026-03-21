@@ -413,7 +413,10 @@ export class HookRegistry {
     let totalFailures = 0;
 
     for (const [event, eventStats] of this.stats) {
-      events[event] = { ...eventStats, lastFailure: eventStats.lastFailure ? { ...eventStats.lastFailure } : undefined };
+      events[event] = {
+        ...eventStats,
+        lastFailure: eventStats.lastFailure ? { ...eventStats.lastFailure } : undefined,
+      };
       totalEmits += eventStats.successCount + eventStats.failureCount;
       totalFailures += eventStats.failureCount;
     }
@@ -445,7 +448,12 @@ export class HookRegistry {
   }
 
   /** Record a handler failure with optional timeout tracking and alerting */
-  private recordFailure(event: string, label: string, errorMessage: string, isTimeout: boolean): void {
+  private recordFailure(
+    event: string,
+    label: string,
+    errorMessage: string,
+    isTimeout: boolean
+  ): void {
     const eventStats = this.getOrCreateEventStats(event);
     eventStats.failureCount++;
     eventStats.lastFailure = { error: errorMessage, label, timestamp: new Date().toISOString() };

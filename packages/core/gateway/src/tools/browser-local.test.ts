@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { BrowserLocalTool, type BrowserToolConfig } from './browser-local.js';
+import { BrowserLocalTool } from './browser-local.js';
 
 // ---------------------------------------------------------------------------
 // Mocks

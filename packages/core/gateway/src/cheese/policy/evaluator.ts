@@ -78,7 +78,10 @@ export class PolicyEvaluator {
     validRules.sort((a, b) => b.priority - a.priority);
 
     this.rules = validRules;
-    logger.info({ count: validRules.length, rejected: allRules.length - validRules.length }, 'Loaded rule(s)');
+    logger.info(
+      { count: validRules.length, rejected: allRules.length - validRules.length },
+      'Loaded rule(s)'
+    );
   }
 
   /**

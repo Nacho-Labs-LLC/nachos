@@ -72,10 +72,7 @@ export class PostgresWorkspaceDocumentStore implements WorkspaceDocumentStore {
     };
   }
 
-  async indexDocument(
-    doc: WorkspaceDocument,
-    chunks: DocumentChunk[]
-  ): Promise<WorkspaceDocument> {
+  async indexDocument(doc: WorkspaceDocument, chunks: DocumentChunk[]): Promise<WorkspaceDocument> {
     await this.ensureSchema();
     const now = new Date().toISOString();
     const docId = doc.id || uuid();
@@ -169,10 +166,7 @@ export class PostgresWorkspaceDocumentStore implements WorkspaceDocumentStore {
     return result.rows[0] ? this.rowToDocument(result.rows[0]) : null;
   }
 
-  async getDocumentByPath(
-    path: string,
-    projectId?: string
-  ): Promise<WorkspaceDocument | null> {
+  async getDocumentByPath(path: string, projectId?: string): Promise<WorkspaceDocument | null> {
     await this.ensureSchema();
     const result = await this.pool.query(
       `SELECT * FROM ${this.qualified('workspace_documents')}

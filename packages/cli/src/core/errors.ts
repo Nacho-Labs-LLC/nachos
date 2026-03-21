@@ -81,7 +81,8 @@ export class ComposeGenerationError extends CLIError {
  */
 const DOCKER_ERROR_SUGGESTIONS: Array<{ pattern: RegExp; suggestion: string }> = [
   {
-    pattern: /cannot connect to the docker daemon|is the docker daemon running|docker daemon is not running/i,
+    pattern:
+      /cannot connect to the docker daemon|is the docker daemon running|docker daemon is not running/i,
     suggestion:
       'Docker daemon is not running. Start it with: open -a Docker (macOS) or sudo systemctl start docker (Linux)',
   },
@@ -92,15 +93,18 @@ const DOCKER_ERROR_SUGGESTIONS: Array<{ pattern: RegExp; suggestion: string }> =
   },
   {
     pattern: /no such file or directory.*docker/i,
-    suggestion: 'Docker binary not found. Install Docker Desktop or Docker Engine: https://docs.docker.com/get-docker/',
+    suggestion:
+      'Docker binary not found. Install Docker Desktop or Docker Engine: https://docs.docker.com/get-docker/',
   },
   {
     pattern: /pull access denied|manifest unknown|not found/i,
-    suggestion: 'Image could not be pulled. Check the image name/tag and your Docker Hub credentials.',
+    suggestion:
+      'Image could not be pulled. Check the image name/tag and your Docker Hub credentials.',
   },
   {
     pattern: /port is already allocated|address already in use/i,
-    suggestion: 'A required port is already in use. Stop the conflicting service or change the port in nachos.toml.',
+    suggestion:
+      'A required port is already in use. Stop the conflicting service or change the port in nachos.toml.',
   },
   {
     pattern: /no space left on device/i,

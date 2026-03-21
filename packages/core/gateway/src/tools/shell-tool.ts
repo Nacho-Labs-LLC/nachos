@@ -324,10 +324,28 @@ const PERMISSIVE_SKILL_TOOLS: SkillToolConfig[] = [
     group: 'git',
     allowedSubcommands: [
       // Read operations (also in DEFAULT)
-      'status', 'log', 'diff', 'show', 'branch', 'remote', 'config', 'rev-parse', 'describe',
+      'status',
+      'log',
+      'diff',
+      'show',
+      'branch',
+      'remote',
+      'config',
+      'rev-parse',
+      'describe',
       // Write operations (permissive only)
-      'add', 'commit', 'checkout', 'stash', 'cherry-pick', 'rebase', 'merge',
-      'pull', 'fetch', 'clone', 'push', 'tag',
+      'add',
+      'commit',
+      'checkout',
+      'stash',
+      'cherry-pick',
+      'rebase',
+      'merge',
+      'pull',
+      'fetch',
+      'clone',
+      'push',
+      'tag',
     ],
     defaultTimeout: 300000,
   },
@@ -348,9 +366,20 @@ const PERMISSIVE_SKILL_TOOLS: SkillToolConfig[] = [
     group: 'docker',
     allowedSubcommands: [
       // Read operations (also in DEFAULT)
-      'ps', 'logs', 'inspect', 'images', 'stats', 'version', 'info',
+      'ps',
+      'logs',
+      'inspect',
+      'images',
+      'stats',
+      'version',
+      'info',
       // Write operations (permissive only)
-      'build', 'run', 'exec', 'stop', 'restart', 'compose',
+      'build',
+      'run',
+      'exec',
+      'stop',
+      'restart',
+      'compose',
     ],
     defaultTimeout: 300000,
   },
@@ -1071,5 +1100,4 @@ export class ShellTool {
       });
     });
   }
-
 }

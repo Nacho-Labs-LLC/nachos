@@ -5,10 +5,7 @@
  */
 import { createLogger } from '@nachos/types';
 import type { LLMRequestType, Session, ToolCall, ToolResult } from '@nachos/types';
-import type {
-  ToolsConfig,
-  SubagentToolPolicyConfig,
-} from '@nachos/config';
+import type { ToolsConfig, SubagentToolPolicyConfig } from '@nachos/config';
 import type { StateLayer, StateOperationContext, SessionsStore } from '@nachos/state';
 import type { IContextSnapshotService } from '@nachos/context-manager';
 import type { AuditEvent } from '../audit/types.js';
@@ -68,10 +65,7 @@ import {
   executeCronRun,
 } from './cron-tools.js';
 import { getExternalToolDefinitions } from './external-tool-definitions.js';
-import {
-  createAgentExecToolDefinition,
-  handleAgentExecTool,
-} from './agent-exec-tool.js';
+import { createAgentExecToolDefinition, handleAgentExecTool } from './agent-exec-tool.js';
 import { AgentProcessRegistry } from './agent-process-registry.js';
 import {
   listSubagentWorkspaceEntries,
@@ -87,11 +81,7 @@ import {
   readCleanup,
   stringifyToolParameters,
 } from '../utils/parsing.js';
-import {
-  resolveAgentId,
-  buildStateContext,
-  isSubagentSession,
-} from '../utils/session-utils.js';
+import { resolveAgentId, buildStateContext, isSubagentSession } from '../utils/session-utils.js';
 import { SubagentTools } from './subagent-tools.js';
 import { randomUUID } from 'node:crypto';
 import type { HookRegistry } from '../hooks/index.js';
@@ -111,7 +101,10 @@ const DEFAULT_REMOTE_TOOL_TIMEOUT_MS = 60_000;
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   let timerId: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_resolve, reject) => {
-    timerId = setTimeout(() => reject(new Error(`Tool execution timed out after ${ms}ms: ${label}`)), ms);
+    timerId = setTimeout(
+      () => reject(new Error(`Tool execution timed out after ${ms}ms: ${label}`)),
+      ms
+    );
   });
   return Promise.race([promise, timeout]).finally(() => {
     if (timerId !== undefined) clearTimeout(timerId);
@@ -222,9 +215,7 @@ export class ToolExecutor {
         defaultTimeoutMs: agentExecConfig.default_timeout
           ? agentExecConfig.default_timeout * 1000
           : undefined,
-        maxTimeoutMs: agentExecConfig.max_timeout
-          ? agentExecConfig.max_timeout * 1000
-          : undefined,
+        maxTimeoutMs: agentExecConfig.max_timeout ? agentExecConfig.max_timeout * 1000 : undefined,
         maxOutputBuffer: agentExecConfig.max_output_buffer,
       });
     }
@@ -536,10 +527,7 @@ export class ToolExecutor {
       if (typeof call.tool !== 'string' || call.tool.trim().length === 0) {
         blockedResults.push({
           index: i,
-          result: this.formatToolError(
-            'INVALID_TOOL_NAME',
-            'Tool name must be a non-empty string'
-          ),
+          result: this.formatToolError('INVALID_TOOL_NAME', 'Tool name must be a non-empty string'),
         });
         continue;
       }
@@ -1083,7 +1071,9 @@ export class ToolExecutor {
         ...buildStateContext(session, this.deps.core.securityMode),
         internalTool: true,
       };
-      return executeMemoryGet(call, this.deps.state.stateLayer, context, { workspaceDir: this.deps.core.workspaceDir });
+      return executeMemoryGet(call, this.deps.state.stateLayer, context, {
+        workspaceDir: this.deps.core.workspaceDir,
+      });
     }
 
     if (call.tool === 'nachos_search_conversations') {
@@ -1091,7 +1081,10 @@ export class ToolExecutor {
         return this.formatToolError('STATE_LAYER_DISABLED', 'Memory is not configured');
       }
       if (!session) {
-        return this.formatToolError('SESSION_NOT_FOUND', 'Session not found for conversation search');
+        return this.formatToolError(
+          'SESSION_NOT_FOUND',
+          'Session not found for conversation search'
+        );
       }
 
       const rateLimitResult = this.checkMemoryToolRateLimit(session.id);
@@ -1385,8 +1378,6 @@ export class ToolExecutor {
 
       return executeWebSearch(call, webSearchConfig, session.userId);
     }
-
-
 
     if (call.tool === 'agent_exec') {
       if (!this.agentProcessRegistry) {
@@ -2150,7 +2141,10 @@ function getBrowserToolDefinitions(): Array<{
       parameters: {
         type: 'object',
         properties: {
-          element: { type: 'string', description: 'Human-readable element description for logging' },
+          element: {
+            type: 'string',
+            description: 'Human-readable element description for logging',
+          },
           ref: { type: 'string', description: 'Element ref from accessibility snapshot' },
         },
         required: ['element', 'ref'],
@@ -2175,7 +2169,10 @@ function getBrowserToolDefinitions(): Array<{
       parameters: {
         type: 'object',
         properties: {
-          element: { type: 'string', description: 'Human-readable element description for logging' },
+          element: {
+            type: 'string',
+            description: 'Human-readable element description for logging',
+          },
           ref: { type: 'string', description: 'Element ref from accessibility snapshot' },
           value: { type: 'string', description: 'Value to fill' },
         },
@@ -2188,7 +2185,10 @@ function getBrowserToolDefinitions(): Array<{
       parameters: {
         type: 'object',
         properties: {
-          element: { type: 'string', description: 'Human-readable element description for logging' },
+          element: {
+            type: 'string',
+            description: 'Human-readable element description for logging',
+          },
           ref: { type: 'string', description: 'Element ref from accessibility snapshot' },
           values: {
             type: 'array',
@@ -2205,7 +2205,10 @@ function getBrowserToolDefinitions(): Array<{
       parameters: {
         type: 'object',
         properties: {
-          element: { type: 'string', description: 'Human-readable element description for logging' },
+          element: {
+            type: 'string',
+            description: 'Human-readable element description for logging',
+          },
           ref: { type: 'string', description: 'Element ref from accessibility snapshot' },
         },
         required: ['element', 'ref'],
@@ -2217,8 +2220,14 @@ function getBrowserToolDefinitions(): Array<{
       parameters: {
         type: 'object',
         properties: {
-          startElement: { type: 'string', description: 'Human-readable source element description' },
-          startRef: { type: 'string', description: 'Source element ref from accessibility snapshot' },
+          startElement: {
+            type: 'string',
+            description: 'Human-readable source element description',
+          },
+          startRef: {
+            type: 'string',
+            description: 'Source element ref from accessibility snapshot',
+          },
           endElement: { type: 'string', description: 'Human-readable target element description' },
           endRef: { type: 'string', description: 'Target element ref from accessibility snapshot' },
         },
@@ -2236,7 +2245,8 @@ function getBrowserToolDefinitions(): Array<{
     },
     {
       name: 'browser_screenshot',
-      description: 'Take a screenshot of the current page. Use when you need to visually inspect the page.',
+      description:
+        'Take a screenshot of the current page. Use when you need to visually inspect the page.',
       parameters: { type: 'object', properties: {} },
     },
     {
@@ -2252,11 +2262,15 @@ function getBrowserToolDefinitions(): Array<{
     },
     {
       name: 'browser_upload_file',
-      description: 'Upload one or more files to a file input element. Use ref from browser_snapshot to target the file input.',
+      description:
+        'Upload one or more files to a file input element. Use ref from browser_snapshot to target the file input.',
       parameters: {
         type: 'object',
         properties: {
-          element: { type: 'string', description: 'Human-readable element description for logging' },
+          element: {
+            type: 'string',
+            description: 'Human-readable element description for logging',
+          },
           ref: { type: 'string', description: 'Element ref for the file input' },
           paths: {
             type: 'array',
@@ -2269,7 +2283,8 @@ function getBrowserToolDefinitions(): Array<{
     },
     {
       name: 'browser_handle_dialog',
-      description: 'Handle a browser dialog (alert, confirm, prompt). Call before triggering the dialog action.',
+      description:
+        'Handle a browser dialog (alert, confirm, prompt). Call before triggering the dialog action.',
       parameters: {
         type: 'object',
         properties: {

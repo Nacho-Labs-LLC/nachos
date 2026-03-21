@@ -83,7 +83,8 @@ export async function syncConfigJobs(
         });
         // If config says disabled, immediately disable the recreated job
         if (def.enabled === false) {
-          const recreated = scheduler.listJobs({ userId: CONFIG_USER_ID })
+          const recreated = scheduler
+            .listJobs({ userId: CONFIG_USER_ID })
             .find((j) => j.name === def.name);
           if (recreated) {
             await scheduler.updateJob(recreated.id, { enabled: false });

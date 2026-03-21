@@ -211,9 +211,7 @@ describe('LLMExtractionAdapter', () => {
     });
 
     it('defaults confidence to 0.7 when missing', async () => {
-      const response = JSON.stringify([
-        { subject: 'a', predicate: 'b', object: 'c' },
-      ]);
+      const response = JSON.stringify([{ subject: 'a', predicate: 'b', object: 'c' }]);
       const llmCall = makeLLMCall(response);
       const adapter = new LLMExtractionAdapter(llmCall, DEFAULT_CONFIG);
 
@@ -235,7 +233,15 @@ describe('LLMExtractionAdapter', () => {
     });
 
     it('accepts all valid fact types', async () => {
-      const types = ['attribute', 'relationship', 'preference', 'skill', 'event', 'decision', 'general'];
+      const types = [
+        'attribute',
+        'relationship',
+        'preference',
+        'skill',
+        'event',
+        'decision',
+        'general',
+      ];
       const response = JSON.stringify(
         types.map((type, i) => ({
           subject: `s${i}`,
@@ -256,9 +262,7 @@ describe('LLMExtractionAdapter', () => {
     });
 
     it('assigns UUID ids and correct sourceContext', async () => {
-      const response = JSON.stringify([
-        { subject: 'user', predicate: 'likes', object: 'cats' },
-      ]);
+      const response = JSON.stringify([{ subject: 'user', predicate: 'likes', object: 'cats' }]);
       const llmCall = makeLLMCall(response);
       const adapter = new LLMExtractionAdapter(llmCall, {
         agentId: 'agent-42',

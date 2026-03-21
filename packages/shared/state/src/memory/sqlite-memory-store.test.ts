@@ -55,7 +55,7 @@ describe('SqliteMemoryStore', () => {
   describe('appendEntry', () => {
     it('stores and retrieves a memory entry', async () => {
       const entry = makeEntry();
-      const stored = await store.appendEntry(entry);
+      const _stored = await store.appendEntry(entry);
 
       expect(stored.id).toBe(entry.id);
       expect(stored.agentId).toBe('agent-1');
@@ -84,7 +84,7 @@ describe('SqliteMemoryStore', () => {
         provenance: undefined,
       });
 
-      const stored = await store.appendEntry(entry);
+      const _stored = await store.appendEntry(entry);
       const result = await store.query({ agentId: 'agent-1' });
 
       expect(result.entries).toHaveLength(1);

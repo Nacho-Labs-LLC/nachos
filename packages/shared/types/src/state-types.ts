@@ -27,7 +27,15 @@ export interface BootstrapProfile {
   source?: IdentitySource;
 }
 
-export type MemoryKind = 'summary' | 'preference' | 'fact' | 'decision' | 'task' | 'issue';
+export type MemoryKind =
+  | 'summary'
+  | 'preference'
+  | 'fact'
+  | 'decision'
+  | 'task'
+  | 'issue'
+  | 'note'
+  | 'lesson';
 
 export interface MemoryEntry {
   id: string;

@@ -26,7 +26,11 @@ import type {
   UserProfileStore,
 } from '@nachos/types';
 import type { StateLayerConfig, StateLayerDependencies, StatePolicyRequest } from './types.js';
-import type { StateStorePostgresConfig, SessionsStorePostgresConfig, WorkspaceDocumentStoreConfig } from './types.js';
+import type {
+  StateStorePostgresConfig,
+  SessionsStorePostgresConfig,
+  WorkspaceDocumentStoreConfig,
+} from './types.js';
 import { FilesystemIdentityStore } from './identity/filesystem-identity-store.js';
 import { PostgresIdentityStore } from './identity/postgres-identity-store.js';
 import { FilesystemBootstrapStore } from './bootstrap/filesystem-bootstrap-store.js';
@@ -119,7 +123,11 @@ export class StateLayer {
       await this.memoryStore.init();
     }
     // Initialize sessions store semantic search for conversation history embedding
-    if (this._sessionsStore && 'init' in this._sessionsStore && typeof this._sessionsStore.init === 'function') {
+    if (
+      this._sessionsStore &&
+      'init' in this._sessionsStore &&
+      typeof this._sessionsStore.init === 'function'
+    ) {
       await this._sessionsStore.init();
     }
   }
@@ -432,16 +440,11 @@ export class StateLayer {
   async buildMemoryManifest(
     agentId: string,
     context: StateOperationContext,
-    config?: Partial<MemoryManifestConfig>,
+    config?: Partial<MemoryManifestConfig>
   ): Promise<string | null> {
     try {
       await this.ensureAllowed('state.memory.query', context, agentId);
-      const manifest = await buildManifest(
-        agentId,
-        this.memoryStore,
-        this._sessionsStore,
-        config,
-      );
+      const manifest = await buildManifest(agentId, this.memoryStore, this._sessionsStore, config);
       const hasData =
         manifest.totalFacts > 0 ||
         manifest.preferences.length > 0 ||

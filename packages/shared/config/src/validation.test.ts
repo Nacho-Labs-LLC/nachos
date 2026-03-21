@@ -181,7 +181,9 @@ describe('Configuration Validation', () => {
       const result = validateConfig(config);
 
       expect(result.valid).toBe(true);
-      expect(result.warnings.some((w) => w.includes('audit logging is recommended in strict mode'))).toBe(true);
+      expect(
+        result.warnings.some((w) => w.includes('audit logging is recommended in strict mode'))
+      ).toBe(true);
     });
 
     it('should not warn when strict mode has audit logging enabled', () => {
@@ -194,7 +196,9 @@ describe('Configuration Validation', () => {
       const result = validateConfig(config);
 
       expect(result.valid).toBe(true);
-      expect(result.warnings.some((w) => w.includes('audit logging is recommended in strict mode'))).toBe(false);
+      expect(
+        result.warnings.some((w) => w.includes('audit logging is recommended in strict mode'))
+      ).toBe(false);
     });
 
     it('should not warn about audit for standard or permissive modes', () => {
@@ -206,7 +210,9 @@ describe('Configuration Validation', () => {
 
       const result = validateConfig(standardConfig);
 
-      expect(result.warnings.some((w) => w.includes('audit logging is recommended in strict mode'))).toBe(false);
+      expect(
+        result.warnings.some((w) => w.includes('audit logging is recommended in strict mode'))
+      ).toBe(false);
     });
 
     it('should reject invalid DLP action', () => {

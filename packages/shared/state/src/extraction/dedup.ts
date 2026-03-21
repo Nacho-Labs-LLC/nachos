@@ -71,10 +71,7 @@ export function deduplicateFacts(
   for (const fact of incoming) {
     const match = existing.find((e) => isExactMatch(e, fact));
     if (match) {
-      logger.debug(
-        { subject: fact.subject, predicate: fact.predicate },
-        'Merging duplicate fact'
-      );
+      logger.debug({ subject: fact.subject, predicate: fact.predicate }, 'Merging duplicate fact');
       toUpdate.push(mergeFact(match, fact));
     } else {
       toInsert.push(fact);

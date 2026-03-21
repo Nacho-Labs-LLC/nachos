@@ -584,15 +584,15 @@ describe('SqliteSessionsStore', () => {
         ...defaultSession,
         conversationId: 'conv-old',
       });
-      const recent = await store.createSession({
+      const _recent = await store.createSession({
         ...defaultSession,
         conversationId: 'conv-recent',
       });
 
       // Manually backdate the "old" session's lastActivity
-      db.prepare(
-        "UPDATE sessions SET last_activity = '2025-01-01T00:00:00.000Z' WHERE id = ?"
-      ).run(old.id);
+      db.prepare("UPDATE sessions SET last_activity = '2025-01-01T00:00:00.000Z' WHERE id = ?").run(
+        old.id
+      );
 
       // Cutoff: anything before 2026-01-01 is inactive
       const inactive = await store.findInactiveSessions('2026-01-01T00:00:00.000Z');
@@ -636,9 +636,9 @@ describe('SqliteSessionsStore', () => {
       await store.closeSession(session.id, 'inactivity');
 
       // Backdate the closedAt
-      db.prepare(
-        "UPDATE sessions SET closed_at = '2025-01-01T00:00:00.000Z' WHERE id = ?"
-      ).run(session.id);
+      db.prepare("UPDATE sessions SET closed_at = '2025-01-01T00:00:00.000Z' WHERE id = ?").run(
+        session.id
+      );
 
       const expired = await store.findExpiredClosedSessions('2026-01-01T00:00:00.000Z');
       expect(expired).toHaveLength(1);
@@ -699,11 +699,13 @@ describe('SqliteSessionsStore — semantic search', () => {
       // Monkey-patch the dynamic import to simulate failure
       const original = store['semanticConfig'];
       // Force init to fail by providing an invalid config path that the mock will reject
-      vi.spyOn(store as unknown as { init: () => Promise<void> }, 'init').mockImplementationOnce(async () => {
-        // Simulate the catch branch
-        (store as unknown as Record<string, unknown>)['semanticSearch'] = null;
-        (store as unknown as Record<string, unknown>)['searchMessages'] = undefined;
-      });
+      vi.spyOn(store as unknown as { init: () => Promise<void> }, 'init').mockImplementationOnce(
+        async () => {
+          // Simulate the catch branch
+          (store as unknown as Record<string, unknown>)['semanticSearch'] = null;
+          (store as unknown as Record<string, unknown>)['searchMessages'] = undefined;
+        }
+      );
 
       await store.init();
       expect(store.searchMessages).toBeUndefined();
@@ -729,14 +731,18 @@ describe('SqliteSessionsStore — semantic search', () => {
 
       // Inject mock semantic search directly
       (store as unknown as Record<string, unknown>)['semanticSearch'] = mockSearch;
-      (store as unknown as Record<string, unknown>)['searchMessages'] =
-        (store as unknown as { _searchMessages: SessionsStore['searchMessages'] })['_searchMessages'].bind(store);
+      (store as unknown as Record<string, unknown>)['searchMessages'] = (
+        store as unknown as { _searchMessages: SessionsStore['searchMessages'] }
+      )['_searchMessages'].bind(store);
 
       // Should not throw even with garbage date
       const results = await store.searchMessages!('test query', { since: 'not-a-date' });
       expect(results).toEqual([]);
       // Verify search was called (filter was ignored gracefully, not crashed)
-      expect(mockSearch.search).toHaveBeenCalledWith('test query', expect.objectContaining({ limit: 5 }));
+      expect(mockSearch.search).toHaveBeenCalledWith(
+        'test query',
+        expect.objectContaining({ limit: 5 })
+      );
       db.close();
     });
   });
@@ -749,7 +755,7 @@ describe('SqliteSessionsStore — semantic search', () => {
       const addedDocs: Array<{ id: string; text: string; metadata: Record<string, unknown> }> = [];
       const mockSearch = {
         init: vi.fn().mockResolvedValue(undefined),
-        addDocument: vi.fn().mockImplementation((doc: typeof addedDocs[0]) => {
+        addDocument: vi.fn().mockImplementation((doc: (typeof addedDocs)[0]) => {
           addedDocs.push(doc);
           return Promise.resolve();
         }),
@@ -758,11 +764,20 @@ describe('SqliteSessionsStore — semantic search', () => {
       };
 
       (store as unknown as Record<string, unknown>)['semanticSearch'] = mockSearch;
-      (store as unknown as Record<string, unknown>)['searchMessages'] =
-        (store as unknown as { _searchMessages: SessionsStore['searchMessages'] })['_searchMessages'].bind(store);
+      (store as unknown as Record<string, unknown>)['searchMessages'] = (
+        store as unknown as { _searchMessages: SessionsStore['searchMessages'] }
+      )['_searchMessages'].bind(store);
 
-      const session = await store.createSession({ channel: 'slack', conversationId: 'c1', userId: 'u1' });
-      await store.addMessage({ sessionId: session.id, role: 'user', content: 'I prefer TypeScript strict mode' });
+      const session = await store.createSession({
+        channel: 'slack',
+        conversationId: 'c1',
+        userId: 'u1',
+      });
+      await store.addMessage({
+        sessionId: session.id,
+        role: 'user',
+        content: 'I prefer TypeScript strict mode',
+      });
 
       // Give the fire-and-forget a tick to complete
       await new Promise((r) => setTimeout(r, 10));
@@ -790,10 +805,15 @@ describe('SqliteSessionsStore — semantic search', () => {
       };
 
       (store as unknown as Record<string, unknown>)['semanticSearch'] = mockSearch;
-      (store as unknown as Record<string, unknown>)['searchMessages'] =
-        (store as unknown as { _searchMessages: SessionsStore['searchMessages'] })['_searchMessages'].bind(store);
+      (store as unknown as Record<string, unknown>)['searchMessages'] = (
+        store as unknown as { _searchMessages: SessionsStore['searchMessages'] }
+      )['_searchMessages'].bind(store);
 
-      const session = await store.createSession({ channel: 'slack', conversationId: 'c2', userId: 'u1' });
+      const session = await store.createSession({
+        channel: 'slack',
+        conversationId: 'c2',
+        userId: 'u1',
+      });
       await store.addMessage({ sessionId: session.id, role: 'tool', content: '{"result": "ok"}' });
       await store.addMessage({ sessionId: session.id, role: 'user', content: 'Thanks' });
 

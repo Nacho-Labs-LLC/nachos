@@ -75,7 +75,9 @@ export function resetStartTime(): void {
 /**
  * Perform health checks and return status
  */
-export function performHealthCheck(deps?: HealthCheckDeps): HealthCheck & { hookStats?: HookStats } {
+export function performHealthCheck(
+  deps?: HealthCheckDeps
+): HealthCheck & { hookStats?: HookStats } {
   const checks: Record<string, 'ok' | 'error'> = {};
   let overallStatus: HealthStatus = 'healthy';
 
