@@ -51,6 +51,9 @@ describe('checkEnvVars', () => {
     tempDir = mkdtempSync(join(tmpdir(), 'nachos-cli-'));
     originalConfigPath = process.env.NACHOS_CONFIG_PATH;
     envSnapshot = snapshotEnv();
+    for (const key of REQUIRED_KEYS) {
+      delete process.env[key];
+    }
   });
 
   afterEach(() => {

@@ -208,7 +208,7 @@ describe('StreamingSessionManager', () => {
     // Simulate a "done" chunk
     await _streamHandler!({
       id: 'env-1',
-      timestamp: Date.now(),
+      timestamp: new Date().toISOString(),
       source: 'llm',
       type: 'llm.stream',
       payload: { sessionId: 's1', type: 'done' },

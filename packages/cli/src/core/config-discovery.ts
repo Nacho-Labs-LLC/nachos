@@ -54,6 +54,11 @@ export function getConfigSearchPaths(): string[] {
  * @returns Path to config file, or null if not found
  */
 export function findConfigFile(): string | null {
+  if (process.env.NACHOS_CONFIG_PATH) {
+    const explicit = path.resolve(process.env.NACHOS_CONFIG_PATH);
+    return fs.existsSync(explicit) ? explicit : null;
+  }
+
   const searchPaths = getConfigSearchPaths();
 
   for (const configPath of searchPaths) {

@@ -23,7 +23,6 @@ describe('Gateway', () => {
       expect(gateway).toBeDefined();
       expect(gateway.getSessionsStore()).toBeDefined();
       expect(gateway.getRouter()).toBeDefined();
-      expect(gateway.getStorage()).toBeDefined();
     });
 
     it('should create a gateway with custom system prompt', async () => {
@@ -488,7 +487,7 @@ describe('Gateway', () => {
 
   describe('Storage access', () => {
     it('should provide access to storage', async () => {
-      const storage = gateway.getStorage();
+      const storage = gateway.getSessionsStore();
 
       const session = await storage.createSession({
         channel: 'slack',
@@ -889,7 +888,7 @@ describe('Gateway', () => {
       await buildLLMRequest(session.id);
 
       expect(mockStateLayer.queryMemory).toHaveBeenCalledWith(
-        expect.objectContaining({ agentId: 'user-bs-4', limit: 20, kinds: ['preference', 'task'] }),
+        expect.objectContaining({ agentId: 'user-bs-4', limit: 20, kinds: ['preference', 'task', 'fact', 'note', 'lesson'] }),
         expect.anything()
       );
       expect(mockStateLayer.assemblePrompt).toHaveBeenCalledWith(
