@@ -104,7 +104,11 @@ export class DiscordChannelAdapter implements ChannelAdapter {
       await this.sendMessage(payload as OutboundMessage);
     });
 
-    if (this.channelConfig?.status_emojis?.enabled) {
+    // Subscribe to status events if typing indicators OR status emojis are enabled.
+    // Typing indicators are on by default; status_emojis require explicit opt-in.
+    const typingEnabled = this.channelConfig?.typing_indicators !== false;
+    const emojisEnabled = this.channelConfig?.status_emojis?.enabled === true;
+    if (typingEnabled || emojisEnabled) {
       await this.subscribeToStatusEvents();
     }
   }

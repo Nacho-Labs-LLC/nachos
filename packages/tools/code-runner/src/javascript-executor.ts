@@ -10,6 +10,7 @@
  */
 
 import { spawn } from 'child_process';
+import { existsSync } from 'fs';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
@@ -250,7 +251,7 @@ export class JavaScriptExecutor extends ToolService {
       // Spawn Node.js process with restricted environment
       const proc = spawn(command, args, {
         timeout: timeoutMs,
-        cwd: workdir === '/tmp' ? '/workspace' : workdir,
+        cwd: workdir === '/tmp' ? (existsSync('/workspace') ? '/workspace' : '/tmp') : workdir,
         env: {
           PATH: '/usr/local/bin:/usr/bin:/bin',
           NODE_ENV: 'production',

@@ -41,6 +41,7 @@ vi.mock('@nachos/types', () => ({
 
 // Mock fs for createTempScript/cleanupTempScript
 vi.mock('fs', () => ({
+  existsSync: vi.fn().mockReturnValue(true), // /workspace exists in test env
   promises: {
     mkdir: vi.fn().mockResolvedValue(undefined),
     writeFile: vi.fn().mockResolvedValue(undefined),

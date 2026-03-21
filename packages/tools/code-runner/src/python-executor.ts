@@ -10,7 +10,7 @@
  */
 
 import { spawn } from 'child_process';
-import { promises as fs } from 'fs';
+import { promises as fs, existsSync } from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
 import { ToolService } from '@nachos/tool-base';
@@ -250,7 +250,7 @@ export class PythonExecutor extends ToolService {
       // Spawn Python process with restricted environment
       const proc = spawn(command, args, {
         timeout: timeoutMs,
-        cwd: workdir === '/tmp' ? '/workspace' : workdir,
+        cwd: workdir === '/tmp' ? (existsSync('/workspace') ? '/workspace' : '/tmp') : workdir,
         env: {
           PATH: '/usr/local/bin:/usr/bin:/bin',
           PYTHONDONTWRITEBYTECODE: '1', // Don't create .pyc files
