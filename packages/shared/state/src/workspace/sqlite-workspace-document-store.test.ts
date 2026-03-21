@@ -105,7 +105,7 @@ describe('SqliteWorkspaceDocumentStore', () => {
 
       expect(result.projectId).toBeUndefined();
 
-      const _found = await store.getDocumentByPath('/src/gateway.ts');
+      const found = await store.getDocumentByPath('/src/gateway.ts');
       expect(found).not.toBeNull();
     });
 
@@ -115,7 +115,7 @@ describe('SqliteWorkspaceDocumentStore', () => {
       });
       await store.indexDocument(doc, []);
 
-      const _found = await store.getDocument(doc.id);
+      const found = await store.getDocument(doc.id);
       // May get a different ID if upserted
       const docs = await store.listDocuments({ projectId: 'nachos' });
       expect(docs[0]!.metadata).toEqual({ language: 'typescript', framework: 'hono' });
@@ -127,13 +127,13 @@ describe('SqliteWorkspaceDocumentStore', () => {
       const doc = makeDoc();
       const result = await store.indexDocument(doc, []);
 
-      const _found = await store.getDocument(result.id);
+      const found = await store.getDocument(result.id);
       expect(found).not.toBeNull();
       expect(found!.path).toBe('/src/gateway.ts');
     });
 
     it('returns null for non-existent ID', async () => {
-      const _found = await store.getDocument('non-existent');
+      const found = await store.getDocument('non-existent');
       expect(found).toBeNull();
     });
   });
@@ -143,7 +143,7 @@ describe('SqliteWorkspaceDocumentStore', () => {
       const doc = makeDoc();
       await store.indexDocument(doc, []);
 
-      const _found = await store.getDocumentByPath('/src/gateway.ts', 'nachos');
+      const found = await store.getDocumentByPath('/src/gateway.ts', 'nachos');
       expect(found).not.toBeNull();
       expect(found!.contentHash).toBe('abc123');
     });
@@ -152,7 +152,7 @@ describe('SqliteWorkspaceDocumentStore', () => {
       const doc = makeDoc();
       await store.indexDocument(doc, []);
 
-      const _found = await store.getDocumentByPath('/src/other.ts', 'nachos');
+      const found = await store.getDocumentByPath('/src/other.ts', 'nachos');
       expect(found).toBeNull();
     });
 
@@ -183,7 +183,7 @@ describe('SqliteWorkspaceDocumentStore', () => {
       const removed = await store.removeDocument(indexed.id);
       expect(removed).toBe(true);
 
-      const _found = await store.getDocument(indexed.id);
+      const found = await store.getDocument(indexed.id);
       expect(found).toBeNull();
 
       const remainingChunks = await store.getChunks(indexed.id);
