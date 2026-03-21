@@ -5,6 +5,7 @@ Common configuration patterns for agent-browser automation.
 ## Form Data Configurations
 
 ### Contact Form
+
 ```json
 {
   "name": {
@@ -36,6 +37,7 @@ Common configuration patterns for agent-browser automation.
 ```
 
 ### Login Form
+
 ```json
 {
   "username": {
@@ -55,6 +57,7 @@ Common configuration patterns for agent-browser automation.
 ```
 
 ### Registration Form
+
 ```json
 {
   "first_name": {
@@ -95,6 +98,7 @@ Common configuration patterns for agent-browser automation.
 ```
 
 ### File Upload Form
+
 ```json
 {
   "title": {
@@ -123,6 +127,7 @@ Common configuration patterns for agent-browser automation.
 ## Data Extraction Configurations
 
 ### Product Page Extraction
+
 ```json
 {
   "title": {
@@ -159,6 +164,7 @@ Common configuration patterns for agent-browser automation.
 ```
 
 ### Article Extraction
+
 ```json
 {
   "headline": {
@@ -191,6 +197,7 @@ Common configuration patterns for agent-browser automation.
 ```
 
 ### Search Results Extraction
+
 ```json
 {
   "results": {
@@ -221,6 +228,7 @@ Common configuration patterns for agent-browser automation.
 ```
 
 ### Social Media Profile
+
 ```json
 {
   "username": {
@@ -260,6 +268,7 @@ Common configuration patterns for agent-browser automation.
 ### Domain Allowlist Examples
 
 **E-commerce Site**
+
 ```python
 ALLOWED_DOMAINS = [
     'shop.example.com',
@@ -271,6 +280,7 @@ ALLOWED_DOMAINS = [
 ```
 
 **Corporate Intranet**
+
 ```python
 ALLOWED_DOMAINS = [
     'intranet.company.com',
@@ -281,6 +291,7 @@ ALLOWED_DOMAINS = [
 ```
 
 **Research/Data Collection**
+
 ```python
 ALLOWED_DOMAINS = [
     'example.com',
@@ -310,6 +321,7 @@ context_options = {
 ## Workflow Templates
 
 ### Login → Navigate → Extract
+
 ```python
 from playwright.sync_api import sync_playwright
 
@@ -336,6 +348,7 @@ WORKFLOW_CONFIG = {
 ```
 
 ### Multi-Step Form
+
 ```python
 MULTI_STEP_FORM = {
     "step1": {
@@ -365,6 +378,7 @@ MULTI_STEP_FORM = {
 ```
 
 ### Infinite Scroll Scraping
+
 ```python
 INFINITE_SCROLL_CONFIG = {
     "url": "https://example.com/feed",

@@ -1,13 +1,23 @@
 ---
 name: goplaces
-description: Query Google Places API (New) via the goplaces CLI for text search, place details, resolve, and reviews.
+description:
+  Query Google Places API (New) via the goplaces CLI for text search, place
+  details, resolve, and reviews.
 homepage: https://github.com/steipete/goplaces
-metadata: {"nachos":{"requires":{"bins":["goplaces"],"env":["GOOGLE_PLACES_API_KEY"]},"primaryEnv":"GOOGLE_PLACES_API_KEY"}}
+metadata:
+  {
+    'nachos':
+      {
+        'requires': { 'bins': ['goplaces'], 'env': ['GOOGLE_PLACES_API_KEY'] },
+        'primaryEnv': 'GOOGLE_PLACES_API_KEY',
+      },
+  }
 ---
 
 # goplaces
 
-Modern Google Places API (New) CLI. Human output by default, `--json` for scripts.
+Modern Google Places API (New) CLI. Human output by default, `--json` for
+scripts.
 
 ## Setup
 

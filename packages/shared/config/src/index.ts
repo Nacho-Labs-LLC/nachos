@@ -32,7 +32,6 @@ export type {
   ShellRateLimitConfig,
   WebSearchToolConfig,
   WebFetchToolConfig,
-
   BootstrapToolConfig,
   ToolGroupConfig,
   CopilotToolConfig,

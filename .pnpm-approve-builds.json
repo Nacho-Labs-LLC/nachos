@@ -1,1 +1,10 @@
-{"@anthropic-ai/tokenizer@0.0.4":true,"better-sqlite3@11.10.0":true,"cpu-features@0.0.10":true,"esbuild@0.24.2":true,"onnxruntime-node@1.21.0":true,"protobufjs@7.5.4":true,"sharp@0.34.5":true,"ssh2@1.17.0":true}
+{
+  "@anthropic-ai/tokenizer@0.0.4": true,
+  "better-sqlite3@11.10.0": true,
+  "cpu-features@0.0.10": true,
+  "esbuild@0.24.2": true,
+  "onnxruntime-node@1.21.0": true,
+  "protobufjs@7.5.4": true,
+  "sharp@0.34.5": true,
+  "ssh2@1.17.0": true
+}

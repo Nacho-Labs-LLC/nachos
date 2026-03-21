@@ -1,8 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createBedrockAdapter } from './bedrock.js';
 import { ProviderError } from './types.js';
-// Mock the AWS SDK
-const mockSend = vi.fn();
+
+// Use vi.hoisted to create mockSend before vi.mock factory runs (vi.mock is hoisted above imports)
+const { mockSend } = vi.hoisted(() => ({ mockSend: vi.fn() }));
+
+// Mock the AWS SDK — static import in bedrock.ts means this intercept is reliable
 vi.mock('@aws-sdk/client-bedrock-runtime', () => {
   return {
     BedrockRuntimeClient: vi.fn().mockImplementation(() => ({
@@ -17,6 +20,15 @@ describe('BedrockAdapter', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSend.mockReset();
+    process.env.AWS_ACCESS_KEY_ID = 'test-key-id';
+    process.env.AWS_SECRET_ACCESS_KEY = 'test-secret-key';
+    process.env.AWS_DEFAULT_REGION = 'us-east-1';
+  });
+
+  afterEach(() => {
+    delete process.env.AWS_ACCESS_KEY_ID;
+    delete process.env.AWS_SECRET_ACCESS_KEY;
+    delete process.env.AWS_DEFAULT_REGION;
   });
 
   describe('createBedrockAdapter', () => {

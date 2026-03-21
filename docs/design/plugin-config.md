@@ -1,8 +1,6 @@
 # Plugin Configuration System
 
-> **Status**: Design
-> **Author**: Backend Architect
-> **Date**: 2026-03-04
+> **Status**: Design **Author**: Backend Architect **Date**: 2026-03-04
 > **Related ADRs**: ADR-001 (Module Manifest), ADR-003 (Security Modes)
 
 ## Problem Statement
@@ -81,20 +79,20 @@ Schema Draft-07:
 
 The lightweight validator supports:
 
-| Feature | Supported |
-|---------|-----------|
-| `type` (string, number, boolean, array, object) | Yes |
-| `required` (array of field names) | Yes |
-| `properties` (nested object schemas) | Yes |
-| `default` (default values) | Yes |
-| `enum` (allowed values) | Yes |
-| `items` (array item type) | Yes, single type only |
-| `minLength`, `maxLength` | Yes |
-| `minimum`, `maximum` | Yes |
-| `pattern` (regex) | No (ReDoS risk) |
-| `$ref` | No |
-| `oneOf`, `anyOf`, `allOf` | No |
-| `additionalProperties` | Yes (boolean only) |
+| Feature                                         | Supported             |
+| ----------------------------------------------- | --------------------- |
+| `type` (string, number, boolean, array, object) | Yes                   |
+| `required` (array of field names)               | Yes                   |
+| `properties` (nested object schemas)            | Yes                   |
+| `default` (default values)                      | Yes                   |
+| `enum` (allowed values)                         | Yes                   |
+| `items` (array item type)                       | Yes, single type only |
+| `minLength`, `maxLength`                        | Yes                   |
+| `minimum`, `maximum`                            | Yes                   |
+| `pattern` (regex)                               | No (ReDoS risk)       |
+| `$ref`                                          | No                    |
+| `oneOf`, `anyOf`, `allOf`                       | No                    |
+| `additionalProperties`                          | Yes (boolean only)    |
 
 This subset covers the vast majority of plugin config needs without the
 complexity or security risks of a full JSON Schema implementation.
@@ -156,8 +154,14 @@ Central registry that:
 ```typescript
 class PluginConfigRegistry {
   register(pluginId: string, schema: PluginConfigSchema): void;
-  validate(pluginId: string, config: Record<string, unknown>): PluginConfigValidationResult;
-  applyDefaults(pluginId: string, config: Record<string, unknown>): Record<string, unknown>;
+  validate(
+    pluginId: string,
+    config: Record<string, unknown>
+  ): PluginConfigValidationResult;
+  applyDefaults(
+    pluginId: string,
+    config: Record<string, unknown>
+  ): Record<string, unknown>;
   getRegisteredPlugins(): string[];
   hasPlugin(pluginId: string): boolean;
 }
@@ -170,10 +174,9 @@ At startup:
 1. Config loader reads `nachos.toml` as today.
 2. Plugin discovery scans for `nachos-plugin.json` manifests.
 3. Each manifest's `configSchema` is registered with `PluginConfigRegistry`.
-4. For each `[plugins.<id>]` section in the TOML:
-   a. If `id` has no registered schema, emit error (typo protection).
-   b. If `id` has a schema, validate the section against it.
-   c. Apply defaults for missing optional fields.
+4. For each `[plugins.<id>]` section in the TOML: a. If `id` has no registered
+   schema, emit error (typo protection). b. If `id` has a schema, validate the
+   section against it. c. Apply defaults for missing optional fields.
 5. Validated config sections are passed to plugins during initialization.
 
 ### Plugin Config Access
@@ -184,13 +187,14 @@ Plugins receive their config through context injection, not by reading
 ```typescript
 // Plugin initialization receives only its own config
 interface PluginContext {
-  config: Record<string, unknown>;  // The validated [plugins.<id>] section
+  config: Record<string, unknown>; // The validated [plugins.<id>] section
   logger: Logger;
   // ... other context
 }
 ```
 
 A plugin cannot access:
+
 - Core config sections (`[nachos]`, `[llm]`, `[security]`, etc.)
 - Other plugins' config sections
 - The raw TOML content
@@ -234,8 +238,8 @@ tier). The `configSchema` field is a natural extension:
 ## Security Considerations
 
 1. **No `pattern` support** -- Regular expression patterns in schemas could
-   introduce ReDoS vulnerabilities. Plugins that need regex validation should
-   do it in their own initialization code.
+   introduce ReDoS vulnerabilities. Plugins that need regex validation should do
+   it in their own initialization code.
 
 2. **Default values are type-checked** -- A schema declaring
    `{ "type": "number", "default": "oops" }` is rejected at registration time.
@@ -247,8 +251,8 @@ tier). The `configSchema` field is a natural extension:
    preventing mutation of the shared config object.
 
 5. **No secret interpolation in schemas** -- Default values must not contain
-   `${...}` environment variable references. Secret interpolation happens at
-   the TOML loading layer, before plugin validation.
+   `${...}` environment variable references. Secret interpolation happens at the
+   TOML loading layer, before plugin validation.
 
 ## Backward Compatibility
 

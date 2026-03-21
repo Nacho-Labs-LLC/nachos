@@ -142,6 +142,7 @@ export class WebFetchTool extends ToolService {
       const normalized = this.clampContent(extracted.content, maxChars);
       const result = {
         url: response.finalUrl,
+        source: 'http',
         mode: extractMode,
         title: extracted.title,
         content: normalized.text,

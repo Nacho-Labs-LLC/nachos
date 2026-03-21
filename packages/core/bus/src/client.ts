@@ -233,10 +233,7 @@ export class NachosBusClient implements INachosBusClient {
           },
         });
       } catch (error) {
-        logger.error(
-          { err: error, topic: msg.subject, messageId },
-          'Error processing message'
-        );
+        logger.error({ err: error, topic: msg.subject, messageId }, 'Error processing message');
         onError?.(error, msg.subject, messageId);
       }
     }

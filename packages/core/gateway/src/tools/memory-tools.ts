@@ -500,7 +500,7 @@ export const ConversationSearchToolSchema = {
 export async function executeConversationSearch(
   call: ToolCall,
   stateLayer: StateLayer,
-  context: StateOperationContext
+  _context: StateOperationContext
 ): Promise<ToolResult> {
   try {
     const params = call.parameters as {
@@ -579,7 +579,8 @@ export async function executeConversationSearch(
       content: [],
       error: {
         code: 'CONVERSATION_SEARCH_FAILED',
-        message: error instanceof Error ? error.message : 'Unknown error during conversation search',
+        message:
+          error instanceof Error ? error.message : 'Unknown error during conversation search',
       },
     };
   }
@@ -637,7 +638,7 @@ const ALL_SOURCES: RecallSource[] = ['memories', 'facts', 'conversations'];
 export async function executeMemoryRecall(
   call: ToolCall,
   stateLayer: StateLayer,
-  context: StateOperationContext,
+  context: StateOperationContext
 ): Promise<ToolResult> {
   try {
     const params = call.parameters as {
@@ -663,9 +664,10 @@ export async function executeMemoryRecall(
     // Validate and bound limit parameter
     const DEFAULT_LIMIT = 5;
     const MAX_LIMIT = 20;
-    const rawLimit = typeof params.limit === 'number' && Number.isFinite(params.limit) && params.limit > 0
-      ? params.limit
-      : DEFAULT_LIMIT;
+    const rawLimit =
+      typeof params.limit === 'number' && Number.isFinite(params.limit) && params.limit > 0
+        ? params.limit
+        : DEFAULT_LIMIT;
     const limit = Math.min(rawLimit, MAX_LIMIT);
 
     // Validate since parameter if provided
@@ -676,7 +678,7 @@ export async function executeMemoryRecall(
     let requestedSources: RecallSource[];
     if (params.sources && Array.isArray(params.sources) && params.sources.length > 0) {
       const filtered = params.sources.filter((s) =>
-        ALL_SOURCES.includes(s as RecallSource),
+        ALL_SOURCES.includes(s as RecallSource)
       ) as RecallSource[];
       if (filtered.length === 0) {
         return {
@@ -717,18 +719,15 @@ export async function executeMemoryRecall(
         if (filtered.length > 0) {
           totalResults += filtered.length;
           const lines = filtered.map((entry, idx) => {
-            const tags =
-              entry.tags && entry.tags.length > 0 ? ` [${entry.tags.join(', ')}]` : '';
-            const conf = entry.confidence
-              ? ` (${(entry.confidence * 100).toFixed(0)}% match)`
-              : '';
+            const tags = entry.tags && entry.tags.length > 0 ? ` [${entry.tags.join(', ')}]` : '';
+            const conf = entry.confidence ? ` (${(entry.confidence * 100).toFixed(0)}% match)` : '';
             return `  ${idx + 1}. [${entry.kind}]${tags}${conf} — ${entry.content}`;
           });
           sections.push(`**Memory Entries** (${filtered.length}):\n${lines.join('\n')}`);
         }
       } catch (err) {
         sections.push(
-          `**Memory Entries**: search failed — ${err instanceof Error ? err.message : 'unknown error'}`,
+          `**Memory Entries**: search failed — ${err instanceof Error ? err.message : 'unknown error'}`
         );
       }
     }
@@ -739,7 +738,7 @@ export async function executeMemoryRecall(
         const allFacts: MemoryFact[] = await stateLayer.queryMemoryFacts(
           agentId,
           context,
-          undefined,
+          undefined
         );
         // Text-match filter on subject, predicate, or object
         const topicLower = params.topic.toLowerCase();
@@ -747,7 +746,7 @@ export async function executeMemoryRecall(
           (f) =>
             f.subject.toLowerCase().includes(topicLower) ||
             f.predicate.toLowerCase().includes(topicLower) ||
-            f.object.toLowerCase().includes(topicLower),
+            f.object.toLowerCase().includes(topicLower)
         );
 
         if (hasValidSince) {
@@ -764,13 +763,13 @@ export async function executeMemoryRecall(
           const lines = matched.map(
             (fact, idx) =>
               `  ${idx + 1}. ${fact.subject} ${fact.predicate} ${fact.object}` +
-              (fact.type ? ` [${fact.type}]` : ''),
+              (fact.type ? ` [${fact.type}]` : '')
           );
           sections.push(`**Facts** (${matched.length}):\n${lines.join('\n')}`);
         }
       } catch (err) {
         sections.push(
-          `**Facts**: search failed — ${err instanceof Error ? err.message : 'unknown error'}`,
+          `**Facts**: search failed — ${err instanceof Error ? err.message : 'unknown error'}`
         );
       }
     }
@@ -788,9 +787,7 @@ export async function executeMemoryRecall(
           if (results.length > 0) {
             totalResults += results.length;
             const lines = results.map((r, i) => {
-              const date = r.timestamp
-                ? new Date(r.timestamp).toLocaleString()
-                : 'unknown date';
+              const date = r.timestamp ? new Date(r.timestamp).toLocaleString() : 'unknown date';
               const preview =
                 r.content.length > 250 ? r.content.slice(0, 250) + '\u2026' : r.content;
               return `  ${i + 1}. [${(r.similarity * 100).toFixed(0)}%] ${r.role} (${date}): ${preview}`;
@@ -799,12 +796,12 @@ export async function executeMemoryRecall(
           }
         } catch (err) {
           sections.push(
-            `**Conversations**: search failed — ${err instanceof Error ? err.message : 'unknown error'}`,
+            `**Conversations**: search failed — ${err instanceof Error ? err.message : 'unknown error'}`
           );
         }
       } else {
         sections.push(
-          '**Conversations**: search not available — conversation semantic search is not enabled in this deployment',
+          '**Conversations**: search not available — conversation semantic search is not enabled in this deployment'
         );
       }
     }

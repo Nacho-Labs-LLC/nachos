@@ -1,8 +1,9 @@
 ---
 name: summarize
-description: Summarize or extract text/transcripts from URLs, podcasts, and local files.
+description:
+  Summarize or extract text/transcripts from URLs, podcasts, and local files.
 homepage: https://summarize.sh
-metadata: {"nachos":{"requires":{"bins":["summarize"]}}}
+metadata: { 'nachos': { 'requires': { 'bins': ['summarize'] } } }
 ---
 
 # Summarize
@@ -27,4 +28,5 @@ summarize "https://youtu.be/dQw4w9WgXcQ" --youtube auto
 
 - Use `--json` for machine-readable output.
 - Use `--extract-only` for transcripts (URLs only).
-- Configure provider keys via env (OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, XAI_API_KEY).
+- Configure provider keys via env (OPENAI_API_KEY, ANTHROPIC_API_KEY,
+  GEMINI_API_KEY, XAI_API_KEY).

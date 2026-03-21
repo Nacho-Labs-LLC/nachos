@@ -7,23 +7,28 @@
 
 ## Context
 
-Nachos needs a web-based chat interface that allows users to interact with the AI agent through a browser. The current implementation uses Server-Sent Events (SSE) for message streaming with an in-memory session store, which has limitations:
+Nachos needs a web-based chat interface that allows users to interact with the
+AI agent through a browser. The current implementation uses Server-Sent Events
+(SSE) for message streaming with an in-memory session store, which has
+limitations:
 
 1. **Session persistence**: In-memory sessions are lost on server restart
 2. **Session management**: No UI for managing multiple sessions
 3. **Session history**: No ability to archive/restore conversations
-4. **Multi-instance deployment**: Cannot share session state across multiple gateway instances
+4. **Multi-instance deployment**: Cannot share session state across multiple
+   gateway instances
 5. **Scalability**: SSE connections are stateful and limit horizontal scaling
 
 ## Decision
 
-We will implement a **hybrid RPC-based architecture** using NATS for both request/reply (RPC) and publish/subscribe (message streaming):
+We will implement a **hybrid RPC-based architecture** using NATS for both
+request/reply (RPC) and publish/subscribe (message streaming):
 
 ### Hybrid Model Components
 
 1. **PULL (RPC)**: Session management operations
    - List active sessions
-   - List archived sessions  
+   - List archived sessions
    - Create/archive/restore/delete sessions
    - Pin/unpin sessions
 
@@ -39,12 +44,14 @@ We will implement a **hybrid RPC-based architecture** using NATS for both reques
 **RPC (Request/Reply)** is optimal for session operations because:
 
 - **Synchronous operations**: Session CRUD requires immediate confirmation
-- **Consistency**: Need to ensure session state is updated before returning to client
+- **Consistency**: Need to ensure session state is updated before returning to
+  client
 - **Error handling**: Easier to propagate errors back to the caller
 - **Atomicity**: Operations like "create session" need to be atomic
 - **Caching friendly**: Clients can cache session lists and refresh on-demand
 
 **Alternative considered**: Pure pub/sub for everything
+
 - ❌ Complex state synchronization
 - ❌ Race conditions on session creation
 - ❌ Difficult error handling
@@ -55,12 +62,15 @@ We will implement a **hybrid RPC-based architecture** using NATS for both reques
 **Pub/Sub** is optimal for message streaming because:
 
 - **Real-time delivery**: Messages appear instantly as they're generated
-- **Decoupled architecture**: Gateway can publish messages without knowing who's listening
-- **Multi-consumer**: Multiple clients can listen to the same session (e.g., monitoring)
+- **Decoupled architecture**: Gateway can publish messages without knowing who's
+  listening
+- **Multi-consumer**: Multiple clients can listen to the same session (e.g.,
+  monitoring)
 - **Efficient**: Only active subscribers receive messages
 - **Natural fit**: Message streaming is inherently event-driven
 
 **Alternative considered**: Long polling with RPC
+
 - ❌ Higher latency (polling interval)
 - ❌ More network overhead (repeated requests)
 - ❌ Server load from constant polling
@@ -78,6 +88,7 @@ We will implement a **hybrid RPC-based architecture** using NATS for both reques
 - ✅ **Security**: Token-based authentication already configured
 
 **Alternative considered**: Direct WebSocket connections
+
 - ❌ Requires separate WebSocket server
 - ❌ Stateful connections limit scaling
 - ❌ Need to implement reconnection logic
@@ -153,13 +164,16 @@ We will implement a **hybrid RPC-based architecture** using NATS for both reques
 ## Session Lifecycle
 
 ### Active Sessions
+
 A session is considered "active" if:
+
 - `is_archived = false` AND
 - (`last_activity` within last 24 hours OR `is_pinned = true`)
 
 Active sessions appear in the dropdown.
 
 ### Archived Sessions
+
 - Manual archive action moves session to archived state
 - `is_archived = true`
 - **No auto-archiving by time** (explicit user action only)
@@ -167,6 +181,7 @@ Active sessions appear in the dropdown.
 - Any interaction (restore) returns session to active list
 
 ### Pinned Sessions
+
 - Manual pin action keeps session in active list indefinitely
 - `is_pinned = true`
 - Remains in active list even if `last_activity` > 24 hours
@@ -236,14 +251,14 @@ Active sessions appear in the dropdown.
 ✅ **Consistency**: RPC ensures session operations are atomic  
 ✅ **Familiar**: Uses existing NATS infrastructure  
 ✅ **Testable**: RPC calls are easy to mock and test  
-✅ **Decoupled**: Frontend doesn't need to know about NATS topology  
+✅ **Decoupled**: Frontend doesn't need to know about NATS topology
 
 ### Drawbacks
 
 ❌ **Complexity**: Two communication patterns (RPC + pub/sub)  
 ❌ **Latency**: HTTP → NATS → HTTP adds small overhead  
 ❌ **SSE wrapper**: Need to wrap NATS pub/sub in SSE for browser  
-❌ **Connection management**: Need to handle SSE reconnection  
+❌ **Connection management**: Need to handle SSE reconnection
 
 ### Mitigations
 
@@ -259,11 +274,13 @@ Active sessions appear in the dropdown.
 **Approach**: Direct WebSocket connection for everything
 
 **Pros**:
+
 - Single connection for all communication
 - Native browser support
 - Bidirectional messaging
 
 **Cons**:
+
 - Stateful connections limit scaling
 - Need to implement custom protocol
 - Requires separate WebSocket server
@@ -277,11 +294,13 @@ Active sessions appear in the dropdown.
 **Approach**: Periodic HTTP requests for new messages
 
 **Pros**:
+
 - Simple to implement
 - Works everywhere (no special browser features)
 - Stateless
 
 **Cons**:
+
 - Higher latency (polling interval)
 - Inefficient (many empty responses)
 - Server load from constant requests
@@ -294,11 +313,13 @@ Active sessions appear in the dropdown.
 **Approach**: GraphQL subscriptions over WebSockets
 
 **Pros**:
+
 - Type-safe schema
 - Unified API (queries + subscriptions)
 - Good tooling
 
 **Cons**:
+
 - Requires GraphQL server setup
 - WebSocket overhead (same as alternative 1)
 - Adds another layer of abstraction
@@ -311,11 +332,13 @@ Active sessions appear in the dropdown.
 **Approach**: Use JetStream for persistent message storage and replay
 
 **Pros**:
+
 - Built-in message history
 - Message replay capabilities
 - Guaranteed delivery
 
 **Cons**:
+
 - Overkill for chat messages (already in PostgreSQL)
 - Higher complexity
 - Storage duplication
@@ -356,15 +379,18 @@ Active sessions appear in the dropdown.
 ## Migration Path
 
 ### Phase 1: Parallel Implementation
+
 - Implement new RPC endpoints alongside existing SSE
 - Add feature flag to toggle between implementations
 - Test with small subset of users
 
 ### Phase 2: Frontend Migration
+
 - Update frontend to use RPC by default
 - Keep SSE as fallback for compatibility
 
 ### Phase 3: Deprecation
+
 - Remove SSE endpoints after stable period
 - Clean up old code
 
@@ -387,12 +413,12 @@ Active sessions appear in the dropdown.
 
 ## Decision Log
 
-| Date | Decision | Rationale |
-|------|----------|-----------|
-| 2026-02-26 | Use hybrid RPC + Pub/Sub | Best fit for requirements |
-| 2026-02-26 | No auto-archive by time | Explicit user control preferred |
+| Date       | Decision                 | Rationale                           |
+| ---------- | ------------------------ | ----------------------------------- |
+| 2026-02-26 | Use hybrid RPC + Pub/Sub | Best fit for requirements           |
+| 2026-02-26 | No auto-archive by time  | Explicit user control preferred     |
 | 2026-02-26 | 24-hour active threshold | Balance between recency and clutter |
-| 2026-02-26 | SSE wrapper for browser | Browser-native, no custom protocol |
+| 2026-02-26 | SSE wrapper for browser  | Browser-native, no custom protocol  |
 
 ## Approval
 

@@ -37,7 +37,11 @@ import type {
   ToolsConfig,
   NachosConfig,
 } from '@nachos/config';
-import { loadAndValidateConfig, validateConfigOrThrow, getModelContextWindow } from '@nachos/config';
+import {
+  loadAndValidateConfig,
+  validateConfigOrThrow,
+  getModelContextWindow,
+} from '@nachos/config';
 import { randomUUID } from 'node:crypto';
 import Database from 'better-sqlite3';
 import type { SessionsStore } from '@nachos/state';
@@ -718,17 +722,19 @@ export class Gateway {
 
       // Hook: session:created (fire-and-forget)
       try {
-        void this.hooks.emit('session:created', {
-          session: {
-            id: session.id,
-            channel: session.channel,
-            conversationId: session.conversationId,
-            userId: session.userId,
-            status: session.status ?? 'active',
-            createdAt: session.createdAt ?? new Date().toISOString(),
-          },
-          timestamp: new Date().toISOString(),
-        }).catch((err) => logger.warn({ err }, 'session:created hook emission failed'));
+        void this.hooks
+          .emit('session:created', {
+            session: {
+              id: session.id,
+              channel: session.channel,
+              conversationId: session.conversationId,
+              userId: session.userId,
+              status: session.status ?? 'active',
+              createdAt: session.createdAt ?? new Date().toISOString(),
+            },
+            timestamp: new Date().toISOString(),
+          })
+          .catch((err) => logger.warn({ err }, 'session:created hook emission failed'));
       } catch (hookError) {
         logger.warn({ err: hookError }, 'session:created hook failed');
       }
@@ -839,23 +845,25 @@ export class Gateway {
 
     // Hook: message:received (fire-and-forget)
     try {
-      void this.hooks.emit('message:received', {
-        envelopeId: envelope.id,
-        channel: message.channel,
-        channelMessageId: message.channelMessageId ?? '',
-        sender: {
-          id: message.sender.id ?? '',
-          name: message.sender.name,
-          isAllowed: message.sender.isAllowed ?? true,
-        },
-        conversation: {
-          id: message.conversation.id,
-          type: message.conversation.type,
-        },
-        text: messageText,
-        sessionId: session.id,
-        timestamp: new Date().toISOString(),
-      }).catch((err) => logger.warn({ err }, 'message:received hook emission failed'));
+      void this.hooks
+        .emit('message:received', {
+          envelopeId: envelope.id,
+          channel: message.channel,
+          channelMessageId: message.channelMessageId ?? '',
+          sender: {
+            id: message.sender.id ?? '',
+            name: message.sender.name,
+            isAllowed: message.sender.isAllowed ?? true,
+          },
+          conversation: {
+            id: message.conversation.id,
+            type: message.conversation.type,
+          },
+          text: messageText,
+          sessionId: session.id,
+          timestamp: new Date().toISOString(),
+        })
+        .catch((err) => logger.warn({ err }, 'message:received hook emission failed'));
     } catch (hookError) {
       logger.warn({ err: hookError }, 'message:received hook failed');
     }
@@ -1153,11 +1161,13 @@ export class Gateway {
 
       // Hook: session:destroyed (fire-and-forget)
       try {
-        void this.hooks.emit('session:destroyed', {
-          sessionId: previous.id,
-          reason: 'user_command',
-          timestamp: new Date().toISOString(),
-        }).catch((err) => logger.warn({ err }, 'session:destroyed hook emission failed'));
+        void this.hooks
+          .emit('session:destroyed', {
+            sessionId: previous.id,
+            reason: 'user_command',
+            timestamp: new Date().toISOString(),
+          })
+          .catch((err) => logger.warn({ err }, 'session:destroyed hook emission failed'));
       } catch (hookError) {
         logger.warn({ err: hookError }, 'session:destroyed hook failed');
       }
@@ -1197,7 +1207,13 @@ export class Gateway {
     sessionId: string,
     extraMessages: LLMRequestType['messages'] = [],
     stream: boolean = false
-  ): Promise<LLMRequestType & { contextWindow?: number; systemPromptTokens?: number; promptReport?: PromptReport }> {
+  ): Promise<
+    LLMRequestType & {
+      contextWindow?: number;
+      systemPromptTokens?: number;
+      promptReport?: PromptReport;
+    }
+  > {
     const session = await this.sessionsStore.getSessionWithMessages(sessionId);
     if (!session) {
       throw createSessionNotFoundError('Session not found', { component: 'gateway' });
@@ -1239,21 +1255,22 @@ export class Gateway {
         // Build lightweight memory manifest for prompt injection (skip for subagents)
         const memInjCfg = this.nachosConfig?.runtime?.state?.memory_injection;
         const manifestEnabled = memInjCfg?.enabled !== false; // Default: enabled
-        const memoryManifest = isSubagent || !manifestEnabled
-          ? null
-          : await this.stateLayer.buildMemoryManifest(agentId, context, {
-              maxTokens: memInjCfg?.manifest_max_tokens,
-              includePreferences: memInjCfg?.manifest_preferences,
-              recentTopicCount: memInjCfg?.manifest_recent_topics,
-              includeFactCounts: memInjCfg?.manifest_fact_counts,
-            });
+        const memoryManifest =
+          isSubagent || !manifestEnabled
+            ? null
+            : await this.stateLayer.buildMemoryManifest(agentId, context, {
+                maxTokens: memInjCfg?.manifest_max_tokens,
+                includePreferences: memInjCfg?.manifest_preferences,
+                recentTopicCount: memInjCfg?.manifest_recent_topics,
+                includeFactCounts: memInjCfg?.manifest_fact_counts,
+              });
 
         // Only load critical entries (preferences, active tasks) — not the full 200
         const memory = isSubagent
           ? { entries: [], facts: [] }
           : await this.stateLayer.queryMemory(
               { agentId, limit: 20, kinds: ['preference', 'task', 'fact', 'note', 'lesson'] },
-              context,
+              context
             );
         const sessionState = isSubagent
           ? null
@@ -1279,7 +1296,7 @@ export class Gateway {
 
         await this.sessionsStore.updateSession(sessionId, {
           metadata: {
-            ...(session.metadata as Record<string, unknown> | undefined ?? {}),
+            ...((session.metadata as Record<string, unknown> | undefined) ?? {}),
             promptReport: assembled.report,
             promptReportUpdatedAt: assembled.report.generatedAt,
           },
@@ -1461,13 +1478,18 @@ export class Gateway {
       const blocks = msg.content as Array<{ type?: string; tool_use_id?: string }>;
       const validBlocks = blocks.filter(
         (block) =>
-          !block || block.type !== 'tool_result' || !block.tool_use_id || allToolUseIds.has(block.tool_use_id)
+          !block ||
+          block.type !== 'tool_result' ||
+          !block.tool_use_id ||
+          allToolUseIds.has(block.tool_use_id)
       );
 
       if (validBlocks.length === blocks.length) continue; // No orphans
 
       const orphanedIds = blocks
-        .filter((b) => b?.type === 'tool_result' && b.tool_use_id && !allToolUseIds.has(b.tool_use_id))
+        .filter(
+          (b) => b?.type === 'tool_result' && b.tool_use_id && !allToolUseIds.has(b.tool_use_id)
+        )
         .map((b) => b.tool_use_id);
 
       logger.warn(
@@ -1493,17 +1515,19 @@ export class Gateway {
 
     // Hook: llm:before-request -- observe-only handlers (fire-and-forget)
     try {
-      void this.hooks.emit('llm:before-request', {
-        sessionId,
-        messages: request.messages as ReadonlyArray<{
-          role: string;
-          content: string | readonly unknown[];
-        }>,
-        tools: request.tools?.map((t) => ({ name: t.name, description: t.description })),
-        stream: Boolean(request.options?.stream),
-        options: request.options as Readonly<Record<string, unknown>> | undefined,
-        timestamp: new Date().toISOString(),
-      }).catch((err) => logger.warn({ err }, 'llm:before-request hook emission failed'));
+      void this.hooks
+        .emit('llm:before-request', {
+          sessionId,
+          messages: request.messages as ReadonlyArray<{
+            role: string;
+            content: string | readonly unknown[];
+          }>,
+          tools: request.tools?.map((t) => ({ name: t.name, description: t.description })),
+          stream: Boolean(request.options?.stream),
+          options: request.options as Readonly<Record<string, unknown>> | undefined,
+          timestamp: new Date().toISOString(),
+        })
+        .catch((err) => logger.warn({ err }, 'llm:before-request hook emission failed'));
     } catch (hookError) {
       logger.warn({ err: hookError }, 'llm:before-request observe hook failed');
     }
@@ -1566,33 +1590,36 @@ export class Gateway {
 
     // Hook: llm:after-response (fire-and-forget)
     try {
-      void this.hooks.emit('llm:after-response', {
-        sessionId,
-        success: response.success,
-        responseText: this.coerceLLMContentText(
-          response.success ? response.message?.content : undefined
-        ),
-        toolCalls: response.toolCalls?.map((tc) => ({
-          id: tc.id,
-          name: tc.name,
-          arguments: typeof tc.arguments === 'string' ? tc.arguments : JSON.stringify(tc.arguments),
-        })),
-        usage: response.usage
-          ? {
-              promptTokens: response.usage.promptTokens,
-              completionTokens: response.usage.completionTokens,
-              totalTokens: response.usage.totalTokens,
-            }
-          : undefined,
-        provider: response.provider,
-        model: response.model,
-        finishReason: response.finishReason,
-        error: response.error
-          ? { code: response.error.code, message: response.error.message }
-          : undefined,
-        toolIteration: 0,
-        timestamp: new Date().toISOString(),
-      }).catch((err) => logger.warn({ err }, 'llm:after-response hook emission failed'));
+      void this.hooks
+        .emit('llm:after-response', {
+          sessionId,
+          success: response.success,
+          responseText: this.coerceLLMContentText(
+            response.success ? response.message?.content : undefined
+          ),
+          toolCalls: response.toolCalls?.map((tc) => ({
+            id: tc.id,
+            name: tc.name,
+            arguments:
+              typeof tc.arguments === 'string' ? tc.arguments : JSON.stringify(tc.arguments),
+          })),
+          usage: response.usage
+            ? {
+                promptTokens: response.usage.promptTokens,
+                completionTokens: response.usage.completionTokens,
+                totalTokens: response.usage.totalTokens,
+              }
+            : undefined,
+          provider: response.provider,
+          model: response.model,
+          finishReason: response.finishReason,
+          error: response.error
+            ? { code: response.error.code, message: response.error.message }
+            : undefined,
+          toolIteration: 0,
+          timestamp: new Date().toISOString(),
+        })
+        .catch((err) => logger.warn({ err }, 'llm:after-response hook emission failed'));
     } catch (hookError) {
       logger.warn({ err: hookError }, 'llm:after-response hook failed');
     }
@@ -2151,15 +2178,17 @@ export class Gateway {
 
     // Hook: response:before-send -- observe-only handlers (fire-and-forget)
     try {
-      void this.hooks.emit('response:before-send', {
-        sessionId,
-        channel: inbound.channel,
-        conversationId: inbound.conversation.id,
-        text: responseText,
-        format: 'markdown',
-        replyToMessageId: this.getReplyToMessageId(inbound),
-        timestamp: new Date().toISOString(),
-      }).catch((err) => logger.warn({ err }, 'response:before-send hook emission failed'));
+      void this.hooks
+        .emit('response:before-send', {
+          sessionId,
+          channel: inbound.channel,
+          conversationId: inbound.conversation.id,
+          text: responseText,
+          format: 'markdown',
+          replyToMessageId: this.getReplyToMessageId(inbound),
+          timestamp: new Date().toISOString(),
+        })
+        .catch((err) => logger.warn({ err }, 'response:before-send hook emission failed'));
     } catch (hookError) {
       logger.warn({ err: hookError }, 'response:before-send observe hook failed');
     }
@@ -2490,13 +2519,15 @@ export class Gateway {
 
     // Hook: gateway:startup (fire-and-forget)
     try {
-      void this.hooks.emit('gateway:startup', {
-        instanceId: this.instanceId,
-        channels: this.options.channels ?? [],
-        securityMode: this.securityMode,
-        streamingEnabled: this.options.streamingPassthrough ?? false,
-        timestamp: new Date().toISOString(),
-      }).catch((err) => logger.warn({ err }, 'gateway:startup hook emission failed'));
+      void this.hooks
+        .emit('gateway:startup', {
+          instanceId: this.instanceId,
+          channels: this.options.channels ?? [],
+          securityMode: this.securityMode,
+          streamingEnabled: this.options.streamingPassthrough ?? false,
+          timestamp: new Date().toISOString(),
+        })
+        .catch((err) => logger.warn({ err }, 'gateway:startup hook emission failed'));
     } catch (hookError) {
       logger.warn({ err: hookError }, 'gateway:startup hook failed');
     }
@@ -2637,11 +2668,13 @@ export class Gateway {
   async stop(): Promise<void> {
     // Hook: gateway:shutdown (fire-and-forget — best-effort during teardown)
     try {
-      void this.hooks.emit('gateway:shutdown', {
-        instanceId: this.instanceId,
-        reason: 'api',
-        timestamp: new Date().toISOString(),
-      }).catch((err) => logger.warn({ err }, 'gateway:shutdown hook emission failed'));
+      void this.hooks
+        .emit('gateway:shutdown', {
+          instanceId: this.instanceId,
+          reason: 'api',
+          timestamp: new Date().toISOString(),
+        })
+        .catch((err) => logger.warn({ err }, 'gateway:shutdown hook emission failed'));
     } catch (hookError) {
       logger.warn({ err: hookError }, 'gateway:shutdown hook failed');
     }
@@ -2866,7 +2899,10 @@ export class Gateway {
 
     const sessionWithMessages = await this.sessionsStore.getSessionWithMessages(session.id);
     if (!sessionWithMessages || sessionWithMessages.messages.length === 0) {
-      logger.debug({ sessionId: session.id }, 'Session closed with no messages — skipping extraction');
+      logger.debug(
+        { sessionId: session.id },
+        'Session closed with no messages — skipping extraction'
+      );
       return;
     }
 
@@ -2893,7 +2929,11 @@ export class Gateway {
 
     // Dedup: fetch all existing facts for this agent, then filter to relevant subjects in-memory
     const subjects = new Set(result.facts.map((f) => f.subject));
-    const allExistingFacts = await this.stateLayer.queryMemoryFacts(agentId, stateContext, undefined);
+    const allExistingFacts = await this.stateLayer.queryMemoryFacts(
+      agentId,
+      stateContext,
+      undefined
+    );
     const relevantExistingFacts = allExistingFacts.filter((fact) => subjects.has(fact.subject));
 
     const { toInsert, toUpdate } = deduplicateFacts(result.facts, relevantExistingFacts);
@@ -2927,9 +2967,7 @@ export class Gateway {
     return async ({ systemPrompt, userMessage, maxTokens }) => {
       const request: import('@nachos/types').LLMRequest = {
         sessionId: `extraction:${sessionId}`,
-        messages: [
-          { role: 'user', content: userMessage },
-        ],
+        messages: [{ role: 'user', content: userMessage }],
         options: {
           maxTokens: maxTokens ?? 2048,
         },
@@ -2937,22 +2975,15 @@ export class Gateway {
 
       // Include system prompt as a system message
       if (systemPrompt) {
-        request.messages = [
-          { role: 'system', content: systemPrompt },
-          ...request.messages,
-        ];
+        request.messages = [{ role: 'system', content: systemPrompt }, ...request.messages];
       }
 
       const envelope = createEnvelope('gateway-extraction', 'llm.request', request);
-      const rawResponse = await this.router
-        .getBus()
-        .request(TOPICS.llm.request, envelope, 60000);
+      const rawResponse = await this.router.getBus().request(TOPICS.llm.request, envelope, 60000);
 
       // Unwrap envelope: the bus may return { payload: LLMResponse } or LLMResponse directly
       const response = (
-        rawResponse &&
-        typeof rawResponse === 'object' &&
-        'payload' in (rawResponse as object)
+        rawResponse && typeof rawResponse === 'object' && 'payload' in (rawResponse as object)
           ? (rawResponse as { payload: LLMResponseType }).payload
           : rawResponse
       ) as LLMResponseType | undefined;
@@ -3108,11 +3139,17 @@ function parseDurationMs(value: string, defaultMs: number = 4 * 60 * 60 * 1000):
   if (Number.isNaN(amount)) return defaultMs;
 
   switch (unit) {
-    case 'ms': return amount;
-    case 's': return amount * 1000;
-    case 'm': return amount * 60 * 1000;
-    case 'h': return amount * 60 * 60 * 1000;
-    case 'd': return amount * 24 * 60 * 60 * 1000;
-    default: return defaultMs;
+    case 'ms':
+      return amount;
+    case 's':
+      return amount * 1000;
+    case 'm':
+      return amount * 60 * 1000;
+    case 'h':
+      return amount * 60 * 60 * 1000;
+    case 'd':
+      return amount * 24 * 60 * 60 * 1000;
+    default:
+      return defaultMs;
   }
 }

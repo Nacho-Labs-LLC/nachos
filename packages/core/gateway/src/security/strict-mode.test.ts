@@ -14,9 +14,9 @@
  *   TC4 — Audit logging automatically enabled in strict mode (see validation.test.ts)
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { ToolExecutor, type ToolExecutorDeps } from '../tools/tool-executor.js';
-import type { Session, ToolResult } from '@nachos/types';
+import type { Session } from '@nachos/types';
 
 // ---------------------------------------------------------------------------
 // Module mock: replace executeWebFetchNative with a controllable stub so TC3
@@ -58,13 +58,15 @@ function createMockSession(overrides: Partial<Session> = {}): Session {
   };
 }
 
-function createMockDeps(overrides: {
-  securityMode?: 'strict' | 'standard' | 'permissive';
-  toolsConfig?: ToolExecutorDeps['core']['toolsConfig'];
-  toolCoordinator?: ToolExecutorDeps['core']['toolCoordinator'];
-  logAuditEvent?: ToolExecutorDeps['audit']['logAuditEvent'];
-  stateLayer?: ToolExecutorDeps['state']['stateLayer'];
-} = {}): ToolExecutorDeps {
+function createMockDeps(
+  overrides: {
+    securityMode?: 'strict' | 'standard' | 'permissive';
+    toolsConfig?: ToolExecutorDeps['core']['toolsConfig'];
+    toolCoordinator?: ToolExecutorDeps['core']['toolCoordinator'];
+    logAuditEvent?: ToolExecutorDeps['audit']['logAuditEvent'];
+    stateLayer?: ToolExecutorDeps['state']['stateLayer'];
+  } = {}
+): ToolExecutorDeps {
   // Default coordinator that returns empty results (for local-dispatch tests)
   const defaultCoordinator = {
     executeTools: vi.fn().mockResolvedValue([]),

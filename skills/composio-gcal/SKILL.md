@@ -1,11 +1,14 @@
 ---
 name: composio-gcal
-description: Create, list, update, and manage Google Calendar events via Composio integration. Use for scheduling and calendar operations.
+description:
+  Create, list, update, and manage Google Calendar events via Composio
+  integration. Use for scheduling and calendar operations.
 ---
 
 # Google Calendar Integration via Composio
 
-This skill enables AI agents to interact with Google Calendar through the Composio platform.
+This skill enables AI agents to interact with Google Calendar through the
+Composio platform.
 
 ## Prerequisites
 
@@ -22,6 +25,7 @@ This skill enables AI agents to interact with Google Calendar through the Compos
 ## Common Actions
 
 ### Create Event
+
 ```typescript
 {
   "action": "GOOGLECALENDAR_CREATE_EVENT",
@@ -36,6 +40,7 @@ This skill enables AI agents to interact with Google Calendar through the Compos
 ```
 
 ### List Events
+
 ```typescript
 {
   "action": "GOOGLECALENDAR_LIST_EVENTS",

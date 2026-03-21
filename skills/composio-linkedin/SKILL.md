@@ -14,6 +14,7 @@ description: Post updates and manage LinkedIn via Composio integration.
 ## Common Actions
 
 ### Create LinkedIn Post
+
 ```typescript
 {
   "action": "LINKEDIN_CREATE_A_LINKEDIN_POST",
@@ -26,6 +27,7 @@ description: Post updates and manage LinkedIn via Composio integration.
 ```
 
 ### Get Profile Info
+
 ```typescript
 {
   "action": "LINKEDIN_GET_MY_INFO",

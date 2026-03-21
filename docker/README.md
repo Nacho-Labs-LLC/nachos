@@ -1,6 +1,7 @@
 # Docker Infrastructure
 
-This directory contains Docker configurations for Nachos development and production environments.
+This directory contains Docker configurations for Nachos development and
+production environments.
 
 ## Structure
 
@@ -23,11 +24,13 @@ docker/
 ### Quick Start
 
 1. **Copy environment variables:**
+
    ```bash
    cp .env.example .env
    ```
 
 2. **Add your LLM API key(s) to `.env`:**
+
    ```bash
    # Edit .env and add your keys
    ANTHROPIC_API_KEY=sk-ant-...
@@ -36,6 +39,7 @@ docker/
    ```
 
 3. **Start the stack:**
+
    ```bash
    docker compose -f docker-compose.dev.yml up
    ```
@@ -51,13 +55,13 @@ All services should show as "healthy" after ~10-15 seconds.
 
 The development stack includes:
 
-| Service    | Port | Description                    |
-|------------|------|--------------------------------|
-| bus        | 4222 | NATS message bus (client)      |
-| bus        | 8222 | NATS monitoring HTTP endpoint  |
-| gateway    | 3000 | Gateway service                |
- | llm-proxy  | 3001 | LLM provider abstraction       |
- | redis      | 6379 | Shared state for rate limits   |
+| Service   | Port | Description                   |
+| --------- | ---- | ----------------------------- |
+| bus       | 4222 | NATS message bus (client)     |
+| bus       | 8222 | NATS monitoring HTTP endpoint |
+| gateway   | 3000 | Gateway service               |
+| llm-proxy | 3001 | LLM provider abstraction      |
+| redis     | 6379 | Shared state for rate limits  |
 
 ### Hot Reload
 
@@ -68,11 +72,13 @@ All services use `tsx watch` to automatically reload when source files change:
 - No need to rebuild containers during development
 
 **What triggers reload:**
+
 - Any `.ts` file in `packages/core/*/src/`
 - Any `.ts` file in `packages/shared/`
 - TypeScript config changes
 
 **What doesn't trigger reload:**
+
 - `package.json` changes (requires rebuild)
 - `Dockerfile` changes (requires rebuild)
 
@@ -101,11 +107,13 @@ Logs are also written to a shared volume at `/var/log/nachos` inside containers.
 Two Docker networks are created:
 
 #### `nachos-internal` (172.20.0.0/16)
+
 - **Isolated** - no external access
 - All core services communicate here
- - Used for: gateway, bus, redis, safe tools
+- Used for: gateway, bus, redis, safe tools
 
 #### `nachos-egress` (172.21.0.0/16)
+
 - **External access** allowed
 - Only services that need internet join this
 - Used for: llm-proxy, channel adapters, browser tool
@@ -143,11 +151,13 @@ docker compose -f docker-compose.dev.yml build --no-cache
 #### Services won't start
 
 1. Check if ports are already in use:
+
    ```bash
    lsof -i :3000  # or 3001, 3002, 4222, 8222
    ```
 
 2. Check Docker resources:
+
    ```bash
    docker system df
    docker system prune  # if needed
@@ -161,11 +171,13 @@ docker compose -f docker-compose.dev.yml build --no-cache
 #### Hot reload not working
 
 1. Verify volumes are mounted:
+
    ```bash
    docker compose -f docker-compose.dev.yml config
    ```
 
 2. Check file permissions:
+
    ```bash
    ls -la packages/core/gateway/src
    ```
@@ -230,6 +242,7 @@ docker build \
 ```
 
 Production images:
+
 - Use `node:22-alpine` (minimal size)
 - Run as non-root user (UID 1001)
 - Have read-only filesystem

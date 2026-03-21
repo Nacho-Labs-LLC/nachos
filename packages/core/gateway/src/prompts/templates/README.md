@@ -5,11 +5,13 @@ Reusable system prompt templates for common use cases.
 ## Available Templates
 
 ### General Purpose
+
 - `assistant-general.md` - General-purpose helpful assistant
 - `assistant-concise.md` - Brief, to-the-point responses
 - `assistant-verbose.md` - Detailed, explanatory responses
 
 ### Specialized Roles
+
 - `coding-assistant.md` - Software development focus
 - `research-assistant.md` - Research and analysis
 - `creative-writer.md` - Creative writing and storytelling
@@ -17,6 +19,7 @@ Reusable system prompt templates for common use cases.
 - `technical-writer.md` - Documentation and technical writing
 
 ### Platform-Specific
+
 - `discord-bot.md` - Discord-optimized assistant
 - `telegram-bot.md` - Telegram-optimized assistant
 - `slack-bot.md` - Slack workspace assistant
@@ -62,8 +65,7 @@ tone: professional
 verbosity: balanced
 ---
 
-You are an expert software developer and coding assistant.
-...
+You are an expert software developer and coding assistant. ...
 ```
 
 ## Creating Custom Templates

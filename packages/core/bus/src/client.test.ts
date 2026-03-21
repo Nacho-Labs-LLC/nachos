@@ -257,7 +257,7 @@ describe('NachosBusClient', () => {
      * then completes. The message payload is a valid MessageEnvelope JSON.
      */
     function makeDeliverySubscription(encodedPayload: Uint8Array) {
-      const encoder = new TextEncoder();
+      // const encoder = new TextEncoder(); // unused
       return {
         unsubscribe: vi.fn(),
         drain: vi.fn().mockResolvedValue(undefined),
@@ -328,9 +328,7 @@ describe('NachosBusClient', () => {
 
       const failingHandler = vi.fn().mockRejectedValue(new Error('oops'));
       // No onError — existing callers: log-and-continue behaviour must hold
-      await expect(
-        client.subscribe('nachos.test.topic', failingHandler)
-      ).resolves.toBeDefined();
+      await expect(client.subscribe('nachos.test.topic', failingHandler)).resolves.toBeDefined();
 
       await new Promise((r) => setTimeout(r, 20));
       // If we reach here without an unhandled rejection, behaviour is correct
@@ -350,7 +348,11 @@ describe('NachosBusClient', () => {
       await new Promise((r) => setTimeout(r, 20));
 
       expect(onError).toHaveBeenCalledTimes(1);
-      const [_err, topic, messageId] = onError.mock.calls[0] as [unknown, string, string | undefined];
+      const [_err, topic, messageId] = onError.mock.calls[0] as [
+        unknown,
+        string,
+        string | undefined,
+      ];
       expect(topic).toBe('nachos.test.topic');
       expect(messageId).toBeUndefined();
     });

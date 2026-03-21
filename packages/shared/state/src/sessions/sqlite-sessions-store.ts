@@ -83,7 +83,6 @@ export class SqliteSessionsStore implements SessionsStore {
    */
   searchMessages?: SessionsStore['searchMessages'];
 
-
   constructor(db: Database.Database, semanticConfig?: SqliteSessionsStoreSemanticConfig) {
     this.db = db;
     this.semanticConfig = semanticConfig ?? null;
@@ -369,9 +368,9 @@ export class SqliteSessionsStore implements SessionsStore {
     if (data.metadata !== undefined) {
       // Merge with existing metadata to avoid clobbering keys set by other subsystems
       // (e.g. subagent.profile set at session creation must survive promptReport updates)
-      const existing = this.db
-        .prepare('SELECT metadata FROM sessions WHERE id = ?')
-        .get(id) as { metadata: string | null } | undefined;
+      const existing = this.db.prepare('SELECT metadata FROM sessions WHERE id = ?').get(id) as
+        | { metadata: string | null }
+        | undefined;
       const existingMeta = existing?.metadata ? JSON.parse(existing.metadata) : {};
       updates.push('metadata = ?');
       values.push(JSON.stringify({ ...existingMeta, ...data.metadata }));
@@ -507,7 +506,8 @@ export class SqliteSessionsStore implements SessionsStore {
     // Guard against invalid date strings — new Date('bad').getTime() === NaN,
     // which would silently disable the since filter for all results.
     const rawSinceMs = options?.since ? new Date(options.since).getTime() : undefined;
-    const sinceMs = rawSinceMs !== undefined && Number.isFinite(rawSinceMs) ? rawSinceMs : undefined;
+    const sinceMs =
+      rawSinceMs !== undefined && Number.isFinite(rawSinceMs) ? rawSinceMs : undefined;
     if (options?.since && sinceMs === undefined) {
       logger.warn({ since: options.since }, 'Invalid "since" date — filter ignored');
     }
@@ -519,18 +519,29 @@ export class SqliteSessionsStore implements SessionsStore {
         options?.sessionId || sinceMs !== undefined
           ? (meta: Record<string, unknown> | undefined) => {
               if (options?.sessionId && meta?.['sessionId'] !== options.sessionId) return false;
-              if (sinceMs !== undefined && typeof meta?.['timestamp'] === 'number' && (meta['timestamp'] as number) < sinceMs) return false;
+              if (
+                sinceMs !== undefined &&
+                typeof meta?.['timestamp'] === 'number' &&
+                (meta['timestamp'] as number) < sinceMs
+              )
+                return false;
               return true;
             }
           : undefined,
     });
 
-    type SearchHit = { id: string; similarity: number; text: string; metadata?: Record<string, unknown> };
+    type SearchHit = {
+      id: string;
+      similarity: number;
+      text: string;
+      metadata?: Record<string, unknown>;
+    };
     return (results as SearchHit[]).map((r) => ({
       messageId: (r.metadata?.messageId as string | undefined) ?? r.id,
       sessionId: (r.metadata?.sessionId as string | undefined) ?? '',
       similarity: r.similarity,
-      role: ((r.metadata?.role as string | undefined) ?? 'unknown') as import('./sessions-store-interface.js').ConversationSearchResult['role'],
+      role: ((r.metadata?.role as string | undefined) ??
+        'unknown') as import('./sessions-store-interface.js').ConversationSearchResult['role'],
       content: r.text,
       timestamp:
         typeof r.metadata?.timestamp === 'number'

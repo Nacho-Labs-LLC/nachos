@@ -1,4 +1,9 @@
-import type { BedrockRuntimeClient as BedrockRuntimeClientType } from '@aws-sdk/client-bedrock-runtime';
+import {
+  BedrockRuntimeClient,
+  InvokeModelCommand,
+  InvokeModelWithResponseStreamCommand,
+  type BedrockRuntimeClient as BedrockRuntimeClientType,
+} from '@aws-sdk/client-bedrock-runtime';
 import type { LLMRequestType, LLMMessageType } from '@nachos/types';
 import {
   ProviderError,
@@ -8,16 +13,6 @@ import {
   type StreamChunkHandler,
   type LLMProviderAdapter,
 } from './types.js';
-
-// Lazy-loaded AWS SDK module — only resolved on first use
-let _bedrockModule: typeof import('@aws-sdk/client-bedrock-runtime') | undefined;
-
-async function getBedrockModule(): Promise<typeof import('@aws-sdk/client-bedrock-runtime')> {
-  if (!_bedrockModule) {
-    _bedrockModule = await import('@aws-sdk/client-bedrock-runtime');
-  }
-  return _bedrockModule;
-}
 
 function extractSystemPrompt(messages: LLMRequestType['messages']): string | undefined {
   const systemMessages = messages.filter(
@@ -202,7 +197,6 @@ export function createBedrockAdapter(
 
   async function getClient(): Promise<BedrockRuntimeClientType> {
     if (!client) {
-      const { BedrockRuntimeClient } = await getBedrockModule();
       client = new BedrockRuntimeClient({ region, credentials });
     }
     return client;
@@ -213,7 +207,7 @@ export function createBedrockAdapter(
     type: 'custom',
 
     async send(request: LLMRequestType, options: AdapterSendOptions): Promise<AdapterResponse> {
-      const [bedrockClient, sdk] = await Promise.all([getClient(), getBedrockModule()]);
+      const bedrockClient = await getClient();
 
       const system = extractSystemPrompt(request.messages);
       const messages = toBedrockMessages(request.messages) as BedrockMessage[];
@@ -228,7 +222,7 @@ export function createBedrockAdapter(
         ...(tools && tools.length > 0 && { tools }),
       };
 
-      const command = new sdk.InvokeModelCommand({
+      const command = new InvokeModelCommand({
         modelId: options.model,
         contentType: 'application/json',
         accept: 'application/json',
@@ -314,7 +308,7 @@ export function createBedrockAdapter(
       options: AdapterStreamOptions,
       onChunk: StreamChunkHandler
     ): Promise<AdapterResponse> {
-      const [bedrockClient, sdk] = await Promise.all([getClient(), getBedrockModule()]);
+      const bedrockClient = await getClient();
 
       const system = extractSystemPrompt(request.messages);
       const messages = toBedrockMessages(request.messages) as BedrockMessage[];
@@ -329,7 +323,7 @@ export function createBedrockAdapter(
         ...(tools && tools.length > 0 && { tools }),
       };
 
-      const command = new sdk.InvokeModelWithResponseStreamCommand({
+      const command = new InvokeModelWithResponseStreamCommand({
         modelId: options.model,
         contentType: 'application/json',
         accept: 'application/json',

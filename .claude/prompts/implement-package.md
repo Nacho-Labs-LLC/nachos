@@ -1,6 +1,7 @@
 # Implement New Package
 
-Guide for implementing a new package in the Nachos monorepo following established patterns and conventions.
+Guide for implementing a new package in the Nachos monorepo following
+established patterns and conventions.
 
 ## Context Gathering
 
@@ -18,23 +19,28 @@ What type of package are you creating?
 Before implementing, examine similar packages:
 
 **For Channels:**
+
 - Look at existing channel implementations
 - Check `docs/api/channel-interface.md`
 - Review manifest structure in existing channels
 
 **For Tools:**
+
 - Examine existing tool implementations
 - Check `docs/api/tool-interface.md`
 - Review security requirements in `docs/security.md`
 
 **For Core Components:**
+
 - Review architecture in `docs/architecture.md`
 - Check message bus patterns in `docs/api/message-bus.md`
 - Examine existing core packages for patterns
 
 ### 3. Check ADRs
 
-Review [docs/adr/](../../../docs/adr/) for architectural decisions affecting your package:
+Review [docs/adr/](../../../docs/adr/) for architectural decisions affecting
+your package:
+
 - Communication patterns
 - Security requirements
 - Docker considerations
@@ -64,6 +70,7 @@ packages/[type]/[package-name]/
 ### 5. Follow Security-First Principles
 
 **For All Packages:**
+
 - ✅ Validate all external input with TypeBox schemas
 - ✅ Use structured error types
 - ✅ Implement health check endpoint
@@ -71,12 +78,14 @@ packages/[type]/[package-name]/
 - ✅ Handle graceful shutdown
 
 **For Channels:**
+
 - ✅ Normalize messages to standard format
 - ✅ Validate platform-specific input
 - ✅ Implement rate limiting hooks
 - ✅ Support session management
 
 **For Tools:**
+
 - ✅ Route through Cheese for policy checks
 - ✅ Implement sandboxed execution
 - ✅ Add comprehensive audit logging

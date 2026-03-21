@@ -41,7 +41,13 @@ describe('Config Sync', () => {
   it('should create new config jobs', async () => {
     const result = await syncConfigJobs(scheduler, [
       makeJob({ name: 'job-a' }),
-      makeJob({ name: 'job-b', schedule_type: 'cron', schedule_value: '0 9 * * 1-5', action_type: 'agentTurn', action_prompt: 'Morning check' }),
+      makeJob({
+        name: 'job-b',
+        schedule_type: 'cron',
+        schedule_value: '0 9 * * 1-5',
+        action_type: 'agentTurn',
+        action_prompt: 'Morning check',
+      }),
     ]);
 
     expect(result.created).toBe(2);
@@ -83,10 +89,7 @@ describe('Config Sync', () => {
   });
 
   it('should disable removed config jobs', async () => {
-    await syncConfigJobs(scheduler, [
-      makeJob({ name: 'keep' }),
-      makeJob({ name: 'remove-me' }),
-    ]);
+    await syncConfigJobs(scheduler, [makeJob({ name: 'keep' }), makeJob({ name: 'remove-me' })]);
 
     // Sync with only one job
     const result = await syncConfigJobs(scheduler, [makeJob({ name: 'keep' })]);
@@ -145,9 +148,7 @@ describe('Config Sync', () => {
   });
 
   it('should create job with enabled=false when config says disabled', async () => {
-    await syncConfigJobs(scheduler, [
-      makeJob({ name: 'disabled-job', enabled: false }),
-    ]);
+    await syncConfigJobs(scheduler, [makeJob({ name: 'disabled-job', enabled: false })]);
 
     const jobs = scheduler.listJobs({ userId: '__config__' });
     expect(jobs).toHaveLength(1);

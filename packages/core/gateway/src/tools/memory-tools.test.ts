@@ -582,7 +582,10 @@ describe('nachos_search_conversations', () => {
     expect(text).not.toMatch(/user: user:/);
 
     // Verify options were forwarded
-    expect(searchMessages).toHaveBeenCalledWith('TypeScript', expect.objectContaining({ limit: 2 }));
+    expect(searchMessages).toHaveBeenCalledWith(
+      'TypeScript',
+      expect.objectContaining({ limit: 2 })
+    );
   });
 
   it('forwards since and sessionId options to searchMessages', async () => {
@@ -861,7 +864,7 @@ describe('memory_recall', () => {
     // The queryMemory call should have limit capped at 20
     expect(mockStateLayer.queryMemory).toHaveBeenCalledWith(
       expect.objectContaining({ limit: 20 }),
-      expect.anything(),
+      expect.anything()
     );
   });
 

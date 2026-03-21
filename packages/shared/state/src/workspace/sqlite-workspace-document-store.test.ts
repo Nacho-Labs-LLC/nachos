@@ -115,7 +115,7 @@ describe('SqliteWorkspaceDocumentStore', () => {
       });
       await store.indexDocument(doc, []);
 
-      const found = await store.getDocument(doc.id);
+      await store.getDocument(doc.id);
       // May get a different ID if upserted
       const docs = await store.listDocuments({ projectId: 'nachos' });
       expect(docs[0]!.metadata).toEqual({ language: 'typescript', framework: 'hono' });

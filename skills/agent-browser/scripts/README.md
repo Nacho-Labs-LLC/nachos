@@ -1,16 +1,17 @@
 # Agent Browser Scripts
 
-Production-ready utilities for browser automation. Each script is self-contained and can be used independently.
+Production-ready utilities for browser automation. Each script is self-contained
+and can be used independently.
 
 ## Quick Reference
 
-| Script | Purpose | Usage |
-|--------|---------|-------|
-| `browser_secure.py` | Secure browsing with domain allowlist | `python browser_secure.py --help` |
-| `form_automation.py` | Complex form handling | `python form_automation.py --help` |
-| `session_manager.py` | Cookie/storage management | `python session_manager.py --help` |
-| `scraper_utils.py` | Data extraction utilities | `python scraper_utils.py --help` |
-| `visual_testing.py` | Screenshot and visual testing | `python visual_testing.py --help` |
+| Script               | Purpose                               | Usage                              |
+| -------------------- | ------------------------------------- | ---------------------------------- |
+| `browser_secure.py`  | Secure browsing with domain allowlist | `python browser_secure.py --help`  |
+| `form_automation.py` | Complex form handling                 | `python form_automation.py --help` |
+| `session_manager.py` | Cookie/storage management             | `python session_manager.py --help` |
+| `scraper_utils.py`   | Data extraction utilities             | `python scraper_utils.py --help`   |
+| `visual_testing.py`  | Screenshot and visual testing         | `python visual_testing.py --help`  |
 
 ## Installation
 
@@ -22,6 +23,7 @@ playwright install chromium
 ## Examples
 
 ### Secure Browser
+
 ```bash
 # Navigate with domain validation
 python browser_secure.py \
@@ -31,6 +33,7 @@ python browser_secure.py \
 ```
 
 ### Form Automation
+
 ```bash
 # Fill and submit form
 python form_automation.py \
@@ -39,6 +42,7 @@ python form_automation.py \
 ```
 
 Example `form_data.json`:
+
 ```json
 {
   "name": {
@@ -61,6 +65,7 @@ Example `form_data.json`:
 ```
 
 ### Session Manager
+
 ```bash
 # Save session after login
 python session_manager.py save \
@@ -74,6 +79,7 @@ python session_manager.py restore \
 ```
 
 ### Data Scraping
+
 ```bash
 # Extract table data
 python scraper_utils.py table \
@@ -93,6 +99,7 @@ python scraper_utils.py structured \
 ```
 
 Example `extract_config.json`:
+
 ```json
 {
   "title": {
@@ -112,6 +119,7 @@ Example `extract_config.json`:
 ```
 
 ### Visual Testing
+
 ```bash
 # Capture full page
 python visual_testing.py capture \
@@ -142,9 +150,12 @@ python visual_testing.py compare \
 
 ## Integration
 
-These scripts are designed to be called as black-box utilities without reading source code into context. They handle complex workflows reliably while keeping token usage minimal.
+These scripts are designed to be called as black-box utilities without reading
+source code into context. They handle complex workflows reliably while keeping
+token usage minimal.
 
 When building AI agent workflows:
+
 1. Use `--help` to understand the script
 2. Call the script directly with appropriate arguments
 3. Parse JSON output for structured data

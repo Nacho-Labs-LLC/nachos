@@ -1078,7 +1078,11 @@ function validateToolsConfig(config: NachosConfig, errors: string[], warnings: s
 /**
  * Validate complete configuration
  */
-function validateSchedulerConfig(config: NachosConfig, errors: string[], _warnings: string[]): void {
+function validateSchedulerConfig(
+  config: NachosConfig,
+  errors: string[],
+  _warnings: string[]
+): void {
   const jobs = config.scheduler?.jobs;
   if (!jobs || !Array.isArray(jobs)) return;
 
@@ -1111,7 +1115,9 @@ function validateSchedulerConfig(config: NachosConfig, errors: string[], _warnin
     } else if (job.schedule_type === 'every') {
       const ms = parseInt(job.schedule_value, 10);
       if (isNaN(ms) || ms <= 0) {
-        errors.push(`${prefix}.schedule_value must be a positive integer (milliseconds) for type "every"`);
+        errors.push(
+          `${prefix}.schedule_value must be a positive integer (milliseconds) for type "every"`
+        );
       }
     }
 

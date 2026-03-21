@@ -10,7 +10,11 @@ import { OutputFormatter, prettyOutput } from '../core/output.js';
 import { DockerClient } from '../core/docker-client.js';
 import { generateAndWriteComposeFile } from '../core/compose-generator.js';
 import { getVersion } from '../cli.js';
-import { CLIError, DockerNotAvailableError, DockerComposeNotAvailableError } from '../core/errors.js';
+import {
+  CLIError,
+  DockerNotAvailableError,
+  DockerComposeNotAvailableError,
+} from '../core/errors.js';
 
 interface UpOptions {
   json?: boolean;

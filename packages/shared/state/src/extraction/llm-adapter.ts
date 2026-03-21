@@ -56,9 +56,7 @@ export class LLMExtractionAdapter {
    * Errors are caught and logged — never propagated to avoid blocking session close.
    */
   async extract(messages: ExtractionMessage[]): Promise<ExtractionResult> {
-    const filteredMessages = messages.filter(
-      (m) => m.role === 'user' || m.role === 'assistant'
-    );
+    const filteredMessages = messages.filter((m) => m.role === 'user' || m.role === 'assistant');
 
     if (filteredMessages.length === 0) {
       return { facts: [], rawCount: 0, parseSuccess: true };
@@ -109,10 +107,7 @@ export class LLMExtractionAdapter {
     }
 
     if (!Array.isArray(parsed)) {
-      logger.warn(
-        { sessionId: this.config.sessionId },
-        'LLM extraction returned non-array JSON'
-      );
+      logger.warn({ sessionId: this.config.sessionId }, 'LLM extraction returned non-array JSON');
       return { facts: [], rawCount: 0, parseSuccess: false };
     }
 

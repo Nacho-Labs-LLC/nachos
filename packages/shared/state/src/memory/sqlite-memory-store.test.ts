@@ -84,7 +84,7 @@ describe('SqliteMemoryStore', () => {
         provenance: undefined,
       });
 
-      const stored = await store.appendEntry(entry);
+      const _stored = await store.appendEntry(entry);
       const result = await store.query({ agentId: 'agent-1' });
 
       expect(result.entries).toHaveLength(1);

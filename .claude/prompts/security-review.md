@@ -1,6 +1,7 @@
 # Security Review
 
-Review code changes for security implications following Nachos' security-first design principles.
+Review code changes for security implications following Nachos' security-first
+design principles.
 
 ## Security-First Principles
 
@@ -18,7 +19,8 @@ Review code changes for security implications following Nachos' security-first d
 - [ ] **User input is sanitized** before processing
 - [ ] **File paths are validated** and restricted to allowed directories
 - [ ] **URLs are validated** and restricted to allowed domains
-- [ ] **Command injection is prevented** (no unescaped user input in shell commands)
+- [ ] **Command injection is prevented** (no unescaped user input in shell
+      commands)
 - [ ] **SQL injection is prevented** (using parameterized queries)
 - [ ] **XSS is prevented** (proper escaping in outputs)
 
@@ -85,24 +87,28 @@ Review code changes for security implications following Nachos' security-first d
 ### 1. Command Injection
 
 ❌ **Bad:**
+
 ```typescript
-exec(`git clone ${userProvidedUrl}`)
+exec(`git clone ${userProvidedUrl}`);
 ```
 
 ✅ **Good:**
+
 ```typescript
 import { execFile } from 'child_process';
-execFile('git', ['clone', userProvidedUrl])
+execFile('git', ['clone', userProvidedUrl]);
 ```
 
 ### 2. Path Traversal
 
 ❌ **Bad:**
+
 ```typescript
-readFile(`/app/data/${userPath}`)
+readFile(`/app/data/${userPath}`);
 ```
 
 ✅ **Good:**
+
 ```typescript
 import { resolve, normalize } from 'path';
 const safePath = normalize(userPath).replace(/^(\.\.(\/|\\|$))+/, '');
@@ -110,12 +116,13 @@ const fullPath = resolve('/app/data', safePath);
 if (!fullPath.startsWith('/app/data/')) {
   throw new Error('Invalid path');
 }
-readFile(fullPath)
+readFile(fullPath);
 ```
 
 ### 3. Missing Input Validation
 
 ❌ **Bad:**
+
 ```typescript
 async function createUser(data: any) {
   await db.insert(data);
@@ -123,13 +130,14 @@ async function createUser(data: any) {
 ```
 
 ✅ **Good:**
+
 ```typescript
 import { Type } from '@sinclair/typebox';
 import { Value } from '@sinclair/typebox/value';
 
 const UserSchema = Type.Object({
   username: Type.String({ minLength: 3, maxLength: 20 }),
-  email: Type.String({ format: 'email' })
+  email: Type.String({ format: 'email' }),
 });
 
 async function createUser(data: unknown) {
@@ -143,6 +151,7 @@ async function createUser(data: unknown) {
 ### 4. Missing Policy Checks
 
 ❌ **Bad:**
+
 ```typescript
 async function writeFile(path: string, content: string) {
   await fs.writeFile(path, content);
@@ -150,6 +159,7 @@ async function writeFile(path: string, content: string) {
 ```
 
 ✅ **Good:**
+
 ```typescript
 async function writeFile(
   path: string,
@@ -159,7 +169,7 @@ async function writeFile(
   const policy = await cheese.evaluate({
     operation: 'filesystem.write',
     resource: path,
-    context
+    context,
   });
 
   if (!policy.allowed) {
@@ -170,7 +180,7 @@ async function writeFile(
     event: 'filesystem.write',
     resource: path,
     user: context.userId,
-    outcome: 'allowed'
+    outcome: 'allowed',
   });
 
   await fs.writeFile(path, content);
@@ -180,11 +190,13 @@ async function writeFile(
 ### 5. Exposed Secrets
 
 ❌ **Bad:**
+
 ```typescript
 const API_KEY = 'sk-1234567890abcdef';
 ```
 
 ✅ **Good:**
+
 ```typescript
 const API_KEY = process.env.API_KEY;
 if (!API_KEY) {
@@ -195,6 +207,7 @@ if (!API_KEY) {
 ### 6. Missing Rate Limiting
 
 ❌ **Bad:**
+
 ```typescript
 app.post('/api/chat', async (req, res) => {
   const response = await llm.chat(req.body.message);
@@ -203,13 +216,14 @@ app.post('/api/chat', async (req, res) => {
 ```
 
 ✅ **Good:**
+
 ```typescript
 app.post('/api/chat', async (req, res) => {
   const rateLimit = await rateLimiter.check(req.user.id, 'chat');
   if (!rateLimit.allowed) {
     return res.status(429).json({
       error: 'Rate limit exceeded',
-      retryAfter: rateLimit.retryAfter
+      retryAfter: rateLimit.retryAfter,
     });
   }
 
@@ -227,9 +241,9 @@ Test security controls:
 ```typescript
 describe('Security Controls', () => {
   it('should reject invalid input', async () => {
-    await expect(
-      processInput({ malicious: 'data' })
-    ).rejects.toThrow(ValidationError);
+    await expect(processInput({ malicious: 'data' })).rejects.toThrow(
+      ValidationError
+    );
   });
 
   it('should enforce policy checks', async () => {
@@ -280,26 +294,30 @@ Use this template to document the review:
 ```markdown
 ## Security Review: [Feature/Change Name]
 
-**Reviewer**: [Name]
-**Date**: [YYYY-MM-DD]
+**Reviewer**: [Name] **Date**: [YYYY-MM-DD]
 
 ### Changes Summary
+
 [Brief description of changes]
 
 ### Security Considerations
+
 - [Consideration 1]
 - [Consideration 2]
 
 ### Findings
+
 - ✅ [Safe practice found]
-- ⚠️  [Potential issue, mitigated by...]
+- ⚠️ [Potential issue, mitigated by...]
 - ❌ [Issue that must be fixed]
 
 ### Recommendations
+
 1. [Recommendation 1]
 2. [Recommendation 2]
 
 ### Approval
+
 - [ ] Changes follow security-first principles
 - [ ] No unmitigated security risks identified
 - [ ] Documentation updated
@@ -309,6 +327,7 @@ Use this template to document the review:
 ## Resources
 
 - [docs/security.md](../../../docs/security.md) - Security model
-- [docs/adr/003-security-first-design.md](../../../docs/adr/003-security-first-design.md) - Security ADR
+- [docs/adr/003-security-first-design.md](../../../docs/adr/003-security-first-design.md) -
+  Security ADR
 - [OWASP Top 10](https://owasp.org/www-project-top-ten/)
 - [Node.js Security Best Practices](https://nodejs.org/en/docs/guides/security/)

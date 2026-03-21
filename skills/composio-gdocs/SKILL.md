@@ -14,6 +14,7 @@ description: Create, read, and edit Google Docs via Composio integration.
 ## Common Actions
 
 ### Create Document
+
 ```typescript
 {
   "action": "GOOGLEDOCS_CREATE_A_DOCUMENT",
@@ -26,6 +27,7 @@ description: Create, read, and edit Google Docs via Composio integration.
 ```
 
 ### Get Document
+
 ```typescript
 {
   "action": "GOOGLEDOCS_GET_DOCUMENT_BY_ID",

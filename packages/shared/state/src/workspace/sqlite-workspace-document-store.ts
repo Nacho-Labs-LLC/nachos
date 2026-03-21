@@ -119,10 +119,7 @@ export class SqliteWorkspaceDocumentStore implements WorkspaceDocumentStore {
     };
   }
 
-  async indexDocument(
-    doc: WorkspaceDocument,
-    chunks: DocumentChunk[]
-  ): Promise<WorkspaceDocument> {
+  async indexDocument(doc: WorkspaceDocument, chunks: DocumentChunk[]): Promise<WorkspaceDocument> {
     const now = new Date().toISOString();
     const docId = doc.id || uuid();
 
@@ -195,7 +192,14 @@ export class SqliteWorkspaceDocumentStore implements WorkspaceDocumentStore {
          VALUES (?, ?, ?, ?, ?, ?)`
       );
       for (const chunk of chunks) {
-        insertChunk.run(chunk.id || uuid(), docId, chunk.chunkIndex, chunk.content, chunk.tokenCount ?? null, now);
+        insertChunk.run(
+          chunk.id || uuid(),
+          docId,
+          chunk.chunkIndex,
+          chunk.content,
+          chunk.tokenCount ?? null,
+          now
+        );
       }
 
       return docId;
@@ -210,29 +214,22 @@ export class SqliteWorkspaceDocumentStore implements WorkspaceDocumentStore {
   }
 
   async getDocument(id: string): Promise<WorkspaceDocument | null> {
-    const row = this.db
-      .prepare('SELECT * FROM workspace_documents WHERE id = ?')
-      .get(id) as DocumentRow | undefined;
+    const row = this.db.prepare('SELECT * FROM workspace_documents WHERE id = ?').get(id) as
+      | DocumentRow
+      | undefined;
     return row ? this.rowToDocument(row) : null;
   }
 
-  async getDocumentByPath(
-    path: string,
-    projectId?: string
-  ): Promise<WorkspaceDocument | null> {
+  async getDocumentByPath(path: string, projectId?: string): Promise<WorkspaceDocument | null> {
     const row = this.db
-      .prepare(
-        `SELECT * FROM workspace_documents WHERE path = ? AND COALESCE(project_id, '') = ?`
-      )
+      .prepare(`SELECT * FROM workspace_documents WHERE path = ? AND COALESCE(project_id, '') = ?`)
       .get(path, projectId ?? '') as DocumentRow | undefined;
     return row ? this.rowToDocument(row) : null;
   }
 
   async getChunks(documentId: string): Promise<DocumentChunk[]> {
     const rows = this.db
-      .prepare(
-        'SELECT * FROM document_chunks WHERE document_id = ? ORDER BY chunk_index ASC'
-      )
+      .prepare('SELECT * FROM document_chunks WHERE document_id = ? ORDER BY chunk_index ASC')
       .all(documentId) as ChunkRow[];
     return rows.map((row) => this.rowToChunk(row));
   }
@@ -240,9 +237,7 @@ export class SqliteWorkspaceDocumentStore implements WorkspaceDocumentStore {
   async removeDocument(id: string): Promise<boolean> {
     const txn = this.db.transaction(() => {
       // Chunks deleted by CASCADE
-      const result = this.db
-        .prepare('DELETE FROM workspace_documents WHERE id = ?')
-        .run(id);
+      const result = this.db.prepare('DELETE FROM workspace_documents WHERE id = ?').run(id);
       return result.changes > 0;
     });
     return txn();

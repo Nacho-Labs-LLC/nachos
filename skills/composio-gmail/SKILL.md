@@ -1,11 +1,14 @@
 ---
 name: composio-gmail
-description: Send, read, search, and manage Gmail via Composio integration. Use when working with email operations.
+description:
+  Send, read, search, and manage Gmail via Composio integration. Use when
+  working with email operations.
 ---
 
 # Gmail Integration via Composio
 
-This skill enables AI agents to interact with Gmail through the Composio platform, providing comprehensive email management capabilities.
+This skill enables AI agents to interact with Gmail through the Composio
+platform, providing comprehensive email management capabilities.
 
 ## Prerequisites
 
@@ -24,6 +27,7 @@ This skill enables AI agents to interact with Gmail through the Composio platfor
 ## Common Actions
 
 ### Send Email
+
 ```typescript
 {
   "action": "GMAIL_SEND_EMAIL",
@@ -38,6 +42,7 @@ This skill enables AI agents to interact with Gmail through the Composio platfor
 ```
 
 ### Search Emails
+
 ```typescript
 {
   "action": "GMAIL_FETCH_EMAILS",
@@ -52,7 +57,7 @@ This skill enables AI agents to interact with Gmail through the Composio platfor
 ## Available Actions
 
 - GMAIL_SEND_EMAIL - Send a new email
-- GMAIL_FETCH_EMAILS - Search and fetch emails  
+- GMAIL_FETCH_EMAILS - Search and fetch emails
 - GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID - Get specific message
 - GMAIL_CREATE_EMAIL_DRAFT - Create draft email
 - GMAIL_SEND_DRAFT - Send existing draft
@@ -65,6 +70,7 @@ This skill enables AI agents to interact with Gmail through the Composio platfor
 ## Authentication
 
 Gmail access uses OAuth 2.0 via Composio:
+
 1. Navigate to Composio dashboard
 2. Add Gmail integration
 3. Click "Connect" and authorize

@@ -12,7 +12,10 @@ export default defineConfig({
       // Shared packages
       '@nachos/config': path.resolve(__dirname, 'packages/shared/config/src/index.ts'),
       '@nachos/types': path.resolve(__dirname, 'packages/shared/types/src/index.ts'),
-      '@nachos/context-manager': path.resolve(__dirname, 'packages/shared/context-manager/src/index.ts'),
+      '@nachos/context-manager': path.resolve(
+        __dirname,
+        'packages/shared/context-manager/src/index.ts'
+      ),
       '@nachos/state': path.resolve(__dirname, 'packages/shared/state/src/index.ts'),
       '@nachos/utils': path.resolve(__dirname, 'packages/shared/utils/src/index.ts'),
       '@nachos/sdk': path.resolve(__dirname, 'packages/shared/sdk/src/index.ts'),

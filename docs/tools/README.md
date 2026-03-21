@@ -10,9 +10,11 @@ This directory contains API documentation for Nachos tools.
 ## Subagent Tools (v2.0)
 
 - [sessions_spawn](#sessions_spawn) - Spawn individual subagent tasks
-- [sessions_orchestrate](#sessions_orchestrate) - Define multi-step workflows (**new in v2.0**)
+- [sessions_orchestrate](#sessions_orchestrate) - Define multi-step workflows
+  (**new in v2.0**)
 - [subagents](#subagents) - Monitor and manage subagents/workflows
-- [subagent_progress](#subagent_progress) - Report progress from within subagents (**new in v2.0**)
+- [subagent_progress](#subagent_progress) - Report progress from within
+  subagents (**new in v2.0**)
 
 ---
 
@@ -46,12 +48,13 @@ Spawn an isolated subagent to handle a task independently.
 Task description for the subagent. Be specific and clear.
 
 **Examples:**
+
 ```typescript
 // ❌ Vague
-task: "Research stuff"
+task: 'Research stuff';
 
 // ✅ Specific
-task: "Research renewable energy trends in 2025, focusing on solar and wind. Summarize key findings in 3 paragraphs with sources."
+task: 'Research renewable energy trends in 2025, focusing on solar and wind. Summarize key findings in 3 paragraphs with sources.';
 ```
 
 #### `label` (optional)
@@ -61,9 +64,10 @@ task: "Research renewable energy trends in 2025, focusing on solar and wind. Sum
 Human-readable label for easy identification.
 
 **Examples:**
+
 ```typescript
-label: "security-audit-2026-02-24"
-label: "renewable-energy-research"
+label: 'security-audit-2026-02-24';
+label: 'renewable-energy-research';
 ```
 
 #### `model` (optional, v2.0)
@@ -73,6 +77,7 @@ label: "renewable-energy-research"
 Model ID or alias to use for this subagent.
 
 **Aliases:**
+
 - `haiku` - Fast and economical (Claude Haiku 4.5)
 - `sonnet` - Balanced (Claude Sonnet 4.6, default)
 - `opus` - Most capable (Claude Opus 4.6)
@@ -81,35 +86,41 @@ Model ID or alias to use for this subagent.
 - `thorough` - Alias for `opus`
 
 **Full model IDs:**
+
 - `anthropic.claude-haiku-4-5-20251001-v1:0`
 - `anthropic.claude-sonnet-4-6`
 - `anthropic.claude-opus-4-6-v1`
 
 **Examples:**
+
 ```typescript
-model: "haiku"  // Fast, cheap
-model: "opus"   // Thorough, expensive
-model: "anthropic.claude-sonnet-4-6"  // Full ID
+model: 'haiku'; // Fast, cheap
+model: 'opus'; // Thorough, expensive
+model: 'anthropic.claude-sonnet-4-6'; // Full ID
 ```
 
 #### `modelHint` (optional, v2.0)
 
 **Type:** `'fast' | 'balanced' | 'thorough'`
 
-Convenience parameter for model selection. Use this instead of `model` when you want to suggest capability level without specifying exact model.
+Convenience parameter for model selection. Use this instead of `model` when you
+want to suggest capability level without specifying exact model.
 
 **When to use:**
+
 - `fast` - Simple, quick tasks (syntax checks, basic queries)
 - `balanced` - Medium complexity (code reviews, summaries)
 - `thorough` - Complex analysis (security audits, architectural reviews)
 
 **Examples:**
+
 ```typescript
-modelHint: "fast"      // → Haiku
-modelHint: "thorough"  // → Opus
+modelHint: 'fast'; // → Haiku
+modelHint: 'thorough'; // → Opus
 ```
 
-**Note:** If both `model` and `modelHint` are provided, `model` takes precedence.
+**Note:** If both `model` and `modelHint` are provided, `model` takes
+precedence.
 
 #### `stream` (optional, v2.0)
 
@@ -117,19 +128,22 @@ modelHint: "thorough"  // → Opus
 **Default:** `false`
 
 Enable streaming results. When enabled:
+
 - LLM response is streamed chunk-by-chunk
 - Chunks accumulated in `run.streamChunks[]`
 - Optionally delivered to requester in real-time (if configured)
 
 **When to use:**
+
 - Long-running reports or documentation
 - User wants to see partial results early
 - Output is >1000 words
 
 **Examples:**
+
 ```typescript
-stream: true  // Enable streaming
-stream: false // Wait for full completion (default)
+stream: true; // Enable streaming
+stream: false; // Wait for full completion (default)
 ```
 
 #### `thinking` (optional)
@@ -143,13 +157,15 @@ Controls the thinking/reasoning level for the subagent.
 **Type:** `number`  
 **Default:** `300` (5 minutes)
 
-Maximum execution time in seconds. Subagent will be terminated if it exceeds this.
+Maximum execution time in seconds. Subagent will be terminated if it exceeds
+this.
 
 **Examples:**
+
 ```typescript
-runTimeoutSeconds: 120   // 2 minutes (quick tasks)
-runTimeoutSeconds: 600   // 10 minutes (complex tasks)
-runTimeoutSeconds: 1800  // 30 minutes (very long tasks)
+runTimeoutSeconds: 120; // 2 minutes (quick tasks)
+runTimeoutSeconds: 600; // 10 minutes (complex tasks)
+runTimeoutSeconds: 1800; // 30 minutes (very long tasks)
 ```
 
 #### `cleanup` (optional)
@@ -163,9 +179,10 @@ Workspace cleanup behavior after subagent completes.
 - `delete` - Remove workspace immediately after completion
 
 **Examples:**
+
 ```typescript
-cleanup: "keep"    // Keep workspace (default)
-cleanup: "delete"  // Clean up immediately
+cleanup: 'keep'; // Keep workspace (default)
+cleanup: 'delete'; // Clean up immediately
 ```
 
 ### Response
@@ -181,6 +198,7 @@ cleanup: "delete"  // Clean up immediately
 ```
 
 **Example:**
+
 ```json
 {
   "status": "accepted",
@@ -197,7 +215,7 @@ cleanup: "delete"  // Clean up immediately
 
 ```typescript
 await sessions_spawn({
-  task: "Analyze main.py for security vulnerabilities"
+  task: 'Analyze main.py for security vulnerabilities',
 });
 ```
 
@@ -206,14 +224,14 @@ await sessions_spawn({
 ```typescript
 // Quick syntax check (fast model)
 await sessions_spawn({
-  task: "Check Python syntax in all .py files",
-  model: "haiku"
+  task: 'Check Python syntax in all .py files',
+  model: 'haiku',
 });
 
 // Deep architectural review (thorough model)
 await sessions_spawn({
-  task: "Review system architecture and identify scaling bottlenecks",
-  modelHint: "thorough"
+  task: 'Review system architecture and identify scaling bottlenecks',
+  modelHint: 'thorough',
 });
 ```
 
@@ -221,10 +239,10 @@ await sessions_spawn({
 
 ```typescript
 await sessions_spawn({
-  task: "Generate a comprehensive 50-page security audit report",
-  model: "opus",
+  task: 'Generate a comprehensive 50-page security audit report',
+  model: 'opus',
   stream: true,
-  runTimeoutSeconds: 1800  // 30 minutes
+  runTimeoutSeconds: 1800, // 30 minutes
 });
 ```
 
@@ -232,55 +250,62 @@ await sessions_spawn({
 
 ```typescript
 await sessions_spawn({
-  task: "Research quantum computing trends in 2025 and write a detailed report",
-  label: "quantum-computing-research",
-  model: "sonnet",
-  thinking: "high",
+  task: 'Research quantum computing trends in 2025 and write a detailed report',
+  label: 'quantum-computing-research',
+  model: 'sonnet',
+  thinking: 'high',
   runTimeoutSeconds: 600,
-  cleanup: "keep",
-  stream: true
+  cleanup: 'keep',
+  stream: true,
 });
 ```
 
 ### Auto-Selection Behavior
 
-If neither `model` nor `modelHint` is specified, the system automatically selects a model based on task complexity (when `auto_select` is enabled in config):
+If neither `model` nor `modelHint` is specified, the system automatically
+selects a model based on task complexity (when `auto_select` is enabled in
+config):
 
 **→ Opus (thorough):**
+
 - Contains keywords: analyze, review, audit, investigate, comprehensive
 - Code analysis: codebase, vulnerabilities, refactor, bugs
 - Multi-step tasks: numbered lists, "then", "after"
 - Long tasks: >40 words
 
 **→ Haiku (fast):**
+
 - Short tasks: <8 words
 - No complexity keywords
 
 **→ Sonnet (balanced):**
+
 - Medium complexity
 - Default fallback
 
 **Examples:**
+
 ```typescript
 // Auto-selects Opus (has "analyze" + "codebase")
 await sessions_spawn({
-  task: "Analyze this codebase for security vulnerabilities"
+  task: 'Analyze this codebase for security vulnerabilities',
 });
 
 // Auto-selects Haiku (short + simple)
 await sessions_spawn({
-  task: "Fix typo in README"
+  task: 'Fix typo in README',
 });
 
 // Auto-selects Sonnet (medium)
 await sessions_spawn({
-  task: "Summarize this research paper in 3 paragraphs"
+  task: 'Summarize this research paper in 3 paragraphs',
 });
 ```
 
 ### Error Handling
 
 **Invalid model:**
+
 ```json
 {
   "success": false,
@@ -292,6 +317,7 @@ await sessions_spawn({
 ```
 
 **Timeout:**
+
 ```json
 {
   "runId": "run-abc123",
@@ -341,32 +367,39 @@ interface WorkflowStep {
 
 **Type:** `WorkflowStep[]`
 
-Array of workflow steps. Each step is a subagent task with optional dependencies.
+Array of workflow steps. Each step is a subagent task with optional
+dependencies.
 
 **Step fields:**
 
 **`id`** (required) - Unique identifier for this step
+
 - Must be unique within the workflow
 - Used for dependencies and result retrieval
 - Example: `'fetch'`, `'analyze'`, `'report'`
 
 **`task`** (required) - Task description for this step
+
 - Same format as `sessions_spawn.task`
 - Results from dependent steps are automatically appended
 
 **`dependsOn`** (optional) - Array of step IDs this depends on
+
 - Step waits for all dependencies to complete
 - Dependency results are injected into task prompt
 - Example: `['fetch', 'validate']`
 
 **`model`** (optional) - Model for this step
+
 - Same as `sessions_spawn.model`
 - Different steps can use different models
 
 **`modelHint`** (optional) - Model hint for this step
+
 - Same as `sessions_spawn.modelHint`
 
 **`stream`** (optional) - Enable streaming for this step
+
 - Same as `sessions_spawn.stream`
 
 #### `label` (optional)
@@ -376,9 +409,10 @@ Array of workflow steps. Each step is a subagent task with optional dependencies
 Human-readable label for the workflow.
 
 **Examples:**
+
 ```typescript
-label: "data-analysis-workflow"
-label: "bug-fix-workflow-issue-123"
+label: 'data-analysis-workflow';
+label: 'bug-fix-workflow-issue-123';
 ```
 
 #### `continueOnFailure` (optional)
@@ -403,6 +437,7 @@ Whether to continue workflow execution if a step fails.
 ```
 
 **Example:**
+
 ```json
 {
   "status": "accepted",
@@ -419,6 +454,7 @@ Whether to continue workflow execution if a step fails.
 ```
 
 The `batches` field shows the execution plan:
+
 - Batch 1: `fetch` (no dependencies)
 - Batch 2: `validate` and `enrich` in parallel (both depend only on `fetch`)
 - Batch 3: `merge` (depends on both `validate` and `enrich`)
@@ -429,58 +465,79 @@ The `batches` field shows the execution plan:
 The orchestrator validates your workflow before execution:
 
 **✅ Valid workflows:**
+
 ```typescript
 // Linear
-{ steps: [
-  { id: 'a', task: '...' },
-  { id: 'b', task: '...', dependsOn: ['a'] }
-]}
+{
+  steps: [
+    { id: 'a', task: '...' },
+    { id: 'b', task: '...', dependsOn: ['a'] },
+  ];
+}
 
 // Parallel
-{ steps: [
-  { id: 'a', task: '...' },
-  { id: 'b', task: '...' },
-  { id: 'c', task: '...', dependsOn: ['a', 'b'] }
-]}
+{
+  steps: [
+    { id: 'a', task: '...' },
+    { id: 'b', task: '...' },
+    { id: 'c', task: '...', dependsOn: ['a', 'b'] },
+  ];
+}
 
 // Diamond
-{ steps: [
-  { id: 'fetch', task: '...' },
-  { id: 'left', task: '...', dependsOn: ['fetch'] },
-  { id: 'right', task: '...', dependsOn: ['fetch'] },
-  { id: 'merge', task: '...', dependsOn: ['left', 'right'] }
-]}
+{
+  steps: [
+    { id: 'fetch', task: '...' },
+    { id: 'left', task: '...', dependsOn: ['fetch'] },
+    { id: 'right', task: '...', dependsOn: ['fetch'] },
+    { id: 'merge', task: '...', dependsOn: ['left', 'right'] },
+  ];
+}
 ```
 
 **❌ Invalid workflows:**
 
 **Duplicate step IDs:**
+
 ```typescript
-{ steps: [
-  { id: 'step1', task: '...' },
-  { id: 'step1', task: '...' }  // ❌ Error: DUPLICATE_STEP_ID
-]}
+{
+  steps: [
+    { id: 'step1', task: '...' },
+    { id: 'step1', task: '...' }, // ❌ Error: DUPLICATE_STEP_ID
+  ];
+}
 ```
 
 **Missing dependencies:**
+
 ```typescript
-{ steps: [
-  { id: 'step1', task: '...' },
-  { id: 'step2', task: '...', dependsOn: ['step3'] }  // ❌ Error: MISSING_DEPENDENCY
-]}
+{
+  steps: [
+    { id: 'step1', task: '...' },
+    { id: 'step2', task: '...', dependsOn: ['step3'] }, // ❌ Error: MISSING_DEPENDENCY
+  ];
+}
 ```
 
 **Cycles:**
+
 ```typescript
-{ steps: [
-  { id: 'a', task: '...', dependsOn: ['b'] },
-  { id: 'b', task: '...', dependsOn: ['a'] }  // ❌ Error: CYCLE_DETECTED
-]}
+{
+  steps: [
+    { id: 'a', task: '...', dependsOn: ['b'] },
+    { id: 'b', task: '...', dependsOn: ['a'] }, // ❌ Error: CYCLE_DETECTED
+  ];
+}
 ```
 
 **Too many steps:**
+
 ```typescript
-{ steps: [ /* 51 steps */ ] }  // ❌ Error: Exceeds max_steps limit (50)
+{
+  steps: [
+    /* 51 steps */
+  ];
+} // ❌ Error: Exceeds max_steps limit (50)
 ```
 
 ### Result Passing
@@ -488,23 +545,25 @@ The orchestrator validates your workflow before execution:
 Results from dependent steps are automatically injected into the task prompt:
 
 **Workflow:**
+
 ```typescript
 {
   steps: [
     {
       id: 'research',
-      task: 'Research renewable energy trends in 2025'
+      task: 'Research renewable energy trends in 2025',
     },
     {
       id: 'analyze',
       task: 'Analyze the research findings and identify key trends',
-      dependsOn: ['research']
-    }
-  ]
+      dependsOn: ['research'],
+    },
+  ];
 }
 ```
 
 **Actual prompt received by 'analyze' step:**
+
 ```
 Task: Analyze the research findings and identify key trends
 
@@ -522,33 +581,34 @@ await sessions_orchestrate({
     {
       id: 'fetch',
       task: 'Fetch user data from API',
-      model: 'haiku'
+      model: 'haiku',
     },
     {
       id: 'validate',
       task: 'Validate data schema',
       dependsOn: ['fetch'],
-      model: 'haiku'
+      model: 'haiku',
     },
     {
       id: 'process',
       task: 'Process and transform data',
       dependsOn: ['validate'],
-      model: 'sonnet'
+      model: 'sonnet',
     },
     {
       id: 'report',
       task: 'Generate summary report',
       dependsOn: ['process'],
       model: 'sonnet',
-      stream: true
-    }
+      stream: true,
+    },
   ],
-  label: 'data-pipeline'
+  label: 'data-pipeline',
 });
 ```
 
 **Execution:**
+
 ```
 Batch 1: fetch
 Batch 2: validate
@@ -564,31 +624,32 @@ await sessions_orchestrate({
     {
       id: 'web',
       task: 'Search web for information about quantum computing',
-      model: 'sonnet'
+      model: 'sonnet',
     },
     {
       id: 'docs',
       task: 'Search internal documentation for quantum computing references',
-      model: 'haiku'
+      model: 'haiku',
     },
     {
       id: 'code',
       task: 'Search codebase for quantum computing implementations',
-      model: 'haiku'
+      model: 'haiku',
     },
     {
       id: 'synthesis',
       task: 'Combine all findings into a comprehensive report',
       dependsOn: ['web', 'docs', 'code'],
       modelHint: 'thorough',
-      stream: true
-    }
+      stream: true,
+    },
   ],
-  label: 'quantum-research'
+  label: 'quantum-research',
 });
 ```
 
 **Execution:**
+
 ```
 Batch 1 (parallel): web, docs, code
 Batch 2: synthesis (waits for all 3)
@@ -602,32 +663,33 @@ await sessions_orchestrate({
     {
       id: 'fetch',
       task: 'Fetch customer data',
-      model: 'haiku'
+      model: 'haiku',
     },
     {
       id: 'validate',
       task: 'Validate data integrity',
       dependsOn: ['fetch'],
-      model: 'haiku'
+      model: 'haiku',
     },
     {
       id: 'enrich',
       task: 'Enrich with external data sources',
       dependsOn: ['fetch'],
-      model: 'sonnet'
+      model: 'sonnet',
     },
     {
       id: 'merge',
       task: 'Merge validated and enriched datasets',
       dependsOn: ['validate', 'enrich'],
-      model: 'sonnet'
-    }
+      model: 'sonnet',
+    },
   ],
-  label: 'customer-enrichment'
+  label: 'customer-enrichment',
 });
 ```
 
 **Execution:**
+
 ```
 Batch 1: fetch
 Batch 2 (parallel): validate, enrich
@@ -642,42 +704,43 @@ await sessions_orchestrate({
     {
       id: 'investigate',
       task: 'Find root cause of login bug in authentication service',
-      modelHint: 'thorough'  // Deep investigation
+      modelHint: 'thorough', // Deep investigation
     },
     {
       id: 'fix',
       task: 'Implement the fix based on investigation findings',
       dependsOn: ['investigate'],
-      model: 'sonnet'
+      model: 'sonnet',
     },
     {
       id: 'tests',
       task: 'Write comprehensive tests for the fix',
       dependsOn: ['fix'],
-      model: 'haiku'  // Test generation is straightforward
+      model: 'haiku', // Test generation is straightforward
     },
     {
       id: 'review',
       task: 'Code review the changes and tests',
       dependsOn: ['fix', 'tests'],
-      modelHint: 'thorough'
+      modelHint: 'thorough',
     },
     {
       id: 'document',
       task: 'Update documentation with fix details',
       dependsOn: ['review'],
       model: 'sonnet',
-      stream: true
-    }
+      stream: true,
+    },
   ],
   label: 'fix-login-bug',
-  continueOnFailure: false
+  continueOnFailure: false,
 });
 ```
 
 ### Error Handling
 
 **Validation errors:**
+
 ```json
 {
   "success": false,
@@ -689,6 +752,7 @@ await sessions_orchestrate({
 ```
 
 **Execution errors (step failure):**
+
 ```json
 {
   "workflowId": "workflow-xyz789",
@@ -705,10 +769,13 @@ await sessions_orchestrate({
 ```
 
 **Continue on failure:**
+
 ```typescript
 await sessions_orchestrate({
-  steps: [ /* ... */ ],
-  continueOnFailure: true  // Keep going even if steps fail
+  steps: [
+    /* ... */
+  ],
+  continueOnFailure: true, // Keep going even if steps fail
 });
 ```
 
@@ -741,13 +808,15 @@ Monitor and manage subagents and workflows.
 List all subagent runs for the current session.
 
 **Schema:**
+
 ```typescript
 {
-  action: 'list'
+  action: 'list';
 }
 ```
 
 **Response:**
+
 ```json
 {
   "runs": [
@@ -777,6 +846,7 @@ List all subagent runs for the current session.
 Get detailed information about a specific run.
 
 **Schema:**
+
 ```typescript
 {
   action: 'info',
@@ -785,6 +855,7 @@ Get detailed information about a specific run.
 ```
 
 **Response (v2.0):**
+
 ```json
 {
   "runId": "run-abc123",
@@ -825,6 +896,7 @@ Get detailed information about a specific run.
 ```
 
 **New fields in v2.0:**
+
 - `model` - Selected model
 - `stream` - Streaming enabled
 - `progress` - Array of progress updates
@@ -837,6 +909,7 @@ Get detailed information about a specific run.
 Retrieve conversation log for a subagent.
 
 **Schema:**
+
 ```typescript
 {
   action: 'log',
@@ -850,6 +923,7 @@ Retrieve conversation log for a subagent.
 Stop a queued subagent (cannot stop running subagents).
 
 **Schema:**
+
 ```typescript
 {
   action: 'stop',
@@ -862,6 +936,7 @@ Stop a queued subagent (cannot stop running subagents).
 Send a message to a running subagent.
 
 **Schema:**
+
 ```typescript
 {
   action: 'steer',
@@ -871,11 +946,12 @@ Send a message to a running subagent.
 ```
 
 **Example:**
+
 ```typescript
 await subagents({
   action: 'steer',
   runId: 'run-abc123',
-  message: 'Focus on OWASP Top 10 vulnerabilities only'
+  message: 'Focus on OWASP Top 10 vulnerabilities only',
 });
 ```
 
@@ -884,6 +960,7 @@ await subagents({
 List files in subagent workspace.
 
 **Schema:**
+
 ```typescript
 {
   action: 'files_list',
@@ -896,6 +973,7 @@ List files in subagent workspace.
 Read a file from subagent workspace.
 
 **Schema:**
+
 ```typescript
 {
   action: 'files_get',
@@ -911,13 +989,15 @@ Read a file from subagent workspace.
 List all workflows for the current session.
 
 **Schema:**
+
 ```typescript
 {
-  action: 'workflow_list'
+  action: 'workflow_list';
 }
 ```
 
 **Response:**
+
 ```json
 {
   "workflows": [
@@ -942,6 +1022,7 @@ List all workflows for the current session.
 Get detailed workflow status and step results.
 
 **Schema:**
+
 ```typescript
 {
   action: 'workflow_info',
@@ -950,6 +1031,7 @@ Get detailed workflow status and step results.
 ```
 
 **Response:**
+
 ```json
 {
   "workflowId": "workflow-xyz789",
@@ -988,6 +1070,7 @@ Get detailed workflow status and step results.
 ```
 
 **Step statuses:**
+
 - `queued` - Waiting for dependencies
 - `running` - Currently executing
 - `completed` - Successfully completed
@@ -1005,7 +1088,8 @@ Get detailed workflow status and step results.
 
 Report progress from within a running subagent.
 
-**Important:** This tool is only available to subagents. Main sessions cannot call this tool.
+**Important:** This tool is only available to subagents. Main sessions cannot
+call this tool.
 
 ### Schema
 
@@ -1026,10 +1110,11 @@ Report progress from within a running subagent.
 Human-readable status message describing current progress.
 
 **Examples:**
+
 ```typescript
-status: "Analyzing file 23 of 50"
-status: "Fetching data from API"
-status: "Running security scan (step 2/5)"
+status: 'Analyzing file 23 of 50';
+status: 'Fetching data from API';
+status: 'Running security scan (step 2/5)';
 ```
 
 #### `percentage` (optional)
@@ -1039,10 +1124,11 @@ status: "Running security scan (step 2/5)"
 Progress percentage. Must be between 0 and 100.
 
 **Examples:**
+
 ```typescript
-percentage: 0    // Just started
-percentage: 46   // 46% complete
-percentage: 100  // Finished
+percentage: 0; // Just started
+percentage: 46; // 46% complete
+percentage: 100; // Finished
 ```
 
 #### `metadata` (optional)
@@ -1052,6 +1138,7 @@ percentage: 100  // Finished
 Structured data for programmatic tracking.
 
 **Examples:**
+
 ```typescript
 metadata: {
   filesProcessed: 23,
@@ -1077,7 +1164,9 @@ metadata: {
 
 ### Throttling
 
-Progress updates are automatically throttled to a minimum of **1 second** between updates. If you call `subagent_progress` more frequently, extra calls are silently ignored.
+Progress updates are automatically throttled to a minimum of **1 second**
+between updates. If you call `subagent_progress` more frequently, extra calls
+are silently ignored.
 
 ### Examples
 
@@ -1087,10 +1176,10 @@ Progress updates are automatically throttled to a minimum of **1 second** betwee
 // Subagent code
 for (let i = 0; i < files.length; i++) {
   await analyzeFile(files[i]);
-  
+
   await subagent_progress({
     status: `Analyzed ${i + 1} of ${files.length} files`,
-    percentage: Math.floor(((i + 1) / files.length) * 100)
+    percentage: Math.floor(((i + 1) / files.length) * 100),
   });
 }
 ```
@@ -1099,15 +1188,15 @@ for (let i = 0; i < files.length; i++) {
 
 ```typescript
 await subagent_progress({
-  status: "Security scan in progress",
+  status: 'Security scan in progress',
   percentage: 46,
   metadata: {
     filesProcessed: 23,
     totalFiles: 50,
     criticalIssues: 2,
     warningsFound: 7,
-    currentPhase: "static-analysis"
-  }
+    currentPhase: 'static-analysis',
+  },
 });
 ```
 
@@ -1115,31 +1204,32 @@ await subagent_progress({
 
 ```typescript
 await subagent_progress({
-  status: "Phase 1: Data collection complete",
+  status: 'Phase 1: Data collection complete',
   percentage: 25,
-  metadata: { phase: "collection", recordsCollected: 150 }
+  metadata: { phase: 'collection', recordsCollected: 150 },
 });
 
 // ... work ...
 
 await subagent_progress({
-  status: "Phase 2: Validation in progress",
+  status: 'Phase 2: Validation in progress',
   percentage: 50,
-  metadata: { phase: "validation", recordsValidated: 75 }
+  metadata: { phase: 'validation', recordsValidated: 75 },
 });
 
 // ... work ...
 
 await subagent_progress({
-  status: "Phase 3: Analysis complete",
+  status: 'Phase 3: Analysis complete',
   percentage: 100,
-  metadata: { phase: "analysis", findings: 12 }
+  metadata: { phase: 'analysis', findings: 12 },
 });
 ```
 
 ### Best Practices
 
 **✅ Do:**
+
 - Report progress every 5-10% completion
 - Use concrete numbers when possible
 - Include phase transitions
@@ -1147,17 +1237,19 @@ await subagent_progress({
 - Report at meaningful milestones (not arbitrary)
 
 **❌ Don't:**
+
 - Report more than once per second (throttled anyway)
 - Report only at 0% and 100% (defeats purpose)
 - Use vague messages like "Working..." (be specific)
 - Spam progress updates on every loop iteration
 
 **Example reporting strategy:**
+
 ```typescript
 // ✅ Good: Report every 10 files
 for (let i = 0; i < files.length; i++) {
   await processFile(files[i]);
-  
+
   if (i % 10 === 0 || i === files.length - 1) {
     await subagent_progress({
       status: `Processed ${i} of ${files.length} files`,
@@ -1176,6 +1268,7 @@ for (let i = 0; i < files.length; i++) {
 ### Error Handling
 
 **Not a subagent:**
+
 ```json
 {
   "success": false,
@@ -1187,6 +1280,7 @@ for (let i = 0; i < files.length; i++) {
 ```
 
 **Invalid percentage:**
+
 ```json
 {
   "success": false,
@@ -1198,6 +1292,7 @@ for (let i = 0; i < files.length; i++) {
 ```
 
 **Run not running:**
+
 ```json
 {
   "success": false,
@@ -1215,11 +1310,12 @@ Users can view progress via the `subagents` tool:
 ```typescript
 await subagents({
   action: 'info',
-  runId: 'run-abc123'
+  runId: 'run-abc123',
 });
 ```
 
 **Response includes progress:**
+
 ```json
 {
   "runId": "run-abc123",

@@ -78,14 +78,18 @@ export function parseContextCommand(
   return null;
 }
 
-export function getContextManagementOverride(session: Session | SessionWithMessages): boolean | null {
+export function getContextManagementOverride(
+  session: Session | SessionWithMessages
+): boolean | null {
   const metadata = session.metadata as { contextManagement?: { enabled?: boolean } } | null;
   if (!metadata?.contextManagement) return null;
   const enabled = metadata.contextManagement.enabled;
   return typeof enabled === 'boolean' ? enabled : null;
 }
 
-export function isContextManagementEnabledForSession(session: Session | SessionWithMessages): boolean {
+export function isContextManagementEnabledForSession(
+  session: Session | SessionWithMessages
+): boolean {
   const override = getContextManagementOverride(session);
   if (override === false) return false;
   return true;

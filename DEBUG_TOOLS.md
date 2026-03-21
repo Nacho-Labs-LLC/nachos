@@ -1,10 +1,13 @@
 # Debug & System Utilities
 
-Nachos now includes a comprehensive set of safe debugging and system utilities that the bot can use to inspect its environment, troubleshoot issues, and help with system administration tasks.
+Nachos now includes a comprehensive set of safe debugging and system utilities
+that the bot can use to inspect its environment, troubleshoot issues, and help
+with system administration tasks.
 
 ## Overview
 
 All utilities are **read-only** and **security-hardened**:
+
 - ✅ Allowlist-based (only approved tools can run)
 - ✅ Output size limits (100KB default)
 - ✅ Timeout enforcement (configurable per tool)
@@ -108,7 +111,8 @@ ip addr
 ip route
 ```
 
-**Tools**: `ping`, `curl`, `wget`, `dig`, `nslookup`, `ip` (addr/route/link only)
+**Tools**: `ping`, `curl`, `wget`, `dig`, `nslookup`, `ip` (addr/route/link
+only)
 
 ### System Information
 
@@ -132,7 +136,8 @@ du -sh /app/*
 env | grep NODE
 ```
 
-**Tools**: `uname`, `hostname`, `whoami`, `pwd`, `env`, `date`, `uptime`, `free`, `df`, `du`
+**Tools**: `uname`, `hostname`, `whoami`, `pwd`, `env`, `date`, `uptime`,
+`free`, `df`, `du`
 
 ### Data Processing
 
@@ -172,9 +177,11 @@ git show commit-hash
 git config --list
 ```
 
-**Allowed**: `status`, `log`, `diff`, `show`, `branch`, `remote`, `config`, `rev-parse`, `describe`
+**Allowed**: `status`, `log`, `diff`, `show`, `branch`, `remote`, `config`,
+`rev-parse`, `describe`
 
-**Blocked**: `push`, `commit`, `add`, `rm`, `reset`, `rebase`, `merge`, `pull`, `fetch`, `clone`
+**Blocked**: `push`, `commit`, `add`, `rm`, `reset`, `rebase`, `merge`, `pull`,
+`fetch`, `clone`
 
 ### Docker Inspection (Read-Only)
 
@@ -322,22 +329,20 @@ docker stats --no-stream myapp
 
 ### What's Allowed
 
-✅ **Read operations**: View files, list directories, inspect processes
-✅ **Inspection**: System info, network status, resource usage
-✅ **Data processing**: Parse JSON/YAML, filter text
-✅ **Network testing**: Ping, DNS lookup, HTTP requests
-✅ **Git read**: Status, logs, diffs (no modifications)
-✅ **Docker read**: Inspect containers, view logs (no lifecycle changes)
+✅ **Read operations**: View files, list directories, inspect processes ✅
+**Inspection**: System info, network status, resource usage ✅ **Data
+processing**: Parse JSON/YAML, filter text ✅ **Network testing**: Ping, DNS
+lookup, HTTP requests ✅ **Git read**: Status, logs, diffs (no modifications) ✅
+**Docker read**: Inspect containers, view logs (no lifecycle changes)
 
 ### What's Blocked
 
 ❌ **File modification**: `rm`, `mv`, `cp`, `chmod`, `chown`, `touch`, `mkdir`
-❌ **System changes**: `systemctl`, `service`, `reboot`, `shutdown`
-❌ **User management**: `useradd`, `userdel`, `passwd`, `su`, `sudo`
-❌ **Package management**: `apt`, `yum`, `npm`, `pip` (without permission)
-❌ **Git write**: `commit`, `push`, `reset`, `merge`
-❌ **Docker lifecycle**: `run`, `stop`, `kill`, `rm`, `build`
-❌ **Dangerous ops**: `dd`, `mkfs`, `fdisk`, `mount`
+❌ **System changes**: `systemctl`, `service`, `reboot`, `shutdown` ❌ **User
+management**: `useradd`, `userdel`, `passwd`, `su`, `sudo` ❌ **Package
+management**: `apt`, `yum`, `npm`, `pip` (without permission) ❌ **Git write**:
+`commit`, `push`, `reset`, `merge` ❌ **Docker lifecycle**: `run`, `stop`,
+`kill`, `rm`, `build` ❌ **Dangerous ops**: `dd`, `mkfs`, `fdisk`, `mount`
 
 ### Security Features
 
@@ -418,18 +423,18 @@ git diff --name-only
 
 Tools are organized into logical groups for policy enforcement:
 
-| Group | Tools | Purpose |
-|-------|-------|---------|
-| `file-inspection` | ls, cat, head, tail, file, stat, wc, find | Read files and directories |
-| `text-processing` | grep, sed, awk, cut, sort, uniq, tr, diff | Process and filter text |
-| `process-inspection` | ps, pgrep, top, htop | Monitor processes |
-| `network-info` | netstat, ss, lsof, ip | Network state inspection |
-| `network-debug` | ping, curl, wget, dig, nslookup | Network testing |
-| `system-info` | uname, hostname, whoami, pwd, env, date, uptime, free, df, du | System information |
-| `data-processing` | jq, yq, json | Parse structured data |
-| `git` | git (read-only) | Repository inspection |
-| `docker-inspect` | docker (read-only) | Container inspection |
-| `archive` | tar, unzip, gunzip, bunzip2 | Archive operations |
+| Group                | Tools                                                         | Purpose                    |
+| -------------------- | ------------------------------------------------------------- | -------------------------- |
+| `file-inspection`    | ls, cat, head, tail, file, stat, wc, find                     | Read files and directories |
+| `text-processing`    | grep, sed, awk, cut, sort, uniq, tr, diff                     | Process and filter text    |
+| `process-inspection` | ps, pgrep, top, htop                                          | Monitor processes          |
+| `network-info`       | netstat, ss, lsof, ip                                         | Network state inspection   |
+| `network-debug`      | ping, curl, wget, dig, nslookup                               | Network testing            |
+| `system-info`        | uname, hostname, whoami, pwd, env, date, uptime, free, df, du | System information         |
+| `data-processing`    | jq, yq, json                                                  | Parse structured data      |
+| `git`                | git (read-only)                                               | Repository inspection      |
+| `docker-inspect`     | docker (read-only)                                            | Container inspection       |
+| `archive`            | tar, unzip, gunzip, bunzip2                                   | Archive operations         |
 
 ## Configuration
 
@@ -464,17 +469,17 @@ max_timeout = 600000      # 10 minutes
 
 ## Troubleshooting
 
-**Problem**: "Command not allowed"
-**Solution**: Check if the binary is in the allowlist. Some tools may not be installed in your environment.
+**Problem**: "Command not allowed" **Solution**: Check if the binary is in the
+allowlist. Some tools may not be installed in your environment.
 
-**Problem**: "Subcommand 'X' not allowed"
-**Solution**: The tool is allowed but the specific subcommand is blocked (e.g., `git push`). Use read-only operations.
+**Problem**: "Subcommand 'X' not allowed" **Solution**: The tool is allowed but
+the specific subcommand is blocked (e.g., `git push`). Use read-only operations.
 
-**Problem**: Output truncated
-**Solution**: Output exceeded 100KB limit. Filter results or use head/tail to limit output.
+**Problem**: Output truncated **Solution**: Output exceeded 100KB limit. Filter
+results or use head/tail to limit output.
 
-**Problem**: Command timed out
-**Solution**: Operation took too long. Use more specific queries or filters to reduce processing time.
+**Problem**: Command timed out **Solution**: Operation took too long. Use more
+specific queries or filters to reduce processing time.
 
 ## Best Practices
 
@@ -499,4 +504,5 @@ max_timeout = 600000      # 10 minutes
 
 ---
 
-**These tools enable effective debugging while maintaining security through allowlisting, output limits, and read-only enforcement.**
+**These tools enable effective debugging while maintaining security through
+allowlisting, output limits, and read-only enforcement.**

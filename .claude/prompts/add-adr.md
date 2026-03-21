@@ -1,6 +1,7 @@
 # Create Architectural Decision Record (ADR)
 
-Use this prompt when making a significant architectural decision that needs documentation.
+Use this prompt when making a significant architectural decision that needs
+documentation.
 
 ## When to Create an ADR
 
@@ -18,6 +19,7 @@ Create an ADR when the decision:
 ### 1. Review Existing ADRs
 
 Check [docs/adr/](../../../docs/adr/) for:
+
 - Related decisions
 - Superseded decisions that might be relevant
 - Patterns to follow
@@ -28,12 +30,15 @@ Check [docs/adr/](../../../docs/adr/) for:
 Before writing the ADR:
 
 **Review Documentation:**
+
 - [docs/architecture.md](../../../docs/architecture.md) - Current architecture
-- [docs/TECHNICAL_SPEC.md](../../../docs/TECHNICAL_SPEC.md) - Technical constraints
+- [docs/TECHNICAL_SPEC.md](../../../docs/TECHNICAL_SPEC.md) - Technical
+  constraints
 - [docs/PROJECT_ROADMAP.md](../../../docs/PROJECT_ROADMAP.md) - Current phase
 - [CLAUDE.md](../../../CLAUDE.md) - Project mental models
 
 **Consider Principles:**
+
 - Security-first design
 - Docker-native architecture
 - Modularity and composability
@@ -42,13 +47,15 @@ Before writing the ADR:
 
 ### 3. Use the ADR Template
 
-Copy [docs/adr/000-template.md](../../../docs/adr/000-template.md) and fill in all sections.
+Copy [docs/adr/000-template.md](../../../docs/adr/000-template.md) and fill in
+all sections.
 
 Get the next ADR number by checking the highest numbered ADR in `docs/adr/`.
 
 ### 4. Complete All Sections
 
 Fill in:
+
 - Context and Problem Statement
 - Decision Drivers
 - Considered Options (at least 2-3)

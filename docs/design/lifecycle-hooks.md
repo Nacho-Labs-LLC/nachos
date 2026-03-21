@@ -1,27 +1,25 @@
 # Lifecycle Hooks Design
 
-> **Status**: Draft
-> **Date**: 2026-03-04
-> **Author**: Backend Architect
+> **Status**: Draft **Date**: 2026-03-04 **Author**: Backend Architect
 > **Scope**: `packages/core/gateway/src/hooks/`
 
 ## Overview
 
-The lifecycle hooks system allows plugin developers to react to key gateway events
-without modifying core gateway code. It uses a typed EventEmitter pattern -- handlers
-register for specific hook points, the gateway emits events at those points, and
-handlers execute in priority order.
+The lifecycle hooks system allows plugin developers to react to key gateway
+events without modifying core gateway code. It uses a typed EventEmitter pattern
+-- handlers register for specific hook points, the gateway emits events at those
+points, and handlers execute in priority order.
 
-This is intentionally simple: not a middleware chain, not a plugin framework. Hooks
-observe and optionally annotate events. They cannot block the pipeline (exceptions
-are caught and logged).
+This is intentionally simple: not a middleware chain, not a plugin framework.
+Hooks observe and optionally annotate events. They cannot block the pipeline
+(exceptions are caught and logged).
 
 ## Motivation
 
-As Nachos grows, external integrations need visibility into the message lifecycle:
-analytics, custom logging, webhook forwarding, content filtering, A/B testing of
-prompts, and more. Without hooks, every such extension requires modifying
-`gateway.ts` directly. Hooks decouple these concerns.
+As Nachos grows, external integrations need visibility into the message
+lifecycle: analytics, custom logging, webhook forwarding, content filtering, A/B
+testing of prompts, and more. Without hooks, every such extension requires
+modifying `gateway.ts` directly. Hooks decouple these concerns.
 
 ## Architecture
 
@@ -42,36 +40,36 @@ prompts, and more. Without hooks, every such extension requires modifying
 ### Non-Goals
 
 - Hooks do NOT replace policy evaluation (Cheese) or DLP scanning.
-- Hooks do NOT modify the core data flow. They observe it.
-  (Future: mutating hooks could be considered via a separate "middleware" layer.)
+- Hooks do NOT modify the core data flow. They observe it. (Future: mutating
+  hooks could be considered via a separate "middleware" layer.)
 - Hooks do NOT provide dependency injection or plugin lifecycle management.
 
 ## Hook Points
 
 ### Message Flow Hooks
 
-| Hook | When | Payload Summary |
-|------|------|----------------|
-| `onMessageReceived` | Inbound message arrives from a channel, before any processing | Channel, sender, conversation, raw content |
-| `beforeLLMRequest` | LLM request is built, about to be sent to the LLM proxy | Session ID, messages array, tools, options |
-| `afterLLMResponse` | LLM response received from the proxy | Session ID, response (success/error, tool calls, usage) |
-| `onToolCall` | A tool is about to be executed | Session ID, tool name, call ID, parameters |
-| `afterToolCall` | A tool has finished executing | Session ID, tool name, call ID, result (success/error) |
-| `beforeResponseSent` | Response is about to be sent back to the channel | Channel, conversation ID, session ID, content |
+| Hook                 | When                                                          | Payload Summary                                         |
+| -------------------- | ------------------------------------------------------------- | ------------------------------------------------------- |
+| `onMessageReceived`  | Inbound message arrives from a channel, before any processing | Channel, sender, conversation, raw content              |
+| `beforeLLMRequest`   | LLM request is built, about to be sent to the LLM proxy       | Session ID, messages array, tools, options              |
+| `afterLLMResponse`   | LLM response received from the proxy                          | Session ID, response (success/error, tool calls, usage) |
+| `onToolCall`         | A tool is about to be executed                                | Session ID, tool name, call ID, parameters              |
+| `afterToolCall`      | A tool has finished executing                                 | Session ID, tool name, call ID, result (success/error)  |
+| `beforeResponseSent` | Response is about to be sent back to the channel              | Channel, conversation ID, session ID, content           |
 
 ### Session Lifecycle Hooks
 
-| Hook | When | Payload Summary |
-|------|------|----------------|
-| `onSessionCreated` | A new session has been created (after store write) | Session object |
-| `onSessionDestroyed` | A session is being cleaned up / ended | Session ID, reason |
+| Hook                 | When                                               | Payload Summary    |
+| -------------------- | -------------------------------------------------- | ------------------ |
+| `onSessionCreated`   | A new session has been created (after store write) | Session object     |
+| `onSessionDestroyed` | A session is being cleaned up / ended              | Session ID, reason |
 
 ### Gateway Lifecycle Hooks
 
-| Hook | When | Payload Summary |
-|------|------|----------------|
-| `onStartup` | Gateway has finished starting (after `start()` completes) | Instance ID, channels, config summary |
-| `onShutdown` | Gateway is about to stop (beginning of `stop()`) | Instance ID, reason |
+| Hook         | When                                                      | Payload Summary                       |
+| ------------ | --------------------------------------------------------- | ------------------------------------- |
+| `onStartup`  | Gateway has finished starting (after `start()` completes) | Instance ID, channels, config summary |
+| `onShutdown` | Gateway is about to stop (beginning of `stop()`)          | Instance ID, reason                   |
 
 ## Payload Types
 
@@ -124,9 +122,13 @@ interface AfterLLMResponseEvent {
   /** Text content from the response */
   responseText: string | undefined;
   /** Tool calls requested by the LLM */
-  toolCalls: ReadonlyArray<{ id: string; name: string; arguments: string }> | undefined;
+  toolCalls:
+    | ReadonlyArray<{ id: string; name: string; arguments: string }>
+    | undefined;
   /** Token usage metrics */
-  usage: { promptTokens?: number; completionTokens?: number; totalTokens?: number } | undefined;
+  usage:
+    | { promptTokens?: number; completionTokens?: number; totalTokens?: number }
+    | undefined;
   /** LLM provider name */
   provider: string | undefined;
   /** Model used */
@@ -265,10 +267,7 @@ class HookRegistry {
   /**
    * Remove a previously registered handler.
    */
-  unregister<E extends HookEvent>(
-    event: E,
-    handler: HookHandler<E>
-  ): boolean;
+  unregister<E extends HookEvent>(event: E, handler: HookHandler<E>): boolean;
 
   /**
    * Emit an event to all registered handlers in priority order.
@@ -296,30 +295,31 @@ class HookRegistry {
 
 When the gateway is wired up, emit calls will be placed at these locations:
 
-| Hook | Gateway Location |
-|------|-----------------|
-| `onMessageReceived` | `handleInboundMessage()` after validation and session resolution |
-| `beforeLLMRequest` | `buildLLMRequest()` just before returning the request object |
-| `afterLLMResponse` | `sendLLMResponse()` at the top, after receiving the response |
-| `onToolCall` | `toolExecutor.executeToolCalls()` before each tool dispatch |
-| `afterToolCall` | `toolExecutor.executeToolCalls()` after each tool completes |
-| `beforeResponseSent` | `sendLLMResponse()` just before `router.sendToChannel()` |
-| `onSessionCreated` | `handleInboundMessage()` after `getOrCreateSessionAtomic()` when new |
-| `onSessionDestroyed` | `resetSessionForCommand()` and session cleanup paths |
-| `onStartup` | End of `start()` method |
-| `onShutdown` | Beginning of `stop()` method |
+| Hook                 | Gateway Location                                                     |
+| -------------------- | -------------------------------------------------------------------- |
+| `onMessageReceived`  | `handleInboundMessage()` after validation and session resolution     |
+| `beforeLLMRequest`   | `buildLLMRequest()` just before returning the request object         |
+| `afterLLMResponse`   | `sendLLMResponse()` at the top, after receiving the response         |
+| `onToolCall`         | `toolExecutor.executeToolCalls()` before each tool dispatch          |
+| `afterToolCall`      | `toolExecutor.executeToolCalls()` after each tool completes          |
+| `beforeResponseSent` | `sendLLMResponse()` just before `router.sendToChannel()`             |
+| `onSessionCreated`   | `handleInboundMessage()` after `getOrCreateSessionAtomic()` when new |
+| `onSessionDestroyed` | `resetSessionForCommand()` and session cleanup paths                 |
+| `onStartup`          | End of `start()` method                                              |
+| `onShutdown`         | Beginning of `stop()` method                                         |
 
 The Gateway will accept an optional `HookRegistry` in its constructor options.
-If not provided, a no-op default is used (zero overhead when hooks are not needed).
+If not provided, a no-op default is used (zero overhead when hooks are not
+needed).
 
 ## Error Handling
 
 - Each handler invocation is wrapped in a try/catch.
-- On error, the logger records the hook event name, handler identity (if available),
-  and the error message/stack.
+- On error, the logger records the hook event name, handler identity (if
+  available), and the error message/stack.
 - Execution continues with the next handler.
-- The `emit()` return value indicates how many handlers succeeded, allowing callers
-  to detect partial failures if needed.
+- The `emit()` return value indicates how many handlers succeeded, allowing
+  callers to detect partial failures if needed.
 
 ## Performance Considerations
 
@@ -327,7 +327,8 @@ If not provided, a no-op default is used (zero overhead when hooks are not neede
   ordering but means slow hooks delay subsequent ones.
 - A built-in timeout per handler (default 5000ms) prevents runaway hooks from
   blocking the pipeline indefinitely.
-- When no hooks are registered for an event, `emit()` returns immediately (O(1)).
+- When no hooks are registered for an event, `emit()` returns immediately
+  (O(1)).
 - The payload objects passed to hooks are shallow-frozen to prevent accidental
   mutation. Hooks that need to pass data between themselves should use a shared
   metadata map on the event.
@@ -335,7 +336,8 @@ If not provided, a no-op default is used (zero overhead when hooks are not neede
 ## Testing Strategy
 
 - Unit tests for HookRegistry: registration, ordering, error handling, clear.
-- Integration tests: mock gateway emitting events, verify handler invocation order.
+- Integration tests: mock gateway emitting events, verify handler invocation
+  order.
 - Performance test: measure overhead of emit with 0, 1, 10, 100 handlers.
 
 ## Alternatives Considered
@@ -344,7 +346,8 @@ If not provided, a no-op default is used (zero overhead when hooks are not neede
    require wrapping anyway.
 2. **Middleware chain (Koa-style)** -- More powerful but more complex. Hooks are
    read-only observers, not request transformers.
-3. **RxJS Observables** -- Powerful but adds a heavy dependency for a simple use case.
-4. **Bus-based hooks (NATS topics)** -- Considered publishing hook events to the bus.
-   Rejected because hooks are gateway-internal; bus events are for inter-component
-   communication.
+3. **RxJS Observables** -- Powerful but adds a heavy dependency for a simple use
+   case.
+4. **Bus-based hooks (NATS topics)** -- Considered publishing hook events to the
+   bus. Rejected because hooks are gateway-internal; bus events are for
+   inter-component communication.

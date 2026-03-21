@@ -1,14 +1,17 @@
 # @nachos/config
 
-Configuration system for Nachos - provides TOML parsing, .env loading, environment variable overlays, validation, and policy hot-reload support.
+Configuration system for Nachos - provides TOML parsing, .env loading,
+environment variable overlays, validation, and policy hot-reload support.
 
 ## Configuration Tiers
 
-Nachos uses a layered configuration model. Lower tiers are sufficient for simple setups; higher tiers unlock more control.
+Nachos uses a layered configuration model. Lower tiers are sufficient for simple
+setups; higher tiers unlock more control.
 
 ### Tier 1 — Env vars only (quick start, single channel)
 
-Channel adapters (Discord, Slack, Telegram, etc.) work without a `nachos.toml`. Set tokens and access rules entirely in `.env`:
+Channel adapters (Discord, Slack, Telegram, etc.) work without a `nachos.toml`.
+Set tokens and access rules entirely in `.env`:
 
 ```bash
 # Channel identity
@@ -25,17 +28,21 @@ CHANNEL_DISCORD_MENTION_GATING=false
 SECURITY_MODE=standard
 ```
 
-> **Note**: The gateway always requires a `nachos.toml` (for LLM provider config at minimum). Only channel containers are fully env-configurable.
+> **Note**: The gateway always requires a `nachos.toml` (for LLM provider config
+> at minimum). Only channel containers are fully env-configurable.
 
-**Works for**: single guild, single allowlist, standard security mode, all tokens as secrets.
+**Works for**: single guild, single allowlist, standard security mode, all
+tokens as secrets.
 
-**Requires TOML for**: multi-guild, per-guild policies, assistant system prompt, custom LLM settings.
+**Requires TOML for**: multi-guild, per-guild policies, assistant system prompt,
+custom LLM settings.
 
 ---
 
 ### Tier 2 — nachos.toml + env var overlay (recommended)
 
-`nachos.toml` defines the base config. `.env` overlays secrets and targeted overrides on top. Standard setup for most deployments.
+`nachos.toml` defines the base config. `.env` overlays secrets and targeted
+overrides on top. Standard setup for most deployments.
 
 **Priority order (highest wins):**
 
@@ -47,13 +54,17 @@ nachos.toml
 $NACHOS_CONFIG_PATH  →  ./nachos.toml  →  ~/.nachos/nachos.toml
 ```
 
-Env vars map to TOML paths using a flat `SECTION_KEY` naming convention. See [Environment Variables](#environment-variables) below. Structured fields (arrays of objects like `servers`) cannot be set via env vars — use TOML for those.
+Env vars map to TOML paths using a flat `SECTION_KEY` naming convention. See
+[Environment Variables](#environment-variables) below. Structured fields (arrays
+of objects like `servers`) cannot be set via env vars — use TOML for those.
 
 ---
 
 ### Tier 3 — Full nachos.toml (multi-guild, complex policies)
 
-For multiple guilds, per-server channel/user allowlists, or advanced policy rules, all channel server config lives in TOML. Env vars still overlay on top — use them for secrets, never for structured allowlists.
+For multiple guilds, per-server channel/user allowlists, or advanced policy
+rules, all channel server config lives in TOML. Env vars still overlay on top —
+use them for secrets, never for structured allowlists.
 
 ```toml
 [[channels.discord.servers]]
@@ -77,7 +88,8 @@ user_allowlist = ["user-1", "user-2"]
 - ✅ **Dotenv**: Load `.env` files into `process.env`
 - ✅ **Environment Variables**: Override TOML scalar values with env vars
 - ✅ **Validation**: Comprehensive validation with clear error messages
-- ✅ **Policy Hot-Reload**: Watch `policies/*.yaml` for changes without restart (config changes always require restart)
+- ✅ **Policy Hot-Reload**: Watch `policies/*.yaml` for changes without restart
+  (config changes always require restart)
 - ✅ **Flexible**: Load from custom paths or auto-discovered locations
 
 ## Installation
@@ -133,7 +145,6 @@ import { loadAndValidateConfig } from '@nachos/config';
 const config = loadAndValidateConfig({
   applyEnv: false,
 });
-
 ```
 
 ### Without Dotenv Loading
@@ -149,8 +160,8 @@ const config = loadAndValidateConfig({
 
 ## Environment Variables
 
-Override any configuration value with environment variables. If a `.env` file is present,
-it is loaded into `process.env` before applying overrides.
+Override any configuration value with environment variables. If a `.env` file is
+present, it is loaded into `process.env` before applying overrides.
 
 ```bash
 # LLM Configuration
@@ -196,7 +207,8 @@ export TOOL_BROWSER_ENABLED="true"
 export TOOL_CLAUDE_CODE_MCP_ENABLED="true"
 ```
 
-See [env.ts](./src/env.ts) for the complete list of supported environment variables.
+See [env.ts](./src/env.ts) for the complete list of supported environment
+variables.
 
 ## Hot-Reload for Policy Files
 
@@ -205,13 +217,10 @@ Watch a directory for policy file changes:
 ```typescript
 import { createPolicyWatcher } from '@nachos/config';
 
-const watcher = createPolicyWatcher(
-  './policies',
-  (filePath, content) => {
-    console.log(`Policy file changed: ${filePath}`);
-    // Reload policy file
-  }
-);
+const watcher = createPolicyWatcher('./policies', (filePath, content) => {
+  console.log(`Policy file changed: ${filePath}`);
+  // Reload policy file
+});
 
 // Later, stop watching
 await watcher.stop();
@@ -219,18 +228,15 @@ await watcher.stop();
 
 ## Notes
 
-- Config is loaded from TOML + environment variables only. Changes require a restart.
+- Config is loaded from TOML + environment variables only. Changes require a
+  restart.
 
 ## Advanced Usage
 
 ### Manual Loading and Validation
 
 ```typescript
-import {
-  loadConfig,
-  applyEnvOverlay,
-  validateConfig,
-} from '@nachos/config';
+import { loadConfig, applyEnvOverlay, validateConfig } from '@nachos/config';
 
 // Load base config
 const baseConfig = loadConfig('./nachos.toml');
@@ -311,10 +317,7 @@ The validator checks:
 All errors extend the base `Error` class:
 
 ```typescript
-import {
-  ConfigLoadError,
-  ConfigValidationError,
-} from '@nachos/config';
+import { ConfigLoadError, ConfigValidationError } from '@nachos/config';
 
 try {
   const config = loadAndValidateConfig();

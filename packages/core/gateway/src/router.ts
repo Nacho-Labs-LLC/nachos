@@ -25,9 +25,7 @@ import type {
   RateLimiter,
 } from './security/rate-limiter.js';
 import { getRateLimitUserId } from './router-utils.js';
-import type {
-  ContextManager,
-} from '@nachos/context-manager';
+import type { ContextManager } from '@nachos/context-manager';
 import type { MemoryPipeline, SessionsStore } from '@nachos/state';
 import { ContextCompactionManager } from './router/context-compaction-manager.js';
 
@@ -370,7 +368,12 @@ export class Router {
 
     // Strip gateway-only metadata before sending to llm-proxy.
     // The llm-proxy validates against LLMRequestSchema which rejects unknown fields.
-    const { contextWindow, systemPromptTokens, promptReport, ...llmPayload } = payloadObj;
+    const {
+      contextWindow: _contextWindow,
+      systemPromptTokens: _systemPromptTokens,
+      promptReport: _promptReport,
+      ...llmPayload
+    } = payloadObj;
 
     const envelope = createEnvelope(this.componentName, 'llm.request', llmPayload);
     return this.bus.request(TOPICS.llm.request, envelope, 60000);
@@ -409,18 +412,20 @@ export class Router {
     const resolvedUserId = userId ?? 'anonymous';
     const result = await this.rateLimiter.check(resolvedUserId, action);
     if (!result.allowed) {
-      void this.bus.publish(
-        TOPICS.audit.log,
-        createEnvelope(this.componentName, 'audit.log', {
-          type: 'rate_limit',
-          action,
-          userId: resolvedUserId,
-          remaining: result.remaining,
-          resetAt: result.resetAt,
-          limit: result.total,
-          source: result.source,
-        })
-      ).catch((err) => logger.warn({ err }, 'Failed to publish rate limit audit event'));
+      void this.bus
+        .publish(
+          TOPICS.audit.log,
+          createEnvelope(this.componentName, 'audit.log', {
+            type: 'rate_limit',
+            action,
+            userId: resolvedUserId,
+            remaining: result.remaining,
+            resetAt: result.resetAt,
+            limit: result.total,
+            source: result.source,
+          })
+        )
+        .catch((err) => logger.warn({ err }, 'Failed to publish rate limit audit event'));
     }
     return result;
   }

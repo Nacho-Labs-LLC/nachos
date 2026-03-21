@@ -5,10 +5,7 @@
     "outDir": "./dist",
     "composite": true
   },
-  "references": [
-    { "path": "../types" },
-    { "path": "../context-manager" }
-  ],
+  "references": [{ "path": "../types" }, { "path": "../context-manager" }],
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"]
 }

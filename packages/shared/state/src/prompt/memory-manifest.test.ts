@@ -3,13 +3,9 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import {
-  buildMemoryManifest,
-  formatManifestForPrompt,
-  type MemoryManifestConfig,
-} from './memory-manifest.js';
+import { buildMemoryManifest, formatManifestForPrompt } from './memory-manifest.js';
 import { PromptAssembler } from './prompt-assembler.js';
-import type { MemoryStore, MemoryQueryResult, MemoryFact, MemoryEntry } from '@nachos/types';
+import type { MemoryStore, MemoryFact, MemoryEntry } from '@nachos/types';
 
 function createMockMemoryStore(overrides: Partial<MemoryStore> = {}): MemoryStore {
   return {
@@ -100,9 +96,33 @@ describe('buildMemoryManifest', () => {
 
   it('should group fact counts by type', async () => {
     const facts: MemoryFact[] = [
-      { id: 'f1', agentId: AGENT_ID, subject: 'user', predicate: 'prefers', object: 'dark mode', type: 'preference', createdAt: new Date().toISOString() },
-      { id: 'f2', agentId: AGENT_ID, subject: 'user', predicate: 'knows', object: 'TypeScript', type: 'skill', createdAt: new Date().toISOString() },
-      { id: 'f3', agentId: AGENT_ID, subject: 'user', predicate: 'prefers', object: 'vim', type: 'preference', createdAt: new Date().toISOString() },
+      {
+        id: 'f1',
+        agentId: AGENT_ID,
+        subject: 'user',
+        predicate: 'prefers',
+        object: 'dark mode',
+        type: 'preference',
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: 'f2',
+        agentId: AGENT_ID,
+        subject: 'user',
+        predicate: 'knows',
+        object: 'TypeScript',
+        type: 'skill',
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: 'f3',
+        agentId: AGENT_ID,
+        subject: 'user',
+        predicate: 'prefers',
+        object: 'vim',
+        type: 'preference',
+        createdAt: new Date().toISOString(),
+      },
     ];
 
     const store = createMockMemoryStore({
@@ -120,7 +140,18 @@ describe('buildMemoryManifest', () => {
 
   it('should respect includePreferences=false config', async () => {
     const store = createMockMemoryStore({
-      query: vi.fn().mockResolvedValue({ entries: [{ id: 'p1', agentId: AGENT_ID, kind: 'preference', content: 'test', createdAt: new Date().toISOString() }], facts: [] }),
+      query: vi.fn().mockResolvedValue({
+        entries: [
+          {
+            id: 'p1',
+            agentId: AGENT_ID,
+            kind: 'preference',
+            content: 'test',
+            createdAt: new Date().toISOString(),
+          },
+        ],
+        facts: [],
+      }),
     });
 
     const manifest = await buildMemoryManifest(AGENT_ID, store, undefined, {
@@ -174,9 +205,7 @@ describe('formatManifestForPrompt', () => {
 
   it('should include preferences section', () => {
     const manifest = {
-      preferences: [
-        { key: 'Dark mode', value: 'User prefers dark themes' },
-      ],
+      preferences: [{ key: 'Dark mode', value: 'User prefers dark themes' }],
       recentTopics: [],
       factCounts: [],
       totalEntries: 1,
@@ -193,9 +222,7 @@ describe('formatManifestForPrompt', () => {
   it('should include recent topics section', () => {
     const manifest = {
       preferences: [],
-      recentTopics: [
-        { topic: 'TypeScript migration', sessionAge: '2h ago' },
-      ],
+      recentTopics: [{ topic: 'TypeScript migration', sessionAge: '2h ago' }],
       factCounts: [],
       totalEntries: 1,
       totalFacts: 0,

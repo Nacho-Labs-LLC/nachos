@@ -76,10 +76,7 @@ export class AgentProcessRegistry {
    * Returns the agentId on success, or throws if concurrency limit is reached
    * or the `claude` binary is not available.
    */
-  spawn(
-    task: string,
-    options?: { cwd?: string; timeoutMs?: number }
-  ): string {
+  spawn(task: string, options?: { cwd?: string; timeoutMs?: number }): string {
     // Concurrency check
     const running = this.countRunning();
     if (running >= this.maxConcurrent) {
@@ -121,11 +118,11 @@ export class AgentProcessRegistry {
 
     let child: ChildProcess;
     try {
-      child = spawn(
-        'claude',
-        ['-p', task, '--output-format', 'stream-json', '--max-turns', '50'],
-        { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] }
-      );
+      child = spawn('claude', ['-p', task, '--output-format', 'stream-json', '--max-turns', '50'], {
+        cwd,
+        env,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
     } catch (err) {
       logger.error({ err }, 'Failed to spawn claude CLI process');
       throw new Error(
@@ -170,10 +167,7 @@ export class AgentProcessRegistry {
       record.completedAt = Date.now();
       tracked.child = null;
 
-      logger.info(
-        { agentId: id, exitCode: code, status: record.status },
-        'Agent process exited'
-      );
+      logger.info({ agentId: id, exitCode: code, status: record.status }, 'Agent process exited');
     });
 
     child.on('error', (err) => {
@@ -195,10 +189,7 @@ export class AgentProcessRegistry {
 
     this.processes.set(id, { record, child, timeoutTimer });
 
-    logger.info(
-      { agentId: id, pid: child.pid, cwd, timeoutMs },
-      'Spawned agent process'
-    );
+    logger.info({ agentId: id, pid: child.pid, cwd, timeoutMs }, 'Spawned agent process');
 
     return id;
   }
@@ -231,7 +222,10 @@ export class AgentProcessRegistry {
    * Get stdout/stderr output from an agent process.
    * If `tail` is provided, returns only the last N lines of each.
    */
-  getOutput(agentId: string, tail?: number): {
+  getOutput(
+    agentId: string,
+    tail?: number
+  ): {
     stdout: string;
     stderr: string;
   } | null {

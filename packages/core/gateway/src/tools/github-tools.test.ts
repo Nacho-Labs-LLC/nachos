@@ -28,11 +28,7 @@ vi.mock('node:util', () => ({
  * Create a mock child process for spawn-based tests.
  * Simulates stdout/stderr/stdin streams and exit code.
  */
-function createMockChildProcess(
-  stdoutData: string,
-  stderrData: string,
-  exitCode: number
-) {
+function createMockChildProcess(stdoutData: string, stderrData: string, exitCode: number) {
   const stdout = new Readable({ read() {} });
   const stderr = new Readable({ read() {} });
   const stdin = new Writable({
@@ -546,7 +542,14 @@ describe('executeGitHub', () => {
       expect(result.content[0].text).toContain('"number": 99');
       expect(mockSpawn).toHaveBeenCalledWith(
         'gh',
-        expect.arrayContaining(['api', '/repos/owner/repo/issues', '--method', 'POST', '--input', '-']),
+        expect.arrayContaining([
+          'api',
+          '/repos/owner/repo/issues',
+          '--method',
+          'POST',
+          '--input',
+          '-',
+        ]),
         expect.objectContaining({ stdio: ['pipe', 'pipe', 'pipe'] })
       );
     });

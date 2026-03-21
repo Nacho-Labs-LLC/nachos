@@ -1,5 +1,9 @@
 import type { LLMRequestType, Session } from '@nachos/types';
-import type { SubagentToolPolicyConfig, SubagentToolProfileConfig, ToolsConfig } from '@nachos/config';
+import type {
+  SubagentToolPolicyConfig,
+  SubagentToolProfileConfig,
+  ToolsConfig,
+} from '@nachos/config';
 import { SubagentProgressToolSchema } from '@nachos/types';
 import { getExternalToolDefinitions } from './external-tool-definitions.js';
 import { normalizeToolName } from '../utils/session-utils.js';
@@ -33,7 +37,8 @@ export class SubagentTools {
 
   canAccessSubagentRun(session: Session, run: SubagentRunRecord): boolean {
     if (session.id === run.requester.sessionId) return true;
-    if (session.userId && run.requester.userId && session.userId === run.requester.userId) return true;
+    if (session.userId && run.requester.userId && session.userId === run.requester.userId)
+      return true;
     return false;
   }
 
@@ -55,9 +60,10 @@ export class SubagentTools {
     // Resolve profile-based tool allow list
     const profileName = this.resolveSubagentProfile(session ?? null);
     const profilePolicy = this.resolveSubagentProfilePolicy(profileName);
-    const allowList = profilePolicy?.allow && profilePolicy.allow.length > 0
-      ? new Set(profilePolicy.allow.map((t) => normalizeToolName(t)))
-      : null;
+    const allowList =
+      profilePolicy?.allow && profilePolicy.allow.length > 0
+        ? new Set(profilePolicy.allow.map((t) => normalizeToolName(t)))
+        : null;
 
     // No allow list = no extra tools for the subagent (default restrictive behavior)
     if (!allowList) return tools;
