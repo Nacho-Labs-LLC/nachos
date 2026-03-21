@@ -131,6 +131,8 @@ export interface ToolExecutorCoreDeps {
   subagentManager?: unknown;
   subagentOrchestrator?: SubagentOrchestrator;
   hooks?: HookRegistry;
+  /** Runtime workspace directory for memory tools (injected from gateway config) */
+  workspaceDir?: string;
 }
 
 export interface ToolExecutorPolicyDeps {
@@ -1081,7 +1083,7 @@ export class ToolExecutor {
         ...buildStateContext(session, this.deps.core.securityMode),
         internalTool: true,
       };
-      return executeMemoryGet(call, this.deps.state.stateLayer, context);
+      return executeMemoryGet(call, this.deps.state.stateLayer, context, { workspaceDir: this.deps.core.workspaceDir });
     }
 
     if (call.tool === 'nachos_search_conversations') {

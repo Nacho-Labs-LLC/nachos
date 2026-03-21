@@ -46,11 +46,39 @@ export class PolicyEvaluator {
       allRules.push(...policy.rules);
     }
 
-    // Sort by priority (highest first)
-    allRules.sort((a, b) => b.priority - a.priority);
+    // Validate priorities and detect duplicates
+    const seenIds = new Map<string, number>(); // id -> index of first occurrence
+    const validRules: PolicyRule[] = [];
+    for (const rule of allRules) {
+      const priority = rule.priority;
 
-    this.rules = allRules;
-    logger.info({ count: allRules.length }, 'Loaded rule(s)');
+      // Reject NaN, Infinity, and negative priorities
+      if (!Number.isFinite(priority) || priority < 0) {
+        logger.warn(
+          { ruleId: rule.id, priority },
+          'Rule rejected: priority must be a finite non-negative number'
+        );
+        continue;
+      }
+
+      // Warn on duplicate rule IDs (keep first occurrence)
+      if (seenIds.has(rule.id)) {
+        logger.warn(
+          { ruleId: rule.id, firstIndex: seenIds.get(rule.id) },
+          'Duplicate rule ID detected — keeping first occurrence, skipping duplicate'
+        );
+        continue;
+      }
+
+      seenIds.set(rule.id, validRules.length);
+      validRules.push(rule);
+    }
+
+    // Sort by priority (highest first)
+    validRules.sort((a, b) => b.priority - a.priority);
+
+    this.rules = validRules;
+    logger.info({ count: validRules.length, rejected: allRules.length - validRules.length }, 'Loaded rule(s)');
   }
 
   /**
@@ -60,11 +88,16 @@ export class PolicyEvaluator {
   evaluate(request: SecurityRequest): SecurityResult {
     const startTime = performance.now();
 
-    // Find first matching rule
+    // Find first matching rule (rules are sorted by priority descending)
     for (const rule of this.rules) {
       if (this.matchesRule(request, rule)) {
         const evaluationTimeMs = performance.now() - startTime;
         this.updateStats(evaluationTimeMs);
+
+        logger.debug(
+          { ruleId: rule.id, priority: rule.priority, effect: rule.effect, evaluationTimeMs },
+          'Top-priority rule fired'
+        );
 
         return {
           allowed: rule.effect === 'allow',
