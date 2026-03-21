@@ -136,7 +136,7 @@ chatRouter.get('/stream', async (c) => {
 
       // Subscribe to outbound messages for this channel
       const outboundTopic = TOPICS.channel.outbound(CHANNEL_ID);
-      await bus.subscribe<ChannelOutboundMessage>(outboundTopic, async (envelope) => {
+      const outboundSub = await bus.subscribe<ChannelOutboundMessage>(outboundTopic, async (envelope) => {
         try {
           const outbound = envelope.payload;
           if (outbound?.conversationId === session.conversationId) {
@@ -177,9 +177,7 @@ chatRouter.get('/stream', async (c) => {
         stream.onAbort(() => {
           clearInterval(keepAlive);
           // Unsubscribe from NATS to prevent subscription leak
-          bus.unsubscribe(outboundTopic).catch((err) => {
-            logger.error({ err }, 'Failed to unsubscribe outbound topic on disconnect');
-          });
+          try { outboundSub.unsubscribe(); } catch { /* ignore */ }
           resolve();
         });
       });
