@@ -148,7 +148,8 @@ describe('SqliteSessionsStore', () => {
       });
 
       expect(updated!.config).toEqual({ model: 'gpt-4' });
-      expect(updated!.metadata).toEqual({ updated: true });
+      // metadata is merged (not replaced) to avoid clobbering keys set by other subsystems
+      expect(updated!.metadata).toEqual({ source: 'test', updated: true });
     });
 
     it('returns null for non-existent session', async () => {
