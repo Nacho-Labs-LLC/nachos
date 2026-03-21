@@ -888,7 +888,11 @@ describe('Gateway', () => {
       await buildLLMRequest(session.id);
 
       expect(mockStateLayer.queryMemory).toHaveBeenCalledWith(
-        expect.objectContaining({ agentId: 'user-bs-4', limit: 20, kinds: ['preference', 'task', 'fact', 'note', 'lesson'] }),
+        expect.objectContaining({
+          agentId: 'user-bs-4',
+          limit: 20,
+          kinds: ['preference', 'task', 'fact', 'note', 'lesson'],
+        }),
         expect.anything()
       );
       expect(mockStateLayer.assemblePrompt).toHaveBeenCalledWith(
