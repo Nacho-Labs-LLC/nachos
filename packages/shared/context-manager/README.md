@@ -1,13 +1,17 @@
 # @nachos/context-manager
 
-Context management system for NACHOS that enables indefinite AI assistant sessions through intelligent context handling.
+Context management system for NACHOS that enables indefinite AI assistant
+sessions through intelligent context handling.
 
 ## Features
 
-- **Sliding Window**: Automatically drop oldest messages when approaching context limits
+- **Sliding Window**: Automatically drop oldest messages when approaching
+  context limits
 - **Multi-Tier Summarization**: Intelligent compression of dropped context
-- **Proactive History Saving**: Extract and persist critical information before compaction
-- **Zone-Based Management**: Progressive action levels (green/yellow/orange/red/critical)
+- **Proactive History Saving**: Extract and persist critical information before
+  compaction
+- **Zone-Based Management**: Progressive action levels
+  (green/yellow/orange/red/critical)
 - **Turn-Aware Operations**: Never break mid-conversation
 - **DLP Integration**: Leverage nachos-dlp for pattern-based extraction
 
@@ -28,7 +32,7 @@ const contextManager = new ContextManager({
     enabled: true,
     mode: 'hybrid',
     thresholds: {
-      proactive_prune: 0.60,
+      proactive_prune: 0.6,
       light_compaction: 0.75,
       aggressive_compaction: 0.85,
       emergency: 0.95,
@@ -62,7 +66,9 @@ if (check.needsCompaction) {
   });
 
   console.log(`Dropped ${result.result.messagesDropped} messages`);
-  console.log(`Saved ${result.result.tokensBefore - result.result.tokensAfter} tokens`);
+  console.log(
+    `Saved ${result.result.tokensBefore - result.result.tokensAfter} tokens`
+  );
 }
 ```
 
@@ -70,7 +76,8 @@ if (check.needsCompaction) {
 
 ### Core Components
 
-1. **ContextBudgetCalculator** - Real-time budget tracking and zone determination
+1. **ContextBudgetCalculator** - Real-time budget tracking and zone
+   determination
 2. **SlidingWindowManager** - Turn-aware message dropping logic
 3. **HistoryExtractorService** - DLP-based pattern extraction
 4. **MemoryFileStorage** - Session-scoped memory persistence
@@ -86,7 +93,8 @@ if (check.needsCompaction) {
 
 ## Configuration
 
-See [docs/context-management.md](../../../docs/context-management.md) for full configuration options.
+See [docs/context-management.md](../../../docs/context-management.md) for full
+configuration options.
 
 ## Testing
 

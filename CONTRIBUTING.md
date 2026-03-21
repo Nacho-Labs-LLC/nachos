@@ -1,6 +1,7 @@
 # Contributing to Nachos
 
-Thank you for your interest in contributing to Nachos! This guide will help you get started with development.
+Thank you for your interest in contributing to Nachos! This guide will help you
+get started with development.
 
 ## Table of Contents
 
@@ -16,7 +17,8 @@ Thank you for your interest in contributing to Nachos! This guide will help you 
 
 ## Code of Conduct
 
-Be respectful, inclusive, and constructive. We're building something cool together.
+Be respectful, inclusive, and constructive. We're building something cool
+together.
 
 ## Getting Started
 
@@ -124,8 +126,10 @@ nachos/
 
 ### Package Organization
 
-- **Core packages** (`packages/core/*`): Essential components that form the foundation
-- **Channel packages** (`packages/channels/*`): Platform adapters (Slack, Discord, etc.)
+- **Core packages** (`packages/core/*`): Essential components that form the
+  foundation
+- **Channel packages** (`packages/channels/*`): Platform adapters (Slack,
+  Discord, etc.)
 - **Tool packages** (`packages/tools/*`): Capability containers
 - **Shared packages** (`packages/shared/*`): Common utilities and types
 
@@ -445,7 +449,8 @@ For significant architectural changes:
 
 ## License
 
-By contributing to Nachos, you agree that your contributions will be licensed under the MIT License.
+By contributing to Nachos, you agree that your contributions will be licensed
+under the MIT License.
 
 ---
 

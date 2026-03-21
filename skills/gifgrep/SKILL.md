@@ -1,13 +1,16 @@
 ---
 name: gifgrep
-description: Search GIF providers with CLI/TUI, download results, and extract stills/sheets.
+description:
+  Search GIF providers with CLI/TUI, download results, and extract
+  stills/sheets.
 homepage: https://gifgrep.com
-metadata: {"nachos":{"requires":{"bins":["gifgrep"]}}}
+metadata: { 'nachos': { 'requires': { 'bins': ['gifgrep'] } } }
 ---
 
 # gifgrep
 
-Search GIF providers (Tenor/Giphy), browse in a TUI, download results, and extract stills/sheets.
+Search GIF providers (Tenor/Giphy), browse in a TUI, download results, and
+extract stills/sheets.
 
 ## Quick start
 
@@ -28,5 +31,6 @@ gifgrep sheet ./clip.gif --frames 9 --cols 3 -o sheet.png
 
 ## Notes
 
-- `GIPHY_API_KEY` required for Giphy. `TENOR_API_KEY` optional (Tenor demo key used if unset).
+- `GIPHY_API_KEY` required for Giphy. `TENOR_API_KEY` optional (Tenor demo key
+  used if unset).
 - Use `--json` or `--format` for scriptable output.

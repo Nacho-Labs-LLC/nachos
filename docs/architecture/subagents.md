@@ -8,15 +8,18 @@
 
 ## Overview
 
-This document describes the internal architecture of the Nachos subagent system, including component design, data flow, and extension points.
+This document describes the internal architecture of the Nachos subagent system,
+including component design, data flow, and extension points.
 
 **What's new in v2.0:**
+
 - Model selection and auto-routing
 - Progress reporting
 - Streaming results via NATS
 - Workflow orchestration with dependency graphs
 
-See [ADR-004](decisions/004-subagent-orchestration-enhancements.md) for the design rationale.
+See [ADR-004](decisions/004-subagent-orchestration-enhancements.md) for the
+design rationale.
 
 ---
 
@@ -27,27 +30,28 @@ See [ADR-004](decisions/004-subagent-orchestration-enhancements.md) for the desi
 **Location:** `packages/core/gateway/src/subagents/subagent-manager.ts`
 
 **Responsibilities:**
+
 - Execute individual subagent tasks
 - Support Docker sandbox isolation
 - Handle timeouts and errors
 
 **Interface:**
+
 ```typescript
 class SubagentManager {
-  constructor(
-    config: SubagentManagerConfig,
-    sendRequest: LLMRequestSender
-  );
+  constructor(config: SubagentManagerConfig, sendRequest: LLMRequestSender);
 
   async run(task: SubagentTask): Promise<SubagentResult>;
 }
 ```
 
 **Execution Modes:**
+
 - **`host` mode** - Run directly in gateway process (lightweight, less isolated)
 - **`full` mode** - Run in Docker container (fully isolated, more overhead)
 
 **Implementation:**
+
 ```typescript
 async run(task: SubagentTask): Promise<SubagentResult> {
   const mode = task.sandboxMode ?? this.mode;
@@ -70,6 +74,7 @@ async run(task: SubagentTask): Promise<SubagentResult> {
 **Location:** `packages/core/gateway/src/subagents/subagent-orchestrator.ts`
 
 **Responsibilities:**
+
 - Queue management (FIFO with concurrency limit)
 - Session creation and lifecycle
 - Workspace provisioning
@@ -77,6 +82,7 @@ async run(task: SubagentTask): Promise<SubagentResult> {
 - Access control (users can only manage their own runs)
 
 **Interface:**
+
 ```typescript
 class SubagentOrchestrator {
   async enqueue(request: SubagentRunRequest): Promise<SubagentRunRecord>;
@@ -91,6 +97,7 @@ class SubagentOrchestrator {
 ```
 
 **State Machine:**
+
 ```
 queued → running → completed
               ↓
@@ -100,6 +107,7 @@ queued → running → completed
 ```
 
 **Concurrency Control:**
+
 ```typescript
 private maxConcurrent: number;
 private runningCount: number = 0;
@@ -120,11 +128,14 @@ private drainQueue(): void {
 **Location:** `packages/core/gateway/src/subagents/workspace-utils.ts`
 
 **Functions:**
+
 - `ensureSubagentWorkspaceDir(rootDir, runId)` - Create isolated workspace
-- `listSubagentWorkspaceEntries(...)` - List files with path traversal protection
+- `listSubagentWorkspaceEntries(...)` - List files with path traversal
+  protection
 - `readSubagentWorkspaceFile(...)` - Read files with size limits
 
 **Security:**
+
 ```typescript
 // Path traversal prevention
 const normalized = path.normalize(relativePath);
@@ -140,11 +151,13 @@ if (normalized.startsWith('..') || path.isAbsolute(normalized)) {
 **Location:** `packages/core/gateway/src/subagents/announce.ts`
 
 **Responsibilities:**
+
 - Extract key results from subagent execution
 - Generate user-friendly summaries
 - Template-based or LLM-generated announcements
 
 **Flow:**
+
 ```
 Subagent completes
      ↓
@@ -158,6 +171,7 @@ Publish announcement to requester channel
 ```
 
 **Templates:**
+
 ```typescript
 const defaultTemplate = `
 Subagent {{runId}} has completed.
@@ -182,11 +196,13 @@ Please summarize this for the user in 2-3 sentences.
 **Location:** `packages/core/gateway/src/subagents/model-selection.ts`
 
 **Responsibilities:**
+
 - Resolve model aliases (haiku → full model ID)
 - Auto-select model based on task complexity
 - Apply model hints (fast/balanced/thorough)
 
 **Interface:**
+
 ```typescript
 function selectModel(
   task: string,
@@ -199,6 +215,7 @@ function selectModel(
 ```
 
 **Selection Priority:**
+
 ```
 1. Explicit model parameter → resolve alias → return
 2. Model hint (fast/balanced/thorough) → resolve → return
@@ -208,20 +225,27 @@ function selectModel(
 ```
 
 **Auto-Selection Heuristics:**
+
 ```typescript
 function analyzeTaskComplexity(task: string): ComplexityIndicators {
   const wordCount = task.split(/\s+/).length;
-  
+
   // Complex analysis keywords → Opus
-  const complexKeywords = ['analyze', 'review', 'audit', 'investigate', 'comprehensive'];
-  
+  const complexKeywords = [
+    'analyze',
+    'review',
+    'audit',
+    'investigate',
+    'comprehensive',
+  ];
+
   // Code analysis keywords → Opus
   const codeKeywords = ['codebase', 'vulnerabilities', 'refactor', 'bugs'];
-  
+
   // Multi-step indicators → Opus
   const multiStepKeywords = ['then', 'after', 'steps', 'first', 'second'];
   const hasNumberedList = (task.match(/\d+\./g)?.length ?? 0) > 1;
-  
+
   if (hasComplexOrCodeKeywords || hasMultipleSteps) return 'opus';
   if (wordCount > 40) return 'opus';
   if (wordCount < 8 && !hasKeywords) return 'haiku';
@@ -230,23 +254,25 @@ function analyzeTaskComplexity(task: string): ComplexityIndicators {
 ```
 
 **Model Aliases (Default):**
+
 ```typescript
 const DEFAULT_MODEL_ALIASES = {
-  'haiku': 'anthropic.claude-haiku-4-5-20251001-v1:0',
-  'sonnet': 'anthropic.claude-sonnet-4-6',
-  'opus': 'anthropic.claude-opus-4-6-v1',
-  'fast': 'anthropic.claude-haiku-4-5-20251001-v1:0',
-  'balanced': 'anthropic.claude-sonnet-4-6',
-  'thorough': 'anthropic.claude-opus-4-6-v1',
+  haiku: 'anthropic.claude-haiku-4-5-20251001-v1:0',
+  sonnet: 'anthropic.claude-sonnet-4-6',
+  opus: 'anthropic.claude-opus-4-6-v1',
+  fast: 'anthropic.claude-haiku-4-5-20251001-v1:0',
+  balanced: 'anthropic.claude-sonnet-4-6',
+  thorough: 'anthropic.claude-opus-4-6-v1',
 };
 ```
 
 **Cost Multipliers:**
+
 ```typescript
 function getModelCostMultiplier(modelId: string): number {
-  if (modelId.includes('haiku')) return 1.0;   // Baseline
-  if (modelId.includes('sonnet')) return 3.0;  // 3× Haiku
-  if (modelId.includes('opus')) return 5.0;    // 5× Haiku
+  if (modelId.includes('haiku')) return 1.0; // Baseline
+  if (modelId.includes('sonnet')) return 3.0; // 3× Haiku
+  if (modelId.includes('opus')) return 5.0; // 5× Haiku
   return 1.0;
 }
 ```
@@ -260,6 +286,7 @@ function getModelCostMultiplier(modelId: string): number {
 **Location:** `packages/core/gateway/src/subagents/subagent-orchestrator.ts`
 
 **Type Definitions:**
+
 ```typescript
 interface SubagentProgressUpdate {
   timestamp: string;
@@ -275,24 +302,29 @@ interface SubagentRunRecord {
 ```
 
 **API:**
+
 ```typescript
 class SubagentOrchestrator {
-  reportProgress(runId: string, update: {
-    status: string;
-    percentage?: number;
-    metadata?: Record<string, unknown>;
-  }): void {
+  reportProgress(
+    runId: string,
+    update: {
+      status: string;
+      percentage?: number;
+      metadata?: Record<string, unknown>;
+    }
+  ): void {
     const run = this.runs.get(runId);
     if (!run) throw new Error('Run not found');
-    if (run.status !== 'running') throw new Error('Can only report progress for running subagents');
-    
+    if (run.status !== 'running')
+      throw new Error('Can only report progress for running subagents');
+
     // Throttle updates (min 1 second interval)
     const lastUpdate = run.progress?.[run.progress.length - 1];
     if (lastUpdate) {
       const elapsed = Date.now() - new Date(lastUpdate.timestamp).getTime();
       if (elapsed < 1000) return; // Throttled
     }
-    
+
     run.progress = run.progress ?? [];
     run.progress.push({
       timestamp: new Date().toISOString(),
@@ -305,6 +337,7 @@ class SubagentOrchestrator {
 ```
 
 **Tool Integration:**
+
 ```typescript
 // Subagents call this tool to report progress
 {
@@ -318,6 +351,7 @@ class SubagentOrchestrator {
 ```
 
 **Gateway Handler:**
+
 ```typescript
 // In gateway.ts
 if (call.tool === 'subagent_progress') {
@@ -325,14 +359,17 @@ if (call.tool === 'subagent_progress') {
   if (!subagentMeta) {
     return formatToolError('NOT_ALLOWED', 'Only subagents can report progress');
   }
-  
+
   this.orchestrator.reportProgress(subagentMeta.runId, {
     status: call.parameters.status,
     percentage: call.parameters.percentage,
     metadata: call.parameters.metadata,
   });
-  
-  return { success: true, content: [{ type: 'text', text: 'Progress updated' }] };
+
+  return {
+    success: true,
+    content: [{ type: 'text', text: 'Progress updated' }],
+  };
 }
 ```
 
@@ -345,6 +382,7 @@ if (call.tool === 'subagent_progress') {
 **Location:** `packages/core/gateway/src/subagents/subagent-orchestrator.ts`
 
 **Type Definitions:**
+
 ```typescript
 interface SubagentRunRequest {
   // ... existing fields
@@ -359,16 +397,18 @@ interface SubagentRunRecord {
 ```
 
 **NATS Topic Structure:**
+
 ```typescript
 const STREAM_TOPIC = `nachos.llm.stream.${childSessionId}`;
 ```
 
 **Implementation Flow:**
+
 ```typescript
 class SubagentOrchestrator {
   private async executeRun(runId: string): Promise<void> {
     const run = this.runs.get(runId)!;
-    
+
     // Subscribe to stream if enabled
     let streamSubscription;
     if (run.stream) {
@@ -379,7 +419,7 @@ class SubagentOrchestrator {
           if (delta?.text) {
             run.streamChunks = run.streamChunks ?? [];
             run.streamChunks.push(delta.text);
-            
+
             // Optional: deliver to requester in real-time
             if (this.config.streaming?.deliverToRequester) {
               this.deliverChunkToRequester(run, delta.text);
@@ -388,7 +428,7 @@ class SubagentOrchestrator {
         }
       );
     }
-    
+
     try {
       // Execute subagent
       const result = await this.manager.run(task);
@@ -404,14 +444,15 @@ class SubagentOrchestrator {
 ```
 
 **Chunk Accumulation:**
+
 ```typescript
 // Stream chunks are accumulated in order
 run.streamChunks = [
-  "# Report\n\n",
-  "## Introduction\n",
-  "This is the first section...",
-  "## Analysis\n",
-  "..."
+  '# Report\n\n',
+  '## Introduction\n',
+  'This is the first section...',
+  '## Analysis\n',
+  '...',
 ];
 
 // Full accumulated text
@@ -419,6 +460,7 @@ const fullText = run.streamChunks.join('');
 ```
 
 **Real-Time Delivery (Optional):**
+
 ```typescript
 private async deliverChunkToRequester(run: SubagentRunRecord, chunk: string): Promise<void> {
   // Throttle delivery (default: 500ms)
@@ -427,7 +469,7 @@ private async deliverChunkToRequester(run: SubagentRunRecord, chunk: string): Pr
     return; // Skip this chunk
   }
   this.lastChunkDelivery = now;
-  
+
   // Send to requester channel
   await this.sendMessage(run.requester.channel, {
     conversationId: run.requester.conversationId,
@@ -445,10 +487,12 @@ private async deliverChunkToRequester(run: SubagentRunRecord, chunk: string): Pr
 **Location:** `packages/core/gateway/src/subagents/`
 
 **Key Files:**
+
 - `dependency-graph.ts` - DAG validation and topological sort
 - `subagent-orchestrator.ts` - Workflow execution engine
 
 **Type Definitions:**
+
 ```typescript
 interface WorkflowStep {
   id: string;
@@ -463,7 +507,12 @@ interface WorkflowDefinition {
   steps: WorkflowStep[];
 }
 
-type WorkflowRunStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+type WorkflowRunStatus =
+  | 'queued'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
 
 interface WorkflowStepResult {
   stepId: string;
@@ -490,101 +539,114 @@ interface WorkflowRunRecord {
 ```
 
 **DAG Validation:**
+
 ```typescript
 // In dependency-graph.ts
-function validateWorkflow(workflow: WorkflowDefinition): WorkflowValidationResult {
+function validateWorkflow(
+  workflow: WorkflowDefinition
+): WorkflowValidationResult {
   // 1. Check for duplicate step IDs
   const stepIds = new Set<string>();
   for (const step of workflow.steps) {
     if (stepIds.has(step.id)) {
-      return { valid: false, error: { code: 'DUPLICATE_STEP_ID', stepId: step.id } };
+      return {
+        valid: false,
+        error: { code: 'DUPLICATE_STEP_ID', stepId: step.id },
+      };
     }
     stepIds.add(step.id);
   }
-  
+
   // 2. Check for missing dependencies
-  const stepMap = new Map(workflow.steps.map(s => [s.id, s]));
+  const stepMap = new Map(workflow.steps.map((s) => [s.id, s]));
   for (const step of workflow.steps) {
     for (const depId of step.dependsOn ?? []) {
       if (!stepMap.has(depId)) {
-        return { valid: false, error: { code: 'MISSING_DEPENDENCY', stepId: step.id } };
+        return {
+          valid: false,
+          error: { code: 'MISSING_DEPENDENCY', stepId: step.id },
+        };
       }
     }
   }
-  
+
   // 3. Check for cycles using DFS
   const cycleCheck = detectCycle(stepMap);
   if (!cycleCheck.valid) return cycleCheck;
-  
+
   return { valid: true };
 }
 ```
 
 **Cycle Detection (DFS):**
+
 ```typescript
-function detectCycle(stepMap: Map<string, WorkflowStep>): WorkflowValidationResult {
+function detectCycle(
+  stepMap: Map<string, WorkflowStep>
+): WorkflowValidationResult {
   const visited = new Set<string>();
   const recursionStack = new Set<string>();
-  
+
   function dfs(stepId: string): boolean {
     if (recursionStack.has(stepId)) return true; // Cycle found
     if (visited.has(stepId)) return false; // Already processed
-    
+
     visited.add(stepId);
     recursionStack.add(stepId);
-    
+
     const step = stepMap.get(stepId)!;
     for (const depId of step.dependsOn ?? []) {
       if (dfs(depId)) return true;
     }
-    
+
     recursionStack.delete(stepId);
     return false;
   }
-  
+
   for (const stepId of stepMap.keys()) {
     if (dfs(stepId)) {
       return { valid: false, error: { code: 'CYCLE_DETECTED' } };
     }
   }
-  
+
   return { valid: true };
 }
 ```
 
 **Topological Sort (Kahn's Algorithm):**
+
 ```typescript
 function computeExecutionPlan(workflow: WorkflowDefinition): ExecutionPlan {
-  const stepMap = new Map(workflow.steps.map(s => [s.id, s]));
+  const stepMap = new Map(workflow.steps.map((s) => [s.id, s]));
   const inDegree = new Map<string, number>();
   const adjList = new Map<string, string[]>();
-  
+
   // Build adjacency list and in-degree map
   for (const step of workflow.steps) {
     inDegree.set(step.id, 0);
     adjList.set(step.id, []);
   }
-  
+
   for (const step of workflow.steps) {
     for (const depId of step.dependsOn ?? []) {
       adjList.get(depId)!.push(step.id);
       inDegree.set(step.id, (inDegree.get(step.id) ?? 0) + 1);
     }
   }
-  
+
   // Kahn's algorithm: process nodes with in-degree 0
   const batches: string[][] = [];
   const queue: string[] = [];
-  
+
   for (const [stepId, degree] of inDegree.entries()) {
     if (degree === 0) queue.push(stepId);
   }
-  
+
   while (queue.length > 0) {
     const batch = [...queue];
     batches.push(batch);
     queue.length = 0;
-    
+
     for (const stepId of batch) {
       for (const neighbor of adjList.get(stepId)!) {
         inDegree.set(neighbor, inDegree.get(neighbor)! - 1);
@@ -594,26 +656,29 @@ function computeExecutionPlan(workflow: WorkflowDefinition): ExecutionPlan {
       }
     }
   }
-  
+
   return { batches, steps: stepMap };
 }
 ```
 
 **Workflow Execution Engine:**
+
 ```typescript
 class SubagentOrchestrator {
-  async enqueueWorkflow(request: WorkflowOrchestrationRequest): Promise<WorkflowRunRecord> {
+  async enqueueWorkflow(
+    request: WorkflowOrchestrationRequest
+  ): Promise<WorkflowRunRecord> {
     const workflowId = `workflow-${uuid()}`;
-    
+
     // Validate DAG
     const validation = validateWorkflow({ steps: request.steps });
     if (!validation.valid) {
       throw new Error(validation.error!.message);
     }
-    
+
     // Compute execution plan (topological sort)
     const plan = computeExecutionPlan({ steps: request.steps });
-    
+
     // Create workflow record
     const workflow: WorkflowRunRecord = {
       workflowId,
@@ -623,56 +688,72 @@ class SubagentOrchestrator {
       stepResults: new Map(),
       totalBatches: plan.batches.length,
     };
-    
+
     this.workflows.set(workflowId, workflow);
-    
+
     // Start execution
     void this.executeWorkflow(workflowId, plan);
-    
+
     return workflow;
   }
-  
-  private async executeWorkflow(workflowId: string, plan: ExecutionPlan): Promise<void> {
+
+  private async executeWorkflow(
+    workflowId: string,
+    plan: ExecutionPlan
+  ): Promise<void> {
     const workflow = this.workflows.get(workflowId)!;
     workflow.status = 'running';
     workflow.startedAt = new Date().toISOString();
-    
+
     try {
       // Execute batches sequentially
       for (let i = 0; i < plan.batches.length; i++) {
         workflow.currentBatch = i + 1;
         const batch = plan.batches[i];
-        
+
         // Execute batch steps in parallel
-        await Promise.all(batch.map(stepId => this.executeWorkflowStep(workflowId, stepId, plan)));
-        
+        await Promise.all(
+          batch.map((stepId) =>
+            this.executeWorkflowStep(workflowId, stepId, plan)
+          )
+        );
+
         // Check for failures
-        const hasFailures = batch.some(stepId => {
+        const hasFailures = batch.some((stepId) => {
           const result = workflow.stepResults.get(stepId);
           return result && result.status === 'failed';
         });
-        
+
         if (hasFailures && !request.continueOnFailure) {
           workflow.status = 'failed';
-          workflow.error = { code: 'STEP_FAILED', message: 'Workflow stopped due to step failure' };
+          workflow.error = {
+            code: 'STEP_FAILED',
+            message: 'Workflow stopped due to step failure',
+          };
           return;
         }
       }
-      
+
       workflow.status = 'completed';
     } catch (error) {
       workflow.status = 'failed';
       workflow.error = { code: 'EXECUTION_ERROR', message: String(error) };
     } finally {
       workflow.completedAt = new Date().toISOString();
-      workflow.durationMs = new Date(workflow.completedAt).getTime() - new Date(workflow.startedAt!).getTime();
+      workflow.durationMs =
+        new Date(workflow.completedAt).getTime() -
+        new Date(workflow.startedAt!).getTime();
     }
   }
-  
-  private async executeWorkflowStep(workflowId: string, stepId: string, plan: ExecutionPlan): Promise<void> {
+
+  private async executeWorkflowStep(
+    workflowId: string,
+    stepId: string,
+    plan: ExecutionPlan
+  ): Promise<void> {
     const workflow = this.workflows.get(workflowId)!;
     const step = plan.steps.get(stepId)!;
-    
+
     // Build task prompt with dependencies' results
     let taskPrompt = step.task;
     if (step.dependsOn && step.dependsOn.length > 0) {
@@ -684,7 +765,7 @@ class SubagentOrchestrator {
         }
       }
     }
-    
+
     // Spawn subagent for this step
     const run = await this.enqueue({
       task: taskPrompt,
@@ -694,21 +775,24 @@ class SubagentOrchestrator {
       modelHint: step.modelHint,
       stream: step.stream,
     });
-    
+
     // Mark step as belonging to workflow
     run.workflowId = workflowId;
     run.stepId = stepId;
-    
+
     // Wait for completion
     await this.waitForRunCompletion(run.runId);
-    
+
     // Record step result
     const completedRun = this.runs.get(run.runId)!;
     workflow.stepResults.set(stepId, {
       stepId,
       runId: run.runId,
       status: completedRun.status,
-      result: completedRun.status === 'completed' ? this.extractResultText(completedRun) : undefined,
+      result:
+        completedRun.status === 'completed'
+          ? this.extractResultText(completedRun)
+          : undefined,
       error: completedRun.error,
       durationMs: completedRun.durationMs,
     });
@@ -818,6 +902,7 @@ class SubagentOrchestrator {
 ```
 
 **NATS Topics:**
+
 ```typescript
 // Streaming topic (per child session)
 const STREAM_TOPIC = `nachos.llm.stream.${childSessionId}`;
@@ -866,6 +951,7 @@ const STREAM_TOPIC = `nachos.llm.stream.${childSessionId}`;
 ```
 
 **Execution Plan (Topological Sort):**
+
 ```typescript
 // Input workflow
 {
@@ -953,6 +1039,7 @@ Child sessions (subagent sessions) include metadata:
 ```
 
 **Access control:**
+
 ```typescript
 private canAccessSubagentRun(session: Session, run: SubagentRunRecord): boolean {
   if (session.id === run.requester.sessionId) {
@@ -972,6 +1059,7 @@ private canAccessSubagentRun(session: Session, run: SubagentRunRecord): boolean 
 ### sessions_spawn
 
 **Schema (Updated v2.0):**
+
 ```typescript
 {
   task: string;              // Required
@@ -988,13 +1076,14 @@ private canAccessSubagentRun(session: Session, run: SubagentRunRecord): boolean 
 ```
 
 **Response:**
+
 ```json
 {
   "status": "accepted",
   "runId": "run-abc123",
   "childSessionId": "session-child-xyz",
-  "model": "anthropic.claude-sonnet-4-6",  // NEW: Selected model
-  "stream": true                             // NEW: Streaming enabled
+  "model": "anthropic.claude-sonnet-4-6", // NEW: Selected model
+  "stream": true // NEW: Streaming enabled
 }
 ```
 
@@ -1003,26 +1092,26 @@ private canAccessSubagentRun(session: Session, run: SubagentRunRecord): boolean 
 ```typescript
 // Explicit model
 await sessions_spawn({
-  task: "Quick syntax check",
-  model: "haiku"
+  task: 'Quick syntax check',
+  model: 'haiku',
 });
 
 // Model hint
 await sessions_spawn({
-  task: "Deep security audit",
-  modelHint: "thorough"
+  task: 'Deep security audit',
+  modelHint: 'thorough',
 });
 
 // Auto-selection (analyzes task complexity)
 await sessions_spawn({
-  task: "Analyze this 10,000-line codebase for vulnerabilities"
+  task: 'Analyze this 10,000-line codebase for vulnerabilities',
 });
 // → Auto-selects Opus
 
 // Streaming enabled
 await sessions_spawn({
-  task: "Generate comprehensive 50-page report",
-  stream: true
+  task: 'Generate comprehensive 50-page report',
+  stream: true,
 });
 ```
 
@@ -1031,6 +1120,7 @@ await sessions_spawn({
 ### sessions_orchestrate (New v2.0)
 
 **Schema:**
+
 ```typescript
 {
   steps: WorkflowStep[];     // Required: Array of workflow steps
@@ -1049,17 +1139,13 @@ interface WorkflowStep {
 ```
 
 **Response:**
+
 ```json
 {
   "status": "accepted",
   "workflowId": "workflow-xyz789",
   "stepCount": 5,
-  "batches": [
-    ["step1"],
-    ["step2", "step3"],
-    ["step4"],
-    ["step5"]
-  ]
+  "batches": [["step1"], ["step2", "step3"], ["step4"], ["step5"]]
 }
 ```
 
@@ -1071,30 +1157,30 @@ await sessions_orchestrate({
     {
       id: 'fetch',
       task: 'Fetch data from API',
-      model: 'haiku'  // Fast model for simple task
+      model: 'haiku', // Fast model for simple task
     },
     {
       id: 'validate',
       task: 'Validate data schema',
       dependsOn: ['fetch'],
-      model: 'haiku'
+      model: 'haiku',
     },
     {
       id: 'analyze',
       task: 'Deep analysis of trends',
       dependsOn: ['validate'],
-      modelHint: 'thorough'  // Complex analysis → Opus
+      modelHint: 'thorough', // Complex analysis → Opus
     },
     {
       id: 'report',
       task: 'Generate comprehensive report',
       dependsOn: ['analyze'],
       model: 'sonnet',
-      stream: true  // Stream the report as it's written
-    }
+      stream: true, // Stream the report as it's written
+    },
   ],
   label: 'data-analysis-workflow',
-  continueOnFailure: false
+  continueOnFailure: false,
 });
 ```
 
@@ -1103,6 +1189,7 @@ await sessions_orchestrate({
 ### subagent_progress (New v2.0)
 
 **Schema:**
+
 ```typescript
 {
   status: string;            // Required: Human-readable status
@@ -1116,17 +1203,18 @@ await sessions_orchestrate({
 ```typescript
 // Report progress
 await subagent_progress({
-  status: "Analyzing file 23 of 50",
+  status: 'Analyzing file 23 of 50',
   percentage: 46,
   metadata: {
     filesProcessed: 23,
     totalFiles: 50,
-    issuesFound: 3
-  }
+    issuesFound: 3,
+  },
 });
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -1135,6 +1223,7 @@ await subagent_progress({
 ```
 
 **Notes:**
+
 - Only available to running subagents (checked via session.metadata.subagent)
 - Throttled to min 1 second between updates
 - Progress stored in run.progress[] array
@@ -1145,8 +1234,10 @@ await subagent_progress({
 ### subagents (Updated v2.0)
 
 **Actions:**
+
 - `list` - List all runs for current session
-- `info` - Get detailed info for a specific run (**updated: includes progress and streamChunks**)
+- `info` - Get detailed info for a specific run (**updated: includes progress
+  and streamChunks**)
 - `log` - Retrieve conversation log (last N messages)
 - `stop` - Stop a queued run
 - `steer` - Send message to running subagent
@@ -1156,14 +1247,16 @@ await subagent_progress({
 - `workflow_info` - Get workflow status and step results (**new v2.0**)
 
 **Updated `info` response (v2.0):**
+
 ```json
 {
   "runId": "run-abc123",
   "status": "running",
   "task": "Analyze codebase",
-  "model": "anthropic.claude-opus-4-6-v1",  // NEW
-  "stream": true,                            // NEW
-  "progress": [                               // NEW
+  "model": "anthropic.claude-opus-4-6-v1", // NEW
+  "stream": true, // NEW
+  "progress": [
+    // NEW
     {
       "timestamp": "2026-02-24T14:30:00Z",
       "status": "Starting analysis",
@@ -1176,7 +1269,8 @@ await subagent_progress({
       "metadata": { "filesProcessed": 23, "totalFiles": 50 }
     }
   ],
-  "streamChunks": [                          // NEW
+  "streamChunks": [
+    // NEW
     "# Analysis Report\n\n",
     "## Overview\n",
     "Found 3 critical issues...\n"
@@ -1185,11 +1279,13 @@ await subagent_progress({
 ```
 
 **New `workflow_list` action:**
+
 ```typescript
 await subagents({ action: 'workflow_list' });
 ```
 
 **Response:**
+
 ```json
 {
   "workflows": [
@@ -1207,14 +1303,16 @@ await subagents({ action: 'workflow_list' });
 ```
 
 **New `workflow_info` action:**
+
 ```typescript
-await subagents({ 
-  action: 'workflow_info', 
-  workflowId: 'workflow-xyz789' 
+await subagents({
+  action: 'workflow_info',
+  workflowId: 'workflow-xyz789',
 });
 ```
 
 **Response:**
+
 ```json
 {
   "workflowId": "workflow-xyz789",
@@ -1282,6 +1380,7 @@ interface SubagentSandbox {
 ```
 
 Examples:
+
 - `DockerSubagentSandbox` (built-in)
 - `K8sSubagentSandbox` (future)
 - `VMSubagentSandbox` (future)
@@ -1295,7 +1394,7 @@ class CustomResultAggregator {
   async collectResults(runId: string): Promise<SubagentResult> {
     // Extract artifacts, metrics, etc.
   }
-  
+
   async summarize(result: SubagentResult): Promise<string> {
     // Custom summary logic
   }
@@ -1308,11 +1407,11 @@ Subscribe to subagent events:
 
 ```typescript
 // Future: NATS topics for subagent lifecycle
-SUBAGENT_TOPICS.spawned(runId)
-SUBAGENT_TOPICS.progress(runId)
-SUBAGENT_TOPICS.complete(runId)
-SUBAGENT_TOPICS.error(runId)
-SUBAGENT_TOPICS.killed(runId)
+SUBAGENT_TOPICS.spawned(runId);
+SUBAGENT_TOPICS.progress(runId);
+SUBAGENT_TOPICS.complete(runId);
+SUBAGENT_TOPICS.error(runId);
+SUBAGENT_TOPICS.killed(runId);
 ```
 
 ---
@@ -1341,6 +1440,7 @@ interface SubagentOrchestratorConfig {
 ```
 
 **Config file (`nachos.toml`):**
+
 ```toml
 [gateway.subagent]
 mode = "host"
@@ -1364,6 +1464,7 @@ timeout_ms = 300000
 ### Unit Tests
 
 **Example:**
+
 ```typescript
 import { SubagentOrchestrator } from './subagent-orchestrator';
 
@@ -1374,7 +1475,7 @@ describe('SubagentOrchestrator', () => {
       task: 'Test task',
       requester: { sessionId: 'main', channel: 'test', conversationId: 'conv' },
     });
-    
+
     expect(run.status).toBe('queued');
   });
 });
@@ -1383,6 +1484,7 @@ describe('SubagentOrchestrator', () => {
 ### Integration Tests
 
 **Test scenarios:**
+
 1. Spawn → Complete → Announce
 2. Spawn → Timeout
 3. Spawn → Stop (queued)
@@ -1401,6 +1503,7 @@ describe('SubagentOrchestrator', () => {
 - Docker containers: 512 MB default limit
 
 **Scaling:**
+
 - 10 concurrent subagents: ~20-30 MB
 - 100 runs in history: ~100-200 MB
 
@@ -1416,6 +1519,7 @@ describe('SubagentOrchestrator', () => {
 - High-end: 16-32 (requires more RAM and CPU)
 
 **Tuning:**
+
 ```toml
 [gateway.subagent]
 max_concurrent = 8  # Adjust based on your resources
@@ -1434,14 +1538,18 @@ max_concurrent = 8  # Adjust based on your resources
 ### Access Control
 
 Users can only:
+
 - List their own subagent runs
 - Stop/steer their own subagents
 - Access workspaces of their own subagents
 
 **Implementation:**
+
 ```typescript
-if (session.id !== run.requester.sessionId && 
-    session.userId !== run.requester.userId) {
+if (
+  session.id !== run.requester.sessionId &&
+  session.userId !== run.requester.userId
+) {
   return formatToolError('NOT_FOUND', 'Subagent run not found');
 }
 ```
@@ -1469,9 +1577,9 @@ Subagents can report progress via `subagent_progress` tool:
 
 ```typescript
 await subagent_progress({
-  status: "Processing file 23 of 50",
+  status: 'Processing file 23 of 50',
   percentage: 46,
-  metadata: { filesProcessed: 23, totalFiles: 50 }
+  metadata: { filesProcessed: 23, totalFiles: 50 },
 });
 ```
 
@@ -1480,6 +1588,7 @@ Stored in `run.progress[]` and accessible via `subagents info` action.
 ### ✅ 2. Model Selection (Implemented)
 
 Three approaches:
+
 - **Explicit:** `model: "opus"`
 - **Hints:** `modelHint: "thorough"`
 - **Auto-select:** Analyzes task complexity → selects appropriate model
@@ -1492,12 +1601,13 @@ Enable with `stream: true` parameter:
 
 ```typescript
 await sessions_spawn({
-  task: "Generate 50-page report",
-  stream: true
+  task: 'Generate 50-page report',
+  stream: true,
 });
 ```
 
-Chunks streamed via NATS topic `nachos.llm.stream.{sessionId}`, accumulated in `run.streamChunks[]`.
+Chunks streamed via NATS topic `nachos.llm.stream.{sessionId}`, accumulated in
+`run.streamChunks[]`.
 
 Optional real-time delivery to requester.
 
@@ -1510,12 +1620,13 @@ await sessions_orchestrate({
   steps: [
     { id: 'fetch', task: '...' },
     { id: 'analyze', task: '...', dependsOn: ['fetch'] },
-    { id: 'report', task: '...', dependsOn: ['analyze'] }
-  ]
+    { id: 'report', task: '...', dependsOn: ['analyze'] },
+  ],
 });
 ```
 
-DAG validation (cycle detection), topological sort, parallel execution of independent steps, result passing between steps.
+DAG validation (cycle detection), topological sort, parallel execution of
+independent steps, result passing between steps.
 
 ---
 
@@ -1528,7 +1639,7 @@ Allow subagents to spawn child subagents:
 ```typescript
 // Subagent A spawns Subagent B
 const run = await spawnSubagent({
-  task: "Analyze results from previous step",
+  task: 'Analyze results from previous step',
   parent: runIdA,
 });
 ```
@@ -1549,7 +1660,7 @@ Track LLM usage per subagent and workflow:
     model: 'opus',
     costMultiplier: 5.0
   },
-  
+
   // Workflow-level aggregation
   workflowCost: {
     totalCost: 0.125,  // Sum of all steps
@@ -1571,9 +1682,9 @@ Workflows as steps in parent workflows:
 ```typescript
 {
   steps: [
-    { id: 'data-pipeline', workflow: dataPipelineWorkflow },  // Nested workflow
-    { id: 'analysis', task: '...', dependsOn: ['data-pipeline'] }
-  ]
+    { id: 'data-pipeline', workflow: dataPipelineWorkflow }, // Nested workflow
+    { id: 'analysis', task: '...', dependsOn: ['data-pipeline'] },
+  ];
 }
 ```
 
@@ -1582,6 +1693,7 @@ Workflows as steps in parent workflows:
 ### 4. Admin UI Integration
 
 Visual monitoring dashboard:
+
 - Active subagents/workflows graph
 - Queue length and concurrency usage
 - Average execution time by model
@@ -1601,23 +1713,27 @@ const WORKFLOW_TEMPLATES = {
       { id: 'investigate', agent: 'issue-investigator' },
       { id: 'fix', agent: 'dev-coder', dependsOn: ['investigate'] },
       { id: 'test', agent: 'validation-agent', dependsOn: ['fix'] },
-      { id: 'review', agent: 'code-reviewer', dependsOn: ['test'] }
-    ]
+      { id: 'review', agent: 'code-reviewer', dependsOn: ['test'] },
+    ],
   },
   'research-synthesis': {
     steps: [
       { id: 'web', task: 'Search web' },
       { id: 'docs', task: 'Search docs' },
       { id: 'code', task: 'Search codebase' },
-      { id: 'synthesis', task: 'Combine findings', dependsOn: ['web', 'docs', 'code'] }
-    ]
-  }
+      {
+        id: 'synthesis',
+        task: 'Combine findings',
+        dependsOn: ['web', 'docs', 'code'],
+      },
+    ],
+  },
 };
 
 // Usage
 await sessions_orchestrate({
   template: 'bug-fix',
-  context: { issue: '#123' }
+  context: { issue: '#123' },
 });
 ```
 
@@ -1629,13 +1745,13 @@ Steps with conditional execution:
 {
   steps: [
     { id: 'test', task: 'Run tests' },
-    { 
-      id: 'fix', 
+    {
+      id: 'fix',
       task: 'Fix failing tests',
       dependsOn: ['test'],
-      condition: "steps.test.result.includes('FAILED')"  // Only run if tests failed
-    }
-  ]
+      condition: "steps.test.result.includes('FAILED')", // Only run if tests failed
+    },
+  ];
 }
 ```
 
@@ -1653,16 +1769,19 @@ npm start
 ### Common Issues
 
 **Subagent stuck in 'queued' state:**
+
 - Check `max_concurrent` limit
 - Verify running subagents are completing
 - Increase timeout if needed
 
 **Workspace files not created:**
+
 - Ensure `workspaceRoot` is configured
 - Check file system permissions
 - Verify disk space
 
 **Docker sandbox fails:**
+
 - Check Docker daemon is running
 - Verify image is pulled: `docker pull nachos/subagent-sandbox`
 - Check memory limits
@@ -1672,21 +1791,28 @@ npm start
 ## See Also
 
 - [User Guide](../guides/subagents.md) - How to use subagents
-- [ADR-004](decisions/004-subagent-orchestration-enhancements.md) - Design decisions for v2.0 features
+- [ADR-004](decisions/004-subagent-orchestration-enhancements.md) - Design
+  decisions for v2.0 features
 - [Configuration Reference](../config/gateway.md) - Full config options
 - [Tool Reference](../tools/README.md) - API docs
 
 **Related ADRs:**
+
 - ADR-002 - Shell Tool Security Model
 - ADR-003 - Skill Structure
-- **ADR-004 - Subagent Orchestration Enhancements** (model selection, progress, streaming, workflows)
+- **ADR-004 - Subagent Orchestration Enhancements** (model selection, progress,
+  streaming, workflows)
 
 **Key source files:**
-- `packages/core/gateway/src/subagents/subagent-orchestrator.ts` - Main orchestrator
+
+- `packages/core/gateway/src/subagents/subagent-orchestrator.ts` - Main
+  orchestrator
 - `packages/core/gateway/src/subagents/model-selection.ts` - Model routing logic
-- `packages/core/gateway/src/subagents/dependency-graph.ts` - Workflow DAG validation
+- `packages/core/gateway/src/subagents/dependency-graph.ts` - Workflow DAG
+  validation
 - `packages/core/gateway/src/subagents/types.ts` - Type definitions
 
 ---
 
-**Contributing:** Found a bug or want to improve subagents? Open an issue on [GitHub](https://github.com/Nacho-Labs-LLC/nachos).
+**Contributing:** Found a bug or want to improve subagents? Open an issue on
+[GitHub](https://github.com/Nacho-Labs-LLC/nachos).

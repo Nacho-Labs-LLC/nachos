@@ -277,7 +277,8 @@ nachos open docs
 
 ### Memory and Profiles
 
-These commands operate directly on the state layer. They bypass policy checks and are intended for internal/admin use.
+These commands operate directly on the state layer. They bypass policy checks
+and are intended for internal/admin use.
 
 #### `nachos memory query`
 
@@ -621,7 +622,8 @@ The CLI searches for `nachos.toml` in the following order:
 
 ## Configuration Precedence
 
-Nachos uses a layered configuration system. Values are resolved in the following order (highest to lowest priority):
+Nachos uses a layered configuration system. Values are resolved in the following
+order (highest to lowest priority):
 
 1. **Environment Variables** (highest priority)
    - `SECURITY_MODE` - Override security mode
@@ -676,7 +678,8 @@ SECURITY_MODE=permissive  # Override for local development
 
 ### Environment Overlay
 
-The `@nachos/config` package automatically applies environment variable overlays:
+The `@nachos/config` package automatically applies environment variable
+overlays:
 
 ```typescript
 // Internally, the CLI does:
@@ -698,7 +701,8 @@ Environment variables follow this naming pattern:
 - `SECURITY_MODE` - Override security mode (strict/standard/permissive)
 - `ANTHROPIC_API_KEY` - Anthropic Claude API key
 - `OPENAI_API_KEY` - OpenAI API key
-- `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`, `SLACK_SIGNING_SECRET` - Slack credentials
+- `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`, `SLACK_SIGNING_SECRET` - Slack
+  credentials
 - `DISCORD_BOT_TOKEN` - Discord bot token
 - `TELEGRAM_BOT_TOKEN` - Telegram bot token
 

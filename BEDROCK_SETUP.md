@@ -1,12 +1,14 @@
 # AWS Bedrock Setup Guide
 
-Complete guide for using Nachos with AWS Bedrock (Amazon's managed Claude access).
+Complete guide for using Nachos with AWS Bedrock (Amazon's managed Claude
+access).
 
 ---
 
 ## Overview
 
-AWS Bedrock provides managed access to Anthropic Claude models through AWS infrastructure. This integration is ideal for:
+AWS Bedrock provides managed access to Anthropic Claude models through AWS
+infrastructure. This integration is ideal for:
 
 - **Enterprise environments** that standardize on AWS
 - **Compliance requirements** that mandate AWS security controls
@@ -45,9 +47,7 @@ Your AWS credentials need `bedrock:InvokeModel` permission:
         "bedrock:InvokeModel",
         "bedrock:InvokeModelWithResponseStream"
       ],
-      "Resource": [
-        "arn:aws:bedrock:*::foundation-model/anthropic.claude-*"
-      ]
+      "Resource": ["arn:aws:bedrock:*::foundation-model/anthropic.claude-*"]
     }
   ]
 }
@@ -62,6 +62,7 @@ Your AWS credentials need `bedrock:InvokeModel` permission:
 Bedrock adapter uses the AWS SDK default credential chain (in order):
 
 1. **Environment variables** (recommended for development):
+
    ```bash
    export AWS_ACCESS_KEY_ID="AKIAIOSFODNN7EXAMPLE"
    export AWS_SECRET_ACCESS_KEY="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
@@ -69,12 +70,13 @@ Bedrock adapter uses the AWS SDK default credential chain (in order):
    ```
 
 2. **AWS credentials file** (recommended for production):
+
    ```
    # ~/.aws/credentials
    [default]
    aws_access_key_id = AKIAIOSFODNN7EXAMPLE
    aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
-   
+
    # ~/.aws/config
    [default]
    region = us-east-1
@@ -113,13 +115,13 @@ temperature = 0.7
 
 Current Anthropic models on Bedrock:
 
-| Model ID | Name | Context | Use Case |
-|----------|------|---------|----------|
-| `anthropic.claude-3-5-sonnet-20241022-v2:0` | Claude 3.5 Sonnet v2 | 200K | Best balance (recommended) |
-| `anthropic.claude-3-5-sonnet-20240620-v1:0` | Claude 3.5 Sonnet v1 | 200K | Previous version |
-| `anthropic.claude-3-opus-20240229-v1:0` | Claude 3 Opus | 200K | Most capable |
-| `anthropic.claude-3-sonnet-20240229-v1:0` | Claude 3 Sonnet | 200K | Good balance |
-| `anthropic.claude-3-haiku-20240307-v1:0` | Claude 3 Haiku | 200K | Fastest/cheapest |
+| Model ID                                    | Name                 | Context | Use Case                   |
+| ------------------------------------------- | -------------------- | ------- | -------------------------- |
+| `anthropic.claude-3-5-sonnet-20241022-v2:0` | Claude 3.5 Sonnet v2 | 200K    | Best balance (recommended) |
+| `anthropic.claude-3-5-sonnet-20240620-v1:0` | Claude 3.5 Sonnet v1 | 200K    | Previous version           |
+| `anthropic.claude-3-opus-20240229-v1:0`     | Claude 3 Opus        | 200K    | Most capable               |
+| `anthropic.claude-3-sonnet-20240229-v1:0`   | Claude 3 Sonnet      | 200K    | Good balance               |
+| `anthropic.claude-3-haiku-20240307-v1:0`    | Claude 3 Haiku       | 200K    | Fastest/cheapest           |
 
 **Note**: Model IDs include version suffixes (`:0`) required by Bedrock.
 
@@ -134,7 +136,8 @@ Claude models are available in these AWS regions:
 - `ap-northeast-1` (Tokyo)
 - `ap-southeast-1` (Singapore)
 
-Check current availability: [AWS Bedrock Regions](https://docs.aws.amazon.com/bedrock/latest/userguide/models-regions.html)
+Check current availability:
+[AWS Bedrock Regions](https://docs.aws.amazon.com/bedrock/latest/userguide/models-regions.html)
 
 ---
 
@@ -177,6 +180,7 @@ nachos logs gateway | grep -i bedrock
 **Cause**: IAM permissions missing or insufficient
 
 **Solution**:
+
 1. Verify IAM policy includes `bedrock:InvokeModel`
 2. Check resource ARN pattern matches Claude models
 3. If using IAM role, verify instance profile attached
@@ -199,6 +203,7 @@ aws iam simulate-principal-policy \
 **Cause**: Model not enabled in region or invalid model ID
 
 **Solution**:
+
 1. Navigate to AWS Bedrock console → Model access
 2. Verify Claude models show "Access granted"
 3. Check model ID matches exactly (including `:0` suffix)
@@ -211,6 +216,7 @@ aws iam simulate-principal-policy \
 **Cause**: Too many requests, rate limit hit
 
 **Solution**:
+
 - Bedrock has per-model request quotas
 - Reduce request frequency
 - Consider upgrading service quota limits
@@ -223,7 +229,9 @@ aws iam simulate-principal-policy \
 **Cause**: Request parameters don't match Bedrock API format
 
 **Solutions**:
+
 1. **Max tokens**: Bedrock requires `max_tokens`, check your config:
+
    ```toml
    [llm]
    max_tokens = 4096  # Must be set
@@ -248,6 +256,7 @@ aws iam simulate-principal-policy \
 **Solution**: Set credentials in order of preference:
 
 1. **Temporary development**:
+
    ```bash
    export AWS_ACCESS_KEY_ID="..."
    export AWS_SECRET_ACCESS_KEY="..."
@@ -255,6 +264,7 @@ aws iam simulate-principal-policy \
    ```
 
 2. **Persistent development**:
+
    ```bash
    aws configure
    # Enter access key, secret, region when prompted
@@ -287,11 +297,11 @@ nachos logs gateway | grep -i bedrock
 
 ### 1. Choose Right Model
 
-| Model | Cost/1M Input Tokens | Cost/1M Output Tokens | Best For |
-|-------|---------------------|----------------------|----------|
-| Haiku | $0.25 | $1.25 | High-volume, simple tasks |
-| Sonnet | $3.00 | $15.00 | General use (recommended) |
-| Opus | $15.00 | $75.00 | Complex reasoning |
+| Model  | Cost/1M Input Tokens | Cost/1M Output Tokens | Best For                  |
+| ------ | -------------------- | --------------------- | ------------------------- |
+| Haiku  | $0.25                | $1.25                 | High-volume, simple tasks |
+| Sonnet | $3.00                | $15.00                | General use (recommended) |
+| Opus   | $15.00               | $75.00                | Complex reasoning         |
 
 ### 2. Reduce Context Size
 
@@ -306,6 +316,7 @@ max_tokens = 50000  # vs default 100000
 ### 3. Enable Caching (Future)
 
 Bedrock may support prompt caching in future. Monitor:
+
 - [AWS Bedrock Updates](https://aws.amazon.com/bedrock/latest/)
 - Nachos release notes for cache integration
 
@@ -315,15 +326,18 @@ Bedrock may support prompt caching in future. Monitor:
 
 ### 1. Use IAM Roles (Production)
 
-**Never** embed AWS credentials in `nachos.toml` or environment variables in production.
+**Never** embed AWS credentials in `nachos.toml` or environment variables in
+production.
 
 ✅ **Correct** (EC2 example):
+
 ```bash
 # Attach IAM role to instance with bedrock:InvokeModel permission
 # No credentials in config
 ```
 
 ❌ **Incorrect**:
+
 ```toml
 # NEVER DO THIS
 [aws]
@@ -375,6 +389,7 @@ aws ec2 create-vpc-endpoint \
 ### Minimal Config Changes
 
 **Before** (Anthropic direct):
+
 ```toml
 [llm]
 provider = "anthropic"
@@ -383,6 +398,7 @@ api_key = "${ANTHROPIC_API_KEY}"
 ```
 
 **After** (Bedrock):
+
 ```toml
 [llm]
 provider = "bedrock"
@@ -425,15 +441,18 @@ const adapter = createBedrockAdapter('us-west-2', {
 
 ### Multiple Regions (Failover)
 
-Not directly supported yet. Feature request: https://github.com/Nacho-Labs-LLC/nachos/issues
+Not directly supported yet. Feature request:
+https://github.com/Nacho-Labs-LLC/nachos/issues
 
-**Workaround**: Run multiple Nachos instances with different regions, use load balancer.
+**Workaround**: Run multiple Nachos instances with different regions, use load
+balancer.
 
 ---
 
 ## Support
 
 ### Documentation
+
 - [Nachos GitHub](https://github.com/Nacho-Labs-LLC/nachos)
 - [AWS Bedrock Docs](https://docs.aws.amazon.com/bedrock/)
 - [Anthropic Claude on Bedrock](https://docs.anthropic.com/en/api/claude-on-amazon-bedrock)

@@ -1,6 +1,8 @@
 ---
 name: composio-gdrive
-description: Upload, download, search, share, and manage files in Google Drive via Composio.
+description:
+  Upload, download, search, share, and manage files in Google Drive via
+  Composio.
 ---
 
 # Google Drive Integration via Composio
@@ -14,6 +16,7 @@ description: Upload, download, search, share, and manage files in Google Drive v
 ## Common Actions
 
 ### Upload File
+
 ```typescript
 {
   "action": "GOOGLEDRIVE_UPLOAD_FILE",
@@ -27,6 +30,7 @@ description: Upload, download, search, share, and manage files in Google Drive v
 ```
 
 ### Search Files
+
 ```typescript
 {
   "action": "GOOGLEDRIVE_FIND_FILE",

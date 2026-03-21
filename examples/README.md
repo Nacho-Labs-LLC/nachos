@@ -20,6 +20,7 @@ node examples/config-example.mjs
 ```
 
 This example shows:
+
 - Loading configuration from `nachos.toml.example`
 - Applying environment variable overlays
 - Validating the configuration

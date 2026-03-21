@@ -1,6 +1,7 @@
 ---
 name: composio-gmeet
-description: Create meetings and manage Google Meet spaces via Composio integration.
+description:
+  Create meetings and manage Google Meet spaces via Composio integration.
 ---
 
 # Google Meet Integration via Composio
@@ -14,6 +15,7 @@ description: Create meetings and manage Google Meet spaces via Composio integrat
 ## Common Actions
 
 ### Create Meeting Space
+
 ```typescript
 {
   "action": "GOOGLEMEET_CREATE_A_MEET",
@@ -27,6 +29,7 @@ description: Create meetings and manage Google Meet spaces via Composio integrat
 ```
 
 ### List Conference Records
+
 ```typescript
 {
   "action": "GOOGLEMEET_LIST_CONFERENCE_RECORDS",

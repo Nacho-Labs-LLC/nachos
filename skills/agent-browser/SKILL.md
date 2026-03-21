@@ -1,11 +1,18 @@
 ---
 name: agent-browser
-description: Production-grade browser automation for AI agents using Playwright. Navigate URLs, take screenshots, click elements, fill forms, extract text/data, wait for elements, handle multiple tabs, and manage cookies/sessions. Use when an AI agent needs to interact with web applications for data extraction, testing, form submission, visual verification, login flows, or any browser-based automation. Security-focused with sandboxed browsing and domain controls.
+description:
+  Production-grade browser automation for AI agents using Playwright. Navigate
+  URLs, take screenshots, click elements, fill forms, extract text/data, wait
+  for elements, handle multiple tabs, and manage cookies/sessions. Use when an
+  AI agent needs to interact with web applications for data extraction, testing,
+  form submission, visual verification, login flows, or any browser-based
+  automation. Security-focused with sandboxed browsing and domain controls.
 ---
 
 # Agent Browser - AI-Powered Browser Automation
 
-Production-grade Playwright wrapper designed for AI agents to interact with web applications safely and effectively.
+Production-grade Playwright wrapper designed for AI agents to interact with web
+applications safely and effectively.
 
 ## Core Capabilities
 
@@ -28,18 +35,18 @@ from playwright.sync_api import sync_playwright
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
     page = browser.new_page()
-    
+
     # Navigate and wait for page load
     page.goto('https://example.com')
     page.wait_for_load_state('networkidle')
-    
+
     # Extract data
     title = page.title()
     content = page.locator('main').text_content()
-    
+
     # Take screenshot
     page.screenshot(path='page.png')
-    
+
     browser.close()
 ```
 
@@ -52,7 +59,7 @@ ALLOWED_DOMAINS = ['example.com', 'api.example.com']
 def is_allowed_domain(url: str) -> bool:
     from urllib.parse import urlparse
     domain = urlparse(url).netloc
-    return any(domain == allowed or domain.endswith(f'.{allowed}') 
+    return any(domain == allowed or domain.endswith(f'.{allowed}')
                for allowed in ALLOWED_DOMAINS)
 
 # Validate before navigation
@@ -73,18 +80,18 @@ def login(page, username: str, password: str, login_url: str):
     """
     page.goto(login_url)
     page.wait_for_load_state('networkidle')
-    
+
     # Fill credentials
     page.fill('input[name="username"]', username)
     page.fill('input[name="password"]', password)
-    
+
     # Submit and wait for navigation
     page.click('button[type="submit"]')
     page.wait_for_url('**/dashboard**', timeout=10000)
-    
+
     # Verify login success
     assert page.locator('.user-profile').is_visible()
-    
+
     return page.context().cookies()
 ```
 
@@ -96,18 +103,18 @@ def scrape_table(page, table_selector: str) -> list[dict]:
     Extract structured data from HTML table.
     """
     page.wait_for_selector(table_selector)
-    
+
     # Extract headers
     headers = page.locator(f'{table_selector} thead th').all_text_contents()
-    
+
     # Extract rows
     rows = []
     row_elements = page.locator(f'{table_selector} tbody tr').all()
-    
+
     for row in row_elements:
         cells = row.locator('td').all_text_contents()
         rows.append(dict(zip(headers, cells)))
-    
+
     return rows
 ```
 
@@ -121,26 +128,26 @@ def submit_form(page, form_data: dict):
     # Fill text inputs
     for field, value in form_data.items():
         page.fill(f'input[name="{field}"]', value)
-    
+
     # Handle dropdowns
     page.select_option('select[name="country"]', 'US')
-    
+
     # Handle checkboxes
     page.check('input[name="terms"]')
-    
+
     # File upload
     page.set_input_files('input[type="file"]', 'document.pdf')
-    
+
     # Submit and handle validation
     page.click('button[type="submit"]')
-    
+
     # Wait for either success or error message
     page.wait_for_selector('.success-message, .error-message')
-    
+
     if page.locator('.error-message').is_visible():
         error = page.locator('.error-message').text_content()
         return {'success': False, 'error': error}
-    
+
     return {'success': True}
 ```
 
@@ -153,10 +160,10 @@ def visual_check(page, element_selector: str, expected_state: str):
     """
     page.wait_for_selector(element_selector)
     element = page.locator(element_selector)
-    
+
     # Capture element screenshot
     element.screenshot(path=f'{expected_state}_check.png')
-    
+
     # Verify visibility and state
     checks = {
         'visible': element.is_visible(),
@@ -164,7 +171,7 @@ def visual_check(page, element_selector: str, expected_state: str):
         'text': element.text_content(),
         'classes': element.get_attribute('class')
     }
-    
+
     return checks
 ```
 
@@ -178,22 +185,22 @@ def multi_tab_automation(browser):
     # Create multiple pages
     page1 = browser.new_page()
     page2 = browser.new_page()
-    
+
     # Navigate in parallel
     page1.goto('https://example.com/source')
     page2.goto('https://example.com/target')
-    
+
     # Extract from first tab
     data = page1.locator('.data').text_content()
-    
+
     # Use in second tab
     page2.fill('input[name="data"]', data)
     page2.click('button[type="submit"]')
-    
+
     # Wait for result in second tab
     page2.wait_for_selector('.result')
     result = page2.locator('.result').text_content()
-    
+
     return result
 ```
 
@@ -205,13 +212,13 @@ def save_session(page, session_file: str):
     Save cookies and storage for session reuse.
     """
     import json
-    
+
     session_data = {
         'cookies': page.context().cookies(),
         'localStorage': page.evaluate('() => Object.entries(localStorage)'),
         'sessionStorage': page.evaluate('() => Object.entries(sessionStorage)')
     }
-    
+
     with open(session_file, 'w') as f:
         json.dump(session_data, f)
 
@@ -220,19 +227,19 @@ def restore_session(page, session_file: str):
     Restore previous session state.
     """
     import json
-    
+
     with open(session_file) as f:
         session_data = json.load(f)
-    
+
     # Restore cookies
     page.context().add_cookies(session_data['cookies'])
-    
+
     # Restore storage (must navigate first)
     page.goto('https://example.com')
-    
+
     for key, value in session_data['localStorage']:
         page.evaluate(f'localStorage.setItem("{key}", {json.dumps(value)})')
-    
+
     for key, value in session_data['sessionStorage']:
         page.evaluate(f'sessionStorage.setItem("{key}", {json.dumps(value)})')
 ```
@@ -276,13 +283,13 @@ class SecureBrowser:
         self.allowed_domains = allowed_domains
         self.playwright = None
         self.browser = None
-    
+
     def validate_url(self, url: str) -> bool:
         from urllib.parse import urlparse
         domain = urlparse(url).netloc
-        return any(domain == d or domain.endswith(f'.{d}') 
+        return any(domain == d or domain.endswith(f'.{d}')
                    for d in self.allowed_domains)
-    
+
     def navigate(self, page, url: str):
         if not self.validate_url(url):
             raise SecurityError(f"Blocked domain: {url}")
@@ -301,7 +308,7 @@ def safe_fill_form(page, field: str, value: str, is_sensitive: bool = False):
         print(f"Filling {field} with: {value}")
     else:
         print(f"Filling {field} with: [REDACTED]")
-    
+
     page.fill(field, value)
 
 # Use environment variables, never hardcode
@@ -358,7 +365,7 @@ def intercept_api_calls(page):
     Monitor and modify network requests.
     """
     api_calls = []
-    
+
     def handle_request(route, request):
         # Log API calls
         if '/api/' in request.url:
@@ -367,10 +374,10 @@ def intercept_api_calls(page):
                 'method': request.method,
                 'headers': request.headers
             })
-        
+
         # Continue request
         route.continue_()
-    
+
     page.route('**/*', handle_request)
     return api_calls
 ```
@@ -400,10 +407,10 @@ def wait_for_dynamic_content(page, selector: str, timeout: int = 30000):
     """
     # Wait for network idle
     page.wait_for_load_state('networkidle')
-    
+
     # Wait for specific element
     page.wait_for_selector(selector, state='visible', timeout=timeout)
-    
+
     # Additional wait for animations
     page.wait_for_timeout(500)
 ```
@@ -419,11 +426,11 @@ def robust_automation(page, url: str):
     """
     try:
         page.goto(url, wait_until='networkidle', timeout=60000)
-        
+
     except TimeoutError:
         # Retry with longer timeout
         page.goto(url, timeout=120000)
-        
+
     except Error as e:
         if 'net::ERR_CONNECTION_REFUSED' in str(e):
             raise ConnectionError(f"Cannot connect to {url}")
@@ -431,11 +438,11 @@ def robust_automation(page, url: str):
             raise ValueError(f"Invalid URL: {url}")
         else:
             raise
-    
+
     # Verify page loaded correctly
     if page.title() == '':
         raise RuntimeError("Page failed to load properly")
-    
+
     return True
 ```
 
@@ -469,17 +476,17 @@ async def scrape_multiple_pages(urls: list[str]):
     """
     async with async_playwright() as p:
         browser = await p.chromium.launch()
-        
+
         async def scrape_page(url):
             page = await browser.new_page()
             await page.goto(url)
             content = await page.content()
             await page.close()
             return content
-        
+
         results = await asyncio.gather(*[scrape_page(url) for url in urls])
         await browser.close()
-        
+
     return results
 ```
 
@@ -518,34 +525,40 @@ context.tracing.stop(path='trace.zip')
 ## Common Pitfalls
 
 ❌ **Don't**: Navigate before waiting for previous action
+
 ```python
 page.click('button')
 page.goto('https://example.com')  # May navigate before click completes
 ```
 
 ✅ **Do**: Wait for navigation or state change
+
 ```python
 page.click('button')
 page.wait_for_url('**/next-page**')
 ```
 
 ❌ **Don't**: Use brittle selectors
+
 ```python
 page.click('div > div > div > button')  # Breaks easily
 ```
 
 ✅ **Do**: Use semantic selectors
+
 ```python
 page.click('role=button[name="Submit"]')
 ```
 
 ❌ **Don't**: Assume instant element availability
+
 ```python
 element = page.locator('.dynamic')
 element.click()  # May fail if not loaded
 ```
 
 ✅ **Do**: Use auto-waiting locators
+
 ```python
 page.locator('.dynamic').click()  # Waits automatically
 ```
@@ -577,11 +590,11 @@ class Config:
     VIEWPORT = {'width': 1280, 'height': 720}
     TIMEOUT = 30000
     ALLOWED_DOMAINS = ['example.com', 'trusted-site.com']
-    
+
     @classmethod
     def create_browser(cls, playwright):
         return playwright.chromium.launch(headless=cls.HEADLESS)
-    
+
     @classmethod
     def create_context(cls, browser):
         return browser.new_context(
@@ -595,7 +608,8 @@ class Config:
 
 ### As a Nachos Skill
 
-This skill is designed to be used by AI agents within the Nachos framework. The agent can invoke browser automation by:
+This skill is designed to be used by AI agents within the Nachos framework. The
+agent can invoke browser automation by:
 
 1. **Analyzing the task** to determine required actions
 2. **Generating Playwright scripts** using patterns from this skill
@@ -606,6 +620,7 @@ This skill is designed to be used by AI agents within the Nachos framework. The 
 ### Security in Multi-Tenant Environments
 
 When running in Nachos:
+
 - Enforce domain allowlists via environment variables
 - Run browser in isolated Docker containers
 - Limit memory and CPU usage
@@ -635,4 +650,6 @@ Use `--help` with any script to see usage before reading source code.
 
 ---
 
-**Security Notice**: This skill enables powerful browser automation. Always validate domains, protect credentials, and sandbox execution in production environments. Review logs regularly for unauthorized access attempts.
+**Security Notice**: This skill enables powerful browser automation. Always
+validate domains, protect credentials, and sandbox execution in production
+environments. Review logs regularly for unauthorized access attempts.

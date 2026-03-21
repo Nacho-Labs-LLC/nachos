@@ -1,11 +1,17 @@
 ---
 name: figma
-description: Figma API integration for design files, prototypes, and collaboration. Use when working with Figma designs, extracting assets, checking file metadata, getting component information, exporting images, or collaborating on designs. Supports file access, node inspection, image exports, comments, and version management.
+description:
+  Figma API integration for design files, prototypes, and collaboration. Use
+  when working with Figma designs, extracting assets, checking file metadata,
+  getting component information, exporting images, or collaborating on designs.
+  Supports file access, node inspection, image exports, comments, and version
+  management.
 ---
 
 # Figma API Integration
 
-Interact with Figma design files programmatically for asset extraction, design inspection, collaboration, and automation.
+Interact with Figma design files programmatically for asset extraction, design
+inspection, collaboration, and automation.
 
 ## When to Use
 
@@ -37,6 +43,7 @@ https://api.figma.com/v1
 ```
 
 All requests require header:
+
 ```
 X-Figma-Token: {your_token}
 ```
@@ -56,6 +63,7 @@ curl -H "X-Figma-Token: $FIGMA_ACCESS_TOKEN" \
 `https://www.figma.com/file/{FILE_KEY}/{file_name}`
 
 **Response includes**:
+
 - `name`: File name
 - `lastModified`: Last modification timestamp
 - `thumbnailUrl`: File thumbnail
@@ -85,6 +93,7 @@ curl -H "X-Figma-Token: $FIGMA_ACCESS_TOKEN" \
 ```
 
 **Parameters**:
+
 - `ids`: Comma-separated node IDs to export
 - `format`: `png`, `jpg`, `svg`, `pdf`
 - `scale`: 0.01 to 4 (for raster formats)
@@ -142,17 +151,17 @@ curl -H "X-Figma-Token: $FIGMA_ACCESS_TOKEN" \
 
 ## Key Endpoints
 
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/v1/files/:key` | GET | Get complete file |
-| `/v1/files/:key/nodes` | GET | Get specific nodes |
-| `/v1/images/:key` | GET | Export images |
-| `/v1/files/:key/comments` | GET | Get comments |
-| `/v1/files/:key/comments` | POST | Post comment |
-| `/v1/files/:key/versions` | GET | Get version history |
-| `/v1/teams/:team_id/projects` | GET | List team projects |
-| `/v1/projects/:project_id/files` | GET | List project files |
-| `/v1/me` | GET | Get current user |
+| Endpoint                         | Method | Purpose             |
+| -------------------------------- | ------ | ------------------- |
+| `/v1/files/:key`                 | GET    | Get complete file   |
+| `/v1/files/:key/nodes`           | GET    | Get specific nodes  |
+| `/v1/images/:key`                | GET    | Export images       |
+| `/v1/files/:key/comments`        | GET    | Get comments        |
+| `/v1/files/:key/comments`        | POST   | Post comment        |
+| `/v1/files/:key/versions`        | GET    | Get version history |
+| `/v1/teams/:team_id/projects`    | GET    | List team projects  |
+| `/v1/projects/:project_id/files` | GET    | List project files  |
+| `/v1/me`                         | GET    | Get current user    |
 
 ## Useful Queries
 
@@ -239,6 +248,7 @@ Common node types you'll encounter:
 ### Node Properties
 
 Key properties on nodes:
+
 - `id`: Unique node identifier
 - `name`: Layer name
 - `type`: Node type (see above)
@@ -317,12 +327,12 @@ Key properties on nodes:
 
 Common errors:
 
-| Code | Meaning | Solution |
-|------|---------|----------|
-| 403 | Invalid/expired token | Check `FIGMA_ACCESS_TOKEN` |
-| 404 | File not found | Verify file key and access |
-| 429 | Rate limit exceeded | Implement backoff, reduce requests |
-| 500 | Figma server error | Retry with exponential backoff |
+| Code | Meaning               | Solution                           |
+| ---- | --------------------- | ---------------------------------- |
+| 403  | Invalid/expired token | Check `FIGMA_ACCESS_TOKEN`         |
+| 404  | File not found        | Verify file key and access         |
+| 429  | Rate limit exceeded   | Implement backoff, reduce requests |
+| 500  | Figma server error    | Retry with exponential backoff     |
 
 ## Integration Examples
 
@@ -368,18 +378,19 @@ curl -s -H "X-Figma-Token: $FIGMA_ACCESS_TOKEN" \
 
 ## Troubleshooting
 
-**Problem**: "File not found" error
-**Solution**: Ensure you have view access to the file. Private files require explicit sharing.
+**Problem**: "File not found" error **Solution**: Ensure you have view access to
+the file. Private files require explicit sharing.
 
-**Problem**: Exported images missing
-**Solution**: Check if nodes are visible and have non-zero size. Invisible or 0-size nodes can't render.
+**Problem**: Exported images missing **Solution**: Check if nodes are visible
+and have non-zero size. Invisible or 0-size nodes can't render.
 
-**Problem**: Rate limit errors
-**Solution**: Reduce request frequency. Consider caching file structure and only fetching changes.
+**Problem**: Rate limit errors **Solution**: Reduce request frequency. Consider
+caching file structure and only fetching changes.
 
-**Problem**: Large response times
-**Solution**: Use `depth` and `ids` parameters to limit data. Avoid fetching entire large files.
+**Problem**: Large response times **Solution**: Use `depth` and `ids` parameters
+to limit data. Avoid fetching entire large files.
 
 ---
 
-**Pro tip**: Use Figma's webhooks (via plugins) for real-time updates instead of polling the API.
+**Pro tip**: Use Figma's webhooks (via plugins) for real-time updates instead of
+polling the API.

@@ -159,31 +159,32 @@ sequenceDiagram
 
 ### SubagentOrchestrator (742 lines)
 
-Central coordination engine. Manages the full lifecycle: enqueue → queue → execute → announce.
+Central coordination engine. Manages the full lifecycle: enqueue → queue →
+execute → announce.
 
 **Key state:**
 
-| Field | Default | Purpose |
-|-------|---------|---------|
-| `maxConcurrent` | 1 | Max parallel subagent executions |
-| `maxQueueSize` | 100 | Max pending queue depth |
-| `maxPerUser` | 10 | Per-user concurrent run limit |
-| `maxStreamChunks` | 1000 | OOM protection for streaming |
-| `maxProgressUpdates` | 100 | Progress update spam limit |
-| `allowedModels` | none (all) | Model whitelist |
+| Field                | Default    | Purpose                          |
+| -------------------- | ---------- | -------------------------------- |
+| `maxConcurrent`      | 1          | Max parallel subagent executions |
+| `maxQueueSize`       | 100        | Max pending queue depth          |
+| `maxPerUser`         | 10         | Per-user concurrent run limit    |
+| `maxStreamChunks`    | 1000       | OOM protection for streaming     |
+| `maxProgressUpdates` | 100        | Progress update spam limit       |
+| `allowedModels`      | none (all) | Model whitelist                  |
 
 **Methods:**
 
-| Method | Purpose |
-|--------|---------|
-| `enqueue(request)` | Validate, create session, queue, return immediately |
-| `drainQueue()` | Process queue items honoring concurrency |
-| `executeRun(entry)` | Build LLM request, call manager, store result, announce |
-| `enqueueWorkflow(workflow, requester)` | Validate DAG, compute batches, execute async |
-| `stopRun(runId)` | Cancel queued run (cannot stop running) |
-| `steerRun(runId, message)` | Inject user message into running subagent's session |
-| `reportProgress(runId, status, %)` | Record progress update from within subagent |
-| `shutdown()` | Stop accepting, clear queue |
+| Method                                 | Purpose                                                 |
+| -------------------------------------- | ------------------------------------------------------- |
+| `enqueue(request)`                     | Validate, create session, queue, return immediately     |
+| `drainQueue()`                         | Process queue items honoring concurrency                |
+| `executeRun(entry)`                    | Build LLM request, call manager, store result, announce |
+| `enqueueWorkflow(workflow, requester)` | Validate DAG, compute batches, execute async            |
+| `stopRun(runId)`                       | Cancel queued run (cannot stop running)                 |
+| `steerRun(runId, message)`             | Inject user message into running subagent's session     |
+| `reportProgress(runId, status, %)`     | Record progress update from within subagent             |
+| `shutdown()`                           | Stop accepting, clear queue                             |
 
 ### SubagentManager (65 lines)
 
@@ -227,7 +228,9 @@ flowchart LR
     V1 --> V2 --> V3 --> K1 --> K2 --> K3 --> K4
 ```
 
-**Result passing**: When step C depends on steps A and B, the orchestrator prepends:
+**Result passing**: When step C depends on steps A and B, the orchestrator
+prepends:
+
 ```
 **Result from step "A":**
 <A's output>
@@ -270,25 +273,29 @@ flowchart TD
 ```
 
 **Auto-selection heuristics:**
-- **Opus** ← keywords: analyze, review, audit, codebase, vulnerabilities, refactor; OR multi-step indicators; OR >40 words
+
+- **Opus** ← keywords: analyze, review, audit, codebase, vulnerabilities,
+  refactor; OR multi-step indicators; OR >40 words
 - **Haiku** ← <8 words, no complexity indicators
 - **Sonnet** ← everything else
 
 **Default aliases:**
 
-| Alias | Model ID |
-|-------|----------|
-| `haiku`, `fast`, `cheap` | `anthropic.claude-haiku-4-5-20251001-v1:0` |
-| `sonnet`, `balanced`, `default` | `anthropic.claude-sonnet-4-6` |
-| `opus`, `thorough` | `anthropic.claude-opus-4-6-v1` |
+| Alias                           | Model ID                                   |
+| ------------------------------- | ------------------------------------------ |
+| `haiku`, `fast`, `cheap`        | `anthropic.claude-haiku-4-5-20251001-v1:0` |
+| `sonnet`, `balanced`, `default` | `anthropic.claude-sonnet-4-6`              |
+| `opus`, `thorough`              | `anthropic.claude-opus-4-6-v1`             |
 
 ### Announce (80 lines)
 
 Generates summaries and delivers results back to the requester's channel.
 
-**Template variables:** `{{task}}`, `{{response}}`, `{{error}}`, `{{status}}`, `{{runId}}`, `{{durationMs}}`, `{{sandboxed}}`
+**Template variables:** `{{task}}`, `{{response}}`, `{{error}}`, `{{status}}`,
+`{{runId}}`, `{{durationMs}}`, `{{sandboxed}}`
 
-**Flow:** Subagent result → build prompt → LLM summarize → `router.sendToChannel()` → user sees result
+**Flow:** Subagent result → build prompt → LLM summarize →
+`router.sendToChannel()` → user sees result
 
 Can be disabled: `gateway.subagent.announce.enabled = false`
 
@@ -302,7 +309,8 @@ workspace/subagents/{runId}/
 ```
 
 - `resolveWithinRoot()` validates all paths stay inside workspace root
-- `listSubagentWorkspaceEntries()` supports recursive listing with pagination (default 500 limit)
+- `listSubagentWorkspaceEntries()` supports recursive listing with pagination
+  (default 500 limit)
 - `readSubagentWorkspaceFile()` reads files with size cap (default 65KB)
 
 ## LLM Tools
@@ -313,55 +321,56 @@ Three tools exposed to the LLM:
 
 Spawn a single subagent. Returns immediately with `{status: 'accepted', runId}`.
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `task` | string | yes | Task description |
-| `label` | string | no | Human-friendly label |
-| `model` | string | no | Explicit model or alias |
-| `modelHint` | `fast\|balanced\|thorough` | no | Model selection hint |
-| `thinking` | string | no | Extended thinking level |
-| `stream` | boolean | no | Enable streaming chunks |
-| `profile` | string | no | Security tool profile |
-| `runTimeoutSeconds` | number | no | Max execution time |
-| `cleanup` | `delete\|keep` | no | Workspace cleanup policy |
+| Parameter           | Type                       | Required | Description              |
+| ------------------- | -------------------------- | -------- | ------------------------ |
+| `task`              | string                     | yes      | Task description         |
+| `label`             | string                     | no       | Human-friendly label     |
+| `model`             | string                     | no       | Explicit model or alias  |
+| `modelHint`         | `fast\|balanced\|thorough` | no       | Model selection hint     |
+| `thinking`          | string                     | no       | Extended thinking level  |
+| `stream`            | boolean                    | no       | Enable streaming chunks  |
+| `profile`           | string                     | no       | Security tool profile    |
+| `runTimeoutSeconds` | number                     | no       | Max execution time       |
+| `cleanup`           | `delete\|keep`             | no       | Workspace cleanup policy |
 
 ### `sessions_orchestrate`
 
 Multi-step workflow with dependency DAG.
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `steps` | array | yes | Array of workflow steps |
-| `steps[].id` | string | yes | Unique step identifier |
-| `steps[].task` | string | yes | Step task description |
-| `steps[].dependsOn` | string[] | no | Step IDs this depends on |
-| `steps[].model` | string | no | Model for this step |
-| `steps[].modelHint` | string | no | Model hint for this step |
-| `steps[].stream` | boolean | no | Enable streaming for step |
+| Parameter           | Type     | Required | Description               |
+| ------------------- | -------- | -------- | ------------------------- |
+| `steps`             | array    | yes      | Array of workflow steps   |
+| `steps[].id`        | string   | yes      | Unique step identifier    |
+| `steps[].task`      | string   | yes      | Step task description     |
+| `steps[].dependsOn` | string[] | no       | Step IDs this depends on  |
+| `steps[].model`     | string   | no       | Model for this step       |
+| `steps[].modelHint` | string   | no       | Model hint for this step  |
+| `steps[].stream`    | boolean  | no       | Enable streaming for step |
 
 ### `subagent_progress`
 
-Report progress from within a running subagent session. Only available when the session has subagent metadata.
+Report progress from within a running subagent session. Only available when the
+session has subagent metadata.
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `status` | string | yes | Progress status text |
-| `percentage` | number | no | 0-100 completion |
-| `metadata` | object | no | Arbitrary metadata |
+| Parameter    | Type   | Required | Description          |
+| ------------ | ------ | -------- | -------------------- |
+| `status`     | string | yes      | Progress status text |
+| `percentage` | number | no       | 0-100 completion     |
+| `metadata`   | object | no       | Arbitrary metadata   |
 
 ## NATS Management API
 
 CLI and admin UI access subagents via NATS request/reply:
 
-| Topic | CLI Command | Purpose |
-|-------|------------|---------|
-| `nachos.gateway.subagents.list` | `nachos subagents list` | List all runs |
-| `nachos.gateway.subagents.spawn` | `nachos subagents spawn <task>` | Spawn from CLI |
-| `nachos.gateway.subagents.info` | `nachos subagents info <runId>` | Run details |
-| `nachos.gateway.subagents.stop` | `nachos subagents stop <runId>` | Cancel queued run |
-| `nachos.gateway.subagents.log` | `nachos subagents log <runId>` | Conversation log |
-| `nachos.gateway.subagents.files.list` | `nachos subagents files list <runId>` | Workspace files |
-| `nachos.gateway.subagents.files.get` | `nachos subagents files get <runId>` | Read workspace file |
+| Topic                                 | CLI Command                           | Purpose             |
+| ------------------------------------- | ------------------------------------- | ------------------- |
+| `nachos.gateway.subagents.list`       | `nachos subagents list`               | List all runs       |
+| `nachos.gateway.subagents.spawn`      | `nachos subagents spawn <task>`       | Spawn from CLI      |
+| `nachos.gateway.subagents.info`       | `nachos subagents info <runId>`       | Run details         |
+| `nachos.gateway.subagents.stop`       | `nachos subagents stop <runId>`       | Cancel queued run   |
+| `nachos.gateway.subagents.log`        | `nachos subagents log <runId>`        | Conversation log    |
+| `nachos.gateway.subagents.files.list` | `nachos subagents files list <runId>` | Workspace files     |
+| `nachos.gateway.subagents.files.get`  | `nachos subagents files get <runId>`  | Read workspace file |
 
 ## Session Architecture
 
@@ -387,9 +396,11 @@ flowchart LR
 ```
 
 **Subagent sessions get a stripped-down prompt:**
+
 - Base prompt (with assistant name if configured)
 - Memory instructions
-- Bootstrap: **only `[AGENTS]` and `[TOOLS]` blocks** (no soul, identity, user, bootstrap)
+- Bootstrap: **only `[AGENTS]` and `[TOOLS]` blocks** (no soul, identity, user,
+  bootstrap)
 - Skills documentation
 - No identity profile, user profile, or memory entries
 
@@ -428,31 +439,35 @@ flowchart TD
 
 ### Resource Limits
 
-| Control | Default | Config Key |
-|---------|---------|------------|
-| Queue depth | 100 | `gateway.subagent.maxQueueSize` |
-| Concurrent runs | 1 | `gateway.subagent.max_concurrent` |
-| Per-user limit | 10 | `gateway.subagent.maxPerUser` |
-| Stream chunks | 1000 | `gateway.subagent.maxStreamChunks` |
-| Progress updates | 100 | `gateway.subagent.maxProgressUpdates` |
-| Default timeout | 300s | `gateway.subagent.default_timeout_seconds` |
+| Control          | Default | Config Key                                 |
+| ---------------- | ------- | ------------------------------------------ |
+| Queue depth      | 100     | `gateway.subagent.maxQueueSize`            |
+| Concurrent runs  | 1       | `gateway.subagent.max_concurrent`          |
+| Per-user limit   | 10      | `gateway.subagent.maxPerUser`              |
+| Stream chunks    | 1000    | `gateway.subagent.maxStreamChunks`         |
+| Progress updates | 100     | `gateway.subagent.maxProgressUpdates`      |
+| Default timeout  | 300s    | `gateway.subagent.default_timeout_seconds` |
 
 ### Model Access Control
 
-- **Allowed models whitelist**: If `gateway.subagent.models.allowed_models` is set, only listed models can be used
-- **Double validation**: Both the requested model AND the final selected model are checked against the allowlist
+- **Allowed models whitelist**: If `gateway.subagent.models.allowed_models` is
+  set, only listed models can be used
+- **Double validation**: Both the requested model AND the final selected model
+  are checked against the allowlist
 
 ### Sandbox Isolation
 
-| Mode | Network | Filesystem | Process |
-|------|---------|-----------|---------|
-| `host` | Shared | Shared | In-process |
-| `tool` | Shared | Shared | Tool-level isolation |
-| `full` | `none`/`egress`/`full` | Docker volumes | Ephemeral container |
+| Mode   | Network                | Filesystem     | Process              |
+| ------ | ---------------------- | -------------- | -------------------- |
+| `host` | Shared                 | Shared         | In-process           |
+| `tool` | Shared                 | Shared         | Tool-level isolation |
+| `full` | `none`/`egress`/`full` | Docker volumes | Ephemeral container  |
 
 ### Path Traversal Protection
 
-All workspace file operations validate that resolved paths stay within the workspace root:
+All workspace file operations validate that resolved paths stay within the
+workspace root:
+
 ```typescript
 const rel = path.relative(root, target);
 if (rel.startsWith('..') || path.isAbsolute(rel)) {
@@ -463,6 +478,7 @@ if (rel.startsWith('..') || path.isAbsolute(rel)) {
 ### Error Sanitization
 
 Error messages are sanitized before returning to prevent information disclosure:
+
 ```typescript
 private sanitizeErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;  // No stack traces
@@ -472,7 +488,9 @@ private sanitizeErrorMessage(error: unknown): string {
 
 ### NATS Topic Injection Prevention
 
-Child session IDs are validated as UUIDs before being used in NATS topic subscriptions:
+Child session IDs are validated as UUIDs before being used in NATS topic
+subscriptions:
+
 ```typescript
 if (!/^[0-9a-f]{8}-...$/i.test(childSessionId)) {
   throw createValidationError('Invalid session ID format');
@@ -512,38 +530,44 @@ deny = ["filesystem", "shell"]
 
 ## Test Coverage
 
-| Test File | Tests | Coverage |
-|-----------|-------|---------|
-| `subagent-orchestrator.test.ts` | 46 | Core lifecycle, queue, announce, errors |
-| `dependency-graph.test.ts` | DAG validation, cycles, topological sort |
-| `model-selection.test.ts` | Alias resolution, auto-select, hints |
-| `workspace-utils.test.ts` | Path traversal, listing, reading |
-| `streaming-results.test.ts` | Chunk accumulation, OOM limits |
-| `progress-updates.test.ts` | Progress reporting, spam limits |
-| `security-hardening.test.ts` | Concurrency, queue depth, per-user limits |
+| Test File                       | Tests                                     | Coverage                                |
+| ------------------------------- | ----------------------------------------- | --------------------------------------- |
+| `subagent-orchestrator.test.ts` | 46                                        | Core lifecycle, queue, announce, errors |
+| `dependency-graph.test.ts`      | DAG validation, cycles, topological sort  |
+| `model-selection.test.ts`       | Alias resolution, auto-select, hints      |
+| `workspace-utils.test.ts`       | Path traversal, listing, reading          |
+| `streaming-results.test.ts`     | Chunk accumulation, OOM limits            |
+| `progress-updates.test.ts`      | Progress reporting, spam limits           |
+| `security-hardening.test.ts`    | Concurrency, queue depth, per-user limits |
 
 ## Known Limitations
 
-1. **Running subagents can't be stopped** — Only queued runs can be cancelled. Running subagents complete naturally or timeout.
-2. **Workflow steps fail-fast** — A failed step stops the entire workflow. No `continueOnFailure` option yet.
-3. **Streaming is accumulate-only** — Chunks are stored in memory during execution. No real-time delivery to requester yet.
-4. **In-memory state** — All run records, queues, and workflow state are in-memory. Lost on gateway restart.
-5. **Announce always uses LLM** — The announce phase makes an additional LLM call to summarize. Can be disabled but not made template-only without LLM.
-6. **Workflow polling** — `executeWorkflow` polls step completion every 100ms (up to 5 min). Not event-driven.
+1. **Running subagents can't be stopped** — Only queued runs can be cancelled.
+   Running subagents complete naturally or timeout.
+2. **Workflow steps fail-fast** — A failed step stops the entire workflow. No
+   `continueOnFailure` option yet.
+3. **Streaming is accumulate-only** — Chunks are stored in memory during
+   execution. No real-time delivery to requester yet.
+4. **In-memory state** — All run records, queues, and workflow state are
+   in-memory. Lost on gateway restart.
+5. **Announce always uses LLM** — The announce phase makes an additional LLM
+   call to summarize. Can be disabled but not made template-only without LLM.
+6. **Workflow polling** — `executeWorkflow` polls step completion every 100ms
+   (up to 5 min). Not event-driven.
 
 ## Key Files
 
-| File | Lines | Purpose |
-|------|-------|---------|
-| `gateway/src/subagents/subagent-orchestrator.ts` | 742 | Queue, lifecycle, announce, workflow |
-| `gateway/src/subagents/subagent-manager.ts` | 65 | Execution mode dispatch |
-| `gateway/src/subagents/docker-sandbox.ts` | 124 | Container isolation |
-| `gateway/src/subagents/dependency-graph.ts` | 219 | DAG validation + Kahn's toposort |
-| `gateway/src/subagents/model-selection.ts` | 264 | Model routing + auto-select |
-| `gateway/src/subagents/workspace-utils.ts` | 130 | Filesystem isolation |
-| `gateway/src/subagents/announce.ts` | 80 | Result summarization |
-| `gateway/src/subagents/types.ts` | 139 | Type definitions |
-| `gateway/src/tools/tool-executor.ts` | 1956 | `sessions_spawn`, `sessions_orchestrate`, `subagent_progress` handlers |
-| `gateway/src/management/management-handlers.ts` | 291 | NATS management API |
-| `cli/src/commands/subagents.ts` | 372 | CLI commands |
-| `bus/src/topics.ts` | — | NATS topic definitions |
+| File                                             | Lines | Purpose                                                                |
+| ------------------------------------------------ | ----- | ---------------------------------------------------------------------- |
+| `gateway/src/subagents/subagent-orchestrator.ts` | 742   | Queue, lifecycle, announce, workflow                                   |
+| `gateway/src/subagents/subagent-manager.ts`      | 65    | Execution mode dispatch                                                |
+| `gateway/src/subagents/docker-sandbox.ts`        | 124   | Container isolation                                                    |
+| `gateway/src/subagents/dependency-graph.ts`      | 219   | DAG validation + Kahn's toposort                                       |
+| `gateway/src/subagents/model-selection.ts`       | 264   | Model routing + auto-select                                            |
+| `gateway/src/subagents/workspace-utils.ts`       | 130   | Filesystem isolation                                                   |
+| `gateway/src/subagents/announce.ts`              | 80    | Result summarization                                                   |
+| `gateway/src/subagents/types.ts`                 | 139   | Type definitions                                                       |
+| `gateway/src/tools/tool-executor.ts`             | 1956  | `sessions_spawn`, `sessions_orchestrate`, `subagent_progress` handlers |
+| `gateway/src/management/management-handlers.ts`  | 291   | NATS management API                                                    |
+| `cli/src/commands/subagents.ts`                  | 372   | CLI commands                                                           |
+| `bus/src/topics.ts`                              | —     | NATS topic definitions                                                 |

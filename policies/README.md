@@ -1,37 +1,42 @@
 # Nachos Policy System
 
-The Cheese policy engine (embedded in the Gateway) provides security controls for the Nachos AI assistant framework. This document explains how to write and use policies.
+The Cheese policy engine (embedded in the Gateway) provides security controls
+for the Nachos AI assistant framework. This document explains how to write and
+use policies.
 
 ## Overview
 
-Policies are defined in YAML files and control access to resources (tools, channels, DMs, filesystem, network). The policy engine evaluates every action against loaded rules in priority order, applying the first matching rule's effect (allow or deny).
+Policies are defined in YAML files and control access to resources (tools,
+channels, DMs, filesystem, network). The policy engine evaluates every action
+against loaded rules in priority order, applying the first matching rule's
+effect (allow or deny).
 
 ## Policy Schema
 
 ### Basic Structure
 
 ```yaml
-version: "1.0"
+version: '1.0'
 
 metadata:
-  name: "My Security Policy"
-  description: "Custom policies for my deployment"
-  mode: "standard"  # strict | standard | permissive
+  name: 'My Security Policy'
+  description: 'Custom policies for my deployment'
+  mode: 'standard' # strict | standard | permissive
 
 rules:
-  - id: "unique-rule-id"
-    description: "Human-readable description"
-    priority: 100  # Higher priority = evaluated first
+  - id: 'unique-rule-id'
+    description: 'Human-readable description'
+    priority: 100 # Higher priority = evaluated first
     match:
-      resource: "tool"  # What resource type
-      resourceId: "browser"  # Specific resource (optional)
-      action: "read"  # What action
-    conditions:  # Optional additional conditions
-      - field: "security_mode"
-        operator: "equals"
-        value: "standard"
-    effect: "allow"  # allow | deny
-    reason: "Reason for denial (if deny)"
+      resource: 'tool' # What resource type
+      resourceId: 'browser' # Specific resource (optional)
+      action: 'read' # What action
+    conditions: # Optional additional conditions
+      - field: 'security_mode'
+        operator: 'equals'
+        value: 'standard'
+    effect: 'allow' # allow | deny
+    reason: 'Reason for denial (if deny)'
 ```
 
 ### Resource Types
@@ -73,7 +78,8 @@ Common fields available for conditions:
 - `resource_type` - Type of resource being accessed
 - `resource_id` - Specific resource identifier
 - `action` - Action being performed
-- `metadata.*` - Any metadata field (e.g., `metadata.path`, `metadata.is_paired`)
+- `metadata.*` - Any metadata field (e.g., `metadata.path`,
+  `metadata.is_paired`)
 
 ## Security Modes
 
@@ -106,86 +112,87 @@ Nachos provides three default security modes:
 
 ```yaml
 rules:
-  - id: "allow-browser-standard"
+  - id: 'allow-browser-standard'
     priority: 100
     match:
-      resource: "tool"
-      resourceId: "browser"
-      action: "read"
+      resource: 'tool'
+      resourceId: 'browser'
+      action: 'read'
     conditions:
-      - field: "security_mode"
-        operator: "in"
-        value: ["standard", "permissive"]
-    effect: "allow"
+      - field: 'security_mode'
+        operator: 'in'
+        value: ['standard', 'permissive']
+    effect: 'allow'
 ```
 
 ### Restrict Filesystem to Workspace
 
 ```yaml
 rules:
-  - id: "allow-workspace-write"
+  - id: 'allow-workspace-write'
     priority: 200
     match:
-      resource: "filesystem"
-      action: "write"
+      resource: 'filesystem'
+      action: 'write'
     conditions:
-      - field: "metadata.path"
-        operator: "starts_with"
-        value: "./workspace"
-    effect: "allow"
+      - field: 'metadata.path'
+        operator: 'starts_with'
+        value: './workspace'
+    effect: 'allow'
 
-  - id: "deny-filesystem-outside"
+  - id: 'deny-filesystem-outside'
     priority: 199
     match:
-      resource: "filesystem"
-    effect: "deny"
-    reason: "Filesystem access restricted to workspace directory"
+      resource: 'filesystem'
+    effect: 'deny'
+    reason: 'Filesystem access restricted to workspace directory'
 ```
 
 ### Allow DMs from Paired Users
 
 ```yaml
 rules:
-  - id: "allow-paired-dms"
+  - id: 'allow-paired-dms'
     priority: 300
     match:
-      resource: "dm"
-      action: "send"
+      resource: 'dm'
+      action: 'send'
     conditions:
-      - field: "metadata.is_paired"
-        operator: "equals"
+      - field: 'metadata.is_paired'
+        operator: 'equals'
         value: true
-    effect: "allow"
+    effect: 'allow'
 
-  - id: "deny-unpaired-dms"
+  - id: 'deny-unpaired-dms'
     priority: 299
     match:
-      resource: "dm"
-    effect: "deny"
-    reason: "DMs require pairing"
+      resource: 'dm'
+    effect: 'deny'
+    reason: 'DMs require pairing'
 ```
 
 ### Allow Specific Users
 
 ```yaml
 rules:
-  - id: "allow-admin-users"
+  - id: 'allow-admin-users'
     priority: 500
     match:
-      resource: "tool"
-      resourceId: "shell"
+      resource: 'tool'
+      resourceId: 'shell'
     conditions:
-      - field: "user_id"
-        operator: "matches"
-        value: "^admin-.*"
-    effect: "allow"
+      - field: 'user_id'
+        operator: 'matches'
+        value: '^admin-.*'
+    effect: 'allow'
 ```
 
 ## Policy Loading
 
 ### Directory Structure
 
-Place policy files in the `/app/policies` directory (configurable via `POLICY_PATH` environment variable):
+Place policy files in the `/app/policies` directory (configurable via
+`POLICY_PATH` environment variable):
 
 ```
 /app/policies/
@@ -197,18 +204,22 @@ Place policy files in the `/app/policies` directory (configurable via `POLICY_PA
 
 ### Hot Reload
 
-The policy engine watches for file changes and automatically reloads policies without restarting the Gateway. This is enabled by default but can be disabled with `POLICY_HOT_RELOAD=false`.
+The policy engine watches for file changes and automatically reloads policies
+without restarting the Gateway. This is enabled by default but can be disabled
+with `POLICY_HOT_RELOAD=false`.
 
 ### Loading Priority
 
-Rules are evaluated by priority (highest first). If multiple policy files define rules with the same priority, they are loaded in alphabetical filename order.
+Rules are evaluated by priority (highest first). If multiple policy files define
+rules with the same priority, they are loaded in alphabetical filename order.
 
 ## Configuration
 
 ### Environment Variables
 
 - `POLICY_PATH` - Path to policy files directory (default: `/app/policies`)
-- `SECURITY_MODE` - Security mode (strict | standard | permissive, default: standard)
+- `SECURITY_MODE` - Security mode (strict | standard | permissive, default:
+  standard)
 - `POLICY_HOT_RELOAD` - Enable hot reload (default: true)
 
 ### Docker Compose
@@ -246,7 +257,8 @@ The policy engine is designed for <1ms evaluation time:
 
 ## Validation
 
-Policy files are validated on load. Validation errors are logged but don't prevent startup. Use the Gateway health endpoint to check for overall status:
+Policy files are validated on load. Validation errors are logged but don't
+prevent startup. Use the Gateway health endpoint to check for overall status:
 
 ```bash
 curl http://localhost:3000/health
@@ -306,7 +318,8 @@ Response includes policy status:
 - **Fail closed** - Evaluation errors result in denial
 - **Audit logging** - All policy decisions are logged
 - **Least privilege** - Grant minimum necessary permissions
-- **Defense in depth** - Combine with container isolation, network policies, etc.
+- **Defense in depth** - Combine with container isolation, network policies,
+  etc.
 
 ## Advanced Topics
 
@@ -327,16 +340,16 @@ const result = gateway.evaluatePolicy({
     risk_level: 'low',
   },
   timestamp: new Date(),
-})
+});
 ```
 
 Then reference in policies:
 
 ```yaml
 conditions:
-  - field: "metadata.risk_level"
-    operator: "equals"
-    value: "low"
+  - field: 'metadata.risk_level'
+    operator: 'equals'
+    value: 'low'
 ```
 
 ### Multiple Policy Files

@@ -135,8 +135,9 @@ mode = "standard"
 
 ### Env-first setup
 
-If you prefer configuring via environment variables, keep `nachos.toml` minimal and put the
-values in `.env`. The loader will read `.env` and then apply env overrides on startup.
+If you prefer configuring via environment variables, keep `nachos.toml` minimal
+and put the values in `.env`. The loader will read `.env` and then apply env
+overrides on startup.
 
 ```toml
 # nachos.toml (minimal)
@@ -162,7 +163,8 @@ TOOL_FILESYSTEM_ENABLED="true"
 
 ### Claude setup-token (subscription)
 
-If you have a Claude Pro/Max subscription, generate a setup-token via the Claude Code CLI:
+If you have a Claude Pro/Max subscription, generate a setup-token via the Claude
+Code CLI:
 
 ```bash
 claude setup-token
@@ -174,8 +176,8 @@ Then configure Nachos to use it:
 nachos auth setup-token
 ```
 
-This command creates/updates an Anthropic profile in `nachos.toml` and can optionally write the
-token to your `.env` file.
+This command creates/updates an Anthropic profile in `nachos.toml` and can
+optionally write the token to your `.env` file.
 
 ## Security Modes
 
@@ -301,7 +303,8 @@ nachos/
 └── .env.example          # Environment template
 ```
 
-See [../../PROJECT_ROADMAP.md](../../PROJECT_ROADMAP.md) for longer-term plans and [docs/adr/](docs/adr/) for architectural decisions.
+See [../../PROJECT_ROADMAP.md](../../PROJECT_ROADMAP.md) for longer-term plans
+and [docs/adr/](docs/adr/) for architectural decisions.
 
 ## Documentation
 

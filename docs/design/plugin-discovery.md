@@ -6,7 +6,8 @@
 
 **Author**: System Architect
 
-**Related ADRs**: ADR-001 (Docker-native), ADR-003 (Security-first), ADR-008 (Channel registry)
+**Related ADRs**: ADR-001 (Docker-native), ADR-003 (Security-first), ADR-008
+(Channel registry)
 
 ---
 
@@ -21,8 +22,8 @@ Today, Nachos hardcodes knowledge of every channel and tool in three places:
    TypeScript interfaces for every channel and tool, plus the matching
    `CONFIG_SHAPE` in `validation.ts`.
 3. **CLI add commands** (`packages/cli/src/commands/add/channel.ts` and
-   `tool.ts`) -- hardcoded `VALID_CHANNELS` and `VALID_TOOLS` arrays that
-   reject anything not on the list.
+   `tool.ts`) -- hardcoded `VALID_CHANNELS` and `VALID_TOOLS` arrays that reject
+   anything not on the list.
 
 Adding a new channel or tool requires touching all three locations, plus
 creating the container package, Dockerfile, and manifest. Third-party authors
@@ -39,8 +40,8 @@ validation, and the policy engine -- without modifying nachos-core source code.
   without any manifest changes.
 - **No runtime discovery**: Consistent with ADR-008, all plugins are resolved at
   CLI time (`nachos up`), not at gateway runtime. Changes require a restart.
-- **Security-first**: Plugin manifests declare capabilities. Unknown capabilities
-  are rejected. Network and secret access is gated by the manifest.
+- **Security-first**: Plugin manifests declare capabilities. Unknown
+  capabilities are rejected. Network and secret access is gated by the manifest.
 - **Single-user scope**: No registry server, no package signing, no multi-tenant
   trust model. This is a local development and self-hosted deployment feature.
 - **Docker-native**: Every plugin is ultimately a Docker container on the Nachos
@@ -53,102 +54,108 @@ validation, and the policy engine -- without modifying nachos-core source code.
 
 Every plugin must contain a `nachos-plugin.json` at its root. This extends the
 existing `manifest.json` format used by built-in channels and tools (see
-`packages/channels/slack/manifest.json`, `packages/tools/web-fetch/manifest.json`)
-with additional fields required for external integration.
+`packages/channels/slack/manifest.json`,
+`packages/tools/web-fetch/manifest.json`) with additional fields required for
+external integration.
 
 ```jsonc
 {
   // === Inherited from existing manifest.json ===
   "name": "nachos-channel-signal",
   "version": "1.0.0",
-  "type": "channel",                   // "channel" | "tool"
+  "type": "channel", // "channel" | "tool"
   "capabilities": {
     "network": {
-      "egress": ["signal.org"]          // Domains this container needs to reach
+      "egress": ["signal.org"], // Domains this container needs to reach
     },
     "secrets": ["SIGNAL_PHONE_NUMBER", "SIGNAL_AUTH_TOKEN"],
-    "volumes": [],                      // Optional host volume mounts
-    "permissions": []                   // Reserved for future capability grants
+    "volumes": [], // Optional host volume mounts
+    "permissions": [], // Reserved for future capability grants
   },
   "provides": {
-    "channel": "signal"                 // or "tool": "my_tool" for tool plugins
+    "channel": "signal", // or "tool": "my_tool" for tool plugins
   },
 
   // === New plugin-specific fields ===
   "entry": {
-    "dockerfile": "./Dockerfile",       // Relative path to Dockerfile
-    "context": "."                      // Docker build context (relative)
+    "dockerfile": "./Dockerfile", // Relative path to Dockerfile
+    "context": ".", // Docker build context (relative)
   },
 
-  "configSchema": {                     // JSON Schema for the plugin's config section
+  "configSchema": {
+    // JSON Schema for the plugin's config section
     "type": "object",
     "properties": {
       "enabled": { "type": "boolean", "default": false },
       "phone_number": {
         "type": "string",
-        "description": "Signal phone number for the bot"
+        "description": "Signal phone number for the bot",
       },
       "trust_mode": {
         "type": "string",
         "enum": ["tofu", "strict"],
-        "default": "tofu"
-      }
+        "default": "tofu",
+      },
     },
-    "required": ["enabled"]
+    "required": ["enabled"],
   },
 
-  "configDefaults": {                   // Default values merged into nachos.toml
+  "configDefaults": {
+    // Default values merged into nachos.toml
     "enabled": false,
-    "trust_mode": "tofu"
+    "trust_mode": "tofu",
   },
 
-  "securityTier": 1,                   // 0=safe, 1=standard, 2=elevated, 3=restricted
+  "securityTier": 1, // 0=safe, 1=standard, 2=elevated, 3=restricted
 
-  "dependencies": [],                  // Other plugin names required (e.g. ["nachos-tool-encryption"])
+  "dependencies": [], // Other plugin names required (e.g. ["nachos-tool-encryption"])
 
-  "healthcheck": {                     // Optional: override container healthcheck
+  "healthcheck": {
+    // Optional: override container healthcheck
     "test": ["CMD", "node", "-e", "process.exit(0)"],
     "interval": "30s",
     "timeout": "3s",
     "retries": 3,
-    "start_period": "10s"
+    "start_period": "10s",
   },
 
   "nachos": {
-    "minVersion": "1.0",               // Minimum Nachos version required
-    "apiVersion": "1"                   // Plugin API version for forward compat
-  }
+    "minVersion": "1.0", // Minimum Nachos version required
+    "apiVersion": "1", // Plugin API version for forward compat
+  },
 }
 ```
 
 ### 3.2 Backward Compatibility with Existing Manifests
 
 Built-in modules keep their current `manifest.json` files unchanged. The compose
-generator continues to use its hardcoded `build*Service()` functions for built-in
-modules. The plugin system only activates for **externally registered** plugins.
+generator continues to use its hardcoded `build*Service()` functions for
+built-in modules. The plugin system only activates for **externally registered**
+plugins.
 
 Built-in modules can optionally migrate to `nachos-plugin.json` in a future
 phase, but this is not required and not part of this design.
 
 ### 3.3 Plugin Manifest Validation Rules
 
-The CLI validates `nachos-plugin.json` at registration time (`nachos plugin add`)
-and again at compose generation time (`nachos up`). Validation includes:
+The CLI validates `nachos-plugin.json` at registration time
+(`nachos plugin add`) and again at compose generation time (`nachos up`).
+Validation includes:
 
-| Field | Rule |
-|---|---|
-| `name` | Required. Must match `^[a-z0-9-]+$`. Max 64 characters. |
-| `version` | Required. Must be valid semver. |
-| `type` | Required. Must be `"channel"` or `"tool"`. |
+| Field                         | Rule                                                                                                 |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `name`                        | Required. Must match `^[a-z0-9-]+$`. Max 64 characters.                                              |
+| `version`                     | Required. Must be valid semver.                                                                      |
+| `type`                        | Required. Must be `"channel"` or `"tool"`.                                                           |
 | `capabilities.network.egress` | Optional. Must be array of strings. Each entry must be a valid domain or protocol (`http`, `https`). |
-| `capabilities.secrets` | Optional. Must be array of strings matching `^[A-Z_][A-Z0-9_]*$`. |
-| `entry.dockerfile` | Required. Relative path. Must exist on disk at compose generation time. |
-| `entry.context` | Defaults to `"."`. Relative path. Must be a directory. |
-| `configSchema` | Optional. Must be valid JSON Schema draft-07. |
-| `securityTier` | Optional. Defaults to 2 (elevated). Must be 0-3. |
-| `dependencies` | Optional. Array of plugin names. Circular dependencies are rejected. |
-| `nachos.minVersion` | Optional. Checked against current Nachos version. |
-| `nachos.apiVersion` | Required if `nachos` is present. Must be `"1"`. |
+| `capabilities.secrets`        | Optional. Must be array of strings matching `^[A-Z_][A-Z0-9_]*$`.                                    |
+| `entry.dockerfile`            | Required. Relative path. Must exist on disk at compose generation time.                              |
+| `entry.context`               | Defaults to `"."`. Relative path. Must be a directory.                                               |
+| `configSchema`                | Optional. Must be valid JSON Schema draft-07.                                                        |
+| `securityTier`                | Optional. Defaults to 2 (elevated). Must be 0-3.                                                     |
+| `dependencies`                | Optional. Array of plugin names. Circular dependencies are rejected.                                 |
+| `nachos.minVersion`           | Optional. Checked against current Nachos version.                                                    |
+| `nachos.apiVersion`           | Required if `nachos` is present. Must be `"1"`.                                                      |
 
 ### 3.4 Example: Channel Plugin
 
@@ -179,17 +186,17 @@ A weather lookup tool:
   "type": "tool",
   "capabilities": {
     "network": {
-      "egress": ["api.openweathermap.org"]
+      "egress": ["api.openweathermap.org"],
     },
-    "secrets": ["OPENWEATHER_API_KEY"]
+    "secrets": ["OPENWEATHER_API_KEY"],
   },
   "provides": {
     "tool": "weather",
-    "securityTier": 1
+    "securityTier": 1,
   },
   "entry": {
     "dockerfile": "./Dockerfile",
-    "context": "."
+    "context": ".",
   },
   "configSchema": {
     "type": "object",
@@ -198,21 +205,21 @@ A weather lookup tool:
       "units": {
         "type": "string",
         "enum": ["metric", "imperial"],
-        "default": "metric"
+        "default": "metric",
       },
-      "default_location": { "type": "string" }
+      "default_location": { "type": "string" },
     },
-    "required": ["enabled"]
+    "required": ["enabled"],
   },
   "configDefaults": {
     "enabled": false,
-    "units": "metric"
+    "units": "metric",
   },
   "securityTier": 1,
   "nachos": {
     "minVersion": "1.0",
-    "apiVersion": "1"
-  }
+    "apiVersion": "1",
+  },
 }
 ```
 
@@ -248,11 +255,11 @@ manifest = "./plugins/custom-tool/nachos-plugin.json"
 
 ### 4.2 Source Types
 
-| Source | Description | Resolution |
-|---|---|---|
-| `path` | Local directory containing `nachos-plugin.json` | Reads manifest from `{path}/nachos-plugin.json`. Dockerfile is relative to that directory. |
-| `npm` | npm package that contains `nachos-plugin.json` at its root, or declares `"nachos"` in `package.json` | Runs `npm pack` or reads from `node_modules` after install. Extracts manifest. |
-| `image` | Pre-built Docker image. No build step. | Requires a local `manifest` path pointing to a `nachos-plugin.json` that describes the image. The `entry` field is ignored; the `image` field from the registry entry is used directly. |
+| Source  | Description                                                                                          | Resolution                                                                                                                                                                              |
+| ------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `path`  | Local directory containing `nachos-plugin.json`                                                      | Reads manifest from `{path}/nachos-plugin.json`. Dockerfile is relative to that directory.                                                                                              |
+| `npm`   | npm package that contains `nachos-plugin.json` at its root, or declares `"nachos"` in `package.json` | Runs `npm pack` or reads from `node_modules` after install. Extracts manifest.                                                                                                          |
+| `image` | Pre-built Docker image. No build step.                                                               | Requires a local `manifest` path pointing to a `nachos-plugin.json` that describes the image. The `entry` field is ignored; the `image` field from the registry entry is used directly. |
 
 ### 4.3 npm Package Convention
 
@@ -330,8 +337,8 @@ a new phase after the built-in service generation:
 For each registered plugin:
 
 1. Read the plugin's `nachos-plugin.json`.
-2. Check that the plugin is enabled in the corresponding config section
-   (e.g., `channels.signal.enabled`).
+2. Check that the plugin is enabled in the corresponding config section (e.g.,
+   `channels.signal.enabled`).
 3. Build the Docker Compose service definition.
 
 ### 5.2 Service Definition Generation
@@ -340,20 +347,20 @@ A plugin service is generated with the following rules:
 
 ```typescript
 interface PluginServiceConfig {
-  container_name: string;      // "nachos-{provides.channel|tool}"
+  container_name: string; // "nachos-{provides.channel|tool}"
   build?: {
-    context: string;           // Resolved absolute path from plugin source
-    dockerfile: string;        // entry.dockerfile, resolved relative to context
+    context: string; // Resolved absolute path from plugin source
+    dockerfile: string; // entry.dockerfile, resolved relative to context
   };
-  image?: string;              // For "image" source type
-  restart: string;             // "unless-stopped"
-  depends_on: Record<string, { condition: string }>;  // Always depends on bus
-  networks: string[];          // Derived from capabilities (see 5.3)
-  ports?: string[];            // Only if capabilities.network.ports exists
-  environment: Record<string, string>;  // See 5.4
-  volumes?: string[];          // From capabilities.volumes + standard mounts
-  healthcheck?: object;        // From manifest or default
-  logging: object;             // Standard nachos logging config
+  image?: string; // For "image" source type
+  restart: string; // "unless-stopped"
+  depends_on: Record<string, { condition: string }>; // Always depends on bus
+  networks: string[]; // Derived from capabilities (see 5.3)
+  ports?: string[]; // Only if capabilities.network.ports exists
+  environment: Record<string, string>; // See 5.4
+  volumes?: string[]; // From capabilities.volumes + standard mounts
+  healthcheck?: object; // From manifest or default
+  logging: object; // Standard nachos logging config
 }
 ```
 
@@ -362,10 +369,10 @@ interface PluginServiceConfig {
 Network assignment follows the existing pattern but is derived from the manifest
 instead of being hardcoded:
 
-| Condition | Networks |
-|---|---|
-| `capabilities.network.egress` is empty or absent | `['nachos-internal']` |
-| `capabilities.network.egress` has entries | `['nachos-internal', 'nachos-egress']` |
+| Condition                                        | Networks                               |
+| ------------------------------------------------ | -------------------------------------- |
+| `capabilities.network.egress` is empty or absent | `['nachos-internal']`                  |
+| `capabilities.network.egress` has entries        | `['nachos-internal', 'nachos-egress']` |
 
 This matches the existing behavior: channels with external API endpoints (Slack,
 Discord, Telegram) get `nachos-egress`; tools that only talk to the bus
@@ -402,8 +409,8 @@ volumes:
 ```
 
 Additional volumes from `capabilities.volumes` are mounted as specified. The
-compose generator validates that volume paths do not escape the project root
-(no `../` traversal outside the Nachos project directory).
+compose generator validates that volume paths do not escape the project root (no
+`../` traversal outside the Nachos project directory).
 
 Channel plugins additionally receive state directory mounts following the
 built-in pattern:
@@ -463,11 +470,11 @@ Examples:
 
 **Auto-detection of source type:**
 
-| Input | Detected Type |
-|---|---|
-| Starts with `.` or `/` or `~`, or is an existing directory | `path` |
-| Contains `:` and `/` (e.g., `ghcr.io/org/image:tag`) | `image` |
-| Everything else | `npm` |
+| Input                                                      | Detected Type |
+| ---------------------------------------------------------- | ------------- |
+| Starts with `.` or `/` or `~`, or is an existing directory | `path`        |
+| Contains `:` and `/` (e.g., `ghcr.io/org/image:tag`)       | `image`       |
+| Everything else                                            | `npm`         |
 
 ### 6.2 `nachos plugin remove <name>`
 
@@ -551,14 +558,14 @@ Output:
 
 The existing commands are extended, not replaced:
 
-| Command | Change |
-|---|---|
-| `nachos list` | Includes plugin-sourced modules alongside built-in modules, with a `(plugin)` badge |
-| `nachos up` | Generates compose services for enabled plugins after built-in services |
-| `nachos add channel <name>` | If `name` is not a built-in channel, suggests `nachos plugin add` |
-| `nachos add tool <name>` | If `name` is not a built-in tool, suggests `nachos plugin add` |
+| Command                             | Change                                                                                         |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `nachos list`                       | Includes plugin-sourced modules alongside built-in modules, with a `(plugin)` badge            |
+| `nachos up`                         | Generates compose services for enabled plugins after built-in services                         |
+| `nachos add channel <name>`         | If `name` is not a built-in channel, suggests `nachos plugin add`                              |
+| `nachos add tool <name>`            | If `name` is not a built-in tool, suggests `nachos plugin add`                                 |
 | `nachos remove channel/tool <name>` | Works for plugin-sourced modules (removes config but warns to also run `nachos plugin remove`) |
-| `nachos doctor` | Validates all registered plugins: manifest exists, Dockerfile exists, secrets available |
+| `nachos doctor`                     | Validates all registered plugins: manifest exists, Dockerfile exists, secrets available        |
 
 ## 7. Security Validation
 
@@ -580,6 +587,7 @@ rejected.
 names.
 
 **Volume path validation.** Declared volumes must not:
+
 - Reference the Docker socket (`/var/run/docker.sock`)
 - Use `..` to escape the project root
 - Mount system directories (`/etc`, `/proc`, `/sys`, `/dev`)
@@ -589,12 +597,12 @@ names.
 The `securityTier` field determines how the plugin is treated by the policy
 engine:
 
-| Tier | Name | Policy Behavior |
-|---|---|---|
-| 0 | Safe | Allowed in all security modes |
-| 1 | Standard | Allowed in standard and permissive modes |
-| 2 | Elevated | Allowed in standard and permissive modes with audit |
-| 3 | Restricted | Only allowed in permissive mode |
+| Tier | Name       | Policy Behavior                                     |
+| ---- | ---------- | --------------------------------------------------- |
+| 0    | Safe       | Allowed in all security modes                       |
+| 1    | Standard   | Allowed in standard and permissive modes            |
+| 2    | Elevated   | Allowed in standard and permissive modes with audit |
+| 3    | Restricted | Only allowed in permissive mode                     |
 
 If a plugin declares `securityTier: 3` but the stack is running in standard
 mode, the plugin's service is excluded from compose generation and a warning is
@@ -612,14 +620,14 @@ the same pattern as built-in tools in `policies/standard.yaml`:
 
 ```yaml
 # Auto-generated for plugin: nachos-tool-weather
-- id: "plugin-tool-weather"
-  description: "Allow weather tool (plugin, SecurityTier: 1)"
-  priority: 500                  # Plugin rules get priority 500-599
+- id: 'plugin-tool-weather'
+  description: 'Allow weather tool (plugin, SecurityTier: 1)'
+  priority: 500 # Plugin rules get priority 500-599
   match:
-    resource: "tool"
-    resourceId: "weather"
-    action: "execute"
-  effect: "allow"
+    resource: 'tool'
+    resourceId: 'weather'
+    action: 'execute'
+  effect: 'allow'
 ```
 
 Plugin policy rules use a priority band of 500-599 to ensure they are evaluated
@@ -771,9 +779,9 @@ interface PluginManifest {
     context: string;
   };
 
-  configSchema?: Record<string, unknown>;  // JSON Schema
+  configSchema?: Record<string, unknown>; // JSON Schema
   configDefaults?: Record<string, unknown>;
-  securityTier?: number;                    // 0-3, default 2
+  securityTier?: number; // 0-3, default 2
   dependencies?: string[];
   healthcheck?: {
     test: string[];
@@ -796,11 +804,11 @@ interface PluginManifest {
 /** Plugin source configuration in [plugins.*] */
 interface PluginSourceConfig {
   source: 'path' | 'npm' | 'image';
-  path?: string;        // For source: "path"
-  package?: string;     // For source: "npm"
-  version?: string;     // For source: "npm"
-  image?: string;       // For source: "image"
-  manifest?: string;    // For source: "image" -- path to local manifest
+  path?: string; // For source: "path"
+  package?: string; // For source: "npm"
+  version?: string; // For source: "npm"
+  image?: string; // For source: "image"
+  manifest?: string; // For source: "image" -- path to local manifest
 }
 
 /** Added to NachosConfig */
@@ -826,19 +834,19 @@ includes plugin-contributed keys.
 
 Every error condition has a specific error code and actionable message:
 
-| Condition | Error Code | Message |
-|---|---|---|
-| `nachos-plugin.json` not found at source | `PLUGIN_MANIFEST_NOT_FOUND` | `No nachos-plugin.json found at {path}. Ensure the plugin directory contains a valid manifest.` |
-| Manifest fails validation | `PLUGIN_MANIFEST_INVALID` | `Plugin manifest validation failed: {details}` |
-| Dockerfile not found | `PLUGIN_DOCKERFILE_NOT_FOUND` | `Dockerfile "{path}" not found. Check the entry.dockerfile field in nachos-plugin.json.` |
-| Name conflicts with built-in | `PLUGIN_NAME_CONFLICT` | `Plugin name "{name}" conflicts with built-in {type}. Use a different name.` |
-| Duplicate plugin name | `PLUGIN_DUPLICATE` | `Plugin "{name}" is already registered.` |
-| Security tier too high for mode | `PLUGIN_SECURITY_TIER` | `Plugin "{name}" requires security tier {tier} but stack is running in {mode} mode. Switch to permissive mode or lower the plugin's security tier.` |
-| Port conflict | `PLUGIN_PORT_CONFLICT` | `Port {port} is already used by service "{service}". Change the plugin's port configuration.` |
-| Circular dependency | `PLUGIN_CIRCULAR_DEPENDENCY` | `Circular plugin dependency detected: {chain}` |
-| Missing dependency | `PLUGIN_MISSING_DEPENDENCY` | `Plugin "{name}" requires plugin "{dep}" which is not registered.` |
-| npm install fails | `PLUGIN_NPM_INSTALL_FAILED` | `Failed to install npm package "{package}": {error}` |
-| Nachos version mismatch | `PLUGIN_VERSION_MISMATCH` | `Plugin "{name}" requires Nachos >= {required} but current version is {current}.` |
+| Condition                                | Error Code                    | Message                                                                                                                                             |
+| ---------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `nachos-plugin.json` not found at source | `PLUGIN_MANIFEST_NOT_FOUND`   | `No nachos-plugin.json found at {path}. Ensure the plugin directory contains a valid manifest.`                                                     |
+| Manifest fails validation                | `PLUGIN_MANIFEST_INVALID`     | `Plugin manifest validation failed: {details}`                                                                                                      |
+| Dockerfile not found                     | `PLUGIN_DOCKERFILE_NOT_FOUND` | `Dockerfile "{path}" not found. Check the entry.dockerfile field in nachos-plugin.json.`                                                            |
+| Name conflicts with built-in             | `PLUGIN_NAME_CONFLICT`        | `Plugin name "{name}" conflicts with built-in {type}. Use a different name.`                                                                        |
+| Duplicate plugin name                    | `PLUGIN_DUPLICATE`            | `Plugin "{name}" is already registered.`                                                                                                            |
+| Security tier too high for mode          | `PLUGIN_SECURITY_TIER`        | `Plugin "{name}" requires security tier {tier} but stack is running in {mode} mode. Switch to permissive mode or lower the plugin's security tier.` |
+| Port conflict                            | `PLUGIN_PORT_CONFLICT`        | `Port {port} is already used by service "{service}". Change the plugin's port configuration.`                                                       |
+| Circular dependency                      | `PLUGIN_CIRCULAR_DEPENDENCY`  | `Circular plugin dependency detected: {chain}`                                                                                                      |
+| Missing dependency                       | `PLUGIN_MISSING_DEPENDENCY`   | `Plugin "{name}" requires plugin "{dep}" which is not registered.`                                                                                  |
+| npm install fails                        | `PLUGIN_NPM_INSTALL_FAILED`   | `Failed to install npm package "{package}": {error}`                                                                                                |
+| Nachos version mismatch                  | `PLUGIN_VERSION_MISMATCH`     | `Plugin "{name}" requires Nachos >= {required} but current version is {current}.`                                                                   |
 
 ## 11. Migration Path
 
@@ -891,8 +899,8 @@ industry standard for configuration validation. The CLI converts JSON Schema to
 
 **Decision**: Single `nachos-plugin.json` file.
 
-**Rationale**: A single file is easier to author, validate, and distribute.
-The config section in `nachos.toml` handles per-deployment configuration. The
+**Rationale**: A single file is easier to author, validate, and distribute. The
+config section in `nachos.toml` handles per-deployment configuration. The
 manifest describes the plugin's identity and capabilities (which do not change
 between deployments).
 
@@ -932,28 +940,28 @@ are included.
 
 ### New Files
 
-| File | Purpose |
-|---|---|
-| `packages/cli/src/core/plugin-resolver.ts` | Resolves plugin sources, reads manifests, validates |
-| `packages/cli/src/core/plugin-manifest.ts` | Plugin manifest types and JSON Schema validator |
-| `packages/cli/src/commands/plugin/add.ts` | `nachos plugin add` command |
-| `packages/cli/src/commands/plugin/remove.ts` | `nachos plugin remove` command |
-| `packages/cli/src/commands/plugin/list.ts` | `nachos plugin list` command |
-| `packages/cli/src/commands/plugin/inspect.ts` | `nachos plugin inspect` command |
+| File                                          | Purpose                                             |
+| --------------------------------------------- | --------------------------------------------------- |
+| `packages/cli/src/core/plugin-resolver.ts`    | Resolves plugin sources, reads manifests, validates |
+| `packages/cli/src/core/plugin-manifest.ts`    | Plugin manifest types and JSON Schema validator     |
+| `packages/cli/src/commands/plugin/add.ts`     | `nachos plugin add` command                         |
+| `packages/cli/src/commands/plugin/remove.ts`  | `nachos plugin remove` command                      |
+| `packages/cli/src/commands/plugin/list.ts`    | `nachos plugin list` command                        |
+| `packages/cli/src/commands/plugin/inspect.ts` | `nachos plugin inspect` command                     |
 
 ### Modified Files
 
-| File | Change |
-|---|---|
-| `packages/shared/config/src/schema.ts` | Add `PluginSourceConfig` type, add `plugins?` to `NachosConfig` |
-| `packages/shared/config/src/validation.ts` | Add `plugins: true` to `CONFIG_SHAPE`, add plugin schema merge logic |
-| `packages/cli/src/core/compose-generator.ts` | Add `generatePluginServices()` after built-in service generation |
-| `packages/cli/src/commands/add/channel.ts` | Suggest `nachos plugin add` for unknown channel names |
-| `packages/cli/src/commands/add/tool.ts` | Suggest `nachos plugin add` for unknown tool names |
-| `packages/cli/src/commands/list.ts` | Include plugin-sourced modules with badge |
-| `packages/cli/src/commands/doctor.ts` | Add plugin validation checks |
-| `packages/cli/src/core/errors.ts` | Add plugin-specific error classes |
-| `packages/cli/src/cli.ts` | Register `plugin` command group |
+| File                                         | Change                                                               |
+| -------------------------------------------- | -------------------------------------------------------------------- |
+| `packages/shared/config/src/schema.ts`       | Add `PluginSourceConfig` type, add `plugins?` to `NachosConfig`      |
+| `packages/shared/config/src/validation.ts`   | Add `plugins: true` to `CONFIG_SHAPE`, add plugin schema merge logic |
+| `packages/cli/src/core/compose-generator.ts` | Add `generatePluginServices()` after built-in service generation     |
+| `packages/cli/src/commands/add/channel.ts`   | Suggest `nachos plugin add` for unknown channel names                |
+| `packages/cli/src/commands/add/tool.ts`      | Suggest `nachos plugin add` for unknown tool names                   |
+| `packages/cli/src/commands/list.ts`          | Include plugin-sourced modules with badge                            |
+| `packages/cli/src/commands/doctor.ts`        | Add plugin validation checks                                         |
+| `packages/cli/src/core/errors.ts`            | Add plugin-specific error classes                                    |
+| `packages/cli/src/cli.ts`                    | Register `plugin` command group                                      |
 
 ### Not Modified
 
@@ -985,5 +993,6 @@ These items require further discussion before implementation:
 4. **Gateway tool registration.** Tool plugins need to register their tool
    schemas with the gateway so the LLM knows about them. Currently, built-in
    tools do this via NATS subscription patterns. Plugin tools would follow the
-   same pattern, but the gateway needs to know the tool's JSON Schema definition.
-   Should this be embedded in `nachos-plugin.json` or loaded separately?
+   same pattern, but the gateway needs to know the tool's JSON Schema
+   definition. Should this be embedded in `nachos-plugin.json` or loaded
+   separately?

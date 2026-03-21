@@ -7,11 +7,15 @@
 
 ## Context
 
-Users need the ability to view and continue conversations across all active sessions in the Nachos admin UI, similar to OpenClaw's functionality. Currently, Nachos has:
+Users need the ability to view and continue conversations across all active
+sessions in the Nachos admin UI, similar to OpenClaw's functionality. Currently,
+Nachos has:
 
-- **Sessions**: Managed by SessionManager, stored in StateStorage (SQLite currently, Postgres/Redis planned)
+- **Sessions**: Managed by SessionManager, stored in StateStorage (SQLite
+  currently, Postgres/Redis planned)
 - **Admin UI**: Vue.js frontend with API endpoints for management tasks
-- **Multiple session types**: Webchat, channel-based (Discord/Telegram/etc), subagent sessions
+- **Multiple session types**: Webchat, channel-based (Discord/Telegram/etc),
+  subagent sessions
 
 ### Current Limitations
 
@@ -24,12 +28,14 @@ Users need the ability to view and continue conversations across all active sess
 ### OpenClaw Reference Model
 
 OpenClaw provides comprehensive session management:
+
 - **"main" session**: Primary webchat UI session
 - **Channel sessions**: One session per Discord channel/conversation
 - **Subagent sessions**: Each subagent spawn creates a tracked session
 - **Admin UI features**: Session list, history viewer, message continuation
 
-> **Note**: Detailed OpenClaw research findings will be integrated below when subagent completes investigation.
+> **Note**: Detailed OpenClaw research findings will be integrated below when
+> subagent completes investigation.
 
 ---
 
@@ -42,25 +48,26 @@ OpenClaw provides comprehensive session management:
 
 ### Session Types (Preliminary)
 
-*[Subagent will document OpenClaw's session types, lifecycle, and data model]*
+_[Subagent will document OpenClaw's session types, lifecycle, and data model]_
 
 ### Session Data Model (Preliminary)
 
-*[Subagent will document session fields, relationships, and storage]*
+_[Subagent will document session fields, relationships, and storage]_
 
 ### Admin UI Architecture (Preliminary)
 
-*[Subagent will document UI components, API endpoints, and user flows]*
+_[Subagent will document UI components, API endpoints, and user flows]_
 
 ### Key Implementation Details (Preliminary)
 
-*[Subagent will document code locations, patterns, and best practices]*
+_[Subagent will document code locations, patterns, and best practices]_
 
 ---
 
 ## Decision
 
-**Implement session viewing and continuation in Nachos Admin UI** with the following components:
+**Implement session viewing and continuation in Nachos Admin UI** with the
+following components:
 
 ### 1. Backend API Enhancements
 
@@ -140,12 +147,12 @@ Events:
 <template>
   <div class="session-list">
     <!-- Filters -->
-    <SessionFilters 
+    <SessionFilters
       v-model:status="filters.status"
       v-model:channel="filters.channel"
       @update="loadSessions"
     />
-    
+
     <!-- Session cards -->
     <div class="sessions">
       <SessionCard
@@ -156,7 +163,7 @@ Events:
         @click="selectSession(session.id)"
       />
     </div>
-    
+
     <!-- Pagination -->
     <Pagination
       :total="totalSessions"
@@ -173,19 +180,19 @@ Events:
 <template>
   <div class="session-viewer">
     <!-- Session header -->
-    <SessionHeader 
+    <SessionHeader
       :session="currentSession"
       @refresh="loadMessages"
       @export="exportSession"
     />
-    
+
     <!-- Message history -->
     <MessageList
       :messages="messages"
       :loading="loading"
       @load-more="loadMoreMessages"
     />
-    
+
     <!-- Message input (continuation) -->
     <MessageInput
       v-if="currentSession.status === 'active'"
@@ -201,7 +208,7 @@ Events:
 
 ```vue
 <template>
-  <div 
+  <div
     class="session-card"
     :class="{ active, ended: session.status === 'ended' }"
   >
@@ -211,7 +218,7 @@ Events:
         {{ session.status }}
       </span>
     </div>
-    
+
     <div class="info">
       <div class="title">{{ sessionTitle }}</div>
       <div class="meta">
@@ -219,7 +226,7 @@ Events:
         <span>{{ formatRelativeTime(session.updatedAt) }}</span>
       </div>
     </div>
-    
+
     <div class="preview">
       {{ lastMessagePreview }}
     </div>
@@ -247,17 +254,17 @@ class SessionManager {
     offset?: number;
     includeMessageCount?: boolean;
     includeLastMessage?: boolean;
-  }): Promise<SessionSummary[]>
+  }): Promise<SessionSummary[]>;
 
   /**
    * Get session summary for UI display
    */
-  async getSessionSummary(sessionId: string): Promise<SessionSummary | null>
+  async getSessionSummary(sessionId: string): Promise<SessionSummary | null>;
 
   /**
    * Export session for debugging/archival
    */
-  async exportSession(sessionId: string): Promise<SessionExport>
+  async exportSession(sessionId: string): Promise<SessionExport>;
 }
 
 interface SessionSummary {
@@ -294,7 +301,7 @@ Add session viewing endpoints to Gateway management API:
 
 async handleListSessions(req: ManagementRequest): Promise<ManagementResponse> {
   const { status, channel, limit = 50, offset = 0 } = req.params;
-  
+
   const sessions = await this.sessionManager.listSessionsWithDetails({
     status,
     channel,
@@ -303,7 +310,7 @@ async handleListSessions(req: ManagementRequest): Promise<ManagementResponse> {
     includeMessageCount: true,
     includeLastMessage: true,
   });
-  
+
   return {
     status: 'success',
     data: {
@@ -316,19 +323,19 @@ async handleListSessions(req: ManagementRequest): Promise<ManagementResponse> {
 
 async handleGetSession(req: ManagementRequest): Promise<ManagementResponse> {
   const { sessionId, messageLimit = 100, messageOffset = 0 } = req.params;
-  
+
   const session = await this.sessionManager.getSessionWithMessages(sessionId);
   if (!session) {
     throw createSessionNotFoundError('Session not found', { sessionId });
   }
-  
+
   const messages = await this.sessionManager.getMessages(sessionId, {
     limit: messageLimit,
     offset: messageOffset,
   });
-  
+
   const messageCount = await this.sessionManager.getMessageCount(sessionId);
-  
+
   return {
     status: 'success',
     data: {
@@ -342,25 +349,25 @@ async handleGetSession(req: ManagementRequest): Promise<ManagementResponse> {
 async handleSendSessionMessage(req: ManagementRequest): Promise<ManagementResponse> {
   const { sessionId } = req.params;
   const { content, role = 'user' } = req.body;
-  
+
   const session = await this.sessionManager.getSession(sessionId);
   if (!session) {
     throw createSessionNotFoundError('Session not found', { sessionId });
   }
-  
+
   if (session.status !== 'active') {
-    throw createInvalidStateError('Session is not active', { 
-      sessionId, 
-      status: session.status 
+    throw createInvalidStateError('Session is not active', {
+      sessionId,
+      status: session.status
     });
   }
-  
+
   // Add message to session
   const message = await this.sessionManager.addMessage(sessionId, {
     role,
     content,
   });
-  
+
   // If role is 'user', trigger LLM response
   let responseStarted = false;
   if (role === 'user') {
@@ -370,7 +377,7 @@ async handleSendSessionMessage(req: ManagementRequest): Promise<ManagementRespon
     });
     responseStarted = true;
   }
-  
+
   return {
     status: 'success',
     data: {
@@ -410,6 +417,7 @@ async handleSendSessionMessage(req: ManagementRequest): Promise<ManagementRespon
 #### Navigation
 
 Add "Sessions" link to main navigation:
+
 ```vue
 <nav>
   <router-link to="/dashboard">Dashboard</router-link>
@@ -585,7 +593,8 @@ Add "Sessions" link to main navigation:
 
 ### 4. SQLite vs Postgres for Session Storage
 
-**Decision**: SQLite for now (simpler), Postgres migration path already planned (ADR-005).
+**Decision**: SQLite for now (simpler), Postgres migration path already planned
+(ADR-005).
 
 ---
 
@@ -611,7 +620,8 @@ Add "Sessions" link to main navigation:
 ## References
 
 - [ADR-004: Subagent Orchestration](./004-subagent-orchestration-enhancements.md)
-- [ADR-005: Modular Storage Backends](./005-modular-storage-backends.md) (if exists)
+- [ADR-005: Modular Storage Backends](./005-modular-storage-backends.md) (if
+  exists)
 - [PR #123: Async SessionManager](https://github.com/Nacho-Labs-LLC/nachos/pull/123)
 - OpenClaw session management (research findings above)
 - Admin UI architecture (packages/admin/)
@@ -625,7 +635,7 @@ Add "Sessions" link to main navigation:
 > Started: 2026-02-26 01:03 UTC  
 > Status: In Progress
 
-*[Detailed research findings will be appended here when subagent completes]*
+_[Detailed research findings will be appended here when subagent completes]_
 
 ---
 
@@ -638,6 +648,7 @@ curl http://localhost:3000/api/sessions?status=active&limit=20
 ```
 
 Response:
+
 ```json
 {
   "sessions": [
@@ -669,6 +680,7 @@ curl http://localhost:3000/api/sessions/sess_abc123?messageLimit=50
 ```
 
 Response:
+
 ```json
 {
   "session": {
@@ -714,6 +726,7 @@ curl -X POST http://localhost:3000/api/sessions/sess_abc123/messages \
 ```
 
 Response:
+
 ```json
 {
   "message": {

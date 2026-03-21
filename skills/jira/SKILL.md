@@ -1,11 +1,17 @@
 ---
 name: jira
-description: Jira Cloud REST API v3 integration for issue tracking, project management, and agile workflows. Use for creating/updating issues, searching tickets, managing sprints, tracking progress, handling comments, managing workflows, and automating project tasks. Supports issues, projects, boards, sprints, comments, transitions, and JQL queries.
+description:
+  Jira Cloud REST API v3 integration for issue tracking, project management, and
+  agile workflows. Use for creating/updating issues, searching tickets, managing
+  sprints, tracking progress, handling comments, managing workflows, and
+  automating project tasks. Supports issues, projects, boards, sprints,
+  comments, transitions, and JQL queries.
 ---
 
 # Jira Cloud API Integration
 
-Interact with Jira programmatically for issue management, project tracking, sprint planning, and workflow automation.
+Interact with Jira programmatically for issue management, project tracking,
+sprint planning, and workflow automation.
 
 ## When to Use
 
@@ -26,6 +32,7 @@ Interact with Jira programmatically for issue management, project tracking, spri
    - Copy token (shown only once)
 
 2. Set environment variables:
+
    ```bash
    export JIRA_EMAIL="your-email@company.com"
    export JIRA_API_TOKEN="your_token_here"
@@ -33,10 +40,11 @@ Interact with Jira programmatically for issue management, project tracking, spri
    ```
 
 3. Use Basic Auth:
+
    ```bash
    # Encode credentials
    echo -n "email@company.com:api_token" | base64
-   
+
    # Use in requests
    curl -H "Authorization: Basic {base64_credentials}" \
      "https://your-company.atlassian.net/rest/api/3/myself"
@@ -61,6 +69,7 @@ curl -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
 ```
 
 **Common JQL queries**:
+
 - My open issues: `assignee = currentUser() AND status != Done`
 - Sprint issues: `sprint = "Sprint 23"`
 - Recent updates: `updated >= -7d`
@@ -77,6 +86,7 @@ curl -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
 ```
 
 **Include specific fields**:
+
 ```bash
 curl -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
   "https://$JIRA_DOMAIN/rest/api/3/issue/PROJ-123?fields=summary,status,assignee,description,comment"
@@ -224,19 +234,19 @@ curl -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
 
 ## Key Endpoints
 
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/rest/api/3/search` | POST | Search issues (JQL) |
-| `/rest/api/3/issue/{issueKey}` | GET | Get issue |
-| `/rest/api/3/issue` | POST | Create issue |
-| `/rest/api/3/issue/{issueKey}` | PUT | Update issue |
-| `/rest/api/3/issue/{issueKey}/transitions` | POST | Transition issue |
-| `/rest/api/3/issue/{issueKey}/comment` | POST | Add comment |
-| `/rest/api/3/issue/{issueKey}/assignee` | PUT | Assign issue |
-| `/rest/api/3/myself` | GET | Current user info |
-| `/rest/api/3/project` | GET | List projects |
-| `/rest/agile/1.0/board` | GET | List boards |
-| `/rest/agile/1.0/sprint/{id}/issue` | GET | Sprint issues |
+| Endpoint                                   | Method | Purpose             |
+| ------------------------------------------ | ------ | ------------------- |
+| `/rest/api/3/search`                       | POST   | Search issues (JQL) |
+| `/rest/api/3/issue/{issueKey}`             | GET    | Get issue           |
+| `/rest/api/3/issue`                        | POST   | Create issue        |
+| `/rest/api/3/issue/{issueKey}`             | PUT    | Update issue        |
+| `/rest/api/3/issue/{issueKey}/transitions` | POST   | Transition issue    |
+| `/rest/api/3/issue/{issueKey}/comment`     | POST   | Add comment         |
+| `/rest/api/3/issue/{issueKey}/assignee`    | PUT    | Assign issue        |
+| `/rest/api/3/myself`                       | GET    | Current user info   |
+| `/rest/api/3/project`                      | GET    | List projects       |
+| `/rest/agile/1.0/board`                    | GET    | List boards         |
+| `/rest/agile/1.0/sprint/{id}/issue`        | GET    | Sprint issues       |
 
 ## JQL (Jira Query Language)
 
@@ -271,31 +281,37 @@ curl -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
 ### Useful JQL Examples
 
 **My tickets this sprint:**
+
 ```
 assignee = currentUser() AND sprint in openSprints()
 ```
 
 **Bugs needing triage:**
+
 ```
 type = Bug AND status = "To Do" AND priority is EMPTY
 ```
 
 **Recently updated high priority:**
+
 ```
 priority in (High, Highest) AND updated >= -3d
 ```
 
 **Blocked issues:**
+
 ```
 status = Blocked OR labels = blocked
 ```
 
 **Unassigned in current sprint:**
+
 ```
 sprint in openSprints() AND assignee is EMPTY
 ```
 
 **Overdue issues:**
+
 ```
 duedate < now() AND status != Done
 ```
@@ -337,7 +353,7 @@ Jira uses ADF for rich text (descriptions, comments).
         {
           "type": "text",
           "text": "Bold text",
-          "marks": [{"type": "strong"}]
+          "marks": [{ "type": "strong" }]
         },
         {
           "type": "text",
@@ -346,7 +362,7 @@ Jira uses ADF for rich text (descriptions, comments).
         {
           "type": "text",
           "text": "italic text",
-          "marks": [{"type": "em"}]
+          "marks": [{ "type": "em" }]
         }
       ]
     }
@@ -371,7 +387,7 @@ Jira uses ADF for rich text (descriptions, comments).
 ```json
 {
   "type": "codeBlock",
-  "attrs": {"language": "javascript"},
+  "attrs": { "language": "javascript" },
   "content": [
     {
       "type": "text",
@@ -526,14 +542,14 @@ curl -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
 
 ## Error Handling
 
-| Code | Meaning | Solution |
-|------|---------|----------|
-| 400 | Bad request | Check request body syntax |
-| 401 | Unauthorized | Verify credentials, check token expiry |
-| 403 | Forbidden | Check permissions for resource |
-| 404 | Not found | Verify issue key/project exists |
-| 429 | Too many requests | Implement rate limiting |
-| 500 | Server error | Retry with exponential backoff |
+| Code | Meaning           | Solution                               |
+| ---- | ----------------- | -------------------------------------- |
+| 400  | Bad request       | Check request body syntax              |
+| 401  | Unauthorized      | Verify credentials, check token expiry |
+| 403  | Forbidden         | Check permissions for resource         |
+| 404  | Not found         | Verify issue key/project exists        |
+| 429  | Too many requests | Implement rate limiting                |
+| 500  | Server error      | Retry with exponential backoff         |
 
 ## Useful Scripts
 
@@ -589,6 +605,7 @@ curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
 ### CI/CD Integration
 
 **Transition on deployment:**
+
 ```bash
 # Get issue from commit message
 ISSUE_KEY=$(git log -1 --pretty=%B | grep -oE '[A-Z]+-[0-9]+')
@@ -604,6 +621,7 @@ curl -X POST \
 ### Slack → Jira
 
 **Create issue from Slack message:**
+
 ```bash
 curl -X POST \
   -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
@@ -620,25 +638,29 @@ curl -X POST \
 
 ## Resources
 
-- **Official Docs**: https://developer.atlassian.com/cloud/jira/platform/rest/v3/
-- **JQL Reference**: https://support.atlassian.com/jira-service-management-cloud/docs/use-advanced-search-with-jira-query-language-jql/
-- **ADF Spec**: https://developer.atlassian.com/cloud/jira/platform/apis/document/structure/
+- **Official Docs**:
+  https://developer.atlassian.com/cloud/jira/platform/rest/v3/
+- **JQL Reference**:
+  https://support.atlassian.com/jira-service-management-cloud/docs/use-advanced-search-with-jira-query-language-jql/
+- **ADF Spec**:
+  https://developer.atlassian.com/cloud/jira/platform/apis/document/structure/
 - **Status Page**: https://status.atlassian.com
 
 ## Troubleshooting
 
-**Problem**: "Field does not exist" error
-**Solution**: Check field availability for issue type. Use `/rest/api/3/issue/createmeta` to get valid fields.
+**Problem**: "Field does not exist" error **Solution**: Check field availability
+for issue type. Use `/rest/api/3/issue/createmeta` to get valid fields.
 
-**Problem**: Can't find custom field
-**Solution**: List all fields with `/rest/api/3/field`. Custom fields use `customfield_XXXXX` format.
+**Problem**: Can't find custom field **Solution**: List all fields with
+`/rest/api/3/field`. Custom fields use `customfield_XXXXX` format.
 
-**Problem**: ADF format errors
-**Solution**: Use simple ADF structure. Test with Jira's ADF builder or validate against spec.
+**Problem**: ADF format errors **Solution**: Use simple ADF structure. Test with
+Jira's ADF builder or validate against spec.
 
-**Problem**: Transitions not working
-**Solution**: Get valid transitions for issue: `/rest/api/3/issue/{key}/transitions`. Use returned ID.
+**Problem**: Transitions not working **Solution**: Get valid transitions for
+issue: `/rest/api/3/issue/{key}/transitions`. Use returned ID.
 
 ---
 
-**Pro tip**: Use Jira Automation rules (in UI) for complex workflows. Reserve API for integrations and bulk operations.
+**Pro tip**: Use Jira Automation rules (in UI) for complex workflows. Reserve
+API for integrations and bulk operations.

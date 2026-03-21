@@ -1,6 +1,7 @@
 # Monorepo Context
 
-Detailed context about the Nachos monorepo structure, conventions, and workflows.
+Detailed context about the Nachos monorepo structure, conventions, and
+workflows.
 
 ## Monorepo Structure
 

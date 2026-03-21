@@ -1,11 +1,14 @@
 # ADR-003: Skill Structure (SKILL.md Format)
 
 ## Status
+
 Accepted (2026-02-24)
 
 ## Context
 
-Nachos needs a way to provide the LLM with specialized knowledge for external tools and APIs. We needed to decide how to structure, store, and inject this knowledge.
+Nachos needs a way to provide the LLM with specialized knowledge for external
+tools and APIs. We needed to decide how to structure, store, and inject this
+knowledge.
 
 ### Options Considered
 
@@ -27,7 +30,8 @@ Nachos needs a way to provide the LLM with specialized knowledge for external to
 
 ## Decision
 
-Use **Markdown Documentation (SKILL.md)** as the canonical skill format, with optional metadata frontmatter.
+Use **Markdown Documentation (SKILL.md)** as the canonical skill format, with
+optional metadata frontmatter.
 
 ### Structure
 
@@ -38,7 +42,7 @@ description: One-line summary for tool summaries
 metadata:
   openclaw:
     emoji: 🔧
-    requires: { bins: ["cli-tool"] }
+    requires: { bins: ['cli-tool'] }
     install: [...]
 ---
 
@@ -47,20 +51,25 @@ metadata:
 Brief overview of what this skill enables.
 
 ## Authentication
+
 [How to authenticate if needed]
 
 ## Common Operations
 
 ### Task 1
+
 [Example with real code]
 
 ### Task 2
+
 [Another example]
 
 ## Advanced Usage
+
 [Complex scenarios]
 
 ## Troubleshooting
+
 [Common errors and fixes]
 ```
 
@@ -130,16 +139,19 @@ The LLM then uses the `read` tool to load skill documentation on-demand.
 ### Design Principles
 
 **Skills are reference guides, not executable code**
+
 - Think: cookbook, not library
 - Provide working examples, not abstractions
 - Include real-world scenarios, not just API reference
 
 **Skills target LLM comprehension, not humans first**
+
 - Optimize for copy-paste examples
 - Include common error messages and fixes
 - Provide context that LLM would otherwise need to infer
 
 **Skills are curated, not comprehensive**
+
 - 80/20 rule: Cover common use cases deeply
 - Link to full API docs for edge cases
 - Avoid overwhelming with every possible option
@@ -147,45 +159,45 @@ The LLM then uses the `read` tool to load skill documentation on-demand.
 ## Real-World Examples
 
 ### Good: Figma Skill (PR #113)
+
 ```markdown
 ## Get File Metadata
-\`\`\`bash
-curl "https://api.figma.com/v1/files/FILE_KEY" \
-  -H "X-Figma-Token: $FIGMA_TOKEN"
-\`\`\`
 
-**Response**:
-\`\`\`json
-{
-  "name": "My Design",
-  "lastModified": "2024-01-15T10:30:00Z",
-  "thumbnailUrl": "https://...",
-  "document": { ... }
-}
+\`\`\`bash curl "https://api.figma.com/v1/files/FILE_KEY" \
+ -H "X-Figma-Token: $FIGMA_TOKEN" \`\`\`
+
+**Response**: \`\`\`json { "name": "My Design", "lastModified":
+"2024-01-15T10:30:00Z", "thumbnailUrl": "https://...", "document": { ... } }
 \`\`\`
 
 **Common Error**:
 ```
+
 403 Forbidden - Invalid token or insufficient permissions
+
 ```
 → Verify FIGMA_TOKEN has read access to this file.
 ```
 
 **Why it works**:
+
 - Complete working example
 - Shows expected response structure
 - Includes common error + fix
 - LLM can copy/modify/execute
 
 ### Bad (Hypothetical)
+
 ```markdown
 ## API Reference
+
 - `GET /v1/files/:key` — Retrieve file metadata
 - Parameters: None
 - Returns: File object
 ```
 
 **Why it fails**:
+
 - No working example
 - No authentication shown
 - No response structure
@@ -203,14 +215,15 @@ const skillPaths = await glob('/workspace/skills/*/SKILL.md');
 const skills = skillPaths.map(parseSKILL);
 
 // Inject into system prompt
-const toolSummaries = skills.map(s =>
-  `- ${s.name} (${s.emoji}) — ${s.description}`
-).join('\n');
+const toolSummaries = skills
+  .map((s) => `- ${s.name} (${s.emoji}) — ${s.description}`)
+  .join('\n');
 ```
 
 ### On-Demand Loading
 
 LLM decides when to load:
+
 ```
 Human: "Search for coffee shops near me"
 LLM: I'll use the goplaces skill for this.
@@ -222,6 +235,7 @@ LLM: I'll use the goplaces skill for this.
 ### Skill Testing (Future)
 
 Skills should be testable:
+
 ```typescript
 // Extract code blocks from SKILL.md
 const examples = extractCodeBlocks(skillPath);
@@ -236,6 +250,7 @@ for (const ex of examples) {
 ## Alternatives Revisited
 
 If skills need more structure:
+
 1. **Add JSON Schema**: Validate frontmatter against schema
 2. **Tool Definition Files**: Separate `.json` for API contracts
 3. **Skill Tests**: Executable tests that verify examples work
@@ -244,6 +259,7 @@ If skills need more structure:
 ## Migration Path
 
 Existing skills follow this pattern:
+
 - `skills/figma/SKILL.md` ✅
 - `skills/jira/SKILL.md` ✅
 - `skills/github/SKILL.md` ✅
