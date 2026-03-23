@@ -56,7 +56,6 @@ const TOOLS = [
   { key: 'web_fetch', label: 'Web Fetch' },
   { key: 'web_search', label: 'Web Search' },
   { key: 'bootstrap', label: 'Bootstrap' },
-  { key: 'claude_code_mcp', label: 'Claude Code MCP' },
 ];
 
 function hydrateForm(parsed: Record<string, unknown>) {
