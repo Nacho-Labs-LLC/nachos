@@ -1,4 +1,4 @@
-# ADR: Hybrid RPC-Based Web Chat Architecture
+# ADR-004: Webchat Hybrid RPC Architecture
 
 **Status**: Proposed  
 **Date**: 2026-02-26  
