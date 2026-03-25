@@ -219,3 +219,80 @@ jobs:
           name: codecov-umbrella
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  test-integration:
+    name: Integration Tests (Postgres + NATS)
+    runs-on: ubuntu-latest
+    needs: install
+    permissions:
+      contents: read
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: nachos_test
+          POSTGRES_USER: nachos
+          POSTGRES_PASSWORD: nachos
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nachos -d nachos_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+          --health-start-period 5s
+
+      nats:
+        image: nats:2.10-alpine
+        ports:
+          - 4222:4222
+        options: >-
+          --health-cmd "nc -z localhost 4222 || exit 1"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+          --health-start-period 5s
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared packages
+        run: |
+          pnpm --filter @nachos/config build
+          pnpm --filter @nachos/types build
+          pnpm --filter @nachos/utils build
+          pnpm --filter @nachos/context-manager build
+          pnpm --filter @nachos/bus build
+
+      - name: Run integration tests
+        run: pnpm test:ci
+        env:
+          POSTGRES_TEST_URL: postgres://nachos:nachos@localhost:5432/nachos_test
+          NATS_TEST_URL: nats://localhost:4222
