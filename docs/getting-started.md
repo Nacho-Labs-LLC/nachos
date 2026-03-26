@@ -1,12 +1,14 @@
 # Getting Started with Nachos
 
-Welcome to Nachos — your AI assistant, your way. This guide walks you from zero to a running instance in minutes.
+Welcome to Nachos — your AI assistant, your way. This guide walks you from zero
+to a running instance in minutes.
 
 ---
 
 ## Prerequisites
 
-- [Docker Desktop](https://docs.docker.com/get-docker/) (Mac/Windows) or Docker Engine + Compose plugin (Linux)
+- [Docker Desktop](https://docs.docker.com/get-docker/) (Mac/Windows) or Docker
+  Engine + Compose plugin (Linux)
 - An LLM API key (Anthropic, OpenAI, or a local Ollama instance)
 
 ---
@@ -26,7 +28,8 @@ cp .env.example .env
 docker compose up
 ```
 
-Open [http://localhost:8080](http://localhost:8080) to see the web chat interface.
+Open [http://localhost:8080](http://localhost:8080) to see the web chat
+interface.
 
 ---
 
@@ -60,13 +63,15 @@ type = "discord"
 token = "${DISCORD_TOKEN}"
 ```
 
-Set `DISCORD_TOKEN` in your `.env`. See [Skill Tools](SKILL_TOOLS.md) for available channel skills.
+Set `DISCORD_TOKEN` in your `.env`. See [Skill Tools](SKILL_TOOLS.md) for
+available channel skills.
 
 ---
 
 ## 4. Add Tools
 
-Tools let Nachos take actions (browse the web, run shell commands, read files). Example:
+Tools let Nachos take actions (browse the web, run shell commands, read files).
+Example:
 
 ```toml
 [[tools]]
@@ -97,21 +102,24 @@ docker compose -f docker-compose.dev.yml logs -f gateway
 
 - [Configuration Reference](configuration.md) — complete option reference
 - [Security Guide](security.md) — understand security modes and best practices
-- [Architecture Deep Dive](architecture.md) — how Nachos is structured internally
-- [Creating Custom Modules](custom-modules.md) — extend Nachos with your own channels and tools
+- [Architecture Deep Dive](architecture.md) — how Nachos is structured
+  internally
+- [Creating Custom Modules](custom-modules.md) — extend Nachos with your own
+  channels and tools
 - [ADRs](adr/) — architectural decisions and their rationale
 
 ---
 
 ## Troubleshooting
 
-**Container won't start:**
-Check that your `.env` has a valid API key and `nachos.toml` is present. Run `docker compose logs gateway` for details.
+**Container won't start:** Check that your `.env` has a valid API key and
+`nachos.toml` is present. Run `docker compose logs gateway` for details.
 
-**Web chat not loading:**
-Verify port 8080 is free. If using a custom port, check the `webui.port` config option.
+**Web chat not loading:** Verify port 8080 is free. If using a custom port,
+check the `webui.port` config option.
 
-**LLM errors / 401 Unauthorized:**
-Your API key is invalid or missing. Double-check `.env` and restart the stack.
+**LLM errors / 401 Unauthorized:** Your API key is invalid or missing.
+Double-check `.env` and restart the stack.
 
-For more help, see the [full troubleshooting guide](TROUBLESHOOTING.md) (coming soon) or open a GitHub issue.
+For more help, see the [full troubleshooting guide](TROUBLESHOOTING.md) (coming
+soon) or open a GitHub issue.

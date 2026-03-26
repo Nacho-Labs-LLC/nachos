@@ -1,8 +1,12 @@
 # ADR-006: Session Viewing and Continuation in Admin UI
 
-**Status:** Draft — Research stale (subagent runId `3a5fdaf8-5888-4355-bd2c-fa98247930f7` never completed; research appendix is placeholder text). Decision and implementation plan sections are still valid and should be retained for the eventual implementer. Update status to Accepted when implementation begins.
-**Date:** 2026-02-25  
-**Updated:** 2026-03-23 (ADR consolidation — marked stale research, no decision changes)  
+**Status:** Draft — Research stale (subagent runId
+`3a5fdaf8-5888-4355-bd2c-fa98247930f7` never completed; research appendix is
+placeholder text). Decision and implementation plan sections are still valid and
+should be retained for the eventual implementer. Update status to Accepted when
+implementation begins. **Date:** 2026-02-25  
+**Updated:** 2026-03-23 (ADR consolidation — marked stale research, no decision
+changes)  
 **Author:** Claw (with research subagent assistance)
 
 ## Context

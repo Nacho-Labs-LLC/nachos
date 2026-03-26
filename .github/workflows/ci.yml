@@ -283,14 +283,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build shared packages
-        run: |
-          pnpm --filter @nachos/config build
-          pnpm --filter @nachos/types build
-          pnpm --filter @nachos/utils build
-          pnpm --filter @nachos/context-manager build
-          pnpm --filter @nachos/bus build
-
       - name: Run integration tests
         run: pnpm test:ci
         env:
