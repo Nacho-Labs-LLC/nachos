@@ -9,7 +9,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { migrateCommand } from './migrate.js';
 
 // Prevent process.exit from actually terminating the test runner
-const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as (code?: number | string | null) => never);
+const _exitSpy = vi
+  .spyOn(process, 'exit')
+  .mockImplementation((() => {}) as (code?: number | string | null) => never);
 
 function writeNachosConfig(baseDir: string): string {
   const stateDir = join(baseDir, 'state');
@@ -118,9 +120,7 @@ describe('migrate command', () => {
       expect(result.ok).toBe(true);
       expect(result.data.blocksWritten).toBe(2);
 
-      const skipped = result.data.results.filter(
-        (r: { status: string }) => r.status === 'skipped'
-      );
+      const skipped = result.data.results.filter((r: { status: string }) => r.status === 'skipped');
       expect(skipped).toHaveLength(3);
       expect(skipped.every((r: { reason: string }) => r.reason === 'file not found')).toBe(true);
     });
@@ -135,9 +135,7 @@ describe('migrate command', () => {
       const result = out.parse();
 
       expect(result.ok).toBe(true);
-      const toolsResult = result.data.results.find(
-        (r: { file: string }) => r.file === 'TOOLS.md'
-      );
+      const toolsResult = result.data.results.find((r: { file: string }) => r.file === 'TOOLS.md');
       expect(toolsResult.status).toBe('skipped');
       expect(toolsResult.reason).toBe('empty file');
     });

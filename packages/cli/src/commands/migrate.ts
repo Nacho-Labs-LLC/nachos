@@ -24,14 +24,6 @@ const FILE_TO_BLOCK: Record<string, string> = {
   'TOOLS.md': 'tools',
 };
 
-// Which bootstrap block maps to which IdentityProfile field
-const BLOCK_TO_IDENTITY: Partial<Record<string, keyof IdentityProfile>> = {
-  soul: 'soul',
-  identity: 'identity',
-  user: 'userProfile',
-  tools: 'toolsNotes',
-};
-
 interface MigrateCommandOptions {
   json?: boolean;
   from?: string;
@@ -73,13 +65,23 @@ export async function migrateCommand(options: MigrateCommandOptions): Promise<vo
       if (existsSync(filePath)) {
         const content = readFileSync(filePath, 'utf-8').trim();
         if (content.length === 0) {
-          results.push({ file: filename, block: blockKey, status: 'skipped', reason: 'empty file' });
+          results.push({
+            file: filename,
+            block: blockKey,
+            status: 'skipped',
+            reason: 'empty file',
+          });
         } else {
           blocks[blockKey] = content;
           results.push({ file: filename, block: blockKey, status: 'imported' });
         }
       } else {
-        results.push({ file: filename, block: blockKey, status: 'skipped', reason: 'file not found' });
+        results.push({
+          file: filename,
+          block: blockKey,
+          status: 'skipped',
+          reason: 'file not found',
+        });
       }
     }
 

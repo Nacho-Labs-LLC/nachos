@@ -917,7 +917,9 @@ Examples:
 
   program
     .command('migrate')
-    .description('Import file-based identity (SOUL.md, IDENTITY.md, USER.md, AGENTS.md, TOOLS.md) into the state store')
+    .description(
+      'Import file-based identity (SOUL.md, IDENTITY.md, USER.md, AGENTS.md, TOOLS.md) into the state store'
+    )
     .requiredOption('--from <dir>', 'Source directory containing markdown files')
     .requiredOption('--agent-id <id>', 'Target agent ID')
     .option('--dry-run', 'Preview what would be imported without writing')
