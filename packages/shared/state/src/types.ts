@@ -81,6 +81,12 @@ export interface StateLayerConfig {
   sessions?: SessionsStoreConfig;
   workspace?: WorkspaceDocumentStoreConfig;
   prompt?: PromptAssemblyConfig;
+  /**
+   * Custom bootstrap prompt content (resolved string, not a file path).
+   * When set, replaces the default onboarding conversation block.
+   * File path resolution from nachos.toml is done at the Gateway/main level before passing here.
+   */
+  customBootstrapPrompt?: string;
 }
 
 export interface StatePolicyRequest {

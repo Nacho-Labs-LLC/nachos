@@ -320,6 +320,48 @@ describe('Configuration Validation', () => {
       expect(result.valid).toBe(true);
     });
 
+    it('should accept assistant config with bootstrap_prompt as inline string', () => {
+      const config: NachosConfig = {
+        nachos: { name: 'test', version: '1.0' },
+        llm: { provider: 'anthropic', model: 'claude' },
+        security: { mode: 'standard' },
+        assistant: {
+          name: 'Nacho',
+          bootstrap_prompt: 'Welcome! Tell me your name and I will get started.',
+        },
+      };
+
+      const result = validateConfig(config);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toEqual([]);
+    });
+
+    it('should accept assistant config with bootstrap_prompt as file path', () => {
+      const config: NachosConfig = {
+        nachos: { name: 'test', version: '1.0' },
+        llm: { provider: 'anthropic', model: 'claude' },
+        security: { mode: 'standard' },
+        assistant: { bootstrap_prompt: './my-onboarding.md' },
+      };
+
+      const result = validateConfig(config);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toEqual([]);
+    });
+
+    it('should reject unknown keys alongside bootstrap_prompt', () => {
+      const config = {
+        nachos: { name: 'test', version: '1.0' },
+        llm: { provider: 'anthropic', model: 'claude' },
+        security: { mode: 'standard' },
+        assistant: { bootstrap_prompt: 'Hello!', unknown_key: 'oops' },
+      } as unknown as NachosConfig;
+
+      const result = validateConfig(config);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.includes('Unknown config key: assistant.unknown_key'))).toBe(true);
+    });
+
     it('should reject llm.providers as unknown key', () => {
       const config = {
         nachos: { name: 'test', version: '1.0' },

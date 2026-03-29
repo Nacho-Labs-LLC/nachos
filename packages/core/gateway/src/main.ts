@@ -15,9 +15,10 @@ import {
 } from './index.js';
 import { NatsBusAdapter } from './router.js';
 import type { StateLayerConfig } from '@nachos/state';
-import type { ContextManagementCommandsConfig, RuntimeConfig } from '@nachos/config';
+import type { ContextManagementCommandsConfig, RuntimeConfig, NachosConfig } from '@nachos/config';
 import path from 'node:path';
 import { patternCategories, patterns as dlpPatterns } from '@nacho-labs/nachos-dlp';
+import { readFileSync } from 'node:fs';
 
 async function buildDlpConfig(configPath?: string): Promise<DLPConfig | undefined> {
   const nachosConfig = loadAndValidateConfig({ configPath });
@@ -86,7 +87,7 @@ async function start(): Promise<void> {
       })
     : undefined;
 
-  const stateLayerConfig = buildStateLayerConfig(runtime);
+  const stateLayerConfig = buildStateLayerConfig(runtime, nachosConfig, configPath);
   const memoryPipelineConfig = proactiveHistory?.enabled
     ? {
         proactiveHistory,
@@ -331,7 +332,48 @@ function mapContextManagement(config: RuntimeConfig['context_management']) {
   };
 }
 
-function buildStateLayerConfig(runtime?: RuntimeConfig): StateLayerConfig {
+function resolveBootstrapPrompt(
+  bootstrapPromptConfig: string | undefined,
+  configPath: string | undefined
+): string | undefined {
+  if (!bootstrapPromptConfig) return undefined;
+
+  // If it looks like a file path, try to read it
+  const looksLikePath =
+    bootstrapPromptConfig.startsWith('./') ||
+    bootstrapPromptConfig.startsWith('../') ||
+    bootstrapPromptConfig.startsWith('/') ||
+    bootstrapPromptConfig.endsWith('.md') ||
+    bootstrapPromptConfig.endsWith('.txt');
+
+  if (looksLikePath) {
+    try {
+      let resolvedPath: string;
+      if (path.isAbsolute(bootstrapPromptConfig)) {
+        resolvedPath = bootstrapPromptConfig;
+      } else {
+        // Resolve relative to nachos.toml location
+        const configDir = configPath ? path.dirname(path.resolve(configPath)) : process.cwd();
+        resolvedPath = path.resolve(configDir, bootstrapPromptConfig);
+      }
+      return readFileSync(resolvedPath, 'utf-8');
+    } catch (err) {
+      logger.warn(
+        { path: bootstrapPromptConfig, err },
+        'assistant.bootstrap_prompt file not found, falling back to inline string'
+      );
+      // Fall through to return as-is
+    }
+  }
+
+  return bootstrapPromptConfig;
+}
+
+function buildStateLayerConfig(
+  runtime?: RuntimeConfig,
+  nachosConfig?: NachosConfig,
+  configPath?: string
+): StateLayerConfig {
   const stateDir = runtime?.state_dir ?? './state';
   const identityProvider = runtime?.state?.identity?.provider ?? 'filesystem';
   const memoryProvider = runtime?.state?.memory?.provider ?? 'filesystem';
@@ -415,6 +457,10 @@ function buildStateLayerConfig(runtime?: RuntimeConfig): StateLayerConfig {
       maxMemoryFacts: runtime?.state?.prompt_report?.max_memory_facts ?? 50,
       includeSessionState: runtime?.state?.prompt_report?.include_session_state ?? false,
     },
+    customBootstrapPrompt: resolveBootstrapPrompt(
+      nachosConfig?.assistant?.bootstrap_prompt,
+      configPath
+    ),
   };
 }
 

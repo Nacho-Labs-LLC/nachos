@@ -2,7 +2,7 @@
  * State layer types for identity, memory, session state, and prompt reporting.
  */
 
-export type IdentitySource = 'filesystem' | 'db' | 'api' | 'unknown' | 'default';
+export type IdentitySource = 'filesystem' | 'db' | 'api' | 'unknown' | 'default' | 'config';
 
 export type BootstrapBlockMap = Record<string, string>;
 

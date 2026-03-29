@@ -729,6 +729,20 @@ export interface RuntimeConfig {
 export interface AssistantConfig {
   name?: string;
   system_prompt?: string;
+  /**
+   * Custom bootstrap prompt for the first-run onboarding conversation.
+   *
+   * Accepts either:
+   * - A file path (relative to nachos.toml, or absolute): `"./my-bootstrap.md"` or `"/etc/nachos/bootstrap.md"`
+   * - An inline string with the prompt content directly
+   *
+   * When provided, this replaces the default structured onboarding conversation.
+   * All other bootstrap blocks (AGENTS, SOUL, IDENTITY, USER, TOOLS) retain their defaults.
+   *
+   * @example File path: bootstrap_prompt = "./my-onboarding.md"
+   * @example Inline: bootstrap_prompt = "Welcome! Tell me your name and I'll get started."
+   */
+  bootstrap_prompt?: string;
 }
 
 /**

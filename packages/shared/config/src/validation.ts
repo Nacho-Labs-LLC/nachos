@@ -411,7 +411,7 @@ const CONFIG_SHAPE: SchemaNode = {
       network: true,
     },
   },
-  assistant: { name: true, system_prompt: true },
+  assistant: { name: true, system_prompt: true, bootstrap_prompt: true },
   skills: {
     enabled: true,
     allow: true,

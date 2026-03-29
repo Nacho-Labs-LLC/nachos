@@ -35,7 +35,10 @@ import { FilesystemIdentityStore } from './identity/filesystem-identity-store.js
 import { PostgresIdentityStore } from './identity/postgres-identity-store.js';
 import { FilesystemBootstrapStore } from './bootstrap/filesystem-bootstrap-store.js';
 import { PostgresBootstrapStore } from './bootstrap/postgres-bootstrap-store.js';
-import { createDefaultBootstrapBlocks } from './bootstrap/bootstrap-templates.js';
+import {
+  createDefaultBootstrapBlocks,
+  createBootstrapBlocksWithCustomPrompt,
+} from './bootstrap/bootstrap-templates.js';
 import { sanitizeBootstrapContent } from './bootstrap/sanitizer.js';
 import { FilesystemMemoryStore } from './memory/filesystem-memory-store.js';
 import { PostgresMemoryStore } from './memory/postgres-memory-store.js';
@@ -79,6 +82,7 @@ export class StateLayer {
   private promptAssembler: PromptAssembler;
   private dependencies: StateLayerDependencies;
   private pgPools: Pool[];
+  private customBootstrapPrompt?: string;
 
   constructor(params: {
     identityStore: IdentityStore;
@@ -91,6 +95,7 @@ export class StateLayer {
     promptAssembler: PromptAssembler;
     dependencies?: StateLayerDependencies;
     pgPools?: Pool[];
+    customBootstrapPrompt?: string;
   }) {
     this.identityStore = params.identityStore;
     this.bootstrapStore = params.bootstrapStore;
@@ -102,6 +107,7 @@ export class StateLayer {
     this.promptAssembler = params.promptAssembler;
     this.dependencies = params.dependencies ?? {};
     this.pgPools = params.pgPools ?? [];
+    this.customBootstrapPrompt = params.customBootstrapPrompt;
 
     if (!this.dependencies.policyCheck) {
       logger.warn(
@@ -273,12 +279,16 @@ export class StateLayer {
         return existing;
       }
 
+      const content = this.customBootstrapPrompt
+        ? createBootstrapBlocksWithCustomPrompt(this.customBootstrapPrompt)
+        : createDefaultBootstrapBlocks();
+
       const profile: BootstrapProfile = {
         agentId,
-        content: createDefaultBootstrapBlocks(),
+        content,
         updatedAt: new Date().toISOString(),
         version: 1,
-        source: 'default',
+        source: this.customBootstrapPrompt ? 'config' : 'default',
       };
 
       await this.ensureAllowed('state.bootstrap.write', context, agentId);
@@ -607,6 +617,7 @@ export function createStateLayer(
     promptAssembler,
     dependencies: deps,
     pgPools,
+    customBootstrapPrompt: config.customBootstrapPrompt,
   });
 }
 

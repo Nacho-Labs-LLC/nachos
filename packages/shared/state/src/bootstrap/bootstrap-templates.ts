@@ -36,10 +36,39 @@ export function createDefaultBootstrapBlocks(): BootstrapBlockMap {
     bootstrap: [
       'BOOTSTRAP',
       '',
-      'This is the first-run setup.',
-      'Ask the user to fill in IDENTITY and USER details, then SOUL.',
-      'When done, call the bootstrap tool with identityCompleted=true.',
-      'This will auto-clear the bootstrap block.',
+      "Welcome! I'm your new assistant. Let's get set up — this will only take a minute.",
+      '',
+      "I'll ask you a few questions one at a time. Take your time.",
+      '',
+      '**Step 1 — What should I call myself?**',
+      'Ask: "What would you like to name me? You can also give me a short description of my role or vibe (e.g. \"sharp and direct\", \"friendly and curious\")."',
+      '',
+      '**Step 2 — Who am I talking to?**',
+      'Ask: "What\'s your name, and what should I call you? (Optional: timezone, any preferences I should know about)"',
+      '',
+      '**Step 3 — What are my core values?**',
+      'Ask: "How should I behave? A sentence or two is fine — things like tone, privacy preferences, or what you want me to prioritize."',
+      '',
+      '**Step 4 — Any tools or credentials to note?**',
+      'Ask: "Are there any tools, accounts, or local conventions I should know about? (You can always update this later — just say \'skip\' to move on.)"',
+      '',
+      'After collecting all answers, write everything into the IDENTITY, USER, SOUL, and TOOLS blocks',
+      'using a single bootstrap(action: set, identityCompleted: true) call.',
+      '',
+      'Keep the conversation warm and brief. One question at a time. Skip steps the user already answered.',
+      'When the user says they are done or you have enough to proceed, complete setup.',
     ].join('\n'),
+  };
+}
+
+/**
+ * Build a BootstrapBlockMap using a custom bootstrap prompt to replace the default onboarding block.
+ * All other blocks (AGENTS, SOUL, IDENTITY, USER, TOOLS) retain their defaults.
+ */
+export function createBootstrapBlocksWithCustomPrompt(customPrompt: string): BootstrapBlockMap {
+  const defaults = createDefaultBootstrapBlocks();
+  return {
+    ...defaults,
+    bootstrap: customPrompt,
   };
 }
