@@ -44,6 +44,27 @@ export default tseslint.config(
       'no-console': 'off',
     },
   },
+  // Example scripts — console output is intentional
+  {
+    files: ['examples/**/*.ts', 'examples/**/*.js'],
+    rules: {
+      'no-console': 'off',
+    },
+  },
+  // Migration utility scripts — console output is intentional
+  {
+    files: ['packages/core/gateway/migrations/**/*.ts'],
+    rules: {
+      'no-console': 'off',
+    },
+  },
+  // Integration tests — console output acceptable in test context
+  {
+    files: ['**/*.integration.test.ts'],
+    rules: {
+      'no-console': 'off',
+    },
+  },
   {
     ignores: [
       'node_modules/',
