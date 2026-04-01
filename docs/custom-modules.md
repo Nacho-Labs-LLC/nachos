@@ -1,6 +1,7 @@
 # Creating Custom Modules
 
-Nachos is built to be extended. This guide covers adding your own channels, tools, and skills.
+Nachos is built to be extended. This guide covers adding your own channels,
+tools, and skills.
 
 ---
 
@@ -8,13 +9,14 @@ Nachos is built to be extended. This guide covers adding your own channels, tool
 
 There are three extension points:
 
-| Type | What It Does | Where It Lives |
-|---|---|---|
-| **Channel** | Connect Nachos to a messaging platform | `packages/channels/<name>/` |
-| **Tool** | Let Nachos take actions (run code, call APIs, etc.) | `packages/tools/<name>/` |
-| **Skill** | Give Nachos knowledge for an external service | `workspace/skills/<name>/SKILL.md` |
+| Type        | What It Does                                        | Where It Lives                     |
+| ----------- | --------------------------------------------------- | ---------------------------------- |
+| **Channel** | Connect Nachos to a messaging platform              | `packages/channels/<name>/`        |
+| **Tool**    | Let Nachos take actions (run code, call APIs, etc.) | `packages/tools/<name>/`           |
+| **Skill**   | Give Nachos knowledge for an external service       | `workspace/skills/<name>/SKILL.md` |
 
-Skills are the easiest — just a Markdown file, no code required. Channels and tools require TypeScript packages.
+Skills are the easiest — just a Markdown file, no code required. Channels and
+tools require TypeScript packages.
 
 ---
 
@@ -40,37 +42,33 @@ Brief description of what this skill enables.
 
 ## Authentication
 
-\`\`\`bash
-export MY_SERVICE_API_KEY="your-key-here"
-\`\`\`
+\`\`\`bash export MY_SERVICE_API_KEY="your-key-here" \`\`\`
 
 ## Common Operations
 
 ### List items
 
-\`\`\`bash
-curl -H "Authorization: Bearer $MY_SERVICE_API_KEY" \
-     https://api.myservice.com/v1/items
-\`\`\`
+\`\`\`bash curl -H "Authorization: Bearer $MY_SERVICE_API_KEY" \
+ https://api.myservice.com/v1/items \`\`\`
 
-Expected response:
-\`\`\`json
-{"items": [...], "total": 42}
-\`\`\`
+Expected response: \`\`\`json {"items": [...], "total": 42} \`\`\`
 
 ## Troubleshooting
 
-**401 Unauthorized** — Check your API key is set and valid.
-**404 Not Found** — The resource ID doesn't exist or you don't have access.
+**401 Unauthorized** — Check your API key is set and valid. **404 Not Found** —
+The resource ID doesn't exist or you don't have access.
 ```
 
-Skills are auto-discovered on next session start. See [SKILL_TOOLS.md](SKILL_TOOLS.md) for the full catalog and [ADR-003](adr/003-skill-structure.md) for format details.
+Skills are auto-discovered on next session start. See
+[SKILL_TOOLS.md](SKILL_TOOLS.md) for the full catalog and
+[ADR-003](adr/003-skill-structure.md) for format details.
 
 ---
 
 ## 2. Adding a Tool (Medium)
 
-Tools let Nachos take programmatic actions. They are TypeScript packages in `packages/tools/`.
+Tools let Nachos take programmatic actions. They are TypeScript packages in
+`packages/tools/`.
 
 ### Scaffold
 
@@ -81,6 +79,7 @@ cd packages/tools/my-tool
 ```
 
 Update `package.json`:
+
 ```json
 {
   "name": "@nachos/tool-my-tool",
@@ -92,7 +91,12 @@ Update `package.json`:
 
 ```typescript
 // src/index.ts
-import type { NachosTool, ToolDefinition, ToolContext, ToolResult } from '@nachos/shared';
+import type {
+  NachosTool,
+  ToolDefinition,
+  ToolContext,
+  ToolResult,
+} from '@nachos/shared';
 
 export class MyTool implements NachosTool {
   readonly name = 'my-tool';
@@ -150,7 +154,8 @@ type = "my-tool"
 
 ## 3. Adding a Channel (Advanced)
 
-Channels connect Nachos to messaging platforms. They publish and subscribe to the message bus.
+Channels connect Nachos to messaging platforms. They publish and subscribe to
+the message bus.
 
 ### Scaffold
 
@@ -163,7 +168,11 @@ cd packages/channels/my-channel
 
 ```typescript
 // src/index.ts
-import type { NachosChannel, InboundMessage, OutboundMessage } from '@nachos/shared';
+import type {
+  NachosChannel,
+  InboundMessage,
+  OutboundMessage,
+} from '@nachos/shared';
 
 export class MyChannel implements NachosChannel {
   readonly name = 'my-channel';
@@ -213,16 +222,24 @@ pnpm test
 
 ## Tips
 
-- **Start with a skill** — if you just need to call an API, a skill is almost always enough. Save tool/channel work for things that genuinely need programmatic integration.
-- **Look at existing packages** — `packages/tools/web-fetch` is a good minimal tool example; `packages/channels/discord` is the most complete channel example.
-- **Security**: Tools run with the security mode of the gateway. If your tool does sensitive operations, document it clearly and test with `strict` mode.
-- **Error handling**: Return descriptive errors from `execute()`. The LLM uses your error messages to self-correct.
+- **Start with a skill** — if you just need to call an API, a skill is almost
+  always enough. Save tool/channel work for things that genuinely need
+  programmatic integration.
+- **Look at existing packages** — `packages/tools/web-fetch` is a good minimal
+  tool example; `packages/channels/discord` is the most complete channel
+  example.
+- **Security**: Tools run with the security mode of the gateway. If your tool
+  does sensitive operations, document it clearly and test with `strict` mode.
+- **Error handling**: Return descriptive errors from `execute()`. The LLM uses
+  your error messages to self-correct.
 
 ---
 
 ## Further Reading
 
 - [SKILL_TOOLS.md](SKILL_TOOLS.md) — catalog of existing skills
-- [ADR-003: Skill Structure](adr/003-skill-structure.md) — skill format rationale
-- [Architecture Overview](architecture.md) — how channels, tools, and gateway connect
+- [ADR-003: Skill Structure](adr/003-skill-structure.md) — skill format
+  rationale
+- [Architecture Overview](architecture.md) — how channels, tools, and gateway
+  connect
 - [Security Guide](security.md) — security model and tool permissions
