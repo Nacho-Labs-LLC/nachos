@@ -359,7 +359,9 @@ describe('Configuration Validation', () => {
 
       const result = validateConfig(config);
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.includes('Unknown config key: assistant.unknown_key'))).toBe(true);
+      expect(
+        result.errors.some((e) => e.includes('Unknown config key: assistant.unknown_key'))
+      ).toBe(true);
     });
 
     it('should reject llm.providers as unknown key', () => {
