@@ -41,7 +41,7 @@ export function createDefaultBootstrapBlocks(): BootstrapBlockMap {
       "I'll ask you a few questions one at a time. Take your time.",
       '',
       '**Step 1 — What should I call myself?**',
-      'Ask: "What would you like to name me? You can also give me a short description of my role or vibe (e.g. \"sharp and direct\", \"friendly and curious\")."',
+      'Ask: "What would you like to name me? You can also give me a short description of my role or vibe (e.g. "sharp and direct", "friendly and curious")."',
       '',
       '**Step 2 — Who am I talking to?**',
       'Ask: "What\'s your name, and what should I call you? (Optional: timezone, any preferences I should know about)"',
