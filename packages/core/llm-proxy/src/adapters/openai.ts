@@ -71,16 +71,31 @@ const DEFAULT_TIMEOUT_MS = 120_000;
 export class OpenAIAdapter {
   public readonly name = 'openai';
   public readonly type = 'openai' as const;
+  private clientCache = new Map<string, OpenAI>();
+
   constructor(
     private readonly baseUrl?: string,
     private readonly defaultApiKey?: string,
     private readonly useMaxTokens?: boolean
   ) {}
 
+  private getClient(apiKey: string): OpenAI {
+    let client = this.clientCache.get(apiKey);
+    if (!client) {
+      if (this.clientCache.size >= 10) {
+        const firstKey = this.clientCache.keys().next().value as string;
+        this.clientCache.delete(firstKey);
+      }
+      client = new OpenAI({ apiKey, baseURL: this.baseUrl });
+      this.clientCache.set(apiKey, client);
+    }
+    return client;
+  }
+
   async send(request: LLMRequestType, options: AdapterSendOptions): Promise<AdapterResponse> {
     const { apiKey, profileName } = this.resolveApiKey(options);
     try {
-      const client = new OpenAI({ apiKey, baseURL: this.baseUrl });
+      const client = this.getClient(apiKey);
       const params: OpenAI.ChatCompletionCreateParams & { stream: false } = {
         model: options.model,
         messages: toOpenAiMessages(request.messages),
@@ -143,7 +158,7 @@ export class OpenAIAdapter {
   ): Promise<AdapterResponse> {
     const { apiKey, profileName } = this.resolveApiKey(options);
     try {
-      const client = new OpenAI({ apiKey, baseURL: this.baseUrl });
+      const client = this.getClient(apiKey);
       const streamParams: OpenAI.ChatCompletionCreateParams & { stream: true } = {
         model: options.model,
         messages: toOpenAiMessages(request.messages),
