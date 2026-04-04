@@ -73,22 +73,29 @@ export class OpenAIAdapter {
   public readonly type = 'openai' as const;
   constructor(
     private readonly baseUrl?: string,
-    private readonly defaultApiKey?: string
+    private readonly defaultApiKey?: string,
+    private readonly useMaxTokens?: boolean
   ) {}
 
   async send(request: LLMRequestType, options: AdapterSendOptions): Promise<AdapterResponse> {
     const { apiKey, profileName } = this.resolveApiKey(options);
     try {
       const client = new OpenAI({ apiKey, baseURL: this.baseUrl });
+      const params: OpenAI.ChatCompletionCreateParams & { stream: false } = {
+        model: options.model,
+        messages: toOpenAiMessages(request.messages),
+        tools: toOpenAiTools(request.tools),
+        temperature: options.temperature,
+        max_completion_tokens: options.maxTokens,
+        stream: false,
+      };
+      if (this.useMaxTokens) {
+        const p = params as unknown as Record<string, unknown>;
+        delete p.max_completion_tokens;
+        p.max_tokens = options.maxTokens;
+      }
       const response = await client.chat.completions.create(
-        {
-          model: options.model,
-          messages: toOpenAiMessages(request.messages),
-          tools: toOpenAiTools(request.tools),
-          temperature: options.temperature,
-          max_completion_tokens: options.maxTokens,
-          stream: false,
-        },
+        params,
         { timeout: options.timeout ?? DEFAULT_TIMEOUT_MS }
       );
 
@@ -137,15 +144,21 @@ export class OpenAIAdapter {
     const { apiKey, profileName } = this.resolveApiKey(options);
     try {
       const client = new OpenAI({ apiKey, baseURL: this.baseUrl });
+      const streamParams: OpenAI.ChatCompletionCreateParams & { stream: true } = {
+        model: options.model,
+        messages: toOpenAiMessages(request.messages),
+        tools: toOpenAiTools(request.tools),
+        temperature: options.temperature,
+        max_completion_tokens: options.maxTokens,
+        stream: true,
+      };
+      if (this.useMaxTokens) {
+        const sp = streamParams as unknown as Record<string, unknown>;
+        delete sp.max_completion_tokens;
+        sp.max_tokens = options.maxTokens;
+      }
       const stream = await client.chat.completions.create(
-        {
-          model: options.model,
-          messages: toOpenAiMessages(request.messages),
-          tools: toOpenAiTools(request.tools),
-          temperature: options.temperature,
-          max_completion_tokens: options.maxTokens,
-          stream: true,
-        },
+        streamParams,
         { timeout: options.timeout ?? DEFAULT_TIMEOUT_MS }
       );
 
