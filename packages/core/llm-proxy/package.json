@@ -23,6 +23,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
     "@aws-sdk/client-bedrock-runtime": "^3.713.0",
+    "@google/generative-ai": "^0.24.1",
     "@nachos/bus": "workspace:*",
     "@nachos/config": "workspace:*",
     "@nachos/types": "workspace:*",
