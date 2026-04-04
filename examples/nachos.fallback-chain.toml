@@ -1,0 +1,58 @@
+# Nachos config: Multi-provider fallback chain
+# Docs: docs/guides/provider-switching.md
+#
+# Maximum availability: if one provider goes down, the next takes over.
+# Order: Anthropic Sonnet -> Anthropic Haiku -> OpenAI -> Ollama (local)
+
+[nachos]
+name = "my-assistant"
+version = "1.0"
+
+[llm]
+provider = "anthropic"
+model = "claude-sonnet-4-20250514"
+max_tokens = 4096
+temperature = 0.7
+
+fallback_order = [
+  "anthropic:claude-haiku-4-5-20251001",
+  "openai:gpt-4o-mini",
+  "ollama:llama3.2",
+]
+
+# Multiple Anthropic keys for rate-limit rotation
+[[llm.profiles]]
+name = "anthropic-primary"
+provider = "anthropic"
+api_key_env = "ANTHROPIC_API_KEY"
+
+[[llm.profiles]]
+name = "anthropic-backup"
+provider = "anthropic"
+api_key_env = "ANTHROPIC_API_KEY_BACKUP"
+
+profile_order = ["anthropic-primary", "anthropic-backup"]
+
+# Cooldown tuning
+[llm.cooldowns]
+initial_seconds = 60
+multiplier = 5
+max_seconds = 3600
+billing_initial_hours = 5
+billing_max_hours = 24
+
+# Retry tuning
+[llm.retry]
+attempts = 3
+min_delay_ms = 1000
+max_delay_ms = 10000
+jitter = 0.2
+
+[security]
+mode = "standard"
+
+# .env:
+# ANTHROPIC_API_KEY="sk-ant-..."
+# ANTHROPIC_API_KEY_BACKUP="sk-ant-..."
+# OPENAI_API_KEY="sk-..."
+# (Ollama needs no key — just ensure it's running locally)
