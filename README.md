@@ -133,6 +133,31 @@ paths = ["./workspace"]
 mode = "standard"
 ```
 
+### Switching LLM Providers
+
+Nachos supports **Anthropic**, **OpenAI**, **Ollama** (local), **AWS Bedrock**,
+and **Gemini**. Switching is a one-line config change:
+
+```toml
+[llm]
+provider = "openai"    # or "anthropic", "ollama", "bedrock", "gemini"
+model = "gpt-4o"
+```
+
+Set up automatic **fallback chains** across providers:
+
+```toml
+[llm]
+provider = "anthropic"
+model = "claude-sonnet-4-20250514"
+fallback_order = ["openai:gpt-4o", "ollama:llama3.2"]
+```
+
+See the full **[Provider Switching Guide](docs/guides/provider-switching.md)**
+for per-provider setup, multi-profile auth, cooldown tuning, and common
+patterns. Example configs for each provider are in
+[`examples/`](examples/).
+
 ### Env-first setup
 
 If you prefer configuring via environment variables, keep `nachos.toml` minimal
@@ -310,6 +335,8 @@ and [docs/adr/](docs/adr/) for architectural decisions.
 
 - [Getting Started](docs/getting-started.md)
 - [Configuration Reference](docs/configuration.md)
+- [Provider Switching Guide](docs/guides/provider-switching.md)
+- [AWS Bedrock Setup](BEDROCK_SETUP.md)
 - [Security Guide](docs/security.md)
 - [Creating Custom Modules](docs/custom-modules.md)
 - [Architecture Deep Dive](docs/architecture.md)
