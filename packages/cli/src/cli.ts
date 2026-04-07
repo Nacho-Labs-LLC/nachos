@@ -916,6 +916,33 @@ Examples:
   );
 
   program
+    .command('migrate')
+    .description(
+      'Import file-based identity (SOUL.md, IDENTITY.md, USER.md, AGENTS.md, TOOLS.md) into the state store'
+    )
+    .requiredOption('--from <dir>', 'Source directory containing markdown files')
+    .requiredOption('--agent-id <id>', 'Target agent ID')
+    .option('--dry-run', 'Preview what would be imported without writing')
+    .option('--force', 'Overwrite existing identity even if already completed')
+    .option('--session-id <id>', 'Optional session ID for audit context')
+    .action(async (options) => {
+      const { migrateCommand } = await import('./commands/migrate.js');
+      await migrateCommand({ ...program.opts(), ...options });
+    });
+
+  program.commands
+    .find((command) => command.name() === 'migrate')
+    ?.addHelpText(
+      'after',
+      `
+Examples:
+  nachos migrate --from ./workspace --agent-id my-bot
+  nachos migrate --from ./workspace --agent-id my-bot --dry-run
+  nachos migrate --from ./workspace --agent-id my-bot --force
+`
+    );
+
+  program
     .command('completion <shell>')
     .description('Generate shell completion script (bash, zsh, fish, powershell)')
     .action(async (shell: string) => {
