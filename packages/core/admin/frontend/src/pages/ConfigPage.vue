@@ -3,7 +3,15 @@ import { ref, reactive, onMounted, computed } from 'vue';
 import TOML from '@iarna/toml';
 import { getConfig, putConfig, type ConfigResponse } from '../api/client.js';
 
-type Tab = 'llm' | 'channels' | 'tools' | 'security' | 'dlp' | 'rate_limits' | 'audit_settings' | 'assistant';
+type Tab =
+  | 'llm'
+  | 'channels'
+  | 'tools'
+  | 'security'
+  | 'dlp'
+  | 'rate_limits'
+  | 'audit_settings'
+  | 'assistant';
 
 const raw = ref<ConfigResponse | null>(null);
 const loading = ref(true);
@@ -91,7 +99,8 @@ function hydrateForm(parsed: Record<string, unknown>) {
   form.auditSettings.log_inputs = Boolean(audit['log_inputs'] ?? true);
   form.auditSettings.log_outputs = Boolean(audit['log_outputs'] ?? true);
   form.auditSettings.log_tool_calls = Boolean(audit['log_tool_calls'] ?? true);
-  form.auditSettings.provider = (audit['provider'] as typeof form.auditSettings.provider) ?? 'sqlite';
+  form.auditSettings.provider =
+    (audit['provider'] as typeof form.auditSettings.provider) ?? 'sqlite';
 
   const channels = (parsed['channels'] as Record<string, Record<string, unknown>>) ?? {};
   for (const ch of CHANNELS) {
@@ -316,7 +325,12 @@ onMounted(() => void load());
 
         <div class="field">
           <label class="field-label">Model</label>
-          <input v-model="form.llm.model" type="text" class="field-input" placeholder="claude-sonnet-4-20250514" />
+          <input
+            v-model="form.llm.model"
+            type="text"
+            class="field-input"
+            placeholder="claude-sonnet-4-20250514"
+          />
         </div>
 
         <div class="field">
@@ -324,36 +338,74 @@ onMounted(() => void load());
             Temperature
             <span class="field-value">{{ form.llm.temperature.toFixed(2) }}</span>
           </label>
-          <input v-model.number="form.llm.temperature" type="range" min="0" max="1" step="0.01" class="range-input" />
+          <input
+            v-model.number="form.llm.temperature"
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            class="range-input"
+          />
           <div class="range-labels"><span>Deterministic</span><span>Creative</span></div>
         </div>
 
         <div class="field">
           <label class="field-label">Max Tokens</label>
-          <input v-model.number="form.llm.max_tokens" type="number" class="field-input" min="256" max="100000" step="256" />
+          <input
+            v-model.number="form.llm.max_tokens"
+            type="number"
+            class="field-input"
+            min="256"
+            max="100000"
+            step="256"
+          />
         </div>
 
         <h3 class="subsection-title">Advanced</h3>
 
         <div class="field">
           <label class="field-label">Fallback Order</label>
-          <input v-model="form.llm.fallback_order" type="text" class="field-input" placeholder="anthropic, openai, ollama" />
+          <input
+            v-model="form.llm.fallback_order"
+            type="text"
+            class="field-input"
+            placeholder="anthropic, openai, ollama"
+          />
           <p class="field-hint">Comma-separated list of providers to try in order.</p>
         </div>
 
         <div class="field">
           <label class="field-label">Retry Attempts</label>
-          <input v-model.number="form.llm.retry.attempts" type="number" class="field-input" min="0" max="10" step="1" />
+          <input
+            v-model.number="form.llm.retry.attempts"
+            type="number"
+            class="field-input"
+            min="0"
+            max="10"
+            step="1"
+          />
         </div>
 
         <div class="field">
           <label class="field-label">Min Retry Delay (ms)</label>
-          <input v-model.number="form.llm.retry.min_delay_ms" type="number" class="field-input" min="0" step="100" />
+          <input
+            v-model.number="form.llm.retry.min_delay_ms"
+            type="number"
+            class="field-input"
+            min="0"
+            step="100"
+          />
         </div>
 
         <div class="field">
           <label class="field-label">Max Retry Delay (ms)</label>
-          <input v-model.number="form.llm.retry.max_delay_ms" type="number" class="field-input" min="0" step="100" />
+          <input
+            v-model.number="form.llm.retry.max_delay_ms"
+            type="number"
+            class="field-input"
+            min="0"
+            step="100"
+          />
         </div>
       </section>
 
@@ -433,8 +485,15 @@ onMounted(() => void load());
 
         <div class="field">
           <label class="field-label">Patterns</label>
-          <textarea v-model="form.dlp.patterns" class="field-textarea" rows="6" placeholder="One regex pattern per line" />
-          <p class="field-hint">One regex pattern per line. Matched content triggers the selected action.</p>
+          <textarea
+            v-model="form.dlp.patterns"
+            class="field-textarea"
+            rows="6"
+            placeholder="One regex pattern per line"
+          />
+          <p class="field-hint">
+            One regex pattern per line. Matched content triggers the selected action.
+          </p>
         </div>
       </section>
 
@@ -442,19 +501,37 @@ onMounted(() => void load());
       <section v-if="activeTab === 'rate_limits'" class="form-section">
         <div class="field">
           <label class="field-label">Messages per Minute</label>
-          <input v-model.number="form.rateLimits.messages_per_minute" type="number" class="field-input" min="0" step="1" />
+          <input
+            v-model.number="form.rateLimits.messages_per_minute"
+            type="number"
+            class="field-input"
+            min="0"
+            step="1"
+          />
           <p class="field-hint">0 = unlimited</p>
         </div>
 
         <div class="field">
           <label class="field-label">Tool Calls per Minute</label>
-          <input v-model.number="form.rateLimits.tool_calls_per_minute" type="number" class="field-input" min="0" step="1" />
+          <input
+            v-model.number="form.rateLimits.tool_calls_per_minute"
+            type="number"
+            class="field-input"
+            min="0"
+            step="1"
+          />
           <p class="field-hint">0 = unlimited</p>
         </div>
 
         <div class="field">
           <label class="field-label">LLM Requests per Minute</label>
-          <input v-model.number="form.rateLimits.llm_requests_per_minute" type="number" class="field-input" min="0" step="1" />
+          <input
+            v-model.number="form.rateLimits.llm_requests_per_minute"
+            type="number"
+            class="field-input"
+            min="0"
+            step="1"
+          />
           <p class="field-hint">0 = unlimited</p>
         </div>
       </section>
@@ -473,7 +550,13 @@ onMounted(() => void load());
 
         <div class="field">
           <label class="field-label">Retention (days)</label>
-          <input v-model.number="form.auditSettings.retention_days" type="number" class="field-input" min="1" step="1" />
+          <input
+            v-model.number="form.auditSettings.retention_days"
+            type="number"
+            class="field-input"
+            min="1"
+            step="1"
+          />
         </div>
 
         <div class="toggle-row">
@@ -520,12 +603,22 @@ onMounted(() => void load());
       <section v-if="activeTab === 'assistant'" class="form-section">
         <div class="field">
           <label class="field-label">Name</label>
-          <input v-model="form.assistant.name" type="text" class="field-input" placeholder="Nachos" />
+          <input
+            v-model="form.assistant.name"
+            type="text"
+            class="field-input"
+            placeholder="Nachos"
+          />
         </div>
 
         <div class="field">
           <label class="field-label">System Prompt</label>
-          <textarea v-model="form.assistant.system_prompt" class="field-textarea" rows="8" placeholder="You are a helpful AI assistant…" />
+          <textarea
+            v-model="form.assistant.system_prompt"
+            class="field-textarea"
+            rows="8"
+            placeholder="You are a helpful AI assistant…"
+          />
         </div>
       </section>
     </template>

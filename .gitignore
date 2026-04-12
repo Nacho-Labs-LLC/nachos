@@ -69,3 +69,4 @@ packages/*/src/**/*.d.ts.map
 *USER_GUIDE*.md
 REVIEW_CHECKLIST.md
 EXECUTIVE_SUMMARY.md
+.cache/

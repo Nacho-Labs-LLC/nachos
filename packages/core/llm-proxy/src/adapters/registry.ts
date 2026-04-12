@@ -3,6 +3,7 @@ import { AnthropicAdapter } from './anthropic.js';
 import { OpenAIAdapter } from './openai.js';
 import { OllamaAdapter } from './ollama.js';
 import { createBedrockAdapter } from './bedrock.js';
+import { GeminiAdapter } from './gemini.js';
 import type { LLMProviderAdapter } from './types.js';
 
 export interface AdapterRegistry {
@@ -22,6 +23,8 @@ export function createAdapterRegistry(config: LLMConfig): AdapterRegistry {
   const awsRegion =
     config.region || process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
   adapters.set('bedrock', createBedrockAdapter(awsRegion));
+
+  adapters.set('gemini', new GeminiAdapter());
 
   return {
     getAdapter(provider: string) {

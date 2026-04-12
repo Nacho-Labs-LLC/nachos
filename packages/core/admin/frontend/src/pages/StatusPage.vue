@@ -79,10 +79,7 @@ function formatUptime(seconds?: number): string {
           <div class="card">
             <div class="card-label">Gateway</div>
             <div class="status-row">
-              <span
-                class="status-dot"
-                :style="{ background: statusColor(data.gateway.status) }"
-              />
+              <span class="status-dot" :style="{ background: statusColor(data.gateway.status) }" />
               <span class="status-text">{{ data.gateway.status }}</span>
             </div>
             <dl class="meta-list">
@@ -125,7 +122,9 @@ function formatUptime(seconds?: number): string {
             <div class="card-label">LLM</div>
             <template v-if="data.config?.llm">
               <div class="status-text">{{ data.config.llm.provider ?? '—' }}</div>
-              <div class="text-muted mono" style="font-size: 12px;">{{ data.config.llm.model ?? '' }}</div>
+              <div class="text-muted mono" style="font-size: 12px">
+                {{ data.config.llm.model ?? '' }}
+              </div>
             </template>
             <div v-else class="text-muted">No config</div>
           </div>

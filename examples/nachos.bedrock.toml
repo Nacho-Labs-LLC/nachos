@@ -1,0 +1,28 @@
+# Nachos config: AWS Bedrock
+# Docs: docs/guides/provider-switching.md
+# Full Bedrock setup: BEDROCK_SETUP.md
+
+[nachos]
+name = "my-assistant"
+version = "1.0"
+
+[llm]
+provider = "bedrock"
+model = "anthropic.claude-3-5-sonnet-20241022-v2:0"
+region = "us-east-1"
+max_tokens = 4096
+temperature = 0.7
+
+# Optional: cross-provider fallback
+# fallback_order = ["openai:gpt-4o"]
+
+[security]
+mode = "standard"
+
+# .env (development):
+# AWS_ACCESS_KEY_ID="AKIA..."
+# AWS_SECRET_ACCESS_KEY="..."
+# AWS_REGION="us-east-1"
+#
+# Production: use IAM roles instead of env vars.
+# See BEDROCK_SETUP.md for IAM policy and region setup.

@@ -111,7 +111,7 @@ function toBedrockMessages(messages: LLMRequestType['messages']): unknown[] {
 
 function toBedrockTools(tools: LLMRequestType['tools']) {
   if (!tools || tools.length === 0) return undefined;
-  return tools.map((tool) => ({
+  return tools.map((tool: NonNullable<LLMRequestType['tools']>[number]) => ({
     name: tool.name,
     description: tool.description,
     input_schema: tool.parameters, // Bedrock uses input_schema, Nachos uses parameters
@@ -188,18 +188,75 @@ type BedrockStreamChunk = {
   usage?: { output_tokens: number };
 };
 
+type AwsCredentials = { accessKeyId: string; secretAccessKey: string; sessionToken?: string };
+
+/**
+ * Parse AWS credentials from a profile's env var value.
+ * Supports JSON: {"accessKeyId":"...","secretAccessKey":"...","sessionToken":"..."}
+ * Or plain access key ID (looks up corresponding secret from *_SECRET_ACCESS_KEY env var).
+ */
+function parseAwsCredentials(envValue: string): AwsCredentials | null {
+  const trimmed = envValue.trim();
+  if (trimmed.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+      if (typeof parsed.accessKeyId === 'string' && typeof parsed.secretAccessKey === 'string') {
+        return {
+          accessKeyId: parsed.accessKeyId,
+          secretAccessKey: parsed.secretAccessKey,
+          sessionToken: typeof parsed.sessionToken === 'string' ? parsed.sessionToken : undefined,
+        };
+      }
+    } catch {
+      // Not valid JSON, fall through
+    }
+  }
+  return null;
+}
+
 export function createBedrockAdapter(
   region = 'us-east-1',
-  credentials?: { accessKeyId: string; secretAccessKey: string; sessionToken?: string }
+  credentials?: AwsCredentials
 ): LLMProviderAdapter {
-  // Lazily created on first send/stream call
-  let client: BedrockRuntimeClientType | undefined;
+  const clientCache = new Map<string, BedrockRuntimeClientType>();
 
-  async function getClient(): Promise<BedrockRuntimeClientType> {
+  function getClient(creds?: AwsCredentials): BedrockRuntimeClientType {
+    const cacheKey = creds ? creds.accessKeyId : '__default__';
+    let client = clientCache.get(cacheKey);
     if (!client) {
-      client = new BedrockRuntimeClient({ region, credentials });
+      if (clientCache.size >= 10) {
+        const firstKey = clientCache.keys().next().value as string;
+        clientCache.delete(firstKey);
+      }
+      client = new BedrockRuntimeClient({ region, credentials: creds });
+      clientCache.set(cacheKey, client);
     }
     return client;
+  }
+
+  function resolveCredentials(options: AdapterSendOptions): {
+    credentials?: AwsCredentials;
+    profileName?: string;
+  } {
+    // Try profiles first (multi-profile auth)
+    const profileList = options.getProfileList?.() ?? [];
+    for (const profileName of profileList) {
+      const envValue = options.getProfileApiKey?.(profileName);
+      if (envValue) {
+        const parsed = parseAwsCredentials(envValue);
+        if (parsed) {
+          return { credentials: parsed, profileName };
+        }
+      }
+    }
+
+    // Fall back to constructor-provided credentials
+    if (credentials) {
+      return { credentials };
+    }
+
+    // Fall back to default AWS credential chain (SDK handles this)
+    return {};
   }
 
   return {
@@ -207,7 +264,8 @@ export function createBedrockAdapter(
     type: 'custom',
 
     async send(request: LLMRequestType, options: AdapterSendOptions): Promise<AdapterResponse> {
-      const bedrockClient = await getClient();
+      const { credentials: resolvedCreds, profileName } = resolveCredentials(options);
+      const bedrockClient = getClient(resolvedCreds);
 
       const system = extractSystemPrompt(request.messages);
       const messages = toBedrockMessages(request.messages) as BedrockMessage[];
@@ -266,40 +324,14 @@ export function createBedrockAdapter(
           finishReason: responseBody.stop_reason,
         };
       } catch (error: unknown) {
-        if (error && typeof error === 'object' && 'name' in error) {
-          const awsError = error as {
-            name: string;
-            message: string;
-            $metadata?: { httpStatusCode?: number };
-          };
-
-          if (
-            awsError.name === 'ThrottlingException' ||
-            awsError.$metadata?.httpStatusCode === 429
-          ) {
-            throw new ProviderError('Rate limit exceeded', 'rate_limit', awsError.name);
-          }
-          if (
-            awsError.name === 'ValidationException' ||
-            awsError.$metadata?.httpStatusCode === 400
-          ) {
-            throw new ProviderError(awsError.message, 'invalid_request', awsError.name);
-          }
-          if (
-            awsError.name === 'AccessDeniedException' ||
-            awsError.$metadata?.httpStatusCode === 403
-          ) {
-            throw new ProviderError('Authentication failed', 'auth', awsError.name);
-          }
-          if (awsError.name === 'ServiceQuotaExceededException') {
-            throw new ProviderError('Quota exceeded', 'limit_reached', awsError.name);
-          }
+        const mapped = mapBedrockError(error);
+        if (profileName && (mapped.kind === 'rate_limit' || mapped.kind === 'billing')) {
+          options.onProfileCooldown?.(
+            profileName,
+            mapped.kind === 'billing' ? 'billing' : 'rate_limit'
+          );
         }
-
-        throw new ProviderError(
-          error instanceof Error ? error.message : 'Unknown error',
-          'unknown'
-        );
+        throw mapped;
       }
     },
 
@@ -308,7 +340,8 @@ export function createBedrockAdapter(
       options: AdapterStreamOptions,
       onChunk: StreamChunkHandler
     ): Promise<AdapterResponse> {
-      const bedrockClient = await getClient();
+      const { credentials: resolvedCreds, profileName } = resolveCredentials(options);
+      const bedrockClient = getClient(resolvedCreds);
 
       const system = extractSystemPrompt(request.messages);
       const messages = toBedrockMessages(request.messages) as BedrockMessage[];
@@ -370,6 +403,8 @@ export function createBedrockAdapter(
                   delta: chunkData.delta.text,
                   sessionId: options.sessionId,
                   index: chunkIndex++,
+                  provider: 'bedrock',
+                  model: options.model,
                 });
               } else if (
                 chunkData.delta.type === 'input_json_delta' &&
@@ -385,6 +420,14 @@ export function createBedrockAdapter(
               const toolCall = toolCalls[chunkData.index];
               if (toolCall) {
                 toolCall.arguments = toolInputBuffers[toolCall.id] ?? '';
+                await onChunk({
+                  type: 'tool_call',
+                  toolCall: { id: toolCall.id, name: toolCall.name, arguments: toolCall.arguments },
+                  sessionId: options.sessionId,
+                  index: chunkIndex++,
+                  provider: 'bedrock',
+                  model: options.model,
+                });
               }
             } else if (chunkData.type === 'message_delta' && chunkData.delta) {
               if (chunkData.delta.stop_reason) {
@@ -415,41 +458,40 @@ export function createBedrockAdapter(
           finishReason: stopReason ?? 'end_turn',
         };
       } catch (error: unknown) {
-        if (error && typeof error === 'object' && 'name' in error) {
-          const awsError = error as {
-            name: string;
-            message: string;
-            $metadata?: { httpStatusCode?: number };
-          };
-
-          if (
-            awsError.name === 'ThrottlingException' ||
-            awsError.$metadata?.httpStatusCode === 429
-          ) {
-            throw new ProviderError('Rate limit exceeded', 'rate_limit', awsError.name);
-          }
-          if (
-            awsError.name === 'ValidationException' ||
-            awsError.$metadata?.httpStatusCode === 400
-          ) {
-            throw new ProviderError(awsError.message, 'invalid_request', awsError.name);
-          }
-          if (
-            awsError.name === 'AccessDeniedException' ||
-            awsError.$metadata?.httpStatusCode === 403
-          ) {
-            throw new ProviderError('Authentication failed', 'auth', awsError.name);
-          }
-          if (awsError.name === 'ServiceQuotaExceededException') {
-            throw new ProviderError('Quota exceeded', 'limit_reached', awsError.name);
-          }
+        const mapped = mapBedrockError(error);
+        if (profileName && (mapped.kind === 'rate_limit' || mapped.kind === 'billing')) {
+          options.onProfileCooldown?.(
+            profileName,
+            mapped.kind === 'billing' ? 'billing' : 'rate_limit'
+          );
         }
-
-        throw new ProviderError(
-          error instanceof Error ? error.message : 'Unknown error',
-          'unknown'
-        );
+        throw mapped;
       }
     },
   };
+}
+
+function mapBedrockError(error: unknown): ProviderError {
+  if (error && typeof error === 'object' && 'name' in error) {
+    const awsError = error as {
+      name: string;
+      message: string;
+      $metadata?: { httpStatusCode?: number };
+    };
+
+    if (awsError.name === 'ThrottlingException' || awsError.$metadata?.httpStatusCode === 429) {
+      return new ProviderError('Rate limit exceeded', 'rate_limit', awsError.name);
+    }
+    if (awsError.name === 'ValidationException' || awsError.$metadata?.httpStatusCode === 400) {
+      return new ProviderError(awsError.message, 'invalid_request', awsError.name);
+    }
+    if (awsError.name === 'AccessDeniedException' || awsError.$metadata?.httpStatusCode === 403) {
+      return new ProviderError('Authentication failed', 'auth', awsError.name);
+    }
+    if (awsError.name === 'ServiceQuotaExceededException') {
+      return new ProviderError('Quota exceeded', 'limit_reached', awsError.name);
+    }
+  }
+
+  return new ProviderError(error instanceof Error ? error.message : 'Unknown error', 'unknown');
 }

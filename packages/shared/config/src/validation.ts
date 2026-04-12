@@ -37,6 +37,7 @@ const CONFIG_SHAPE: SchemaNode = {
     base_url: true,
     region: true, // AWS region for Bedrock provider
     context_window: true,
+    timeout_ms: true,
   },
   channels: {
     webchat: { enabled: true, port: true },
@@ -574,6 +575,12 @@ function validateLLMConfig(config: NachosConfig, errors: string[], warnings: str
   if (config.llm.temperature !== undefined) {
     if (config.llm.temperature < 0 || config.llm.temperature > 2) {
       errors.push('llm.temperature must be between 0 and 2');
+    }
+  }
+
+  if (config.llm.timeout_ms !== undefined) {
+    if (config.llm.timeout_ms < 1000 || config.llm.timeout_ms > 600000) {
+      errors.push('llm.timeout_ms must be between 1000 and 600000 (1s to 10min)');
     }
   }
 

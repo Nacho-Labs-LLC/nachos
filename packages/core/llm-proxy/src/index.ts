@@ -191,6 +191,7 @@ async function executeWithFallback(
       model: attempt.model,
       temperature,
       maxTokens,
+      timeout: llmConfig.timeout_ms,
       getProfileList: () => profileList,
       getProfileApiKey: getApiKey,
       onProfileCooldown: (profileName: string, reason: 'rate_limit' | 'billing') => {

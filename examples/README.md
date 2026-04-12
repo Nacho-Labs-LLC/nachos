@@ -2,7 +2,28 @@
 
 This directory contains examples demonstrating the Nachos configuration system.
 
-## Running the Examples
+## Provider Config Examples
+
+Ready-to-use `nachos.toml` templates for each LLM provider. Copy one as your
+starting point and edit to taste. See the full
+[Provider Switching Guide](../docs/guides/provider-switching.md) for details.
+
+| File                                                       | Provider                        |
+| ---------------------------------------------------------- | ------------------------------- |
+| [`nachos.anthropic.toml`](nachos.anthropic.toml)           | Anthropic (Claude) — direct API |
+| [`nachos.openai.toml`](nachos.openai.toml)                 | OpenAI (GPT-4o)                 |
+| [`nachos.ollama.toml`](nachos.ollama.toml)                 | Ollama — local models           |
+| [`nachos.bedrock.toml`](nachos.bedrock.toml)               | AWS Bedrock                     |
+| [`nachos.fallback-chain.toml`](nachos.fallback-chain.toml) | Multi-provider fallback chain   |
+
+```bash
+# Example: start with the OpenAI config
+cp examples/nachos.openai.toml nachos.toml
+# Edit .env with your OPENAI_API_KEY, then:
+nachos up
+```
+
+## Running the Code Examples
 
 ### Prerequisites
 

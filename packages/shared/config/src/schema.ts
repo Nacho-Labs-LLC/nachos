@@ -51,6 +51,8 @@ export interface LLMConfig {
   region?: string; // AWS region for Bedrock provider
   /** Override the model's context window size (tokens). Auto-detected from model ID if omitted. */
   context_window?: number;
+  /** Request timeout in milliseconds for LLM API calls. Defaults to 120000 (2 minutes). */
+  timeout_ms?: number;
 }
 
 /**

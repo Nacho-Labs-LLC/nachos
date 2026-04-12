@@ -6,12 +6,7 @@ import { checkEnvVars } from './env.js';
 
 type EnvSnapshot = Record<string, string | undefined>;
 
-const REQUIRED_KEYS = [
-  'ANTHROPIC_API_KEY',
-  'ANTHROPIC_SETUP_TOKEN',
-  'CLAUDE_SETUP_TOKEN',
-  'OPENAI_API_KEY',
-] as const;
+const REQUIRED_KEYS = ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'CUSTOM_API_KEY'] as const;
 
 function snapshotEnv(): EnvSnapshot {
   const snapshot: EnvSnapshot = {};
@@ -30,10 +25,6 @@ function restoreEnv(snapshot: EnvSnapshot) {
       process.env[key] = value;
     }
   }
-}
-
-function buildSetupToken(): string {
-  return `sk-ant-oat01-${'x'.repeat(80)}`;
 }
 
 function writeConfig(baseDir: string, content: string): string {
@@ -83,11 +74,10 @@ model = "claude-sonnet-4"
     const result = await checkEnvVars();
     expect(result.status).toBe('fail');
     expect(result.message).toContain('ANTHROPIC_API_KEY');
-    expect(result.message).toContain('ANTHROPIC_SETUP_TOKEN');
   });
 
-  it('passes when a valid setup-token is present', async () => {
-    process.env.ANTHROPIC_SETUP_TOKEN = buildSetupToken();
+  it('passes when ANTHROPIC_API_KEY is present', async () => {
+    process.env.ANTHROPIC_API_KEY = 'sk-ant-api123';
     process.env.NACHOS_CONFIG_PATH = writeConfig(
       tempDir,
       `
@@ -120,17 +110,17 @@ model = "claude-sonnet-4"
 [[llm.profiles]]
 name = "anthropic-primary"
 provider = "anthropic"
-api_key_env = "ANTHROPIC_SETUP_TOKEN"
+api_key_env = "CUSTOM_API_KEY"
 `
     );
 
     const result = await checkEnvVars();
     expect(result.status).toBe('fail');
-    expect(result.message).toContain('ANTHROPIC_SETUP_TOKEN');
+    expect(result.message).toContain('CUSTOM_API_KEY');
   });
 
   it('passes when a configured profile env var is set', async () => {
-    process.env.ANTHROPIC_SETUP_TOKEN = buildSetupToken();
+    process.env.CUSTOM_API_KEY = 'sk-ant-api123';
     process.env.NACHOS_CONFIG_PATH = writeConfig(
       tempDir,
       `
@@ -145,31 +135,11 @@ model = "claude-sonnet-4"
 [[llm.profiles]]
 name = "anthropic-primary"
 provider = "anthropic"
-api_key_env = "ANTHROPIC_SETUP_TOKEN"
+api_key_env = "CUSTOM_API_KEY"
 `
     );
 
     const result = await checkEnvVars();
     expect(result.status).toBe('pass');
-  });
-
-  it('fails when only invalid setup-token is present', async () => {
-    process.env.ANTHROPIC_SETUP_TOKEN = 'sk-ant-oat01-short';
-    process.env.NACHOS_CONFIG_PATH = writeConfig(
-      tempDir,
-      `
-[nachos]
-name = "cli-test"
-version = "0.0.0"
-
-[llm]
-provider = "anthropic"
-model = "claude-sonnet-4"
-`
-    );
-
-    const result = await checkEnvVars();
-    expect(result.status).toBe('fail');
-    expect(result.message).toContain('Invalid setup-token');
   });
 });

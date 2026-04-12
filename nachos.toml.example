@@ -24,6 +24,7 @@ model = "claude-sonnet-4-20250514"        # Default model
 fallback_order = ["anthropic:claude-haiku"] # Used if primary fails
 max_tokens = 4096                         # Max response tokens
 temperature = 0.7                         # 0.0 = deterministic, 1.0 = creative
+# timeout_ms = 120000                     # LLM request timeout in ms (default: 120000 = 2min)
 
 # Multiple auth profiles (optional): define env var names + preferred order.
 #
@@ -178,6 +179,13 @@ timeout_seconds = 30
 max_redirects = 3
 # user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 
+[tools.web_fetch.firecrawl]
+enabled = false
+# api_key = "${FIRECRAWL_API_KEY}"
+# base_url = "https://api.firecrawl.dev"
+only_main_content = true
+max_age_ms = 86400000
+timeout_seconds = 60
 
 [tools.github]
 enabled = false
@@ -217,6 +225,9 @@ tools = ["summarize"]
 [tools.groups.workspace]
 tools = ["gog"]
 
+[tools.claude_code_mcp]
+enabled = true
+max_prompt_length = 4000
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 🌶️ THE CHEESE - Security Configuration

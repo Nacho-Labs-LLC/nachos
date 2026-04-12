@@ -71,26 +71,47 @@ const DEFAULT_TIMEOUT_MS = 120_000;
 export class OpenAIAdapter {
   public readonly name = 'openai';
   public readonly type = 'openai' as const;
+  private clientCache = new Map<string, OpenAI>();
+
   constructor(
     private readonly baseUrl?: string,
-    private readonly defaultApiKey?: string
+    private readonly defaultApiKey?: string,
+    private readonly useMaxTokens?: boolean
   ) {}
+
+  private getClient(apiKey: string): OpenAI {
+    let client = this.clientCache.get(apiKey);
+    if (!client) {
+      if (this.clientCache.size >= 10) {
+        const firstKey = this.clientCache.keys().next().value as string;
+        this.clientCache.delete(firstKey);
+      }
+      client = new OpenAI({ apiKey, baseURL: this.baseUrl });
+      this.clientCache.set(apiKey, client);
+    }
+    return client;
+  }
 
   async send(request: LLMRequestType, options: AdapterSendOptions): Promise<AdapterResponse> {
     const { apiKey, profileName } = this.resolveApiKey(options);
     try {
-      const client = new OpenAI({ apiKey, baseURL: this.baseUrl });
-      const response = await client.chat.completions.create(
-        {
-          model: options.model,
-          messages: toOpenAiMessages(request.messages),
-          tools: toOpenAiTools(request.tools),
-          temperature: options.temperature,
-          max_completion_tokens: options.maxTokens,
-          stream: false,
-        },
-        { timeout: options.timeout ?? DEFAULT_TIMEOUT_MS }
-      );
+      const client = this.getClient(apiKey);
+      const params: OpenAI.ChatCompletionCreateParams & { stream: false } = {
+        model: options.model,
+        messages: toOpenAiMessages(request.messages),
+        tools: toOpenAiTools(request.tools),
+        temperature: options.temperature,
+        max_completion_tokens: options.maxTokens,
+        stream: false,
+      };
+      if (this.useMaxTokens) {
+        const p = params as unknown as Record<string, unknown>;
+        delete p.max_completion_tokens;
+        p.max_tokens = options.maxTokens;
+      }
+      const response = await client.chat.completions.create(params, {
+        timeout: options.timeout ?? DEFAULT_TIMEOUT_MS,
+      });
 
       const choice = response.choices[0];
       if (!choice) {
@@ -136,18 +157,23 @@ export class OpenAIAdapter {
   ): Promise<AdapterResponse> {
     const { apiKey, profileName } = this.resolveApiKey(options);
     try {
-      const client = new OpenAI({ apiKey, baseURL: this.baseUrl });
-      const stream = await client.chat.completions.create(
-        {
-          model: options.model,
-          messages: toOpenAiMessages(request.messages),
-          tools: toOpenAiTools(request.tools),
-          temperature: options.temperature,
-          max_completion_tokens: options.maxTokens,
-          stream: true,
-        },
-        { timeout: options.timeout ?? DEFAULT_TIMEOUT_MS }
-      );
+      const client = this.getClient(apiKey);
+      const streamParams: OpenAI.ChatCompletionCreateParams & { stream: true } = {
+        model: options.model,
+        messages: toOpenAiMessages(request.messages),
+        tools: toOpenAiTools(request.tools),
+        temperature: options.temperature,
+        max_completion_tokens: options.maxTokens,
+        stream: true,
+      };
+      if (this.useMaxTokens) {
+        const sp = streamParams as unknown as Record<string, unknown>;
+        delete sp.max_completion_tokens;
+        sp.max_tokens = options.maxTokens;
+      }
+      const stream = await client.chat.completions.create(streamParams, {
+        timeout: options.timeout ?? DEFAULT_TIMEOUT_MS,
+      });
 
       let index = 0;
       let aggregated = '';
