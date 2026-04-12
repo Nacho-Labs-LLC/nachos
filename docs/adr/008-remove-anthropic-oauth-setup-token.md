@@ -14,8 +14,9 @@ via the `claude setup-token` CLI command.
 The feature included:
 
 - `AnthropicAdapter.getClient()` detecting OAuth tokens and switching to Bearer
-  auth with Claude Code identity headers (`anthropic-beta: claude-code-20250219`,
-  `user-agent: claude-cli/2.1.2`, `x-app: cli`)
+  auth with Claude Code identity headers
+  (`anthropic-beta: claude-code-20250219`, `user-agent: claude-cli/2.1.2`,
+  `x-app: cli`)
 - `nachos auth setup-token` CLI command for configuring OAuth profiles
 - `ANTHROPIC_SETUP_TOKEN` / `CLAUDE_SETUP_TOKEN` environment variable fallbacks
 - Doctor check validation for setup-token format

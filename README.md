@@ -155,8 +155,7 @@ fallback_order = ["openai:gpt-4o", "ollama:llama3.2"]
 
 See the full **[Provider Switching Guide](docs/guides/provider-switching.md)**
 for per-provider setup, multi-profile auth, cooldown tuning, and common
-patterns. Example configs for each provider are in
-[`examples/`](examples/).
+patterns. Example configs for each provider are in [`examples/`](examples/).
 
 ### Env-first setup
 

@@ -197,12 +197,38 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.td-name { font-weight: 600; }
-.td-uptime { color: var(--text-muted); white-space: nowrap; }
-.td-image { color: var(--text-muted); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.td-actions { display: flex; gap: 8px; align-items: center; }
+.td-name {
+  font-weight: 600;
+}
+.td-uptime {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.td-image {
+  color: var(--text-muted);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.td-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
 
-.btn-restart:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
-.btn-stop:hover:not(:disabled) { color: var(--danger); border-color: var(--danger); background: var(--danger-subtle); }
-.btn-start:hover:not(:disabled) { color: var(--ok); border-color: var(--ok); background: var(--ok-subtle); }
+.btn-restart:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.btn-stop:hover:not(:disabled) {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: var(--danger-subtle);
+}
+.btn-start:hover:not(:disabled) {
+  color: var(--ok);
+  border-color: var(--ok);
+  background: var(--ok-subtle);
+}
 </style>

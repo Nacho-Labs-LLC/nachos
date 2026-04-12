@@ -6,15 +6,15 @@ Accepted (2026-04-12)
 
 ## Context
 
-Nachos originally launched with Anthropic as the only supported LLM provider.
-As the platform matured, several pressures made multi-provider support necessary:
+Nachos originally launched with Anthropic as the only supported LLM provider. As
+the platform matured, several pressures made multi-provider support necessary:
 
 - **Operational resilience**: Single provider = single point of failure. Rate
   limits or outages drop the entire bot fleet.
 - **Cost flexibility**: Different providers have different price/performance
   profiles. Users need the ability to choose.
-- **Deployment constraints**: Enterprise users may have AWS access only (Bedrock)
-  or require on-premise models (Ollama) for data-residency reasons.
+- **Deployment constraints**: Enterprise users may have AWS access only
+  (Bedrock) or require on-premise models (Ollama) for data-residency reasons.
 - **Competitive positioning**: Locking to one provider limits adoption.
 
 We needed to add support for OpenAI, Google Gemini, AWS Bedrock, and Ollama
@@ -23,21 +23,24 @@ without breaking existing Anthropic users or requiring them to change config.
 ### Options Considered
 
 **Option A: Direct SDK calls per provider scattered through codebase**
+
 - Pros: Simple for first provider
 - Cons: Provider-specific logic bleeds into gateway, tool loop, and session
   management. Adding a new provider requires touching many files.
 
 **Option B: Unified adapter interface with per-provider implementations**
+
 - Pros: Provider logic isolated to one place. Gateway/tool-loop are provider-
   agnostic. New providers require only a new adapter file + registry entry.
 - Cons: Requires upfront interface design. Impedance mismatch between providers
   (Gemini's message format vs. Anthropic's tool_use blocks).
 
 **Option C: OpenAI-compatible proxy layer**
+
 - Pros: Many providers expose OpenAI-compatible endpoints.
-- Cons: Anthropic and Gemini are not OpenAI-compatible. Forces non-native message
-  formats that lose capability (e.g., Anthropic's multi-turn tool_use vs.
-  OpenAI's flattened function calls).
+- Cons: Anthropic and Gemini are not OpenAI-compatible. Forces non-native
+  message formats that lose capability (e.g., Anthropic's multi-turn tool_use
+  vs. OpenAI's flattened function calls).
 
 ## Decision
 
@@ -52,7 +55,10 @@ Every provider adapter must implement:
 interface LLMProviderAdapter {
   readonly name: string;
   readonly type: 'anthropic' | 'openai' | 'ollama' | 'custom';
-  send(request: LLMRequestType, options: AdapterSendOptions): Promise<AdapterResponse>;
+  send(
+    request: LLMRequestType,
+    options: AdapterSendOptions
+  ): Promise<AdapterResponse>;
   stream?(request, options, onChunk): Promise<AdapterResponse>;
 }
 ```
@@ -116,8 +122,8 @@ surface the error to the user.
 
 1. **Isolation**: Adding a new provider requires one new file + one registry
    entry. No gateway/tool-loop changes.
-2. **Testability**: `cross-provider.test.ts` and `cross-provider.harness.ts`
-   run the same behavioral assertions against all adapters, catching regressions
+2. **Testability**: `cross-provider.test.ts` and `cross-provider.harness.ts` run
+   the same behavioral assertions against all adapters, catching regressions
    automatically.
 3. **Consistent observability**: `provider` and `model` fields are emitted on
    every stream chunk, regardless of provider.
@@ -131,16 +137,16 @@ surface the error to the user.
    message format impedance mismatch. Gemini's message format is especially
    complex (system prompt extracted separately, tool results as function
    responses, model role named 'model' not 'assistant').
-2. **Feature parity gaps**: Not all providers support all features (e.g.,
-   Gemini tool IDs are synthetic; Bedrock doesn't have a billing error code).
-   These are documented as known limitations.
+2. **Feature parity gaps**: Not all providers support all features (e.g., Gemini
+   tool IDs are synthetic; Bedrock doesn't have a billing error code). These are
+   documented as known limitations.
 3. **Test infrastructure overhead**: Cross-provider tests require mocking each
    provider's SDK at the right level.
 
 ### Known Limitations
 
-- Network errors (ECONNREFUSED, timeouts) currently map to `unknown` kind in
-  all adapters — a future pass should add `network` kind detection.
+- Network errors (ECONNREFUSED, timeouts) currently map to `unknown` kind in all
+  adapters — a future pass should add `network` kind detection.
 - Gemini tool call IDs (`gemini-call-0`, `gemini-call-1`) are positional, not
   opaque. This is a Gemini SDK limitation.
 - Bedrock has no billing error distinction — quota/throttle errors are mapped to

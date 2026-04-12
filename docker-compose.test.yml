@@ -15,7 +15,7 @@ services:
     tmpfs:
       - /var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U nachos -d nachos_test"]
+      test: ['CMD-SHELL', 'pg_isready -U nachos -d nachos_test']
       interval: 5s
       timeout: 3s
       retries: 5
@@ -24,7 +24,7 @@ services:
   # -------------------- NATS (for bus + webchat RPC tests) --------------------
   nats:
     image: nats:2.10-alpine
-    command: ["-m", "8222"]
+    command: ['-m', '8222']
     read_only: true
     security_opt:
       - no-new-privileges:true
@@ -33,7 +33,8 @@ services:
     tmpfs:
       - /tmp:noexec,nosuid,size=10m
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8222/healthz"]
+      test:
+        ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:8222/healthz']
       interval: 5s
       timeout: 3s
       retries: 3
@@ -42,7 +43,7 @@ services:
   # -------------------- Redis (for rate limiter + session state tests) --------------------
   redis:
     image: redis:7-alpine
-    user: "999:1000"
+    user: '999:1000'
     read_only: true
     security_opt:
       - no-new-privileges:true
@@ -51,7 +52,7 @@ services:
     tmpfs:
       - /tmp:noexec,nosuid,size=10m
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 5s
       timeout: 3s
       retries: 3
@@ -71,10 +72,10 @@ services:
         condition: service_healthy
     environment:
       # Infrastructure URLs — these enable the gated integration tests
-      POSTGRES_TEST_URL: "postgres://nachos:nachos@postgres:5432/nachos_test"
-      NATS_TEST_URL: "nats://nats:4222"
-      NATS_URL: "nats://nats:4222"
-      REDIS_URL: "redis://redis:6379"
+      POSTGRES_TEST_URL: 'postgres://nachos:nachos@postgres:5432/nachos_test'
+      NATS_TEST_URL: 'nats://nats:4222'
+      NATS_URL: 'nats://nats:4222'
+      REDIS_URL: 'redis://redis:6379'
       # Runtime
       NODE_ENV: test
       CHROME_BIN: /usr/bin/chromium-browser

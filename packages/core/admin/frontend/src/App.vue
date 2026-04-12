@@ -37,31 +37,19 @@ onMounted(() => {
 
       <ul class="nav-list">
         <li>
-          <RouterLink
-            to="/status"
-            class="nav-link"
-            :class="{ active: currentPath === '/status' }"
-          >
+          <RouterLink to="/status" class="nav-link" :class="{ active: currentPath === '/status' }">
             <span class="nav-icon">◈</span>
             Status
           </RouterLink>
         </li>
         <li>
-          <RouterLink
-            to="/config"
-            class="nav-link"
-            :class="{ active: currentPath === '/config' }"
-          >
+          <RouterLink to="/config" class="nav-link" :class="{ active: currentPath === '/config' }">
             <span class="nav-icon">◎</span>
             Config
           </RouterLink>
         </li>
         <li>
-          <RouterLink
-            to="/audit"
-            class="nav-link"
-            :class="{ active: currentPath === '/audit' }"
-          >
+          <RouterLink to="/audit" class="nav-link" :class="{ active: currentPath === '/audit' }">
             <span class="nav-icon">◷</span>
             Audit Log
           </RouterLink>
@@ -77,11 +65,7 @@ onMounted(() => {
           </RouterLink>
         </li>
         <li>
-          <RouterLink
-            to="/skills"
-            class="nav-link"
-            :class="{ active: currentPath === '/skills' }"
-          >
+          <RouterLink to="/skills" class="nav-link" :class="{ active: currentPath === '/skills' }">
             <span class="nav-icon">◈</span>
             Skills
           </RouterLink>
@@ -97,21 +81,13 @@ onMounted(() => {
           </RouterLink>
         </li>
         <li>
-          <RouterLink
-            to="/logs"
-            class="nav-link"
-            :class="{ active: currentPath === '/logs' }"
-          >
+          <RouterLink to="/logs" class="nav-link" :class="{ active: currentPath === '/logs' }">
             <span class="nav-icon">≡</span>
             Logs
           </RouterLink>
         </li>
         <li>
-          <RouterLink
-            to="/chat"
-            class="nav-link"
-            :class="{ active: currentPath === '/chat' }"
-          >
+          <RouterLink to="/chat" class="nav-link" :class="{ active: currentPath === '/chat' }">
             <span class="nav-icon">💬</span>
             Chat
           </RouterLink>
@@ -119,7 +95,11 @@ onMounted(() => {
       </ul>
 
       <div class="sidebar-footer">
-        <button class="theme-btn" @click="toggleTheme" :title="theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'">
+        <button
+          class="theme-btn"
+          @click="toggleTheme"
+          :title="theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
+        >
           {{ theme === 'dark' ? '☀' : '☾' }}
         </button>
         <a href="https://github.com/nachos-dev" class="doc-link" target="_blank" rel="noopener">
@@ -158,8 +138,15 @@ onMounted(() => {
   border-bottom: 1px solid var(--border);
 }
 
-.brand-icon { font-size: 16px; }
-.brand-name { font-weight: 700; font-size: 15px; letter-spacing: -0.3px; color: var(--text-strong); }
+.brand-icon {
+  font-size: 16px;
+}
+.brand-name {
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.3px;
+  color: var(--text-strong);
+}
 .brand-label {
   font-size: 10px;
   font-weight: 600;

@@ -7,13 +7,13 @@ automatic fallback between them.
 
 ## Supported Providers
 
-| Provider      | Config Value   | Auth                          | Local? |
-| ------------- | -------------- | ----------------------------- | ------ |
-| **Anthropic** | `"anthropic"`  | `ANTHROPIC_API_KEY`               | No     |
-| **OpenAI**    | `"openai"`     | `OPENAI_API_KEY`              | No     |
-| **Ollama**    | `"ollama"`     | None (local)                  | Yes    |
-| **Bedrock**   | `"bedrock"`    | AWS credential chain          | No     |
-| **Gemini**    | `"gemini"`     | `GEMINI_API_KEY`              | No     |
+| Provider      | Config Value  | Auth                 | Local? |
+| ------------- | ------------- | -------------------- | ------ |
+| **Anthropic** | `"anthropic"` | `ANTHROPIC_API_KEY`  | No     |
+| **OpenAI**    | `"openai"`    | `OPENAI_API_KEY`     | No     |
+| **Ollama**    | `"ollama"`    | None (local)         | Yes    |
+| **Bedrock**   | `"bedrock"`   | AWS credential chain | No     |
+| **Gemini**    | `"gemini"`    | `GEMINI_API_KEY`     | No     |
 
 ## Quick Start: Switch Providers
 
@@ -84,8 +84,8 @@ OPENAI_API_KEY="sk-..."
 
 ### Ollama (Local)
 
-Run models locally with no API key. Requires
-[Ollama](https://ollama.com) installed on the host.
+Run models locally with no API key. Requires [Ollama](https://ollama.com)
+installed on the host.
 
 ```toml
 [llm]
@@ -99,8 +99,8 @@ temperature = 0.7
 No `.env` changes needed.
 
 **Note**: `host.docker.internal` connects from Docker containers to the host
-machine where Ollama runs. On Linux without Docker Desktop, use the host's IP
-or `172.17.0.1`.
+machine where Ollama runs. On Linux without Docker Desktop, use the host's IP or
+`172.17.0.1`.
 
 **Models**: Any model pulled into Ollama — `llama3.2`, `mistral`, `codellama`,
 `mixtral`, etc.

@@ -51,37 +51,37 @@ function renderMarkdown(text: string): string {
 
 async function handleNewSession() {
   if (loading.value) return;
-  
+
   // Confirm if there's an active session
   if (sessionId.value && messages.value.length > 0) {
     if (!confirm('Create a new session? The current session will remain accessible.')) {
       return;
     }
   }
-  
+
   loading.value = true;
   error.value = null;
-  
+
   try {
     const result = await createSession({ channel: 'webchat' });
-    
+
     // Unsubscribe from current session
     if (messageSubscription) {
       messageSubscription.unsubscribe();
       messageSubscription = null;
     }
-    
+
     // Switch to new session
     sessionId.value = result.sessionId;
     sessionName.value = result.name;
     messages.value = [];
     currentStatus.value = null;
-    
+
     // Broadcast to other tabs
     sync.broadcast('session-created', result.sessionId, {
       name: result.name,
     });
-    
+
     // Start subscription
     subscribeToSession(result.sessionId);
   } catch (err) {
@@ -94,31 +94,31 @@ async function handleNewSession() {
 
 async function handleSessionSelected(newSessionId: string) {
   if (newSessionId === sessionId.value) return;
-  
+
   loading.value = true;
   error.value = null;
-  
+
   try {
     // Unsubscribe from current session
     if (messageSubscription) {
       messageSubscription.unsubscribe();
       messageSubscription = null;
     }
-    
+
     // Load messages for new session
     const result = await getMessages(newSessionId, { limit: 50 });
-    
+
     sessionId.value = newSessionId;
     messages.value = result.messages;
     hasMoreMessages.value = result.total > result.messages.length;
     currentStatus.value = null;
-    
+
     await nextTick();
     scrollToBottom();
-    
+
     // Broadcast to other tabs
     sync.broadcast('session-switched', newSessionId);
-    
+
     // Subscribe to new session
     subscribeToSession(newSessionId);
   } catch (err) {
@@ -131,25 +131,25 @@ async function handleSessionSelected(newSessionId: string) {
 
 async function handleSessionRestored(restoredSessionId: string) {
   showHistory.value = false;
-  
+
   // Switch to the restored session
   await handleSessionSelected(restoredSessionId);
 }
 
 async function loadMoreMessages() {
   if (!sessionId.value || loadingMore.value || !hasMoreMessages.value) return;
-  
+
   loadingMore.value = true;
-  
+
   try {
     const oldestMessage = messages.value[0];
     if (!oldestMessage) return;
-    
+
     const result = await getMessages(sessionId.value, {
       limit: 50,
       offset: messages.value.length,
     });
-    
+
     // Prepend older messages
     messages.value = [...result.messages, ...messages.value];
     hasMoreMessages.value = result.total > messages.value.length;
@@ -163,7 +163,7 @@ async function loadMoreMessages() {
 function subscribeToSession(sid: string) {
   // Register subscription with sync system
   sync.registerSubscription(sid);
-  
+
   messageSubscription = subscribeToMessages(
     sid,
     (message) => {
@@ -176,10 +176,10 @@ function subscribeToSession(sid: string) {
         createdAt: message.timestamp,
         toolCalls: message.toolCalls,
       });
-      
+
       loading.value = false;
       currentStatus.value = null;
-      
+
       nextTick(() => scrollToBottom());
     },
     {
@@ -214,12 +214,12 @@ function subscribeToSession(sid: string) {
 
 async function sendMessage() {
   if (!inputText.value.trim() || loading.value) return;
-  
+
   const userMessage = inputText.value.trim();
   inputText.value = '';
   loading.value = true;
   error.value = null;
-  
+
   // Create session if needed
   if (!sessionId.value) {
     try {
@@ -233,7 +233,7 @@ async function sendMessage() {
       return;
     }
   }
-  
+
   // Add user message immediately (optimistic update)
   const tempId = `temp-${Date.now()}`;
   messages.value.push({
@@ -243,41 +243,41 @@ async function sendMessage() {
     content: userMessage,
     createdAt: new Date().toISOString(),
   });
-  
+
   await nextTick();
   scrollToBottom();
-  
+
   try {
     await sendMessageAPI(sessionId.value, userMessage);
   } catch (err) {
     error.value = String(err);
     loading.value = false;
-    
+
     // Remove optimistic message on error
-    messages.value = messages.value.filter(m => m.id !== tempId);
+    messages.value = messages.value.filter((m) => m.id !== tempId);
   }
 }
 
 async function handleArchiveSession() {
   if (!sessionId.value) return;
-  
+
   if (!confirm('Archive this session? You can restore it later from history.')) return;
-  
+
   const archivedSessionId = sessionId.value;
-  
+
   try {
     await archiveSession(archivedSessionId);
-    
+
     // Broadcast to other tabs
     sync.broadcast('session-archived', archivedSessionId);
-    
+
     // Clear current session
     if (messageSubscription) {
       messageSubscription.unsubscribe();
       sync.unregisterSubscription(archivedSessionId);
       messageSubscription = null;
     }
-    
+
     sessionId.value = null;
     sessionName.value = null;
     messages.value = [];
@@ -308,7 +308,7 @@ function handleKeydown(e: KeyboardEvent) {
 
 function handleScroll() {
   if (!messageContainer.value) return;
-  
+
   // Check if scrolled to top
   if (messageContainer.value.scrollTop === 0 && hasMoreMessages.value) {
     loadMoreMessages();
@@ -322,10 +322,10 @@ onMounted(() => {
     console.log('[chat] Other tab created session:', event.sessionId);
     // Could refresh session list here
   });
-  
+
   sync.on('session-archived', (event) => {
     console.log('[chat] Other tab archived session:', event.sessionId);
-    
+
     // If we're viewing the archived session, clear it
     if (sessionId.value === event.sessionId) {
       if (messageSubscription) {
@@ -338,12 +338,12 @@ onMounted(() => {
       currentStatus.value = null;
     }
   });
-  
+
   sync.on('session-restored', (event) => {
     console.log('[chat] Other tab restored session:', event.sessionId);
     // Could refresh session list here
   });
-  
+
   sync.on('session-list-updated', () => {
     console.log('[chat] Session list updated in another tab');
     // Could trigger a refresh of the session dropdown
@@ -365,9 +365,7 @@ onUnmounted(() => {
     <header class="page-header">
       <div class="header-left">
         <h1 class="page-title">Web Chat</h1>
-        <p class="page-sub">
-          Real-time messaging with session management
-        </p>
+        <p class="page-sub">Real-time messaging with session management</p>
       </div>
       <div class="header-actions">
         <SessionDropdown
@@ -375,12 +373,7 @@ onUnmounted(() => {
           @session-selected="handleSessionSelected"
           @new-session="handleNewSession"
         />
-        <button
-          class="btn-ghost"
-          @click="showHistory = true"
-        >
-          📁 History
-        </button>
+        <button class="btn-ghost" @click="showHistory = true">📁 History</button>
         <button
           v-if="sessionId"
           class="btn-ghost"
@@ -391,7 +384,7 @@ onUnmounted(() => {
         </button>
       </div>
     </header>
-    
+
     <div v-if="error" class="alert-error">
       {{ error }}
       <button
@@ -402,24 +395,16 @@ onUnmounted(() => {
         Reconnect
       </button>
     </div>
-    
+
     <div class="chat-container">
       <!-- Messages -->
-      <div
-        ref="messageContainer"
-        class="messages"
-        @scroll="handleScroll"
-      >
+      <div ref="messageContainer" class="messages" @scroll="handleScroll">
         <!-- Load more button -->
         <div v-if="hasMoreMessages && !loadingMore" class="load-more-container">
-          <button class="btn-load-more" @click="loadMoreMessages">
-            ↑ Load older messages
-          </button>
+          <button class="btn-load-more" @click="loadMoreMessages">↑ Load older messages</button>
         </div>
-        <div v-if="loadingMore" class="loading-more">
-          <span class="spinner">⟳</span> Loading...
-        </div>
-        
+        <div v-if="loadingMore" class="loading-more"><span class="spinner">⟳</span> Loading...</div>
+
         <!-- Empty state -->
         <div v-if="messages.length === 0 && !loading" class="empty-state">
           <p class="empty-icon">💬</p>
@@ -427,7 +412,7 @@ onUnmounted(() => {
             {{ sessionId ? 'No messages yet' : 'Create or select a session to start chatting' }}
           </p>
         </div>
-        
+
         <!-- Message list -->
         <div
           v-for="msg in messages"
@@ -452,21 +437,21 @@ onUnmounted(() => {
           ></div>
           <div v-else class="message-content">{{ msg.content }}</div>
         </div>
-        
+
         <!-- Status indicator -->
         <div v-if="currentStatus" class="status-indicator">
           <span v-if="currentStatus.type === 'thinking'" class="status-text">
             <span class="spinner">⟳</span> Thinking...
           </span>
           <span v-else-if="currentStatus.type === 'tool'" class="status-text">
-            <span class="spinner">⚙</span> Using tool{{ currentStatus.toolName ? `: ${currentStatus.toolName}` : '' }}...
+            <span class="spinner">⚙</span> Using tool{{
+              currentStatus.toolName ? `: ${currentStatus.toolName}` : ''
+            }}...
           </span>
-          <span v-else-if="currentStatus.type === 'done'" class="status-text">
-            ✓ Done
-          </span>
+          <span v-else-if="currentStatus.type === 'done'" class="status-text"> ✓ Done </span>
         </div>
       </div>
-      
+
       <!-- Input -->
       <div class="input-container">
         <textarea
@@ -477,16 +462,12 @@ onUnmounted(() => {
           :disabled="loading"
           @keydown="handleKeydown"
         ></textarea>
-        <button
-          class="btn-send"
-          :disabled="!inputText.trim() || loading"
-          @click="sendMessage"
-        >
+        <button class="btn-send" :disabled="!inputText.trim() || loading" @click="sendMessage">
           {{ loading ? 'Sending...' : 'Send' }}
         </button>
       </div>
     </div>
-    
+
     <!-- History Modal -->
     <HistoryModal
       :is-open="showHistory"
@@ -765,8 +746,12 @@ onUnmounted(() => {
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes fade-in {
