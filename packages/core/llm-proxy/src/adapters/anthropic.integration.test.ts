@@ -161,13 +161,9 @@ describe.skipIf(SKIP)('AnthropicAdapter integration — API key auth', () => {
     };
 
     const chunks: LLMStreamChunkType[] = [];
-    const result = await adapter.stream(
-      request,
-      makeStreamOptions({ temperature: 0 }),
-      (chunk) => {
-        chunks.push(chunk);
-      }
-    );
+    const result = await adapter.stream(request, makeStreamOptions({ temperature: 0 }), (chunk) => {
+      chunks.push(chunk);
+    });
 
     // Should have a tool_call chunk and done chunk
     const toolChunks = chunks.filter((c) => c.type === 'tool_call');

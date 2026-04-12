@@ -192,8 +192,16 @@ describe('OpenAIAdapter', () => {
               role: 'assistant',
               content: null,
               tool_calls: [
-                { id: 'call_1', type: 'function', function: { name: 'get_weather', arguments: '{"city":"SF"}' } },
-                { id: 'call_2', type: 'function', function: { name: 'get_time', arguments: '{"timezone":"PST"}' } },
+                {
+                  id: 'call_1',
+                  type: 'function',
+                  function: { name: 'get_weather', arguments: '{"city":"SF"}' },
+                },
+                {
+                  id: 'call_2',
+                  type: 'function',
+                  function: { name: 'get_time', arguments: '{"timezone":"PST"}' },
+                },
               ],
             },
             finish_reason: 'tool_calls',
@@ -207,8 +215,16 @@ describe('OpenAIAdapter', () => {
         {
           messages: [{ role: 'user', content: 'Weather and time in SF?' }],
           tools: [
-            { name: 'get_weather', description: 'Weather', parameters: { type: 'object', properties: {}, required: [] } },
-            { name: 'get_time', description: 'Time', parameters: { type: 'object', properties: {}, required: [] } },
+            {
+              name: 'get_weather',
+              description: 'Weather',
+              parameters: { type: 'object', properties: {}, required: [] },
+            },
+            {
+              name: 'get_time',
+              description: 'Time',
+              parameters: { type: 'object', properties: {}, required: [] },
+            },
           ],
         },
         { model: 'gpt-4o' }
@@ -269,10 +285,7 @@ describe('OpenAIAdapter', () => {
       mockCreate.mockRejectedValue({ status: 429, message: 'Rate limit exceeded' });
 
       try {
-        await adapter.send(
-          { messages: [{ role: 'user', content: 'Hi' }] },
-          { model: 'gpt-4o' }
-        );
+        await adapter.send({ messages: [{ role: 'user', content: 'Hi' }] }, { model: 'gpt-4o' });
       } catch (error) {
         expect(error).toBeInstanceOf(ProviderError);
         expect((error as ProviderError).kind).toBe('rate_limit');
@@ -285,10 +298,7 @@ describe('OpenAIAdapter', () => {
       mockCreate.mockRejectedValue({ status: 401, message: 'Invalid API key' });
 
       try {
-        await adapter.send(
-          { messages: [{ role: 'user', content: 'Hi' }] },
-          { model: 'gpt-4o' }
-        );
+        await adapter.send({ messages: [{ role: 'user', content: 'Hi' }] }, { model: 'gpt-4o' });
       } catch (error) {
         expect(error).toBeInstanceOf(ProviderError);
         expect((error as ProviderError).kind).toBe('auth');
@@ -301,10 +311,7 @@ describe('OpenAIAdapter', () => {
       mockCreate.mockRejectedValue({ status: 403, message: 'Forbidden' });
 
       try {
-        await adapter.send(
-          { messages: [{ role: 'user', content: 'Hi' }] },
-          { model: 'gpt-4o' }
-        );
+        await adapter.send({ messages: [{ role: 'user', content: 'Hi' }] }, { model: 'gpt-4o' });
       } catch (error) {
         expect(error).toBeInstanceOf(ProviderError);
         expect((error as ProviderError).kind).toBe('auth');
@@ -318,10 +325,7 @@ describe('OpenAIAdapter', () => {
       mockCreate.mockRejectedValue({ status: 402, message: 'Payment required' });
 
       try {
-        await adapter.send(
-          { messages: [{ role: 'user', content: 'Hi' }] },
-          { model: 'gpt-4o' }
-        );
+        await adapter.send({ messages: [{ role: 'user', content: 'Hi' }] }, { model: 'gpt-4o' });
       } catch (error) {
         expect(error).toBeInstanceOf(ProviderError);
         expect((error as ProviderError).kind).toBe('billing');
@@ -334,10 +338,7 @@ describe('OpenAIAdapter', () => {
       mockCreate.mockRejectedValue({ status: 500, message: 'Internal server error' });
 
       try {
-        await adapter.send(
-          { messages: [{ role: 'user', content: 'Hi' }] },
-          { model: 'gpt-4o' }
-        );
+        await adapter.send({ messages: [{ role: 'user', content: 'Hi' }] }, { model: 'gpt-4o' });
       } catch (error) {
         expect(error).toBeInstanceOf(ProviderError);
         expect((error as ProviderError).kind).toBe('limit_reached');
@@ -350,10 +351,7 @@ describe('OpenAIAdapter', () => {
       mockCreate.mockRejectedValue(new Error('Network timeout'));
 
       try {
-        await adapter.send(
-          { messages: [{ role: 'user', content: 'Hi' }] },
-          { model: 'gpt-4o' }
-        );
+        await adapter.send({ messages: [{ role: 'user', content: 'Hi' }] }, { model: 'gpt-4o' });
       } catch (error) {
         expect(error).toBeInstanceOf(ProviderError);
         expect((error as ProviderError).kind).toBe('unknown');
@@ -453,10 +451,7 @@ describe('OpenAIAdapter', () => {
         usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
       });
 
-      await adapter.send(
-        { messages: [{ role: 'user', content: 'Hi' }] },
-        { model: 'gpt-4o' }
-      );
+      await adapter.send({ messages: [{ role: 'user', content: 'Hi' }] }, { model: 'gpt-4o' });
 
       const callArgs = mockCreate.mock.calls[0][0];
       expect(callArgs.stream).toBe(false);
@@ -479,7 +474,7 @@ describe('OpenAIAdapter', () => {
         {
           model: 'gpt-4o',
           getProfileList: () => ['my-profile'],
-          getProfileApiKey: (name: string) => name === 'my-profile' ? 'sk-profile-key' : null,
+          getProfileApiKey: (name: string) => (name === 'my-profile' ? 'sk-profile-key' : null),
         }
       );
 
@@ -497,10 +492,7 @@ describe('OpenAIAdapter', () => {
         usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 },
       });
 
-      await adapter.send(
-        { messages: [{ role: 'user', content: 'Hi' }] },
-        { model: 'gpt-4o' }
-      );
+      await adapter.send({ messages: [{ role: 'user', content: 'Hi' }] }, { model: 'gpt-4o' });
 
       expect(mockCreate).toHaveBeenCalledTimes(1);
     });
@@ -515,10 +507,7 @@ describe('OpenAIAdapter', () => {
         usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 },
       });
 
-      await adapter.send(
-        { messages: [{ role: 'user', content: 'Hi' }] },
-        { model: 'gpt-4o' }
-      );
+      await adapter.send({ messages: [{ role: 'user', content: 'Hi' }] }, { model: 'gpt-4o' });
 
       expect(mockCreate).toHaveBeenCalledTimes(1);
     });
@@ -528,17 +517,11 @@ describe('OpenAIAdapter', () => {
       const adapter = new OpenAIAdapter();
 
       await expect(
-        adapter.send(
-          { messages: [{ role: 'user', content: 'Hi' }] },
-          { model: 'gpt-4o' }
-        )
+        adapter.send({ messages: [{ role: 'user', content: 'Hi' }] }, { model: 'gpt-4o' })
       ).rejects.toThrow(ProviderError);
 
       try {
-        await adapter.send(
-          { messages: [{ role: 'user', content: 'Hi' }] },
-          { model: 'gpt-4o' }
-        );
+        await adapter.send({ messages: [{ role: 'user', content: 'Hi' }] }, { model: 'gpt-4o' });
       } catch (error) {
         expect(error).toBeInstanceOf(ProviderError);
         expect((error as ProviderError).kind).toBe('auth');
@@ -557,10 +540,7 @@ describe('OpenAIAdapter', () => {
       });
 
       await expect(
-        adapter.send(
-          { messages: [{ role: 'user', content: 'Hi' }] },
-          { model: 'gpt-4o' }
-        )
+        adapter.send({ messages: [{ role: 'user', content: 'Hi' }] }, { model: 'gpt-4o' })
       ).rejects.toThrow(ProviderError);
     });
   });

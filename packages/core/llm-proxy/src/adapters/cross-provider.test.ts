@@ -26,7 +26,7 @@ vi.mock('openai', () => ({
 }));
 
 // Anthropic mock
-const { mockAnthropicCreate, mockAnthropicStream } = vi.hoisted(() => ({
+const { mockAnthropicCreate, mockAnthropicStream: _mockAnthropicStream } = vi.hoisted(() => ({
   mockAnthropicCreate: vi.fn(),
   mockAnthropicStream: vi.fn(),
 }));
@@ -48,7 +48,10 @@ vi.mock('@aws-sdk/client-bedrock-runtime', () => ({
 
 // ── Helpers ───────────────────────────────────────────────────
 
-function openAIChatResponse(content: string, toolCalls?: Array<{ id: string; name: string; args: string }>) {
+function openAIChatResponse(
+  content: string,
+  toolCalls?: Array<{ id: string; name: string; args: string }>
+) {
   return {
     choices: [
       {
@@ -69,12 +72,24 @@ function openAIChatResponse(content: string, toolCalls?: Array<{ id: string; nam
   };
 }
 
-function anthropicChatResponse(content: string, toolUse?: { id: string; name: string; input: Record<string, unknown> }) {
-  const contentBlocks: Array<{ type: string; text?: string; id?: string; name?: string; input?: Record<string, unknown> }> = [
-    { type: 'text', text: content },
-  ];
+function anthropicChatResponse(
+  content: string,
+  toolUse?: { id: string; name: string; input: Record<string, unknown> }
+) {
+  const contentBlocks: Array<{
+    type: string;
+    text?: string;
+    id?: string;
+    name?: string;
+    input?: Record<string, unknown>;
+  }> = [{ type: 'text', text: content }];
   if (toolUse) {
-    contentBlocks.push({ type: 'tool_use', id: toolUse.id, name: toolUse.name, input: toolUse.input });
+    contentBlocks.push({
+      type: 'tool_use',
+      id: toolUse.id,
+      name: toolUse.name,
+      input: toolUse.input,
+    });
   }
   return {
     id: 'msg_123',
@@ -87,12 +102,24 @@ function anthropicChatResponse(content: string, toolUse?: { id: string; name: st
   };
 }
 
-function bedrockResponse(content: string, toolUse?: { id: string; name: string; input: Record<string, unknown> }) {
-  const contentBlocks: Array<{ type: string; text?: string; id?: string; name?: string; input?: Record<string, unknown> }> = [
-    { type: 'text', text: content },
-  ];
+function bedrockResponse(
+  content: string,
+  toolUse?: { id: string; name: string; input: Record<string, unknown> }
+) {
+  const contentBlocks: Array<{
+    type: string;
+    text?: string;
+    id?: string;
+    name?: string;
+    input?: Record<string, unknown>;
+  }> = [{ type: 'text', text: content }];
   if (toolUse) {
-    contentBlocks.push({ type: 'tool_use', id: toolUse.id, name: toolUse.name, input: toolUse.input });
+    contentBlocks.push({
+      type: 'tool_use',
+      id: toolUse.id,
+      name: toolUse.name,
+      input: toolUse.input,
+    });
   }
   return {
     body: new TextEncoder().encode(
@@ -202,7 +229,9 @@ describe('Cross-provider unit tests', () => {
     it('OpenAI transforms tool calls correctly', async () => {
       const { OpenAIAdapter } = await loadAdapters();
       mockOpenAICreate.mockResolvedValue(
-        openAIChatResponse('', [{ id: 'call_1', name: 'get_weather', args: '{"city":"San Francisco"}' }])
+        openAIChatResponse('', [
+          { id: 'call_1', name: 'get_weather', args: '{"city":"San Francisco"}' },
+        ])
       );
 
       const adapter = new OpenAIAdapter();
@@ -215,7 +244,9 @@ describe('Cross-provider unit tests', () => {
     it('Ollama transforms tool calls correctly', async () => {
       const { OllamaAdapter } = await loadAdapters();
       mockOpenAICreate.mockResolvedValue(
-        openAIChatResponse('', [{ id: 'call_1', name: 'get_weather', args: '{"city":"San Francisco"}' }])
+        openAIChatResponse('', [
+          { id: 'call_1', name: 'get_weather', args: '{"city":"San Francisco"}' },
+        ])
       );
 
       const adapter = new OllamaAdapter();
@@ -287,7 +318,9 @@ describe('Cross-provider unit tests', () => {
       const result = await adapter.stream(
         FIXTURES.streaming.request,
         { model: 'gpt-4o-mini', sessionId: 'test-stream' },
-        (chunk) => { chunks.push(chunk); }
+        (chunk) => {
+          chunks.push(chunk);
+        }
       );
 
       const deltas = chunks.filter((c) => c.type === 'delta');
@@ -316,7 +349,9 @@ describe('Cross-provider unit tests', () => {
       const result = await adapter.stream(
         FIXTURES.streaming.request,
         { model: 'llama3.2', sessionId: 'test-stream' },
-        (chunk) => { chunks.push(chunk); }
+        (chunk) => {
+          chunks.push(chunk);
+        }
       );
 
       const deltas = chunks.filter((c) => c.type === 'delta');
@@ -351,7 +386,9 @@ describe('Cross-provider unit tests', () => {
       await adapter.stream(
         FIXTURES.toolUse.request,
         { model: 'gpt-4o-mini', sessionId: 'test-stream' },
-        (chunk) => { chunks.push(chunk); }
+        (chunk) => {
+          chunks.push(chunk);
+        }
       );
 
       const toolChunks = chunks.filter((c) => c.type === 'tool_call');
@@ -480,12 +517,20 @@ describe('Cross-provider unit tests', () => {
       const bedrock = createBedrockAdapter();
 
       const opts = { model: 'test' };
-      const anthOpts = { ...opts, model: 'claude-haiku-4-5-20251001', getProfileList: () => ['test'], getProfileApiKey: () => 'test-key' };
+      const anthOpts = {
+        ...opts,
+        model: 'claude-haiku-4-5-20251001',
+        getProfileList: () => ['test'],
+        getProfileApiKey: () => 'test-key',
+      };
 
       const [r1, r2, r3] = await Promise.all([
         openai.send(FIXTURES.basicChat.request, { ...opts, model: 'gpt-4o-mini' }),
         anthropic.send(FIXTURES.basicChat.request, anthOpts),
-        bedrock.send(FIXTURES.basicChat.request, { ...opts, model: 'anthropic.claude-3-5-sonnet-20241022-v2:0' }),
+        bedrock.send(FIXTURES.basicChat.request, {
+          ...opts,
+          model: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+        }),
       ]);
 
       expect(r1.provider).toBe('openai');
@@ -517,7 +562,9 @@ describe('Cross-provider unit tests', () => {
           getProfileList: () => ['test'],
           getProfileApiKey: () => 'test-key',
         }),
-        bedrock.send(FIXTURES.basicChat.request, { model: 'anthropic.claude-3-5-sonnet-20241022-v2:0' }),
+        bedrock.send(FIXTURES.basicChat.request, {
+          model: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+        }),
       ]);
 
       for (const r of [r1, r2, r3]) {

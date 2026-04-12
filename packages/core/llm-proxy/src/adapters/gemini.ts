@@ -37,8 +37,7 @@ function toGeminiContents(messages: LLMRequestType['messages']): Content[] {
     .map((message: LLMRequestType['messages'][number]) => {
       // Map tool result messages to function response parts
       if (message.role === 'tool') {
-        const toolCallId =
-          (message as Record<string, unknown>).tool_call_id as string | undefined;
+        const toolCallId = (message as Record<string, unknown>).tool_call_id as string | undefined;
         if (toolCallId && typeof message.content === 'string') {
           let responseObj: object;
           try {
@@ -64,9 +63,7 @@ function toGeminiContents(messages: LLMRequestType['messages']): Content[] {
           const parts: Part[] = (message.content as Array<Record<string, unknown>>)
             .filter((block) => block.type === 'tool_result')
             .map((block) => {
-              const resultContent = (block.tool_result ?? block.content ?? '') as
-                | string
-                | object;
+              const resultContent = (block.tool_result ?? block.content ?? '') as string | object;
               let responseObj: object;
               if (typeof resultContent === 'string') {
                 try {
@@ -168,7 +165,11 @@ function mapPropertySchema(prop: Record<string, unknown>): FunctionDeclarationSc
       for (const [k, v] of Object.entries(nestedProps)) {
         nested[k] = mapPropertySchema(v);
       }
-      return { type: SchemaType.OBJECT, properties: nested, description } as FunctionDeclarationSchemaProperty;
+      return {
+        type: SchemaType.OBJECT,
+        properties: nested,
+        description,
+      } as FunctionDeclarationSchemaProperty;
     }
     case SchemaType.ARRAY:
       return {
@@ -239,9 +240,7 @@ export class GeminiAdapter {
   public readonly name = 'gemini';
   public readonly type = 'custom' as const;
 
-  constructor(
-    private readonly defaultApiKey?: string
-  ) {}
+  constructor(private readonly defaultApiKey?: string) {}
 
   async send(request: LLMRequestType, options: AdapterSendOptions): Promise<AdapterResponse> {
     const { apiKey, profileName } = this.resolveApiKey(options);
@@ -326,6 +325,7 @@ export class GeminiAdapter {
       });
 
       let index = 0;
+      let toolCallIndex = 0;
       let aggregatedText = '';
 
       for await (const chunk of streamResult.stream) {
@@ -345,12 +345,13 @@ export class GeminiAdapter {
         const calls = chunk.functionCalls();
         if (calls && calls.length > 0) {
           for (const call of calls) {
+            const callId = `gemini-call-${toolCallIndex++}`;
             await onChunk({
               sessionId: options.sessionId,
               index: index++,
               type: 'tool_call',
               toolCall: {
-                id: `gemini-call-${index}`,
+                id: callId,
                 name: call.name,
                 arguments: JSON.stringify(call.args ?? {}),
               },

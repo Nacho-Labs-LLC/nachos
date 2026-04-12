@@ -29,7 +29,10 @@ export const FIXTURES = {
   toolUse: {
     request: {
       messages: [
-        { role: 'user', content: 'What is the weather in San Francisco? Use the get_weather tool.' },
+        {
+          role: 'user',
+          content: 'What is the weather in San Francisco? Use the get_weather tool.',
+        },
       ],
       tools: [
         {
@@ -55,19 +58,25 @@ export const FIXTURES = {
 
   multiTool: {
     request: {
-      messages: [
-        { role: 'user', content: 'Get the weather in SF and the time in PST.' },
-      ],
+      messages: [{ role: 'user', content: 'Get the weather in SF and the time in PST.' }],
       tools: [
         {
           name: 'get_weather',
           description: 'Get weather',
-          parameters: { type: 'object', properties: { city: { type: 'string' } }, required: ['city'] },
+          parameters: {
+            type: 'object',
+            properties: { city: { type: 'string' } },
+            required: ['city'],
+          },
         },
         {
           name: 'get_time',
           description: 'Get time',
-          parameters: { type: 'object', properties: { timezone: { type: 'string' } }, required: ['timezone'] },
+          parameters: {
+            type: 'object',
+            properties: { timezone: { type: 'string' } },
+            required: ['timezone'],
+          },
         },
       ],
     } as LLMRequestType,
@@ -92,7 +101,7 @@ export function assertToolUseResponse(result: AdapterResponse) {
   expect(result.toolCalls).toBeDefined();
   expect(result.toolCalls!.length).toBeGreaterThanOrEqual(1);
 
-  const call = result.toolCalls![0];
+  const call = result.toolCalls![0]!;
   expect(call.id).toBeTruthy();
   expect(call.name).toBe('get_weather');
   const args = JSON.parse(call.arguments);
@@ -118,10 +127,7 @@ export function assertStreamResponse(
 }
 
 /** Validates streaming with tool use emits tool_call chunks */
-export function assertStreamToolResponse(
-  chunks: LLMStreamChunkType[],
-  result: AdapterResponse
-) {
+export function assertStreamToolResponse(chunks: LLMStreamChunkType[], result: AdapterResponse) {
   const toolChunks = chunks.filter((c) => c.type === 'tool_call');
   const doneChunks = chunks.filter((c) => c.type === 'done');
 
@@ -146,8 +152,14 @@ export interface ProviderTestConfig {
   /** Optional API key resolver for integration tests */
   getApiKey?: () => string | null;
   /** Optional profile-based options builder */
-  makeSendOptions?: (overrides?: { temperature?: number; maxTokens?: number }) => AdapterSendOptions;
-  makeStreamOptions?: (overrides?: { temperature?: number; maxTokens?: number }) => AdapterStreamOptions;
+  makeSendOptions?: (overrides?: {
+    temperature?: number;
+    maxTokens?: number;
+  }) => AdapterSendOptions;
+  makeStreamOptions?: (overrides?: {
+    temperature?: number;
+    maxTokens?: number;
+  }) => AdapterStreamOptions;
 }
 
 /** Build standard send options from a provider config */

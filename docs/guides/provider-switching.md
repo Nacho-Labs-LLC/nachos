@@ -9,7 +9,7 @@ automatic fallback between them.
 
 | Provider      | Config Value   | Auth                          | Local? |
 | ------------- | -------------- | ----------------------------- | ------ |
-| **Anthropic** | `"anthropic"`  | `ANTHROPIC_API_KEY` or setup token | No     |
+| **Anthropic** | `"anthropic"`  | `ANTHROPIC_API_KEY`               | No     |
 | **OpenAI**    | `"openai"`     | `OPENAI_API_KEY`              | No     |
 | **Ollama**    | `"ollama"`     | None (local)                  | Yes    |
 | **Bedrock**   | `"bedrock"`    | AWS credential chain          | No     |
@@ -60,27 +60,6 @@ temperature = 0.7
 ```bash
 # .env
 ANTHROPIC_API_KEY="sk-ant-api03-..."
-```
-
-**Claude subscription users** can use a setup token instead:
-
-```bash
-claude setup-token            # Generate token via Claude Code CLI
-nachos auth setup-token       # Configure Nachos to use it
-```
-
-Or set it manually:
-
-```bash
-# .env
-ANTHROPIC_SETUP_TOKEN="stp_..."
-```
-
-```toml
-[[llm.profiles]]
-name = "subscription"
-provider = "anthropic"
-api_key_env = "ANTHROPIC_SETUP_TOKEN"
 ```
 
 **Models**: `claude-sonnet-4-20250514`, `claude-opus-4-20250514`,
@@ -248,19 +227,13 @@ name = "team-b"
 provider = "anthropic"
 api_key_env = "ANTHROPIC_API_KEY_TEAM_B"
 
-[[llm.profiles]]
-name = "subscription"
-provider = "anthropic"
-api_key_env = "ANTHROPIC_SETUP_TOKEN"
-
-profile_order = ["team-a", "team-b", "subscription"]
+profile_order = ["team-a", "team-b"]
 ```
 
 ```bash
 # .env
 ANTHROPIC_API_KEY_TEAM_A="sk-ant-..."
 ANTHROPIC_API_KEY_TEAM_B="sk-ant-..."
-ANTHROPIC_SETUP_TOKEN="stp_..."
 ```
 
 Profiles are tried in `profile_order`. When one hits a rate limit, it goes on

@@ -6,20 +6,6 @@ import { loadTomlFile } from '@nachos/config';
 import { findConfigFile } from '../../../core/config-discovery.js';
 import type { DoctorCheck } from '../types.js';
 
-const ANTHROPIC_SETUP_TOKEN_PREFIX = 'sk-ant-oat01-';
-const ANTHROPIC_SETUP_TOKEN_MIN_LENGTH = 80;
-
-function validateAnthropicSetupToken(value: string): string | undefined {
-  const trimmed = value.trim();
-  if (!trimmed.startsWith(ANTHROPIC_SETUP_TOKEN_PREFIX)) {
-    return `Expected token starting with ${ANTHROPIC_SETUP_TOKEN_PREFIX}`;
-  }
-  if (trimmed.length < ANTHROPIC_SETUP_TOKEN_MIN_LENGTH) {
-    return 'Token looks too short; paste the full setup-token';
-  }
-  return undefined;
-}
-
 function resolveRequiredKeys(
   provider: string | undefined,
   config: ReturnType<typeof loadTomlFile>
@@ -36,7 +22,7 @@ function resolveRequiredKeys(
   }
 
   if (provider === 'anthropic') {
-    return ['ANTHROPIC_API_KEY', 'ANTHROPIC_SETUP_TOKEN', 'CLAUDE_SETUP_TOKEN'];
+    return ['ANTHROPIC_API_KEY'];
   }
 
   if (provider === 'openai') {
@@ -46,9 +32,6 @@ function resolveRequiredKeys(
   return [];
 }
 
-function isLikelySetupToken(key: string, value: string): boolean {
-  return key.includes('SETUP_TOKEN') || value.trim().startsWith(ANTHROPIC_SETUP_TOKEN_PREFIX);
-}
 
 /**
  * Check if required environment variables are present
@@ -74,30 +57,9 @@ export async function checkEnvVars(): Promise<DoctorCheck> {
     const provider = config.llm?.provider;
     const requiredKeys = resolveRequiredKeys(provider, config);
     const presentKeys = requiredKeys.filter((key) => process.env[key]?.trim());
-    const invalidSetupTokens: string[] = [];
 
-    for (const key of presentKeys) {
-      const value = process.env[key]?.trim() ?? '';
-      if (!value) {
-        continue;
-      }
-      if (provider === 'anthropic' && isLikelySetupToken(key, value)) {
-        const error = validateAnthropicSetupToken(value);
-        if (error) {
-          invalidSetupTokens.push(key);
-        }
-      }
-    }
-
-    const validKeys = presentKeys.filter((key) => !invalidSetupTokens.includes(key));
-    if (requiredKeys.length > 0 && validKeys.length === 0) {
-      const invalidNote =
-        invalidSetupTokens.length > 0
-          ? ` Invalid setup-token: ${invalidSetupTokens.join(', ')}`
-          : '';
-      missing.push(`${requiredKeys.join(', ')}${invalidNote}`);
-    } else if (invalidSetupTokens.length > 0) {
-      warnings.push(`Invalid setup-token: ${invalidSetupTokens.join(', ')}`);
+    if (requiredKeys.length > 0 && presentKeys.length === 0) {
+      missing.push(requiredKeys.join(', '));
     }
 
     // Check channel-specific env vars

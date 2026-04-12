@@ -161,26 +161,11 @@ Examples:
   // Auth subcommands
   const authCmd = program.command('auth').description('Authentication helpers');
 
-  authCmd
-    .command('setup-token')
-    .description('Configure Anthropic setup-token auth')
-    .option('--provider <provider>', 'Provider (default: anthropic)', 'anthropic')
-    .option('--profile <name>', 'Profile name (default: anthropic-subscription)')
-    .option('--env <name>', 'Environment variable name (default: ANTHROPIC_SETUP_TOKEN)')
-    .option('--token <token>', 'Paste setup-token (non-interactive)')
-    .option('--append', 'Append to profile order instead of prepending')
-    .option('--write-env', 'Write token to .env if possible')
-    .action(async (options) => {
-      const { setupTokenCommand } = await import('./commands/auth/setup-token.js');
-      await setupTokenCommand({ ...program.opts(), ...options });
-    });
-
   authCmd.addHelpText(
     'after',
     `
 Examples:
-  nachos auth setup-token
-  nachos auth setup-token --provider anthropic --profile anthropic-subscription
+  nachos auth --help
 `
   );
 

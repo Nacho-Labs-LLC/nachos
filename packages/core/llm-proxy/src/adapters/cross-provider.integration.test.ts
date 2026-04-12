@@ -100,7 +100,9 @@ for (const config of providers) {
       );
 
       assertBasicChatResponse(result, config.expectedProvider);
-      console.log(`[${config.name}] TC-X1 Model: ${result.model} | Tokens: ${JSON.stringify(result.usage)}`);
+      console.log(
+        `[${config.name}] TC-X1 Model: ${result.model} | Tokens: ${JSON.stringify(result.usage)}`
+      );
     }, 30_000);
 
     it('TC-X2: max_tokens is respected', async () => {
@@ -113,7 +115,9 @@ for (const config of providers) {
       if (result.usage) {
         expect(result.usage.completionTokens).toBeLessThanOrEqual(60); // small tolerance
       }
-      console.log(`[${config.name}] TC-X2 Finish: ${result.finishReason} | Tokens: ${JSON.stringify(result.usage)}`);
+      console.log(
+        `[${config.name}] TC-X2 Finish: ${result.finishReason} | Tokens: ${JSON.stringify(result.usage)}`
+      );
     }, 30_000);
 
     // ── Tool use ──
@@ -125,7 +129,9 @@ for (const config of providers) {
       );
 
       assertToolUseResponse(result);
-      console.log(`[${config.name}] TC-X3 Tool: ${result.toolCalls![0].name} | Args: ${result.toolCalls![0].arguments}`);
+      console.log(
+        `[${config.name}] TC-X3 Tool: ${result.toolCalls![0].name} | Args: ${result.toolCalls![0].arguments}`
+      );
     }, 30_000);
 
     // ── Streaming ──
@@ -140,11 +146,15 @@ for (const config of providers) {
       const result = await adapter.stream(
         FIXTURES.streaming.request,
         defaultStreamOptions(config, { temperature: 0, maxTokens: 128 }),
-        (chunk) => { chunks.push(chunk); }
+        (chunk) => {
+          chunks.push(chunk);
+        }
       );
 
       assertStreamResponse(chunks, result, config.expectedProvider);
-      console.log(`[${config.name}] TC-X4 Deltas: ${chunks.filter((c) => c.type === 'delta').length}`);
+      console.log(
+        `[${config.name}] TC-X4 Deltas: ${chunks.filter((c) => c.type === 'delta').length}`
+      );
     }, 30_000);
 
     it('TC-X5: streaming with tool use emits tool_call chunks', async () => {
@@ -157,11 +167,15 @@ for (const config of providers) {
       const result = await adapter.stream(
         FIXTURES.toolUse.request,
         defaultStreamOptions(config, { temperature: 0 }),
-        (chunk) => { chunks.push(chunk); }
+        (chunk) => {
+          chunks.push(chunk);
+        }
       );
 
       assertStreamToolResponse(chunks, result);
-      console.log(`[${config.name}] TC-X5 Tool chunks: ${chunks.filter((c) => c.type === 'tool_call').length}`);
+      console.log(
+        `[${config.name}] TC-X5 Tool chunks: ${chunks.filter((c) => c.type === 'tool_call').length}`
+      );
     }, 30_000);
 
     // ── System message handling ──
@@ -180,7 +194,9 @@ for (const config of providers) {
       expect(result.message.role).toBe('assistant');
       expect(typeof result.message.content).toBe('string');
       expect((result.message.content as string).length).toBeGreaterThan(0);
-      console.log(`[${config.name}] TC-X6 Response: ${(result.message.content as string).slice(0, 80)}`);
+      console.log(
+        `[${config.name}] TC-X6 Response: ${(result.message.content as string).slice(0, 80)}`
+      );
     }, 30_000);
   });
 }

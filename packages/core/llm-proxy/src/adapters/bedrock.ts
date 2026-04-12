@@ -111,7 +111,7 @@ function toBedrockMessages(messages: LLMRequestType['messages']): unknown[] {
 
 function toBedrockTools(tools: LLMRequestType['tools']) {
   if (!tools || tools.length === 0) return undefined;
-  return tools.map((tool) => ({
+  return tools.map((tool: NonNullable<LLMRequestType['tools']>[number]) => ({
     name: tool.name,
     description: tool.description,
     input_schema: tool.parameters, // Bedrock uses input_schema, Nachos uses parameters
@@ -234,9 +234,10 @@ export function createBedrockAdapter(
     return client;
   }
 
-  function resolveCredentials(
-    options: AdapterSendOptions
-  ): { credentials?: AwsCredentials; profileName?: string } {
+  function resolveCredentials(options: AdapterSendOptions): {
+    credentials?: AwsCredentials;
+    profileName?: string;
+  } {
     // Try profiles first (multi-profile auth)
     const profileList = options.getProfileList?.() ?? [];
     for (const profileName of profileList) {
@@ -402,6 +403,8 @@ export function createBedrockAdapter(
                   delta: chunkData.delta.text,
                   sessionId: options.sessionId,
                   index: chunkIndex++,
+                  provider: 'bedrock',
+                  model: options.model,
                 });
               } else if (
                 chunkData.delta.type === 'input_json_delta' &&
@@ -417,6 +420,14 @@ export function createBedrockAdapter(
               const toolCall = toolCalls[chunkData.index];
               if (toolCall) {
                 toolCall.arguments = toolInputBuffers[toolCall.id] ?? '';
+                await onChunk({
+                  type: 'tool_call',
+                  toolCall: { id: toolCall.id, name: toolCall.name, arguments: toolCall.arguments },
+                  sessionId: options.sessionId,
+                  index: chunkIndex++,
+                  provider: 'bedrock',
+                  model: options.model,
+                });
               }
             } else if (chunkData.type === 'message_delta' && chunkData.delta) {
               if (chunkData.delta.stop_reason) {
@@ -468,22 +479,13 @@ function mapBedrockError(error: unknown): ProviderError {
       $metadata?: { httpStatusCode?: number };
     };
 
-    if (
-      awsError.name === 'ThrottlingException' ||
-      awsError.$metadata?.httpStatusCode === 429
-    ) {
+    if (awsError.name === 'ThrottlingException' || awsError.$metadata?.httpStatusCode === 429) {
       return new ProviderError('Rate limit exceeded', 'rate_limit', awsError.name);
     }
-    if (
-      awsError.name === 'ValidationException' ||
-      awsError.$metadata?.httpStatusCode === 400
-    ) {
+    if (awsError.name === 'ValidationException' || awsError.$metadata?.httpStatusCode === 400) {
       return new ProviderError(awsError.message, 'invalid_request', awsError.name);
     }
-    if (
-      awsError.name === 'AccessDeniedException' ||
-      awsError.$metadata?.httpStatusCode === 403
-    ) {
+    if (awsError.name === 'AccessDeniedException' || awsError.$metadata?.httpStatusCode === 403) {
       return new ProviderError('Authentication failed', 'auth', awsError.name);
     }
     if (awsError.name === 'ServiceQuotaExceededException') {
@@ -491,8 +493,5 @@ function mapBedrockError(error: unknown): ProviderError {
     }
   }
 
-  return new ProviderError(
-    error instanceof Error ? error.message : 'Unknown error',
-    'unknown'
-  );
+  return new ProviderError(error instanceof Error ? error.message : 'Unknown error', 'unknown');
 }

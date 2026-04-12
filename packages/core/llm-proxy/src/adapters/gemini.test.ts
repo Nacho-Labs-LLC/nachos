@@ -41,7 +41,11 @@ function makeResponse(opts: {
   text?: string;
   functionCalls?: Array<{ name: string; args: object }>;
   finishReason?: string;
-  usageMetadata?: { promptTokenCount: number; candidatesTokenCount: number; totalTokenCount: number };
+  usageMetadata?: {
+    promptTokenCount: number;
+    candidatesTokenCount: number;
+    totalTokenCount: number;
+  };
 }) {
   return {
     response: {
@@ -109,9 +113,7 @@ describe('GeminiAdapter', () => {
     it('should handle empty text response', async () => {
       const adapter = new GeminiAdapter();
 
-      mockGenerateContent.mockResolvedValue(
-        makeResponse({ text: '' })
-      );
+      mockGenerateContent.mockResolvedValue(makeResponse({ text: '' }));
 
       const response = await adapter.send(
         { messages: [{ role: 'user', content: 'Hi' }] },
@@ -124,9 +126,7 @@ describe('GeminiAdapter', () => {
     it('should handle response without usage metadata', async () => {
       const adapter = new GeminiAdapter();
 
-      mockGenerateContent.mockResolvedValue(
-        makeResponse({ text: 'Hello' })
-      );
+      mockGenerateContent.mockResolvedValue(makeResponse({ text: 'Hello' }));
 
       const response = await adapter.send(
         { messages: [{ role: 'user', content: 'Hi' }] },
@@ -199,8 +199,16 @@ describe('GeminiAdapter', () => {
         {
           messages: [{ role: 'user', content: 'Weather and time in SF?' }],
           tools: [
-            { name: 'get_weather', description: 'Weather', parameters: { type: 'object', properties: {}, required: [] } },
-            { name: 'get_time', description: 'Time', parameters: { type: 'object', properties: {}, required: [] } },
+            {
+              name: 'get_weather',
+              description: 'Weather',
+              parameters: { type: 'object', properties: {}, required: [] },
+            },
+            {
+              name: 'get_time',
+              description: 'Time',
+              parameters: { type: 'object', properties: {}, required: [] },
+            },
           ],
         },
         { model: 'gemini-1.5-flash' }
@@ -214,9 +222,7 @@ describe('GeminiAdapter', () => {
     it('should return undefined toolCalls when no function calls in response', async () => {
       const adapter = new GeminiAdapter();
 
-      mockGenerateContent.mockResolvedValue(
-        makeResponse({ text: 'No tools needed' })
-      );
+      mockGenerateContent.mockResolvedValue(makeResponse({ text: 'No tools needed' }));
 
       const response = await adapter.send(
         { messages: [{ role: 'user', content: 'Hi' }] },
@@ -385,7 +391,9 @@ describe('GeminiAdapter', () => {
 
     it('should map MAX_TOKENS to length', async () => {
       const adapter = new GeminiAdapter();
-      mockGenerateContent.mockResolvedValue(makeResponse({ text: 'Hi', finishReason: 'MAX_TOKENS' }));
+      mockGenerateContent.mockResolvedValue(
+        makeResponse({ text: 'Hi', finishReason: 'MAX_TOKENS' })
+      );
 
       const response = await adapter.send(
         { messages: [{ role: 'user', content: 'Hi' }] },
@@ -431,7 +439,10 @@ describe('GeminiAdapter', () => {
         { messages: [{ role: 'user', content: 'Hi' }] },
         { model: 'gemini-1.5-flash', sessionId: 'test-session' },
         async (chunk) => {
-          receivedChunks.push({ type: chunk.type, delta: 'delta' in chunk ? (chunk as { delta: string }).delta : undefined });
+          receivedChunks.push({
+            type: chunk.type,
+            delta: 'delta' in chunk ? (chunk as { delta: string }).delta : undefined,
+          });
         }
       );
 
@@ -553,10 +564,7 @@ describe('GeminiAdapter', () => {
       const adapter = new GeminiAdapter();
 
       await expect(
-        adapter.send(
-          { messages: [{ role: 'user', content: 'Hi' }] },
-          { model: 'gemini-1.5-flash' }
-        )
+        adapter.send({ messages: [{ role: 'user', content: 'Hi' }] }, { model: 'gemini-1.5-flash' })
       ).rejects.toThrow(ProviderError);
 
       try {

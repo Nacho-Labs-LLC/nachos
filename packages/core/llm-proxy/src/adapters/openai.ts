@@ -109,10 +109,9 @@ export class OpenAIAdapter {
         delete p.max_completion_tokens;
         p.max_tokens = options.maxTokens;
       }
-      const response = await client.chat.completions.create(
-        params,
-        { timeout: options.timeout ?? DEFAULT_TIMEOUT_MS }
-      );
+      const response = await client.chat.completions.create(params, {
+        timeout: options.timeout ?? DEFAULT_TIMEOUT_MS,
+      });
 
       const choice = response.choices[0];
       if (!choice) {
@@ -172,10 +171,9 @@ export class OpenAIAdapter {
         delete sp.max_completion_tokens;
         sp.max_tokens = options.maxTokens;
       }
-      const stream = await client.chat.completions.create(
-        streamParams,
-        { timeout: options.timeout ?? DEFAULT_TIMEOUT_MS }
-      );
+      const stream = await client.chat.completions.create(streamParams, {
+        timeout: options.timeout ?? DEFAULT_TIMEOUT_MS,
+      });
 
       let index = 0;
       let aggregated = '';
