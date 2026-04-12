@@ -22,12 +22,14 @@ import type {
 export const FIXTURES = {
   basicChat: {
     request: {
+      sessionId: 'test-session',
       messages: [{ role: 'user', content: 'Say hello in one sentence.' }],
     } as LLMRequestType,
   },
 
   toolUse: {
     request: {
+      sessionId: 'test-session',
       messages: [
         {
           role: 'user',
@@ -52,12 +54,14 @@ export const FIXTURES = {
 
   streaming: {
     request: {
+      sessionId: 'test-session',
       messages: [{ role: 'user', content: 'Count from 1 to 5, one number per line.' }],
     } as LLMRequestType,
   },
 
   multiTool: {
     request: {
+      sessionId: 'test-session',
       messages: [{ role: 'user', content: 'Get the weather in SF and the time in PST.' }],
       tools: [
         {

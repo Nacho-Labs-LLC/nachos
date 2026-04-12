@@ -160,7 +160,6 @@ const logger = createLogger('anthropic-adapter');
 
 const DEFAULT_TIMEOUT_MS = 120_000;
 
-
 export class AnthropicAdapter {
   public readonly name = 'anthropic';
   public readonly type = 'anthropic' as const;

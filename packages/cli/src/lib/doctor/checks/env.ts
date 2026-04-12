@@ -32,7 +32,6 @@ function resolveRequiredKeys(
   return [];
 }
 
-
 /**
  * Check if required environment variables are present
  */

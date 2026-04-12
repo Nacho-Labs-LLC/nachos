@@ -5,7 +5,7 @@
  * from SubagentRunRequest → session creation → LLM request → adapter.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { SubagentOrchestrator } from './subagent-orchestrator.js';
 import type { SubagentOrchestratorDeps } from './subagent-orchestrator.js';
 import type { SubagentRunRequest } from './types.js';
@@ -203,9 +203,7 @@ describe('Subagent config propagation', () => {
       await waitForExecution();
 
       expect(llmRequests).toHaveLength(1);
-      expect(llmRequests[0].options?.model).toBe(
-        'anthropic.claude-haiku-4-5-20251001-v1:0'
-      );
+      expect(llmRequests[0].options?.model).toBe('anthropic.claude-haiku-4-5-20251001-v1:0');
     });
 
     it('should pass through full model IDs unchanged', async () => {
@@ -244,9 +242,7 @@ describe('Subagent config propagation', () => {
       await waitForExecution();
 
       expect(llmRequests).toHaveLength(1);
-      expect(llmRequests[0].options?.model).toBe(
-        'anthropic.claude-haiku-4-5-20251001-v1:0'
-      );
+      expect(llmRequests[0].options?.model).toBe('anthropic.claude-haiku-4-5-20251001-v1:0');
     });
 
     it('should select thorough model for "thorough" hint', async () => {
@@ -309,9 +305,7 @@ describe('Subagent config propagation', () => {
       await waitForExecution();
 
       expect(llmRequests).toHaveLength(1);
-      expect(llmRequests[0].options?.model).toBe(
-        'anthropic.claude-haiku-4-5-20251001-v1:0'
-      );
+      expect(llmRequests[0].options?.model).toBe('anthropic.claude-haiku-4-5-20251001-v1:0');
     });
 
     it('should use defaultModel when autoSelect is off', async () => {
