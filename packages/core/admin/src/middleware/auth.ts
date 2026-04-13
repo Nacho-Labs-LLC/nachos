@@ -21,7 +21,7 @@ function safeCompare(provided: string, expected: string): boolean {
   return timingSafeEqual(a, b);
 }
 
-export function authMiddleware(): MiddlewareHandler {
+function resolveToken(): string {
   let token = process.env['NACHOS_ADMIN_TOKEN'];
 
   if (!token) {
@@ -33,16 +33,31 @@ export function authMiddleware(): MiddlewareHandler {
     );
   }
 
-  // Capture in a const so TypeScript knows it is definitely a string
-  const resolvedToken: string = token;
+  return token;
+}
 
+let cachedToken: string | null = null;
+
+function getToken(): string {
+  if (!cachedToken) {
+    cachedToken = resolveToken();
+  }
+  return cachedToken;
+}
+
+/** Validate a token against the admin token. */
+export function verifyToken(provided: string): boolean {
+  return safeCompare(provided, getToken());
+}
+
+export function authMiddleware(): MiddlewareHandler {
   return async (c, next) => {
     const authHeader = c.req.header('Authorization');
     const cookieToken = getCookie(c, 'nachos_admin_token');
 
     const provided = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : cookieToken;
 
-    if (!provided || !safeCompare(provided, resolvedToken)) {
+    if (!provided || !verifyToken(provided)) {
       return c.json({ error: 'Unauthorized' }, 401);
     }
 

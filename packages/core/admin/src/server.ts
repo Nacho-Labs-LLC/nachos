@@ -4,7 +4,8 @@ import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { createLogger } from '@nachos/types';
-import { authMiddleware } from './middleware/auth.js';
+import { authMiddleware, verifyToken } from './middleware/auth.js';
+import { setCookie, deleteCookie } from 'hono/cookie';
 import { configRouter } from './routes/config.js';
 import { statusRouter } from './routes/status.js';
 import { auditRouter } from './routes/audit.js';
@@ -68,6 +69,36 @@ app.use(
 app.get('/api/health', (c) =>
   c.json({ status: 'ok', service: 'nachos-admin', timestamp: new Date().toISOString() })
 );
+
+// Login: validate token and set httpOnly cookie
+app.post('/api/login', async (c) => {
+  const body = await c.req.json<{ token?: string }>().catch(() => ({ token: undefined }));
+  const token = body.token?.trim();
+
+  if (!token || !verifyToken(token)) {
+    return c.json({ error: 'Invalid token' }, 401);
+  }
+
+  setCookie(c, 'nachos_admin_token', token, {
+    path: '/',
+    httpOnly: true,
+    sameSite: 'Lax',
+    maxAge: 60 * 60 * 24 * 7, // 7 days
+  });
+
+  return c.json({ ok: true });
+});
+
+// Logout: clear the cookie
+app.post('/api/logout', (c) => {
+  deleteCookie(c, 'nachos_admin_token', { path: '/' });
+  return c.json({ ok: true });
+});
+
+// Auth check: returns 200 if authenticated, 401 otherwise
+app.get('/api/auth/check', authMiddleware(), (c) => {
+  return c.json({ authenticated: true });
+});
 
 app.use('/api/*', authMiddleware());
 
