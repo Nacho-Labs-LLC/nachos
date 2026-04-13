@@ -107,12 +107,13 @@ function loadTomlConfig(): TomlSkillsConfig {
       if (inSkills && config.skills) {
         const kv = trimmed.match(/^(\w+)\s*=\s*\[(.*)]/);
         if (kv?.[1] && kv[2] !== undefined) {
-          const key = kv[1] as 'allow' | 'deny';
+          const key = kv[1];
           const vals = kv[2]
             .split(',')
             .map((s) => s.trim().replace(/^["']|["']$/g, ''))
             .filter(Boolean);
-          if (key === 'allow' || key === 'deny') config.skills[key] = vals;
+          if (key === 'allow' || key === 'enabled') config.skills.allow = vals;
+          if (key === 'deny') config.skills.deny = vals;
         }
       }
 

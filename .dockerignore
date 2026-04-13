@@ -1,6 +1,8 @@
 **/node_modules
 .git
 *.md
+!skills/**/SKILL.md
+!skills/Skillfile
 .env
 .env.*
 data/

@@ -6,7 +6,8 @@
  */
 
 import type { NachosBusClient, MessageHandler, MessageEnvelope } from '@nachos/bus';
-import type { PostgresSessionsStore } from '@nachos/state';
+import { TOPICS } from '@nachos/bus';
+import type { SessionsStore } from '@nachos/state';
 import type { Message } from '@nachos/types';
 import { createLogger } from '@nachos/types';
 
@@ -158,7 +159,7 @@ export class WebChatRPCService {
 
   constructor(
     private bus: NachosBusClient,
-    private store: PostgresSessionsStore
+    private store: SessionsStore
   ) {}
 
   /**
@@ -192,6 +193,55 @@ export class WebChatRPCService {
     await this.registerHandler('nachos.webchat.sessions.pin', this.handlePinSession.bind(this));
     await this.registerHandler('nachos.webchat.messages.send', this.handleSendMessage.bind(this));
     await this.registerHandler('nachos.webchat.messages.get', this.handleGetMessages.bind(this));
+
+    // Listen for outbound messages from the gateway and forward to the SSE stream
+    const outboundSub = await this.bus.subscribe(
+      TOPICS.channel.outbound('webchat'),
+      async (
+        outboundEnvelope: MessageEnvelope<{
+          sessionId?: string;
+          conversationId?: string;
+          content?: { text?: string; format?: string };
+        }>
+      ) => {
+        try {
+          const outbound = outboundEnvelope.payload;
+          const sessionId = outbound.sessionId;
+          const conversationId = outbound.conversationId;
+
+          // Resolve session ID from conversation ID if needed
+          let resolvedSessionId = sessionId;
+          if (!resolvedSessionId && conversationId) {
+            const session = await this.store.getSessionByConversation('webchat', conversationId);
+            resolvedSessionId = session?.id;
+          }
+
+          if (!resolvedSessionId) {
+            logger.warn({ outbound }, 'Could not resolve session for outbound webchat message');
+            return;
+          }
+
+          const text = outbound.content?.text ?? '';
+
+          const streamedMessage: StreamedMessage = {
+            id: `assistant-${Date.now()}`,
+            sessionId: resolvedSessionId,
+            role: 'assistant',
+            content: text,
+            timestamp: new Date().toISOString(),
+          };
+
+          this.bus.publish(`nachos.webchat.messages.${resolvedSessionId}`, streamedMessage);
+          logger.debug(
+            { sessionId: resolvedSessionId },
+            'Forwarded assistant response to webchat stream'
+          );
+        } catch (err) {
+          logger.error({ err }, 'Error handling webchat outbound message');
+        }
+      }
+    );
+    this.subscriptions.push(outboundSub);
 
     logger.info('WebChat RPC service started');
   }
@@ -454,6 +504,10 @@ export class WebChatRPCService {
 
   /**
    * Handler: Send message
+   *
+   * Publishes a ChannelInboundMessage to the gateway's inbound topic so the
+   * message flows through the full pipeline (session management, LLM, tools).
+   * The assistant response arrives via the outbound listener registered in start().
    */
   private async handleSendMessage(
     envelope: MessageEnvelope<SendMessageRequest>,
@@ -470,28 +524,34 @@ export class WebChatRPCService {
         return;
       }
 
-      // Add message to session
-      const message = await this.store.addMessage({
+      // Build a ChannelInboundMessage and publish to the gateway's inbound topic
+      const inbound = {
+        channel: 'webchat',
+        channelMessageId: `webchat-${Date.now()}`,
         sessionId: request.sessionId,
-        role: 'user',
-        content: request.text,
-      });
-
-      // Publish message to session-specific topic for streaming
-      const streamedMessage: StreamedMessage = {
-        id: message.id,
-        sessionId: message.sessionId,
-        role: message.role,
-        content: message.content,
-        timestamp: message.createdAt,
-        toolCalls: message.toolCalls,
+        sender: {
+          id: request.userId,
+          isAllowed: true,
+        },
+        conversation: {
+          id: session.conversationId,
+          type: 'dm' as const,
+        },
+        content: {
+          text: request.text,
+        },
+        metadata: {
+          is_paired: true,
+        },
       };
 
-      this.bus.publish(`nachos.webchat.messages.${request.sessionId}`, streamedMessage);
+      await this.bus.publish(TOPICS.channel.inbound('webchat'), inbound, {
+        type: 'channel.inbound',
+      });
 
       const response: SendMessageResponse = {
-        messageId: message.id,
-        timestamp: message.createdAt,
+        messageId: `pending-${Date.now()}`,
+        timestamp: new Date().toISOString(),
       };
 
       rawMsg.respond(response);

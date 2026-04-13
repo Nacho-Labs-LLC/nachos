@@ -130,7 +130,7 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD:?Required}@redis:6379
       PORT: '3000'
       NACHOS_CONFIG_PATH: /app/nachos.toml
-      GATEWAY_CHANNELS: discord
+      GATEWAY_CHANNELS: discord,webchat
       # Browser tool (embedded via @playwright/mcp)
       BROWSER_ALLOWED_DOMAINS: ${BROWSER_ALLOWED_DOMAINS:-""}
       BROWSER_HEADLESS: ${BROWSER_HEADLESS:-true}
@@ -144,7 +144,7 @@ services:
       # Docker socket for container management in permissive mode
       - /var/run/docker.sock:/var/run/docker.sock:ro
       # Nachos source for self-modification
-      - /c/DEV/NACHOS/nachos-core:/nachos-src:rw
+      - .:/nachos-src:rw
       # Log volume for debugging
       - nachos-logs:/var/log/nachos:rw
     develop:
@@ -248,12 +248,12 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       LITELLM_API_KEY: ${LITELLM_API_KEY:-}
-      # AWS Bedrock credentials (uses host env if not set in .env)
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
-      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+      # AWS Bedrock credentials (resolved via mounted ~/.aws/credentials)
       AWS_REGION: ${AWS_REGION:-us-east-1}
-      NACHOS_CONFIG: /app/nachos.toml.example
+      NACHOS_CONFIG_PATH: /app/nachos.toml
+    volumes:
+      - ./nachos.toml:/app/nachos.toml:ro
+      - ~/.aws:/home/nachos/.aws:ro
     develop:
       watch:
         - action: sync
@@ -284,8 +284,6 @@ services:
     build:
       context: .
       dockerfile: packages/core/admin/Dockerfile
-      args:
-        DOCKER_GID: ${DOCKER_GID:-999}
     image: nachos-admin:dev
     restart: unless-stopped
     depends_on:
@@ -320,12 +318,16 @@ services:
       # management is not needed.
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./nachos.toml:/app/nachos.toml:ro
+      - ./skills:/app/skills:ro
     develop:
       watch:
         - action: rebuild
           path: ./packages/core/admin/src
         - action: rebuild
           path: ./packages/core/admin/frontend/src
+        - action: sync
+          path: ./skills
+          target: /app/skills
     healthcheck:
       test:
         [

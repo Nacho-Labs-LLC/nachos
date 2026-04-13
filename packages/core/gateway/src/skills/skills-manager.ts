@@ -64,9 +64,9 @@ export class SkillsManager {
       const { fileURLToPath } = await import('url');
       const { dirname } = await import('path');
 
-      // Resolve skills directory (relative to gateway package)
+      // Resolve skills directory (relative to this file: src/skills/ → /app/skills)
       const currentDir = dirname(fileURLToPath(import.meta.url));
-      const skillsDir = join(currentDir, '..', '..', '..', '..', 'skills');
+      const skillsDir = join(currentDir, '..', '..', '..', '..', '..', 'skills');
       this.skillsDir = skillsDir;
 
       // Initial skill load
