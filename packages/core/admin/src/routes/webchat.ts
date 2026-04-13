@@ -331,6 +331,30 @@ webchatRouter.get('/messages/:sessionId/stream', async (c) => {
           }
         );
 
+        // Subscribe to status events (thinking, tool, done, error)
+        const statusSubscription = await bus.subscribe(
+          `nachos.status.${sessionId}.*`,
+          async (envelope) => {
+            try {
+              const payload = envelope.payload as {
+                status?: string;
+                toolName?: string;
+                error?: string;
+              };
+              await stream.writeSSE({
+                data: JSON.stringify({
+                  type: payload.status,
+                  tool: payload.toolName,
+                  error: payload.error,
+                }),
+                event: 'status',
+              });
+            } catch (err) {
+              logger.error({ err }, 'Error writing status SSE');
+            }
+          }
+        );
+
         // Send initial connection event
         await stream.writeSSE({
           data: JSON.stringify({ type: 'connected', sessionId, userId }),
@@ -354,6 +378,7 @@ webchatRouter.get('/messages/:sessionId/stream', async (c) => {
           stream.onAbort(() => {
             clearInterval(keepAlive);
             subscription.unsubscribe();
+            statusSubscription.unsubscribe();
             resolve();
           });
         });
