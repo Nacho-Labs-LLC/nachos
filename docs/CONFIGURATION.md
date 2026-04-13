@@ -134,17 +134,17 @@ model = "claude-sonnet-4-20250514"
 fallback_order = ["anthropic:claude-haiku"]
 max_tokens = 4096
 temperature = 0.7
-profile_order = ["anthropic-subscription", "anthropic-primary"]
-
-[[llm.profiles]]
-name = "anthropic-subscription"
-provider = "anthropic"
-api_key_env = "ANTHROPIC_SETUP_TOKEN"
+profile_order = ["anthropic-primary", "anthropic-backup"]
 
 [[llm.profiles]]
 name = "anthropic-primary"
 provider = "anthropic"
 api_key_env = "ANTHROPIC_API_KEY"
+
+[[llm.profiles]]
+name = "anthropic-backup"
+provider = "anthropic"
+api_key_env = "ANTHROPIC_API_KEY_2"
 ```
 
 ---

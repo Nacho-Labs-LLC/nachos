@@ -1,0 +1,29 @@
+# Nachos config: Ollama (local models)
+# Docs: docs/guides/provider-switching.md
+#
+# Prerequisites:
+#   1. Install Ollama: https://ollama.com
+#   2. Pull a model: ollama pull llama3.2
+#   3. Ollama must be running on the host machine
+
+[nachos]
+name = "my-assistant"
+version = "1.0"
+
+[llm]
+provider = "ollama"
+model = "llama3.2"
+base_url = "http://host.docker.internal:11434"
+max_tokens = 4096
+temperature = 0.7
+
+# Optional: fall back to cloud if local model fails
+# fallback_order = ["anthropic:claude-haiku-4-5-20251001"]
+
+[security]
+mode = "standard"
+
+# No API key needed for Ollama.
+#
+# Note: On Linux without Docker Desktop, replace host.docker.internal
+# with your host IP (e.g., 172.17.0.1).

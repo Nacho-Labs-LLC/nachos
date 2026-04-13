@@ -19,7 +19,7 @@ const dropdownRef = ref<HTMLElement | null>(null);
 
 const currentSession = computed(() => {
   if (!props.currentSessionId) return null;
-  return sessions.value.find(s => s.id === props.currentSessionId) || null;
+  return sessions.value.find((s) => s.id === props.currentSessionId) || null;
 });
 
 const sortedSessions = computed(() => {
@@ -36,7 +36,7 @@ const sortedSessions = computed(() => {
 async function loadSessions() {
   loading.value = true;
   error.value = null;
-  
+
   try {
     sessions.value = await listActiveSessions({ channel: 'webchat' });
   } catch (err) {
@@ -49,10 +49,10 @@ async function loadSessions() {
 
 async function togglePin(sessionId: string, event: Event) {
   event.stopPropagation();
-  
-  const session = sessions.value.find(s => s.id === sessionId);
+
+  const session = sessions.value.find((s) => s.id === sessionId);
   if (!session) return;
-  
+
   try {
     await pinSession(sessionId, !session.isPinned);
     session.isPinned = !session.isPinned;
@@ -82,9 +82,12 @@ function handleClickOutside(event: MouseEvent) {
 }
 
 // Close dropdown when session changes
-watch(() => props.currentSessionId, () => {
-  isOpen.value = false;
-});
+watch(
+  () => props.currentSessionId,
+  () => {
+    isOpen.value = false;
+  }
+);
 
 onMounted(() => {
   document.addEventListener('click', handleClickOutside);
@@ -98,11 +101,11 @@ function formatRelativeTime(timestamp: string): string {
   const now = Date.now();
   const date = new Date(timestamp);
   const diff = now - date.getTime();
-  
+
   const minutes = Math.floor(diff / 60000);
   const hours = Math.floor(diff / 3600000);
   const days = Math.floor(diff / 86400000);
-  
+
   if (minutes < 1) return 'just now';
   if (minutes < 60) return `${minutes}m ago`;
   if (hours < 24) return `${hours}h ago`;
@@ -112,11 +115,7 @@ function formatRelativeTime(timestamp: string): string {
 
 <template>
   <div ref="dropdownRef" class="session-dropdown">
-    <button
-      class="dropdown-trigger"
-      :class="{ 'is-open': isOpen }"
-      @click="toggleDropdown"
-    >
+    <button class="dropdown-trigger" :class="{ 'is-open': isOpen }" @click="toggleDropdown">
       <span class="session-label">
         <span class="label-text">Session:</span>
         <span class="session-name">
@@ -125,31 +124,22 @@ function formatRelativeTime(timestamp: string): string {
       </span>
       <span class="dropdown-icon">▼</span>
     </button>
-    
+
     <Transition name="dropdown">
       <div v-if="isOpen" class="dropdown-menu">
         <div class="dropdown-header">
           <span class="header-title">Active Sessions</span>
-          <button
-            class="btn-new-session"
-            @click="emit('new-session')"
-          >
-            + New
-          </button>
+          <button class="btn-new-session" @click="emit('new-session')">+ New</button>
         </div>
-        
-        <div v-if="loading" class="dropdown-loading">
-          <span class="spinner">⟳</span> Loading...
-        </div>
-        
+
+        <div v-if="loading" class="dropdown-loading"><span class="spinner">⟳</span> Loading...</div>
+
         <div v-else-if="error" class="dropdown-error">
           {{ error }}
         </div>
-        
-        <div v-else-if="sortedSessions.length === 0" class="dropdown-empty">
-          No active sessions
-        </div>
-        
+
+        <div v-else-if="sortedSessions.length === 0" class="dropdown-empty">No active sessions</div>
+
         <div v-else class="session-list">
           <button
             v-for="session in sortedSessions"
@@ -320,8 +310,12 @@ function formatRelativeTime(timestamp: string): string {
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .session-list {

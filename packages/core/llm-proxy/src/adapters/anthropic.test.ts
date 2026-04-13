@@ -8,7 +8,7 @@ type ResolveFn = (options: {
   getProfileApiKey?: (profileName: string) => string | null;
 }) => ResolveResult;
 
-const ENV_KEYS = ['ANTHROPIC_API_KEY', 'ANTHROPIC_SETUP_TOKEN', 'CLAUDE_SETUP_TOKEN'] as const;
+const ENV_KEYS = ['ANTHROPIC_API_KEY'] as const;
 const savedEnv = new Map<string, string | undefined>();
 
 for (const key of ENV_KEYS) {
@@ -56,8 +56,6 @@ describe('AnthropicAdapter resolveApiKey', () => {
   });
 
   it('falls back to ANTHROPIC_API_KEY when no profile keys exist', () => {
-    delete process.env.ANTHROPIC_SETUP_TOKEN;
-    delete process.env.CLAUDE_SETUP_TOKEN;
     process.env.ANTHROPIC_API_KEY = 'env-key';
 
     const adapter = new AnthropicAdapter();
@@ -69,31 +67,14 @@ describe('AnthropicAdapter resolveApiKey', () => {
     expect(result).toEqual({ apiKey: 'env-key' });
   });
 
-  it('falls back to ANTHROPIC_SETUP_TOKEN when API key is missing', () => {
+  it('throws ProviderError when no API key is available', () => {
     delete process.env.ANTHROPIC_API_KEY;
-    delete process.env.CLAUDE_SETUP_TOKEN;
-    process.env.ANTHROPIC_SETUP_TOKEN = 'setup-token';
 
     const adapter = new AnthropicAdapter();
     const resolveApiKey = (adapter as unknown as { resolveApiKey: ResolveFn }).resolveApiKey.bind(
       adapter
     );
 
-    const result = resolveApiKey({});
-    expect(result).toEqual({ apiKey: 'setup-token' });
-  });
-
-  it('falls back to CLAUDE_SETUP_TOKEN when API key is missing', () => {
-    delete process.env.ANTHROPIC_API_KEY;
-    delete process.env.ANTHROPIC_SETUP_TOKEN;
-    process.env.CLAUDE_SETUP_TOKEN = 'claude-setup-token';
-
-    const adapter = new AnthropicAdapter();
-    const resolveApiKey = (adapter as unknown as { resolveApiKey: ResolveFn }).resolveApiKey.bind(
-      adapter
-    );
-
-    const result = resolveApiKey({});
-    expect(result).toEqual({ apiKey: 'claude-setup-token' });
+    expect(() => resolveApiKey({})).toThrow('Anthropic API key missing');
   });
 });

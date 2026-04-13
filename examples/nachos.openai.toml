@@ -1,0 +1,21 @@
+# Nachos config: OpenAI
+# Docs: docs/guides/provider-switching.md
+
+[nachos]
+name = "my-assistant"
+version = "1.0"
+
+[llm]
+provider = "openai"
+model = "gpt-4o"
+max_tokens = 4096
+temperature = 0.7
+
+# Optional: fallback to a cheaper model
+# fallback_order = ["openai:gpt-4o-mini"]
+
+[security]
+mode = "standard"
+
+# .env:
+# OPENAI_API_KEY="sk-..."

@@ -160,18 +160,6 @@ const logger = createLogger('anthropic-adapter');
 
 const DEFAULT_TIMEOUT_MS = 120_000;
 
-/** Detect OAuth / setup tokens (sk-ant-oat-*) */
-function isOAuthToken(key: string): boolean {
-  return key.startsWith('sk-ant-oat');
-}
-
-/** Claude Code identity headers required for OAuth token auth */
-const OAUTH_HEADERS: Record<string, string> = {
-  'anthropic-beta': 'claude-code-20250219,oauth-2025-04-20',
-  'user-agent': 'claude-cli/2.1.2 (external, cli)',
-  'x-app': 'cli',
-};
-
 export class AnthropicAdapter {
   public readonly name = 'anthropic';
   public readonly type = 'anthropic' as const;
@@ -190,18 +178,7 @@ export class AnthropicAdapter {
         this.clientCache.delete(firstKey);
       }
 
-      if (isOAuthToken(apiKey)) {
-        // OAuth token: use Bearer auth + Claude Code identity headers
-        // Must set apiKey to null so SDK uses authToken for Bearer auth
-        client = new Anthropic({
-          apiKey: null,
-          authToken: apiKey,
-          baseURL: this.baseUrl,
-          defaultHeaders: OAUTH_HEADERS,
-        });
-      } else {
-        client = new Anthropic({ apiKey, baseURL: this.baseUrl });
-      }
+      client = new Anthropic({ apiKey, baseURL: this.baseUrl });
 
       this.clientCache.set(apiKey, client);
     }
@@ -212,7 +189,6 @@ export class AnthropicAdapter {
     const { apiKey, profileName } = this.resolveApiKey(options);
     logger.debug(
       {
-        keyType: isOAuthToken(apiKey) ? 'oauth' : 'api',
         keyPrefix: apiKey.slice(0, 7) + '...',
         model: options.model,
       },
@@ -287,10 +263,11 @@ export class AnthropicAdapter {
 
       let index = 0;
       let aggregatedText = '';
+      const chunkPromises: Promise<void>[] = [];
 
       stream.on('text', (text) => {
         aggregatedText += text;
-        void onChunk({
+        const result = onChunk({
           sessionId: options.sessionId,
           index: index++,
           type: 'delta',
@@ -298,9 +275,11 @@ export class AnthropicAdapter {
           provider: this.name,
           model: options.model,
         });
+        if (result instanceof Promise) chunkPromises.push(result);
       });
 
       const finalMessage = await stream.finalMessage();
+      await Promise.all(chunkPromises);
 
       const contentBlocks = finalMessage.content as unknown as AnthropicContentBlock[];
       const toolCalls = mapToolCalls(contentBlocks);
@@ -355,7 +334,6 @@ export class AnthropicAdapter {
   }
 
   private mapError(error: unknown): ProviderError {
-    logger.error({ err: error }, 'Raw error');
     if (error && typeof error === 'object' && 'status' in error) {
       const status = (error as { status?: number }).status ?? 0;
       if (status === 401 || status === 403) {
@@ -391,11 +369,6 @@ export class AnthropicAdapter {
     const envKey = process.env.ANTHROPIC_API_KEY;
     if (envKey) {
       return { apiKey: envKey };
-    }
-
-    const setupToken = process.env.ANTHROPIC_SETUP_TOKEN || process.env.CLAUDE_SETUP_TOKEN;
-    if (setupToken) {
-      return { apiKey: setupToken };
     }
 
     throw new ProviderError('Anthropic API key missing', 'auth');

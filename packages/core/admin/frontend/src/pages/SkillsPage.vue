@@ -35,7 +35,9 @@ onMounted(() => {
     <header class="page-header">
       <div>
         <h1 class="page-title">Skills</h1>
-        <p v-if="data" class="page-sub">{{ data.skills.length }} skill{{ data.skills.length !== 1 ? 's' : '' }}</p>
+        <p v-if="data" class="page-sub">
+          {{ data.skills.length }} skill{{ data.skills.length !== 1 ? 's' : '' }}
+        </p>
       </div>
       <button class="btn-ghost" :disabled="loading" @click="load">
         {{ loading ? 'Loading\u2026' : '\u21BB Refresh' }}

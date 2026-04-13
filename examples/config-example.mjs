@@ -2,7 +2,7 @@
 /* global console, process */
 /**
  * Example: Loading and Using Nachos Configuration
- * 
+ *
  * Run this example with: node examples/config-example.mjs
  */
 
@@ -19,9 +19,9 @@ async function main() {
   try {
     // Load configuration from the example file in the root
     const configPath = path.join(__dirname, '..', 'nachos.toml.example');
-    
+
     console.log(`Loading config from: ${configPath}\n`);
-    
+
     const config = loadAndValidateConfig({
       configPath,
       applyEnv: true, // Apply environment variable overlays
@@ -54,7 +54,7 @@ async function main() {
       const enabledChannels = Object.entries(config.channels)
         .filter(([, cfg]) => cfg && cfg.enabled !== false)
         .map(([name]) => name);
-      
+
       if (enabledChannels.length > 0) {
         enabledChannels.forEach((name) => console.log(`  ✓ ${name}`));
       } else {
@@ -71,7 +71,7 @@ async function main() {
       const enabledTools = Object.entries(config.tools)
         .filter(([, cfg]) => cfg?.enabled)
         .map(([name]) => name);
-      
+
       if (enabledTools.length > 0) {
         enabledTools.forEach((name) => console.log(`  ✓ ${name}`));
       } else {
@@ -111,13 +111,12 @@ async function main() {
     console.log(`  if (config.tools?.filesystem?.enabled) {`);
     console.log(`    // Enable filesystem tool`);
     console.log(`  }\n`);
-
   } catch (error) {
     if (error instanceof Error) {
       console.error('❌ Error:', error.message);
       if ('errors' in error) {
         console.error('\nValidation errors:');
-        (error).errors.forEach((err) => {
+        error.errors.forEach((err) => {
           console.error(`  - ${err}`);
         });
       }

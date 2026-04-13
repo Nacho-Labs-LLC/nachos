@@ -26,7 +26,7 @@ patterns:
       - chose
       - selected
       - agreed
-    description: "Captures explicit decision statements in conversation"
+    description: 'Captures explicit decision statements in conversation'
 
   - id: decision-approach
     name: Approach Decision
@@ -38,7 +38,7 @@ patterns:
       - approach
       - strategy
       - plan
-    description: "Captures architectural and strategic decisions"
+    description: 'Captures architectural and strategic decisions'
 
   - id: decision-implementation
     name: Implementation Decision
@@ -50,7 +50,7 @@ patterns:
       - implement
       - build
       - using
-    description: "Captures implementation technology and pattern decisions"
+    description: 'Captures implementation technology and pattern decisions'
 
   # ============================================================================
   # TASKS
@@ -64,7 +64,7 @@ patterns:
     flags: gi
     keywords:
       - TODO
-    description: "Captures explicit TODO markers"
+    description: 'Captures explicit TODO markers'
 
   - id: task-fixme
     name: FIXME Task
@@ -74,7 +74,7 @@ patterns:
     flags: gi
     keywords:
       - FIXME
-    description: "Captures FIXME markers"
+    description: 'Captures FIXME markers'
 
   - id: task-action-item
     name: Action Item
@@ -87,7 +87,7 @@ patterns:
       - should
       - must
       - plan to
-    description: "Captures action items and future work"
+    description: 'Captures action items and future work'
 
   - id: task-checkbox
     name: Checkbox Task
@@ -96,9 +96,9 @@ patterns:
     pattern: "[-*]\\s*\\[[ x]\\]\\s+([^\\n]+)"
     flags: gi
     keywords:
-      - "[ ]"
-      - "[x]"
-    description: "Captures markdown checkbox tasks"
+      - '[ ]'
+      - '[x]'
+    description: 'Captures markdown checkbox tasks'
 
   - id: task-next-step
     name: Next Step
@@ -109,7 +109,7 @@ patterns:
     keywords:
       - next step
       - next task
-    description: "Captures explicitly defined next steps"
+    description: 'Captures explicitly defined next steps'
 
   # ============================================================================
   # FACTS (User Preferences & Requirements)
@@ -126,7 +126,7 @@ patterns:
       - like
       - want
       - need
-    description: "Captures user preferences and requirements"
+    description: 'Captures user preferences and requirements'
 
   - id: fact-usage
     name: Usage Pattern
@@ -138,7 +138,7 @@ patterns:
       - use
       - work with
       - rely on
-    description: "Captures tools and patterns the user employs"
+    description: 'Captures tools and patterns the user employs'
 
   - id: fact-important
     name: Important Detail
@@ -150,7 +150,7 @@ patterns:
       - important
       - critical
       - essential
-    description: "Captures explicitly marked important information"
+    description: 'Captures explicitly marked important information'
 
   - id: fact-requirement
     name: Requirement
@@ -162,7 +162,7 @@ patterns:
       - requirement
       - constraint
       - must have
-    description: "Captures project requirements and constraints"
+    description: 'Captures project requirements and constraints'
 
   # ============================================================================
   # ISSUES (Errors & Problems)
@@ -177,7 +177,7 @@ patterns:
     keywords:
       - error
       - ERROR
-    description: "Captures error messages"
+    description: 'Captures error messages'
 
   - id: issue-failed
     name: Failure Report
@@ -189,7 +189,7 @@ patterns:
       - failed
       - failure
       - failing
-    description: "Captures failure reports"
+    description: 'Captures failure reports'
 
   - id: issue-bug
     name: Bug Report
@@ -200,7 +200,7 @@ patterns:
     keywords:
       - bug
       - BUG
-    description: "Captures bug reports"
+    description: 'Captures bug reports'
 
   - id: issue-problem
     name: Problem Statement
@@ -212,7 +212,7 @@ patterns:
       - problem
       - issue
       - trouble
-    description: "Captures problem statements"
+    description: 'Captures problem statements'
 
   - id: issue-exception
     name: Exception
@@ -223,7 +223,7 @@ patterns:
     keywords:
       - Exception
       - exception
-    description: "Captures exception messages"
+    description: 'Captures exception messages'
 
   # ============================================================================
   # FILES (Code Changes & Operations)
@@ -239,7 +239,7 @@ patterns:
       - created
       - wrote
       - generated
-    description: "Captures file creation operations"
+    description: 'Captures file creation operations'
 
   - id: file-modified
     name: File Modified
@@ -251,7 +251,7 @@ patterns:
       - modified
       - updated
       - changed
-    description: "Captures file modification operations"
+    description: 'Captures file modification operations'
 
   - id: file-deleted
     name: File Deleted
@@ -262,7 +262,7 @@ patterns:
     keywords:
       - deleted
       - removed
-    description: "Captures file deletion operations"
+    description: 'Captures file deletion operations'
 
   - id: file-backtick-reference
     name: File Reference (Backticks)
@@ -271,8 +271,8 @@ patterns:
     pattern: "`([\\w/.\\-]+\\.\\w{1,10})`"
     flags: g
     keywords:
-      - "`"
-    description: "Captures file references in backticks"
+      - '`'
+    description: 'Captures file references in backticks'
 
   - id: file-path-mention
     name: File Path Mention
@@ -281,10 +281,10 @@ patterns:
     pattern: "(?:in|at|from|to)\\s+(?:file|path)?\\s*[`']?([\\w/.\\-]+/[\\w/.\\-]+\\.\\w{1,10})[`']?"
     flags: gi
     keywords:
-      - "/"
+      - '/'
       - file
       - path
-    description: "Captures file path mentions in conversation"
+    description: 'Captures file path mentions in conversation'
 
 # Configuration for DLP Scanner
 config:

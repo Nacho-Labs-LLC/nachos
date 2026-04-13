@@ -13,7 +13,7 @@ export class OllamaAdapter {
   private readonly delegate: OpenAIAdapter;
 
   constructor(baseUrl?: string) {
-    this.delegate = new OpenAIAdapter(baseUrl ?? 'http://localhost:11434/v1', 'ollama');
+    this.delegate = new OpenAIAdapter(baseUrl ?? 'http://localhost:11434/v1', 'ollama', true);
   }
 
   async send(request: LLMRequestType, options: AdapterSendOptions): Promise<AdapterResponse> {

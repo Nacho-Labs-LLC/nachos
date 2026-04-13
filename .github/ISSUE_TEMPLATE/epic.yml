@@ -1,7 +1,7 @@
 name: Epic
 description: A large feature or initiative containing multiple tasks
-title: "[EPIC] "
-labels: ["epic"]
+title: '[EPIC] '
+labels: ['epic']
 body:
   - type: markdown
     attributes:
@@ -14,7 +14,7 @@ body:
     attributes:
       label: Phase
       description: Which roadmap phase does this belong to?
-      placeholder: "Phase 1: Core Infrastructure"
+      placeholder: 'Phase 1: Core Infrastructure'
     validations:
       required: true
 

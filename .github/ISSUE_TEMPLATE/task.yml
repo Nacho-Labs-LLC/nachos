@@ -1,7 +1,7 @@
 name: Task
 description: A specific piece of work to be completed
-title: "[TASK] "
-labels: ["task"]
+title: '[TASK] '
+labels: ['task']
 body:
   - type: markdown
     attributes:

@@ -109,7 +109,9 @@ watch(() => [filters.value.event_type, filters.value.channel, filters.value.outc
     <template v-if="data">
       <div v-if="data.events.length === 0" class="empty">
         No audit events found.
-        <span v-if="!data.total">The audit log may not exist yet — start the gateway to generate events.</span>
+        <span v-if="!data.total"
+          >The audit log may not exist yet — start the gateway to generate events.</span
+        >
       </div>
 
       <div v-else class="table-wrap">
@@ -133,7 +135,13 @@ watch(() => [filters.value.event_type, filters.value.channel, filters.value.outc
               <td class="mono">{{ row.channel || '—' }}</td>
               <td class="mono">{{ truncate(row.user_id, 16) }}</td>
               <td>
-                <span class="status-chip" :style="{ color: outcomeColor(row.outcome), borderColor: outcomeColor(row.outcome) }">
+                <span
+                  class="status-chip"
+                  :style="{
+                    color: outcomeColor(row.outcome),
+                    borderColor: outcomeColor(row.outcome),
+                  }"
+                >
                   {{ row.outcome }}
                 </span>
               </td>
@@ -148,7 +156,12 @@ watch(() => [filters.value.event_type, filters.value.channel, filters.value.outc
         <button
           class="page-btn"
           :disabled="filters.page <= 1"
-          @click="() => { filters.page--; void load(); }"
+          @click="
+            () => {
+              filters.page--;
+              void load();
+            }
+          "
         >
           ← Prev
         </button>
@@ -156,7 +169,12 @@ watch(() => [filters.value.event_type, filters.value.channel, filters.value.outc
         <button
           class="page-btn"
           :disabled="filters.page >= totalPages()"
-          @click="() => { filters.page++; void load(); }"
+          @click="
+            () => {
+              filters.page++;
+              void load();
+            }
+          "
         >
           Next →
         </button>
@@ -166,7 +184,17 @@ watch(() => [filters.value.event_type, filters.value.channel, filters.value.outc
 </template>
 
 <style scoped>
-.td-time { white-space: nowrap; color: var(--text-muted); }
-.td-type { color: var(--info); white-space: nowrap; }
-.td-action, .td-reason { max-width: 200px; word-break: break-all; }
+.td-time {
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+.td-type {
+  color: var(--info);
+  white-space: nowrap;
+}
+.td-action,
+.td-reason {
+  max-width: 200px;
+  word-break: break-all;
+}
 </style>

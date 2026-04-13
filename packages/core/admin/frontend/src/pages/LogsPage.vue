@@ -101,11 +101,7 @@ onUnmounted(() => {
       </div>
       <div class="header-actions">
         <button class="btn-ghost" @click="clearLog">Clear</button>
-        <button
-          class="btn-ghost"
-          :class="{ 'btn-paused': paused }"
-          @click="togglePause"
-        >
+        <button class="btn-ghost" :class="{ 'btn-paused': paused }" @click="togglePause">
           {{ paused ? '\u25B6 Resume' : '\u23F8 Pause' }}
         </button>
       </div>

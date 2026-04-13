@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from 'vue';
-import { getSessions, expireSession, type SessionRow, type SessionsResponse } from '../api/client.js';
+import {
+  getSessions,
+  expireSession,
+  type SessionRow,
+  type SessionsResponse,
+} from '../api/client.js';
 
 const data = ref<SessionsResponse | null>(null);
 const loading = ref(true);
@@ -113,7 +118,10 @@ watch(() => [filters.value.status, filters.value.channel], resetPage);
     <template v-if="data">
       <div v-if="data.sessions.length === 0" class="empty">
         No sessions found.
-        <span v-if="!data.total">The sessions database may not exist yet \u2014 start the gateway to create sessions.</span>
+        <span v-if="!data.total"
+          >The sessions database may not exist yet \u2014 start the gateway to create
+          sessions.</span
+        >
       </div>
 
       <div v-else class="table-wrap">
@@ -134,7 +142,10 @@ watch(() => [filters.value.status, filters.value.channel], resetPage);
               <td class="mono">{{ row.channel }}</td>
               <td class="mono">{{ truncate(row.user_id) }}</td>
               <td>
-                <span class="status-chip" :style="{ color: statusColor(row.status), borderColor: statusColor(row.status) }">
+                <span
+                  class="status-chip"
+                  :style="{ color: statusColor(row.status), borderColor: statusColor(row.status) }"
+                >
                   {{ row.status }}
                 </span>
               </td>
@@ -161,7 +172,12 @@ watch(() => [filters.value.status, filters.value.channel], resetPage);
         <button
           class="page-btn"
           :disabled="filters.page <= 1"
-          @click="() => { filters.page--; void load(); }"
+          @click="
+            () => {
+              filters.page--;
+              void load();
+            }
+          "
         >
           \u2190 Prev
         </button>
@@ -169,7 +185,12 @@ watch(() => [filters.value.status, filters.value.channel], resetPage);
         <button
           class="page-btn"
           :disabled="filters.page >= totalPages()"
-          @click="() => { filters.page++; void load(); }"
+          @click="
+            () => {
+              filters.page++;
+              void load();
+            }
+          "
         >
           Next \u2192
         </button>
@@ -179,6 +200,11 @@ watch(() => [filters.value.status, filters.value.channel], resetPage);
 </template>
 
 <style scoped>
-.td-time { white-space: nowrap; color: var(--text-muted); }
-.td-count { text-align: center; }
+.td-time {
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+.td-count {
+  text-align: center;
+}
 </style>

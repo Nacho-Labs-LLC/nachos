@@ -29,11 +29,9 @@ const filteredSessions = computed(() => {
   if (!searchQuery.value.trim()) {
     return sessions.value;
   }
-  
+
   const query = searchQuery.value.toLowerCase();
-  return sessions.value.filter(s =>
-    s.name.toLowerCase().includes(query)
-  );
+  return sessions.value.filter((s) => s.name.toLowerCase().includes(query));
 });
 
 const totalPages = computed(() => Math.ceil(total.value / pageSize));
@@ -44,7 +42,7 @@ const sync = getSync();
 async function loadSessions() {
   loading.value = true;
   error.value = null;
-  
+
   try {
     const offset = (currentPage.value - 1) * pageSize;
     const result = await listArchivedSessions({
@@ -53,7 +51,7 @@ async function loadSessions() {
       limit: pageSize,
       offset,
     });
-    
+
     sessions.value = result.sessions;
     total.value = result.total;
   } catch (err) {
@@ -66,17 +64,17 @@ async function loadSessions() {
 
 async function handleRestore(sessionId: string) {
   if (!confirm('Restore this session? It will become active again.')) return;
-  
+
   try {
     await restoreSession(sessionId);
-    
+
     // Broadcast to other tabs
     sync.broadcast('session-restored', sessionId);
-    
+
     // Remove from list
-    sessions.value = sessions.value.filter(s => s.id !== sessionId);
+    sessions.value = sessions.value.filter((s) => s.id !== sessionId);
     total.value--;
-    
+
     emit('session-restored', sessionId);
   } catch (err) {
     alert(`Failed to restore session: ${err}`);
@@ -86,15 +84,15 @@ async function handleRestore(sessionId: string) {
 
 async function handleDelete(sessionId: string) {
   if (!confirm('Delete this session permanently? This cannot be undone.')) return;
-  
+
   try {
     await deleteSession(sessionId);
-    
+
     // Broadcast to other tabs
     sync.broadcast('session-deleted', sessionId);
-    
+
     // Remove from list
-    sessions.value = sessions.value.filter(s => s.id !== sessionId);
+    sessions.value = sessions.value.filter((s) => s.id !== sessionId);
     total.value--;
   } catch (err) {
     alert(`Failed to delete session: ${err}`);
@@ -139,11 +137,14 @@ function formatDate(timestamp: string): string {
 }
 
 // Load sessions when modal opens
-watch(() => props.isOpen, (isOpen) => {
-  if (isOpen) {
-    loadSessions();
+watch(
+  () => props.isOpen,
+  (isOpen) => {
+    if (isOpen) {
+      loadSessions();
+    }
   }
-});
+);
 </script>
 
 <template>
@@ -154,7 +155,7 @@ watch(() => props.isOpen, (isOpen) => {
           <h2 class="modal-title">Session History</h2>
           <button class="btn-close" @click="handleClose">✕</button>
         </header>
-        
+
         <div class="modal-body">
           <!-- Search -->
           <div class="search-container">
@@ -165,24 +166,20 @@ watch(() => props.isOpen, (isOpen) => {
               placeholder="Search sessions..."
               @keyup.enter="handleSearch"
             />
-            <button class="btn-search" @click="handleSearch">
-              Search
-            </button>
+            <button class="btn-search" @click="handleSearch">Search</button>
           </div>
-          
+
           <!-- Loading state -->
           <div v-if="loading" class="loading-state">
             <span class="spinner">⟳</span> Loading sessions...
           </div>
-          
+
           <!-- Error state -->
           <div v-else-if="error" class="error-state">
             <p class="error-message">{{ error }}</p>
-            <button class="btn-retry" @click="loadSessions">
-              Retry
-            </button>
+            <button class="btn-retry" @click="loadSessions">Retry</button>
           </div>
-          
+
           <!-- Empty state -->
           <div v-else-if="filteredSessions.length === 0" class="empty-state">
             <p class="empty-icon">📁</p>
@@ -190,14 +187,10 @@ watch(() => props.isOpen, (isOpen) => {
               {{ searchQuery ? 'No sessions match your search' : 'No archived sessions' }}
             </p>
           </div>
-          
+
           <!-- Session list -->
           <div v-else class="session-list">
-            <div
-              v-for="session in filteredSessions"
-              :key="session.id"
-              class="session-card"
-            >
+            <div v-for="session in filteredSessions" :key="session.id" class="session-card">
               <div class="session-header">
                 <h3 class="session-name">{{ session.name }}</h3>
                 <div class="session-actions">
@@ -217,37 +210,25 @@ watch(() => props.isOpen, (isOpen) => {
                   </button>
                 </div>
               </div>
-              
+
               <div class="session-meta">
                 <span class="meta-item">
                   <span class="meta-label">Archived:</span>
                   {{ formatDate(session.archivedAt) }}
                 </span>
                 <span class="meta-separator">·</span>
-                <span class="meta-item">
-                  {{ session.messageCount }} messages
-                </span>
+                <span class="meta-item"> {{ session.messageCount }} messages </span>
               </div>
             </div>
           </div>
-          
+
           <!-- Pagination -->
           <div v-if="totalPages > 1" class="pagination">
-            <button
-              class="btn-page"
-              :disabled="currentPage === 1"
-              @click="prevPage"
-            >
+            <button class="btn-page" :disabled="currentPage === 1" @click="prevPage">
               ← Previous
             </button>
-            <span class="page-info">
-              Page {{ currentPage }} of {{ totalPages }}
-            </span>
-            <button
-              class="btn-page"
-              :disabled="currentPage === totalPages"
-              @click="nextPage"
-            >
+            <span class="page-info"> Page {{ currentPage }} of {{ totalPages }} </span>
+            <button class="btn-page" :disabled="currentPage === totalPages" @click="nextPage">
               Next →
             </button>
           </div>
@@ -390,8 +371,12 @@ watch(() => props.isOpen, (isOpen) => {
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .error-message {

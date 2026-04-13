@@ -52,17 +52,11 @@
   --blue: var(--info);
 
   /* ── Shadows — Layered for sophistication ── */
-  --shadow-sm:
-    0 1px 2px rgba(0, 0, 0, 0.2),
-    0 0 0 0.5px rgba(0, 0, 0, 0.1);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2), 0 0 0 0.5px rgba(0, 0, 0, 0.1);
   --shadow-md:
-    0 2px 4px rgba(0, 0, 0, 0.16),
-    0 4px 12px rgba(0, 0, 0, 0.12),
-    0 0 0 0.5px rgba(0, 0, 0, 0.08);
+    0 2px 4px rgba(0, 0, 0, 0.16), 0 4px 12px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.08);
   --shadow-lg:
-    0 4px 8px rgba(0, 0, 0, 0.12),
-    0 12px 28px rgba(0, 0, 0, 0.2),
-    0 0 0 0.5px rgba(0, 0, 0, 0.06);
+    0 4px 8px rgba(0, 0, 0, 0.12), 0 12px 28px rgba(0, 0, 0, 0.2), 0 0 0 0.5px rgba(0, 0, 0, 0.06);
   --shadow-inset: inset 0 1px 2px rgba(0, 0, 0, 0.2);
 
   /* ── Border Radius — Sharp system ── */
@@ -90,7 +84,7 @@
 }
 
 /* ── Light Mode ── */
-:root[data-theme="light"] {
+:root[data-theme='light'] {
   --bg: #f8f9fa;
   --bg-elevated: #ffffff;
   --bg-hover: #f0f1f3;
@@ -124,30 +118,28 @@
   --info: #2563eb;
   --info-subtle: rgba(37, 99, 235, 0.08);
 
-  --shadow-sm:
-    0 1px 2px rgba(0, 0, 0, 0.06),
-    0 0 0 0.5px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06), 0 0 0 0.5px rgba(0, 0, 0, 0.04);
   --shadow-md:
-    0 2px 4px rgba(0, 0, 0, 0.04),
-    0 4px 12px rgba(0, 0, 0, 0.06),
-    0 0 0 0.5px rgba(0, 0, 0, 0.03);
+    0 2px 4px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.06), 0 0 0 0.5px rgba(0, 0, 0, 0.03);
   --shadow-lg:
-    0 4px 8px rgba(0, 0, 0, 0.04),
-    0 12px 28px rgba(0, 0, 0, 0.08),
-    0 0 0 0.5px rgba(0, 0, 0, 0.03);
+    0 4px 8px rgba(0, 0, 0, 0.04), 0 12px 28px rgba(0, 0, 0, 0.08), 0 0 0 0.5px rgba(0, 0, 0, 0.03);
   --shadow-inset: inset 0 1px 2px rgba(0, 0, 0, 0.04);
 
   color-scheme: light;
 }
 
 /* ── Global Reset ── */
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
-html, body, #app {
+html,
+body,
+#app {
   height: 100%;
 }
 
@@ -161,15 +153,35 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-a { color: inherit; text-decoration: none; }
-button { cursor: pointer; font-family: inherit; }
-input, select, textarea { font-family: inherit; }
+a {
+  color: inherit;
+  text-decoration: none;
+}
+button {
+  cursor: pointer;
+  font-family: inherit;
+}
+input,
+select,
+textarea {
+  font-family: inherit;
+}
 
 /* ── Scrollbar ── */
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: var(--radius-full); }
-::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+}
 
 /* ── Selection ── */
 ::selection {
