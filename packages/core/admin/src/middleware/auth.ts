@@ -36,28 +36,22 @@ function resolveToken(): string {
   return token;
 }
 
-let cachedToken: string | null = null;
-
-function getToken(): string {
-  if (!cachedToken) {
-    cachedToken = resolveToken();
-  }
-  return cachedToken;
-}
-
 /** Validate a token against the admin token. */
 export function verifyToken(provided: string): boolean {
-  return safeCompare(provided, getToken());
+  return safeCompare(provided, resolveToken());
 }
 
 export function authMiddleware(): MiddlewareHandler {
+  // Resolve token once per middleware instance at creation time
+  const token = resolveToken();
+
   return async (c, next) => {
     const authHeader = c.req.header('Authorization');
     const cookieToken = getCookie(c, 'nachos_admin_token');
 
     const provided = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : cookieToken;
 
-    if (!provided || !verifyToken(provided)) {
+    if (!provided || !safeCompare(provided, token)) {
       return c.json({ error: 'Unauthorized' }, 401);
     }
 

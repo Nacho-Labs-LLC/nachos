@@ -197,11 +197,13 @@ export class WebChatRPCService {
     // Listen for outbound messages from the gateway and forward to the SSE stream
     const outboundSub = await this.bus.subscribe(
       TOPICS.channel.outbound('webchat'),
-      async (outboundEnvelope: MessageEnvelope<{
-        sessionId?: string;
-        conversationId?: string;
-        content?: { text?: string; format?: string };
-      }>) => {
+      async (
+        outboundEnvelope: MessageEnvelope<{
+          sessionId?: string;
+          conversationId?: string;
+          content?: { text?: string; format?: string };
+        }>
+      ) => {
         try {
           const outbound = outboundEnvelope.payload;
           const sessionId = outbound.sessionId;
@@ -230,7 +232,10 @@ export class WebChatRPCService {
           };
 
           this.bus.publish(`nachos.webchat.messages.${resolvedSessionId}`, streamedMessage);
-          logger.debug({ sessionId: resolvedSessionId }, 'Forwarded assistant response to webchat stream');
+          logger.debug(
+            { sessionId: resolvedSessionId },
+            'Forwarded assistant response to webchat stream'
+          );
         } catch (err) {
           logger.error({ err }, 'Error handling webchat outbound message');
         }
