@@ -1,0 +1,22 @@
+# Nachos Skill Binary Manifest
+#
+# Declares how to install CLI binaries required by skills.
+# The gateway Dockerfile processes this file at build time.
+#
+# Format:
+#   <type>  <binary-name>  <install-target>
+#
+# Types:
+#   npm   - npm install -g <install-target>
+#   go    - CGO_ENABLED=0 go install <install-target>
+#
+# Skills that are API-only (figma, jira, composio-*) or use embedded
+# tools (agent-browser via Playwright) don't need entries here.
+
+# npm-based skills
+npm   summarize   @steipete/summarize@0.11.1
+
+# Go-based skills
+go    gifgrep     github.com/steipete/gifgrep/cmd/gifgrep@latest
+go    goplaces    github.com/steipete/goplaces/cmd/goplaces@latest
+go    gog         github.com/steipete/gogcli/cmd/gog@latest

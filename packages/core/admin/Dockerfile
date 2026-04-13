@@ -40,7 +40,8 @@ RUN pnpm build:backend
 FROM node:22-alpine AS runtime
 
 # Install Docker CLI for container management (services + logs pages)
-RUN apk add --no-cache docker-cli
+# Python3 + build tools needed for better-sqlite3 native compilation
+RUN apk add --no-cache docker-cli python3 make gcc g++ musl-dev
 
 # Create non-root user and add to docker group for socket access
 # Docker socket GID varies by host — use DOCKER_GID build arg (default 999)

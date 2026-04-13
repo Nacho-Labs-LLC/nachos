@@ -1,3 +1,21 @@
+# ─── Stage: Go skill binaries ────────────────────────────────────────────────
+# Compiles Go-based CLI tools declared in skills/Skillfile.
+# Binaries are statically linked (CGO_ENABLED=0) for Alpine/Debian compat.
+FROM golang:1.25-bookworm AS go-skills
+
+COPY skills/Skillfile /tmp/Skillfile
+
+# Install all Go-based skills from the Skillfile
+# Create output dir so COPY --from never fails on empty glob
+RUN mkdir -p /out/skills && \
+    set -e; \
+    grep '^go ' /tmp/Skillfile | while read -r _type _bin target; do \
+      echo "Installing Go skill: $_bin from $target"; \
+      CGO_ENABLED=0 go install "$target"; \
+    done && \
+    cp /go/bin/* /out/skills/ 2>/dev/null || true
+
+# ─── Stage: Config builder ──────────────────────────────────────────────────
 FROM node:22-slim AS config
 
 WORKDIR /app
@@ -39,11 +57,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV CHROME_BIN=/usr/bin/chromium
 ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
 
-# Go-based skill CLI tools require Go 1.25+ (unavailable in Debian bookworm).
-# Install via separate go binary if needed; omitted here for Debian compat.
+# Copy pre-built Go skill binaries from builder stage
+COPY --from=go-skills /out/skills/ /usr/local/bin/skills/
 
-# Install Node-based skill CLI tools
-RUN npm install -g @steipete/summarize@0.11.1
+# Install npm-based skill CLI tools from Skillfile
+COPY skills/Skillfile /tmp/Skillfile
+RUN set -e; \
+    grep '^npm ' /tmp/Skillfile | while read -r _type _bin target; do \
+      echo "Installing npm skill: $_bin from $target"; \
+      npm install -g "$target"; \
+    done && rm /tmp/Skillfile
 
 # Install Claude Code CLI for agent_exec capability
 RUN npm install -g @anthropic-ai/claude-code
@@ -52,10 +75,7 @@ RUN npm install -g @anthropic-ai/claude-code
 RUN groupadd -g 1001 nachos && \
     useradd -u 1001 -g nachos -s /bin/sh -m nachos
 
-# Go binaries dir (placeholder)
-RUN mkdir -p /usr/local/bin/skills
-
-# Update PATH for nachos user
+# Skill binaries on PATH
 ENV PATH="/usr/local/bin/skills:${PATH}"
 
 WORKDIR /app
@@ -84,8 +104,8 @@ RUN pnpm install --frozen-lockfile
 # Copy remaining source code
 COPY --chown=nachos:nachos . .
 
-# Create skills directory (prevents scandir error at runtime)
-RUN mkdir -p /app/packages/skills
+# Ensure skills directory exists (SKILL.md files copied via `COPY . .` above)
+RUN mkdir -p /app/skills
 
 # Copy prebuilt config dist from shared builder
 COPY --from=config --chown=nachos:nachos /app/packages/shared/config/dist ./packages/shared/config/dist

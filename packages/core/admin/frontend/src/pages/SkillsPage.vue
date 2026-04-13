@@ -20,6 +20,7 @@ async function load() {
 
 function statusColor(status: string): string {
   if (status === 'active') return 'var(--ok)';
+  if (status === 'unavailable') return 'var(--warning, #e6a700)';
   if (status === 'denied') return 'var(--danger)';
   if (status === 'disabled') return 'var(--text-muted)';
   return 'var(--text-muted)';

@@ -78,7 +78,7 @@ export interface SessionsResponse {
 export interface SkillEntry {
   name: string;
   description: string;
-  status: 'active' | 'denied' | 'disabled';
+  status: 'active' | 'denied' | 'disabled' | 'unavailable';
   reason?: string;
   homepage?: string;
 }
