@@ -203,8 +203,6 @@ services:
     build:
       context: .
       dockerfile: packages/core/admin/Dockerfile
-      args:
-        DOCKER_GID: ${DOCKER_GID:-999}
     image: nachos-admin:latest
     restart: unless-stopped
     depends_on:

@@ -284,8 +284,6 @@ services:
     build:
       context: .
       dockerfile: packages/core/admin/Dockerfile
-      args:
-        DOCKER_GID: ${DOCKER_GID:-999}
     image: nachos-admin:dev
     restart: unless-stopped
     depends_on:

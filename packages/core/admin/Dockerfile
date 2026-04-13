@@ -41,18 +41,19 @@ FROM node:22-alpine AS runtime
 
 # Install Docker CLI for container management (services + logs pages)
 # Python3 + build tools needed for better-sqlite3 native compilation
-RUN apk add --no-cache docker-cli python3 make gcc g++ musl-dev
+# su-exec for dropping privileges in entrypoint
+RUN apk add --no-cache docker-cli python3 make gcc g++ musl-dev su-exec
 
-# Create non-root user and add to docker group for socket access
-# Docker socket GID varies by host — use DOCKER_GID build arg (default 999)
-ARG DOCKER_GID=999
-RUN addgroup -g 1001 nachos && adduser -D -u 1001 -G nachos nachos \
- && (addgroup -g ${DOCKER_GID} docker 2>/dev/null || true) \
- && (adduser nachos docker 2>/dev/null || true)
+# Create non-root user
+RUN addgroup -g 1001 nachos && adduser -D -u 1001 -G nachos nachos
 
 WORKDIR /app
 RUN chown nachos:nachos /app
 RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# Copy entrypoint script (runs as root to fix docker socket perms, then drops to nachos)
+COPY packages/core/admin/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 USER nachos
 
@@ -81,4 +82,8 @@ HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
   CMD node -e "fetch('http://localhost:8082/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 WORKDIR /app/packages/core/admin
+
+# Entrypoint runs as root to fix Docker socket permissions, then drops to nachos
+USER root
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", "dist/server.js"]
