@@ -37,6 +37,7 @@ const messageContainer = ref<HTMLElement | null>(null);
 const showHistory = ref(false);
 const loadingMore = ref(false);
 const hasMoreMessages = ref(false);
+const autoScroll = ref(localStorage.getItem('webchat-autoscroll') !== 'false');
 
 let messageSubscription: MessageSubscription | null = null;
 
@@ -114,7 +115,7 @@ async function handleSessionSelected(newSessionId: string) {
     currentStatus.value = null;
 
     await nextTick();
-    scrollToBottom();
+    scrollToBottom(true);
 
     // Broadcast to other tabs
     sync.broadcast('session-switched', newSessionId);
@@ -288,10 +289,24 @@ async function handleArchiveSession() {
   }
 }
 
-function scrollToBottom() {
-  if (messageContainer.value) {
+function scrollToBottom(force = false) {
+  if (messageContainer.value && (force || autoScroll.value)) {
     messageContainer.value.scrollTop = messageContainer.value.scrollHeight;
   }
+}
+
+function toggleAutoScroll() {
+  autoScroll.value = !autoScroll.value;
+  localStorage.setItem('webchat-autoscroll', String(autoScroll.value));
+  if (autoScroll.value) {
+    scrollToBottom(true);
+  }
+}
+
+function isNearBottom(): boolean {
+  if (!messageContainer.value) return true;
+  const { scrollTop, scrollHeight, clientHeight } = messageContainer.value;
+  return scrollHeight - scrollTop - clientHeight < 80;
 }
 
 function formatTime(timestamp: string): string {
@@ -312,6 +327,19 @@ function handleScroll() {
   // Check if scrolled to top
   if (messageContainer.value.scrollTop === 0 && hasMoreMessages.value) {
     loadMoreMessages();
+  }
+
+  // Auto-toggle: disable when scrolling up, re-enable when near bottom
+  if (isNearBottom()) {
+    if (!autoScroll.value) {
+      autoScroll.value = true;
+      localStorage.setItem('webchat-autoscroll', 'true');
+    }
+  } else {
+    if (autoScroll.value) {
+      autoScroll.value = false;
+      localStorage.setItem('webchat-autoscroll', 'false');
+    }
   }
 }
 
@@ -451,6 +479,16 @@ onUnmounted(() => {
           <span v-else-if="currentStatus.type === 'done'" class="status-text"> ✓ Done </span>
         </div>
       </div>
+
+      <!-- Auto-scroll toggle -->
+      <button
+        class="btn-autoscroll"
+        :class="{ active: autoScroll }"
+        :title="autoScroll ? 'Auto-scroll enabled' : 'Auto-scroll disabled — click or scroll to bottom to re-enable'"
+        @click="toggleAutoScroll"
+      >
+        {{ autoScroll ? '⬇ Auto-scroll' : '⬇ Scroll paused' }}
+      </button>
 
       <!-- Input -->
       <div class="input-container">
@@ -763,6 +801,31 @@ onUnmounted(() => {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+.btn-autoscroll {
+  align-self: center;
+  padding: 4px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.btn-autoscroll:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.btn-autoscroll.active {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .input-container {
