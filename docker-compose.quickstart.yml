@@ -123,7 +123,8 @@ services:
       <<: *common-env
       PORT: '3001'
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      ANTHROPIC_SETUP_TOKEN: ${ANTHROPIC_SETUP_TOKEN:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      LITELLM_API_KEY: ${LITELLM_API_KEY:-}
       NACHOS_CONFIG: /app/nachos.toml
     volumes:
       - ./nachos.toml:/app/nachos.toml:ro
@@ -178,8 +179,8 @@ services:
       BRAVE_API_KEY: ${BRAVE_API_KEY:-}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
     volumes:
-      - ./data/gateway:/app/data
-      - ./state:/app/state
+      - ${NACHOS_DATA_DIR:-./data}/gateway:/app/data
+      - ${NACHOS_DATA_DIR:-./data}/state:/app/state
       - ./nachos.toml:/app/nachos.toml:ro
       - nachos-logs:/var/log/nachos:rw
     healthcheck:
@@ -229,8 +230,8 @@ services:
       NACHOS_ADMIN_TOKEN: ${NACHOS_ADMIN_TOKEN:-}
       REDIS_URL: redis://:${REDIS_PASSWORD:?Required}@redis:6379
     volumes:
-      - ./data/admin:/app/state
-      - ./data/gateway:/app/gateway-state:ro
+      - ${NACHOS_DATA_DIR:-./data}/admin:/app/state
+      - ${NACHOS_DATA_DIR:-./data}/gateway:/app/gateway-state:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./nachos.toml:/app/nachos.toml:ro
     healthcheck:
@@ -271,7 +272,7 @@ services:
       CHANNEL_DISCORD_MENTION_GATING: ${CHANNEL_DISCORD_MENTION_GATING:-false}
       CHANNEL_DISCORD_DM_ALLOWLIST: ${CHANNEL_DISCORD_DM_ALLOWLIST:-}
     volumes:
-      - ./data/channels:/app/state
+      - ${NACHOS_DATA_DIR:-./data}/channels:/app/state
       - ./nachos.toml:/app/nachos.toml:ro
     logging: *default-logging
 
@@ -297,7 +298,7 @@ services:
       TOOL_MODE: read
       ALLOWED_PATHS: /workspace
     volumes:
-      - ./workspace:/workspace:ro
+      - ${NACHOS_WORKSPACE_DIR:-./workspace}:/workspace:ro
     tmpfs:
       - /tmp:noexec,nosuid,size=10m
     logging: *default-logging
@@ -324,7 +325,7 @@ services:
       ALLOWED_PATHS: /workspace
       MAX_FILE_SIZE: 10MB
     volumes:
-      - ./workspace:/workspace:rw
+      - ${NACHOS_WORKSPACE_DIR:-./workspace}:/workspace:rw
     tmpfs:
       - /tmp:noexec,nosuid,size=100m
     logging: *default-logging
