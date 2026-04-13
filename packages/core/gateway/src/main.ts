@@ -14,6 +14,7 @@ import {
   validateConfig as validateGatewayConfig,
 } from './index.js';
 import { NatsBusAdapter } from './router.js';
+import { WebChatRPCService } from './services/webchat-rpc-service.js';
 import type { StateLayerConfig } from '@nachos/state';
 import type { ContextManagementCommandsConfig, RuntimeConfig } from '@nachos/config';
 import path from 'node:path';
@@ -218,6 +219,10 @@ async function start(): Promise<void> {
   });
 
   await gateway.start();
+
+  // Start WebChat RPC service for admin UI webchat
+  const webchatRpc = new WebChatRPCService(busClient, gateway.getSessionsStore());
+  await webchatRpc.start();
 }
 
 function mapContextManagement(config: RuntimeConfig['context_management']) {

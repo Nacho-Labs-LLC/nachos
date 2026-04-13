@@ -21,7 +21,7 @@ import { getRetryConfig, retryWithBackoff } from './retry.js';
 
 const NATS_URL = process.env.NATS_URL || 'nats://localhost:4222';
 const INSTANCE_ID = process.env.INSTANCE_ID || 'llm-proxy';
-const CONFIG_PATH = process.env.NACHOS_CONFIG;
+const CONFIG_PATH = process.env.NACHOS_CONFIG_PATH || process.env.NACHOS_CONFIG;
 
 const config = loadAndValidateConfig({ configPath: CONFIG_PATH });
 const llmConfig = config.llm;

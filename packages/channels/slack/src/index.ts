@@ -194,7 +194,7 @@ export class SlackChannelAdapter implements ChannelAdapter {
       const response = await this.app.client.chat.postMessage({
         channel: message.conversationId,
         text: message.content.text,
-        thread_ts: message.replyToMessageId,
+        ...(message.replyToMessageId ? { thread_ts: message.replyToMessageId } : {}),
       });
 
       const attachments = message.content.attachments ?? [];
@@ -207,12 +207,19 @@ export class SlackChannelAdapter implements ChannelAdapter {
           if (typeof data === 'string') {
             const buffer = this.decodeAttachmentData(data);
             if (buffer) {
-              await this.app.client.files.upload({
-                channels: message.conversationId,
-                file: buffer,
-                filename: attachment.name ?? `attachment-${i + 1}`,
-                thread_ts: message.replyToMessageId,
-              });
+              const uploadArgs = message.replyToMessageId
+                ? {
+                    channels: message.conversationId,
+                    file: buffer,
+                    filename: attachment.name ?? `attachment-${i + 1}`,
+                    thread_ts: message.replyToMessageId,
+                  }
+                : {
+                    channels: message.conversationId,
+                    file: buffer,
+                    filename: attachment.name ?? `attachment-${i + 1}`,
+                  };
+              await this.app.client.files.upload(uploadArgs);
               continue;
             }
 
@@ -220,7 +227,7 @@ export class SlackChannelAdapter implements ChannelAdapter {
               await this.app.client.chat.postMessage({
                 channel: message.conversationId,
                 text: `Attachment: ${data}`,
-                thread_ts: message.replyToMessageId,
+                ...(message.replyToMessageId ? { thread_ts: message.replyToMessageId } : {}),
               });
             }
           }

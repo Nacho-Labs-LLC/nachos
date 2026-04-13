@@ -24,7 +24,7 @@
     "@nachos/config": "workspace:*",
     "@nachos/types": "workspace:*",
     "@nachos/utils": "workspace:*",
-    "@slack/bolt": "^3.14.0"
+    "@slack/bolt": "^4.7.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",

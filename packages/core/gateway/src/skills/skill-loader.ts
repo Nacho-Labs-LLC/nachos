@@ -107,7 +107,9 @@ function parseFrontmatter(content: string): {
     const metadataMatch = line.match(/^metadata:\s*(.+)$/);
     if (metadataMatch && metadataMatch[1]) {
       try {
-        const metaObj = JSON.parse(metadataMatch[1]);
+        // Normalize single-quoted JSON (YAML-style) to double quotes for JSON.parse
+        const normalized = metadataMatch[1].replace(/'/g, '"');
+        const metaObj = JSON.parse(normalized);
         if (metaObj.nachos) {
           metadata.nachos = metaObj.nachos;
         }
