@@ -14,7 +14,7 @@ export function createAdapterRegistry(config: LLMConfig): AdapterRegistry {
   const adapters = new Map<string, LLMProviderAdapter>();
 
   adapters.set('anthropic', new AnthropicAdapter());
-  adapters.set('openai', new OpenAIAdapter());
+  adapters.set('openai', new OpenAIAdapter(config.base_url));
   adapters.set('ollama', new OllamaAdapter(config.base_url));
 
   // Bedrock adapter uses region from config, then falls back to environment variables.
