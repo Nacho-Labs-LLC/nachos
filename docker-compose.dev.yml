@@ -135,6 +135,17 @@ services:
       BROWSER_ALLOWED_DOMAINS: ${BROWSER_ALLOWED_DOMAINS:-""}
       BROWSER_HEADLESS: ${BROWSER_HEADLESS:-true}
       BROWSER_TIMEOUT_MS: ${BROWSER_TIMEOUT_MS:-30000}
+      # AWS Bedrock credentials (for claude CLI / summarize --cli claude)
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      # Skill API keys
+      JIRA_EMAIL: ${JIRA_EMAIL:-}
+      JIRA_API_TOKEN: ${JIRA_API_TOKEN:-}
+      JIRA_DOMAIN: ${JIRA_DOMAIN:-}
+      FIGMA_ACCESS_TOKEN: ${FIGMA_ACCESS_TOKEN:-}
+      # Web search (Brave Search API)
+      BRAVE_API_KEY: ${BRAVE_API_KEY:-}
+      # Summarize skill: route through claude CLI (Bedrock-backed)
+      SUMMARIZE_MODEL: cli/claude
     shm_size: 256m
     volumes:
       - ${NACHOS_DATA_DIR:-./data}/gateway:/app/data
@@ -143,6 +154,8 @@ services:
       - ./packages/core/gateway/src:/app/packages/core/gateway/src:ro
       # Docker socket for container management in permissive mode
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      # AWS credentials for claude CLI and Bedrock-backed skills
+      - ~/.aws:/home/nachos/.aws:ro
       # Nachos source for self-modification
       - .:/nachos-src:rw
       # Log volume for debugging
