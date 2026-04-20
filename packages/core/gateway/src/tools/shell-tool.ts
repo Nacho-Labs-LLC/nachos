@@ -316,8 +316,16 @@ const DEFAULT_SKILL_TOOLS: SkillToolConfig[] = [
 /**
  * Permissive-only skill tools — write-capable commands gated by security mode.
  * These are ONLY available when securityMode is 'permissive'.
+ *
+ * The gateway container is already sandboxed (network isolation, non-root user,
+ * no host mounts beyond read-only credentials), so permissive mode grants broad
+ * shell access for effective tool use within that sandbox.
  */
 const PERMISSIVE_SKILL_TOOLS: SkillToolConfig[] = [
+  // Shell interpreters — enables piping, subshells, and script execution
+  { bin: 'bash', group: 'shell', defaultTimeout: 300000 },
+  { bin: 'sh', group: 'shell', defaultTimeout: 300000 },
+
   // Git write operations (permissive only)
   {
     bin: 'git',
@@ -357,10 +365,19 @@ const PERMISSIVE_SKILL_TOOLS: SkillToolConfig[] = [
   { bin: 'rm', group: 'file-manipulation', defaultTimeout: 30000 },
   { bin: 'touch', group: 'file-manipulation', defaultTimeout: 30000 },
   { bin: 'chmod', group: 'file-manipulation', defaultTimeout: 30000 },
+  { bin: 'chown', group: 'file-manipulation', defaultTimeout: 30000 },
   { bin: 'ln', group: 'file-manipulation', defaultTimeout: 30000 },
   { bin: 'tee', group: 'file-manipulation', defaultTimeout: 30000 },
+  { bin: 'echo', group: 'file-manipulation', defaultTimeout: 5000 },
+  { bin: 'printf', group: 'file-manipulation', defaultTimeout: 5000 },
+  { bin: 'cat', group: 'file-manipulation', defaultTimeout: 30000 },
 
-  // Docker compose operations (permissive only)
+  // Database tools
+  { bin: 'psql', group: 'database', defaultTimeout: 60000 },
+  { bin: 'mysql', group: 'database', defaultTimeout: 60000 },
+  { bin: 'sqlite3', group: 'database', defaultTimeout: 60000 },
+
+  // Docker full operations (permissive only)
   {
     bin: 'docker',
     group: 'docker',
@@ -378,11 +395,35 @@ const PERMISSIVE_SKILL_TOOLS: SkillToolConfig[] = [
       'run',
       'exec',
       'stop',
+      'start',
       'restart',
       'compose',
+      'cp',
+      'network',
+      'volume',
     ],
     defaultTimeout: 300000,
   },
+
+  // Process management
+  { bin: 'kill', group: 'process-mgmt', defaultTimeout: 5000 },
+  { bin: 'pkill', group: 'process-mgmt', defaultTimeout: 5000 },
+
+  // Text editors (non-interactive, for scripting)
+  { bin: 'sed', group: 'text-processing', defaultTimeout: 30000 },
+  { bin: 'awk', group: 'text-processing', defaultTimeout: 30000 },
+
+  // Networking
+  { bin: 'ssh', group: 'network', defaultTimeout: 60000 },
+  { bin: 'scp', group: 'network', defaultTimeout: 120000 },
+
+  // Package management (inside container)
+  { bin: 'apk', group: 'package-mgmt', defaultTimeout: 120000 },
+  { bin: 'apt', group: 'package-mgmt', defaultTimeout: 120000 },
+  { bin: 'apt-get', group: 'package-mgmt', defaultTimeout: 120000 },
+
+  // Claude CLI
+  { bin: 'claude', group: 'ai', defaultTimeout: 300000 },
 ];
 
 /**

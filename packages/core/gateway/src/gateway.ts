@@ -94,6 +94,7 @@ import { SandboxManager } from './sandbox/sandbox-manager.js';
 import { coerceLLMContentText } from './utils/parsing.js';
 import {
   resolveAgentId,
+  setBotAgentId,
   buildStateContext,
   isSubagentSession,
   normalizeToolName,
@@ -302,6 +303,11 @@ export class Gateway {
     this.toolsConfig = options.toolsConfig;
     this.skillsConfig = options.skillsConfig;
     this.nachosConfig = options.nachosConfig;
+    // Use the bot name as a shared agent ID so all channels/users share one
+    // identity, memory, and preference set.
+    if (options.nachosConfig?.nachos?.name) {
+      setBotAgentId(options.nachosConfig.nachos.name);
+    }
     this.subagentToolPolicy = options.subagentToolPolicy;
     this.subagentWorkspaceRoot = resolveSubagentWorkspaceRoot(options.workspaceDir);
     this.contextCommandConfig = options.contextCommandConfig;
