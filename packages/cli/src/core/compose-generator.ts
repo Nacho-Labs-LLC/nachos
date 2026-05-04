@@ -130,7 +130,7 @@ const SECURITY_MODE_MAX_TIER: Record<string, number> = {
 /**
  * Generate docker-compose.yml structure from Nachos configuration
  */
-export function generateComposeFile(config: NachosConfig, projectRoot: string): ComposeFile {
+function generateComposeFile(config: NachosConfig, projectRoot: string): ComposeFile {
   try {
     const compose: ComposeFile = {
       networks: buildNetworks(),
@@ -1368,7 +1368,7 @@ function generatePluginServices(
  * @param projectRoot Project root directory
  * @returns Path to generated compose file
  */
-export function writeComposeFile(compose: ComposeFile, projectRoot: string): string {
+function writeComposeFile(compose: ComposeFile, projectRoot: string): string {
   try {
     const composePath = join(projectRoot, 'docker-compose.generated.yml');
     const yamlContent = stringify(compose, {

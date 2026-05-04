@@ -118,7 +118,7 @@ export class OutputFormatter {
 /**
  * Check if quiet mode is enabled (--quiet flag)
  */
-export function isQuiet(): boolean {
+function isQuiet(): boolean {
   return process.env.NACHOS_QUIET === '1';
 }
 

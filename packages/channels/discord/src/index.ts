@@ -383,12 +383,28 @@ export class DiscordChannelAdapter implements ChannelAdapter {
       const guildId = message.guildId;
       if (!guildId) return;
       const serverConfig = findServerConfig(channelConfig.servers, guildId);
-      if (!serverConfig) return;
+      if (!serverConfig) {
+        logger.debug(
+          { guildId, servers: channelConfig.servers },
+          'No server config found for guild'
+        );
+        return;
+      }
       const groupPolicy = resolveGroupPolicy(serverConfig);
 
       const mentionPatterns = this.botUserId
         ? [`<@${this.botUserId}>`, `<@!${this.botUserId}>`]
         : [];
+      logger.debug(
+        {
+          userId,
+          guildId,
+          mentionGating: groupPolicy.mentionGating,
+          userAllowlist: groupPolicy.userAllowlist,
+          botUserId: this.botUserId,
+        },
+        'shouldAllowGroupMessage check'
+      );
       const allowed = shouldAllowGroupMessage({
         channelId: message.channelId,
         userId,
@@ -399,7 +415,10 @@ export class DiscordChannelAdapter implements ChannelAdapter {
         mentionPatterns,
       });
 
-      if (!allowed) return;
+      if (!allowed) {
+        logger.debug({ userId, allowed }, 'Message filtered, dropping');
+        return;
+      }
     }
 
     logger.debug({ userId }, 'Message passed filters, publishing inbound');
