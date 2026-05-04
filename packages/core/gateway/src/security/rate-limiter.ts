@@ -92,7 +92,7 @@ export class MemoryRateLimitStore implements RateLimitStore {
   }
 }
 
-export class RedisRateLimitStore implements RateLimitStore {
+class RedisRateLimitStore implements RateLimitStore {
   private client: RedisClientType;
   // See RedisSessionStateStore for the rationale: connect() must be called
   // exactly once. node-redis v4 handles reconnection and command queueing

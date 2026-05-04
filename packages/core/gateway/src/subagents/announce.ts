@@ -5,7 +5,7 @@
 import type { LLMMessageType, LLMResponseType } from '@nachos/types';
 import type { SubagentRunRecord, SubagentResult } from './types.js';
 
-export const DEFAULT_ANNOUNCE_TEMPLATE = [
+const DEFAULT_ANNOUNCE_TEMPLATE = [
   'You are reporting a subagent run back to the requester.',
   'Return a concise update using this exact structure:',
   'Status: <success|failed|cancelled>',
